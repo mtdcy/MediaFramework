@@ -676,38 +676,50 @@ namespace mtdcy {
     };
 
     ////////////////////////////////////////////////////////////////////////////////
-    MediaSession::MediaSession(const Message& format, const Message& options) :
-        mDecodeLooper(NULL), mRenderLooper(NULL),
-        mDecodeSession(NULL), mRenderSession(NULL)
-    {
+    sp<MediaSession> MediaSession::Create(const Message& format, const Message& options) {
         CHECK_TRUE(format.contains(kKeyFormat));
-        mID = (eCodecFormat)format.findInt32(kKeyFormat);
-        eCodecType type = GetCodecType(mID);
+        eCodecFormat id = (eCodecFormat)format.findInt32(kKeyFormat);
+        eCodecType type = GetCodecType(id);
         
         bool clock = options.contains("Clock");
         
-        String name = String::format("%d", mID);
+        String name = String::format("%d", id);
         
-        mDecodeLooper = new Looper(name + "_decode");
-        mDecodeLooper->loop();
-        mDecodeSession = new DecodeSession(mDecodeLooper, format, options);
+        sp<Looper> lp1 = new Looper(name + "_decode");
+        lp1->loop();
+        sp<DecodeSession> ds = new DecodeSession(lp1, format, options);
         
-        if (mDecodeSession->mCodec == NULL) {
+        if (ds->mCodec == NULL) {
             ERROR("failed to initial decoder");
-            mDecodeSession.clear();
+            return NULL;
         }
         
-        Message render = mDecodeSession->mCodec->formats();
-        
-        mRenderLooper = mDecodeLooper;
+        sp<Looper> lp2 = lp1;
         if (clock) {
-            mRenderLooper = new Looper(name + "_render");
-            mRenderLooper->loop();
+            lp2 = new Looper(name + "_render");
+            lp2->loop();
         }
         
         Message dup = options;
-        dup.set<sp<RequestFrameEvent> >("RequestFrameEvent", mDecodeSession);
-        mRenderSession = new RenderSession(mRenderLooper, mID, render, dup);
+        dup.set<sp<RequestFrameEvent> >("RequestFrameEvent", ds);
+        sp<RenderSession> rs = new RenderSession(lp2, id,
+                                           ds->mCodec->formats(),
+                                           dup);
+        
+        // test if RenderSession if valid
+        if (rs->mOut == NULL && rs->mExternalRenderer == NULL) {
+            ERROR("failed to initial render");
+            return NULL;
+        }
+        
+        sp<MediaSession> session = new MediaSession;
+        session->mID = id;
+        session->mDecodeLooper = lp1;
+        session->mRenderLooper = lp2;
+        session->mDecodeSession = ds;
+        session->mRenderSession = rs;
+        
+        return session;
     }
 
     MediaSession::~MediaSession() {
@@ -723,10 +735,6 @@ namespace mtdcy {
         mRenderLooper.clear();
         mDecodeSession.clear();
         mRenderSession.clear();
-    }
-
-    status_t MediaSession::status() const {
-        return mDecodeSession != NULL && mRenderSession != NULL ? OK : NO_INIT;
     }
     
     struct MultiStatusEvent : public StatusEvent {

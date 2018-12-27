@@ -111,7 +111,7 @@ namespace mtdcy {
     class MediaSession {
         public:
             /**
-             * create a session packet stream.
+             * create a session for packet stream.
              * about formats, @see MediaExtractor
              * about options:
              *  "PacketRequestEvent"    - [sp<PacketRequestEvent>]  - mandatory
@@ -127,13 +127,9 @@ namespace mtdcy {
              * @param formats   formats of packet stream. @see MediaExtractor
              * @param options   option and parameter for this session, see notes before
              */
-            MediaSession(const Message& formats, const Message& options);
+            static sp<MediaSession> Create(const Message& formats, const Message& options);
+        
             ~MediaSession();
-
-            /**
-             * get status of this session
-             */
-            status_t    status() const;
 
             /**
              * prepare codec and renderer, and other context. must
@@ -162,6 +158,7 @@ namespace mtdcy {
             sp<RenderSession>   mRenderSession;
 
         private:
+            MediaSession() { }
             DISALLOW_EVILS(MediaSession);
     };
 

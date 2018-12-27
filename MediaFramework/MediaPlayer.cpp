@@ -213,9 +213,8 @@ namespace mtdcy {
                                         mClock->getClock());
             }
 
-            sp<MediaSession> session = new MediaSession(formats, options);
-            status_t st = session->status();
-            if (st != OK) {
+            sp<MediaSession> session = MediaSession::Create(formats, options);
+            if (session == NULL) {
                 ERROR("create session for %s[%zu] failed", url.c_str(), i);
                 continue;
             }
