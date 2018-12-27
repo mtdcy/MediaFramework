@@ -60,8 +60,9 @@ namespace mtdcy {
      */
     struct PacketRequestPayload {
         eModeReadType           mode;   ///< read mode, @see eModeReadType
-        MediaTime               ts;     ///< timestamp in us
-        PacketReadyEvent *      event;  ///< @see PacketReadyEvent
+        MediaTime               ts;     ///< timestamp of the packet
+        size_t                  number; ///< number packets to request
+        sp<PacketReadyEvent>    event;  ///< event for return the packet, @see PacketReadyEvent
     };
     typedef Event<PacketRequestPayload> PacketRequestEvent;
 
@@ -74,7 +75,12 @@ namespace mtdcy {
     /**
      * For pull frames from frame source
      */
-    typedef Event<MediaTime>        RequestFrameEvent;
+    struct FrameRequestPayload {
+        MediaTime               ts;     ///< timestamp of the frame
+        size_t                  number; ///< number frames to request
+        sp<FrameReadyEvent>     event;  ///< event for return the frame, @see FrameReadyEvent
+    };
+    typedef Event<FrameRequestPayload>  RequestFrameEvent;
 
     /**
      * For update render position to target.

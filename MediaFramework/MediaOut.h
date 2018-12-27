@@ -75,7 +75,7 @@ namespace mtdcy {
          * get information of this output device
          * @return return message reference of this output device.
          */
-        virtual const Message&  formats() const = 0;
+        virtual Message         formats() const = 0;
         /**
          * configure this output device
          * @param options   option and parameter

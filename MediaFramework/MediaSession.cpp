@@ -62,8 +62,6 @@ namespace mtdcy {
     
     struct  MediaSession::DecodeSession : public SessionEvent, public RequestFrameEvent, public PacketReadyEvent {
         using SessionEvent::fire;
-        // set by MediaSession
-        sp<FrameReadyEvent>     mFrameReadyEvent;
         // external static context
         sp<PacketRequestEvent>  mSource;
         eCodecFormat            mID;
@@ -74,10 +72,9 @@ namespace mtdcy {
         // TODO: clock for decoder, handle late frames
         List<sp<MediaPacket> >  mInputQueue;
         bool                    mInputEOS;
-        size_t                  mPendingRequests;
         bool                    mFirstPacket;
-        MediaTime               mStartTime;
         MediaTime               mLastPacketTime;    // test packets in dts order?
+        List<FrameRequestPayload>   mFrameRequests;
         // statistics
         size_t                  mPacketsReceived;
         size_t                  mPacketsComsumed;
@@ -85,11 +82,10 @@ namespace mtdcy {
         
         DecodeSession(const sp<Looper>& lp, const Message& format, const Message& options) :
         SessionEvent(lp), RequestFrameEvent(lp), PacketReadyEvent(lp),
-        mFrameReadyEvent(NULL),
         mSource(NULL), mID(kCodecFormatUnknown),
         mCodec(NULL),
-        mInputEOS(false), mPendingRequests(0),
-        mFirstPacket(true), mStartTime(kTimeBegin),
+        mInputEOS(false),
+        mFirstPacket(true),
         mLastPacketTime(kTimeInvalid),
         // statistics
         mPacketsReceived(0), mPacketsComsumed(0),
@@ -112,7 +108,7 @@ namespace mtdcy {
             }
         }
         
-        void requestPacket() {
+        void requestPacket(const MediaTime& ts = kTimeInvalid) {
             if (mInputEOS) return;
             
             if (mInputQueue.size() >= MAX_COUNT) {
@@ -122,17 +118,17 @@ namespace mtdcy {
             
             DEBUG("codec %zu: request packet", mID);
             PacketRequestPayload payload;
-            if (mFirstPacket) {
-                INFO("codec %zu: request first frame %.3f(s)",
-                     mID, mStartTime.seconds());
+            if (ts != kTimeInvalid) {
+                INFO("codec %zu: request frame at %.3f(s)", ts.seconds());
                 payload.mode = kModeReadClosestSync;
-                payload.ts = mStartTime;
+                payload.ts = ts;
                 mFirstPacket = false;
             } else {
                 payload.mode = kModeReadNext;
-                payload.ts = kTimeInvalid;
+                payload.ts = ts;
             }
-            payload.event = this;
+            
+            payload.event = sp_Retain_this(this);
             mSource->fire(payload);
         }
         
@@ -153,22 +149,18 @@ namespace mtdcy {
             }
             
             // always decode as long as there is packet exists.
-            if (mPendingRequests && (mInputQueue.size() || mInputEOS)) {
-                --mPendingRequests;
+            if (mFrameRequests.size() && (mInputQueue.size() || mInputEOS)) {
                 onDecode();
             }
         }
         
         void onPrepareDecoder(const MediaTime& ts) {
             INFO("codec %zu: prepare decoder", mID);
-            CHECK_TRUE(mFrameReadyEvent != NULL);
             
             // TODO: prepare again without flush
             
             mFirstPacket = true;
-            mStartTime = ts;
             mInputEOS = false;
-            mPendingRequests = 0;
             mInputQueue.clear();
             mLastPacketTime = kTimeBegin;
             
@@ -177,7 +169,7 @@ namespace mtdcy {
             mFramesDecoded = 0;
             
             // request packets
-            requestPacket();
+            requestPacket(ts);
             // -> onPacketReady
             // MIN_COUNT packets
         }
@@ -186,31 +178,35 @@ namespace mtdcy {
             INFO("codec %zu: flush %zu packets", mID, mInputQueue.size());
             
             // remove cmds
-            mPendingRequests = 0;
+            mFrameRequests.clear();
             
             // flush input queue and codec
             mInputQueue.clear();
             mCodec->flush();
         }
         
-        void onRequestFrame() {
+        void onRequestFrame(FrameRequestPayload request) {
             DEBUG("codec %zu: request frames", mID);
+            // TODO: handle ts in request
             
             // case 1: input eos && no packets in queue
             // push eos frame to renderer
             if (mInputEOS && mInputQueue.empty()) {
-                mFrameReadyEvent->fire(NULL);
+                request.event->fire(NULL);
+                return;
+                // NO need to queue the request
             }
+            
+            mFrameRequests.push(request);
             // case 2: packet is ready
             // decode the first packet
-            else if (mInputQueue.size()) {
+            if (mInputQueue.size()) {
                 onDecode();
             }
             // case 3: packet is not ready && not eos
             // request packet + pending a decode request
             else {
                 requestPacket();
-                ++mPendingRequests;
             }
         }
         
@@ -242,18 +238,14 @@ namespace mtdcy {
             // drain from codec
             sp<MediaFrame> frame = mCodec->read();
             
-            if (frame == NULL) {
-                if (mInputEOS) {
-                    DEBUG("codec %zu: codec eos", mID);
-                    // tell renderer about eos
-                    mFrameReadyEvent->fire(NULL);
-                } else {
-                    WARN("codec %zu: is initializing...", mID);
-                    ++mPendingRequests;
-                }
+            FrameRequestPayload& request = *mFrameRequests.begin();
+            if (frame != NULL || mInputEOS) {
+                if (frame != NULL) ++mFramesDecoded;
+                request.event->fire(frame);
+                --request.number;
+                if (request.number == 0) mFrameRequests.pop();
             } else {
-                ++mFramesDecoded;
-                mFrameReadyEvent->fire(frame);
+                WARN("codec %zu: is initializing...", mID);
             }
             
             // prepare input packet for next frame
@@ -266,8 +258,8 @@ namespace mtdcy {
         }
         
         // RequestFrameEvent
-        virtual void onEvent(const MediaTime& ts) {
-            onRequestFrame();
+        virtual void onEvent(const FrameRequestPayload& payload) {
+            onRequestFrame(payload);
         }
         
         // SessionEvent
@@ -288,8 +280,6 @@ namespace mtdcy {
     
     struct MediaSession::RenderSession : public SessionEvent, public FrameReadyEvent {
         using SessionEvent::fire;
-        // set by MediaSession
-        sp<RequestFrameEvent>   mRequestFrameEvent;
         // static context
         eCodecFormat            mID;
         sp<RenderPositionEvent> mPositionEvent;
@@ -297,17 +287,17 @@ namespace mtdcy {
         sp<MediaOut>            mOut;
         sp<ColorConvertor>      mColorConvertor;
         sp<Clock>               mClock;
+        sp<RequestFrameEvent>   mRequestFrameEvent;
+        int64_t                 mLatency;
 
         // render scope context
         List<sp<MediaFrame> >   mOutputQueue;
-        bool                    mRendererRunning;
+        bool                    mRendering;
         bool                    mOutputEOS;
-        bool                    mFirstFrame;
-        MediaTime               mFrameStart;
-        int64_t                 mLatency;
-        MediaTime               mLastFrameTime;
+        MediaTime               mLastFrameTime; // kTimeInvalid => first frame
+        size_t                  mFrameRequests;
         // clock context
-        MediaTime               mLastMediaTime;
+        MediaTime               mLastUpdateTime;
         // statistics
         size_t                  mFramesRenderred;
         
@@ -316,16 +306,15 @@ namespace mtdcy {
                       const Message& format,
                       const Message& options) :
         SessionEvent(lp), FrameReadyEvent(lp),
-        mRequestFrameEvent(NULL),
         // external static context
         mID(id), mPositionEvent(NULL), mExternalRenderer(NULL),
         // internal static context
-        mOut(NULL), mColorConvertor(NULL), mClock(NULL),
+        mOut(NULL), mColorConvertor(NULL), mClock(NULL), mRequestFrameEvent(NULL),
+        mLatency(0),
         // render context
-        mRendererRunning(false), mOutputEOS(false),
-        mFirstFrame(true), mFrameStart(kTimeBegin),
-        mLatency(0), mLastFrameTime(kTimeInvalid),
-        mLastMediaTime(kTimeInvalid),
+        mRendering(false), mOutputEOS(false),
+        mLastFrameTime(kTimeInvalid), mFrameRequests(0),
+        mLastUpdateTime(kTimeInvalid),
         // statistics
         mFramesRenderred(0)
         {
@@ -333,8 +322,12 @@ namespace mtdcy {
                 mPositionEvent = options.find<sp<RenderPositionEvent> >("RenderPositionEvent");
             }
             
-            CHECK_TRUE(options.contains("Clock"));
-            mClock = options.find<sp<Clock> >("Clock");
+            if (options.contains("Clock")) {
+                mClock = options.find<sp<Clock> >("Clock");
+            }
+            
+            CHECK_TRUE(options.contains("RequestFrameEvent"));
+            mRequestFrameEvent = options.find<sp<RequestFrameEvent> >("RequestFrameEvent");
             
             CHECK_TRUE(format.contains(kKeyFormat));
             
@@ -369,7 +362,7 @@ namespace mtdcy {
                     return;
                 }
                 
-                const Message& _format = mOut->formats();
+                Message _format = mOut->formats();
                 mLatency = _format.findInt32(kKeyLatency);
             } else {
                 FATAL("FIXME");
@@ -406,46 +399,63 @@ namespace mtdcy {
             // don't request frame if eos detected.
             if (mOutputEOS) return;
             
+            size_t count = mOutputQueue.size() + mFrameRequests;
+            
             // output queue: kMaxFrameNum at most
-            if (mOutputQueue.size() >= MAX_COUNT) {
+            if (count >= MAX_COUNT) {
                 DEBUG("renderer %zu: output queue is full", mID);
-            } else {
-                mRequestFrameEvent->fire(kTimeInvalid);
-                DEBUG("renderer %zu: request more frames", mID);
+                return;
             }
+            
+            FrameRequestPayload payload;
+            payload.ts = kTimeInvalid;
+            payload.number = count >= MIN_COUNT ? 1 : MIN_COUNT - count;
+            payload.event = sp_Retain_this(this);
+            mRequestFrameEvent->fire(payload);
+            DEBUG("renderer %zu: request more frames", mID);
+            
+            mFrameRequests += payload.number;
         }
         
         void onFrameReady(const sp<MediaFrame>& frame) {
             DEBUG("renderer %zu: one frame ready", mID);
             
+            --mFrameRequests;
+            
             // case 1: eos
             if (frame == NULL) {
                 INFO("renderer %zu: eos detected", mID);
                 mOutputEOS = true;
-                if (mFirstFrame) {
+                if (mLastFrameTime == kTimeInvalid) {
                     WARN("renderer %zu: eos at start", mID);
-                    mFirstFrame = false;
                 }
+                // NOTHING TO DO
                 return;
             }
-            // queue frame
-            else {
-                DEBUG("renderer %zu: %.3f(s)", mID, frame->pts.seconds());
-                if (frame->pts <= mLastFrameTime) {
-                    WARN("renderer %zu: unordered frame %.3f(s) < last %.3f(s)",
-                         mID, frame->pts.seconds(),
-                         mLastFrameTime.seconds());
-                }
-                mLastFrameTime = frame->pts;
-                if (mColorConvertor != NULL) {
-                    mOutputQueue.push(mColorConvertor->convert(frame));
-                } else {
-                    mOutputQueue.push(frame);
-                }
+            
+            // check pts, kTimeInvalid < kTimeBegin
+            if (frame->pts < kTimeBegin) {
+                ERROR("renderer %zu: bad pts", mID);
+                // FIXME:
+            }
+            
+            // queue frame, frames must be pts order
+            DEBUG("renderer %zu: %.3f(s)", mID, frame->pts.seconds());
+            if (frame->pts <= mLastFrameTime) {
+                WARN("renderer %zu: unordered frame %.3f(s) < last %.3f(s)",
+                     mID, frame->pts.seconds(),
+                     mLastFrameTime.seconds());
+            }
+            
+            if (mColorConvertor != NULL) {
+                // XXX: convert here or just before render????
+                mOutputQueue.push(mColorConvertor->convert(frame));
+            } else {
+                mOutputQueue.push(frame);
             }
             
             // always render the first video
-            if (mFirstFrame) {
+            if (mLastFrameTime == kTimeInvalid) {
                 sp<MediaFrame> frame = *mOutputQueue.begin();
                 if (GetCodecType(mID) == kCodecTypeVideo) {
                     INFO("renderer %zu: first frame %.3f(s)",
@@ -456,7 +466,6 @@ namespace mtdcy {
                         mOut->write(frame);
                     }
                 }
-                mFirstFrame = false;
                 
                 // notify about the first render postion
                 if (mPositionEvent != NULL) {
@@ -464,12 +473,8 @@ namespace mtdcy {
                 }
             }
             
-            // request more frames
-            if (mOutputQueue.size() < MIN_COUNT) {
-                requestFrame();
-            } else {
-                DEBUG("renderer %zu: frames ready", mID);
-            }
+            // remember last frame pts
+            mLastFrameTime = frame->pts;
         }
         
         void onPrepareRenderer(const MediaTime& ts) {
@@ -477,13 +482,13 @@ namespace mtdcy {
             // TODO: prepare again without flush
             
             // reset flags
-            mFrameStart = ts;
-            mFirstFrame = true;
-            mLastMediaTime = 0;
+            mLastUpdateTime = 0;
             mOutputEOS = false;
-            mLastFrameTime = kTimeBegin;
+            mLastFrameTime = kTimeInvalid;
+            mFrameRequests = 0;
             
             // request MIN_COUNT frames
+            // TODO: handle ts here
             requestFrame();
             // -> onFrameReady
         }
@@ -493,19 +498,19 @@ namespace mtdcy {
             //onPrintStat();
             
             // check
-            if (mRendererRunning) {
+            if (mRendering) {
                 ERROR("renderer %zu: already started");
                 return;
             }
             
             // set flags
-            mRendererRunning = true;
+            mRendering = true;
             
             // case 1: start at eos
             if (mOutputEOS && mOutputQueue.empty()) {
                 // eos, do nothing
                 ERROR("renderer %zu: start at eos", mID);
-                mRendererRunning = false;
+                mRendering = false;
             }
             // case 3: frames ready
             else {
@@ -515,32 +520,32 @@ namespace mtdcy {
         
         void onPauseRenderer() {
             INFO("renderer %zu: pause at %.3f(s)", mID, mClock->get().seconds());
-            mRendererRunning = false;
+            mRendering = false;
         }
         
         void onFlushRenderer() {
             INFO("track %zu: flush %zu frames", mID, mOutputQueue.size());
             
             // flush output
-            mRendererRunning = false;
+            mRendering = false;
             mOutputEOS = false;
             mOutputQueue.clear();
-            mFrameStart = kTimeBegin;
+            mFrameRequests = 0;
             if (mOut != NULL) mOut->flush();
             
             // reset flags
-            mLastMediaTime = 0;
+            mLastUpdateTime = 0;
             
             // reset statistics
             mFramesRenderred = 0;
         }
         
         void onRender() {
-            if (!mRendererRunning) return;
+            if (!mRendering) return;
             
             int64_t next = REFRESH_RATE;
             
-            if (mClock->isPaused() && mClock->role() == kClockRoleSlave) {
+            if (mClock != NULL && mClock->isPaused() && mClock->role() == kClockRoleSlave) {
                 INFO("renderer %zu: clock is paused", mID);
             } else if (mOutputQueue.size()) {
                 next = renderCurrent();
@@ -564,7 +569,7 @@ namespace mtdcy {
             CHECK_TRUE(frame != NULL);
             
             // render too early ?
-            if (mClock->role() == kClockRoleSlave) {
+            if (mClock != NULL && mClock->role() == kClockRoleSlave) {
                 int64_t delay = frame->pts.useconds() - mClock->get().useconds();
                 if (delay < -REFRESH_RATE) {
                     WARN("renderer %zu: render late by %.3f(s)|%.3f(s), drop frame...",
@@ -595,7 +600,7 @@ namespace mtdcy {
             int64_t realTime = SystemTimeUs();
             
             // update clock
-            if (mClock->role() == kClockRoleMaster
+            if (mClock != NULL && mClock->role() == kClockRoleMaster
                 && mClock->isPaused()) {
                 INFO("renderer %zu: update clock %.3f(s)+%.3f(s)",
                      mID, frame->pts.seconds(), realTime / 1E6);
@@ -603,15 +608,15 @@ namespace mtdcy {
             }
             
             // broadcast render position to others every 1s
-            if (frame->pts - mLastMediaTime > 1000000LL) {
-                mLastMediaTime = frame->pts;
+            if (frame->pts - mLastUpdateTime > 1000000LL) {
+                mLastUpdateTime = frame->pts;
                 if (mPositionEvent != NULL) {
                     mPositionEvent->fire(frame->pts);
                 }
             }
             
             // next frame render time.
-            if (mOutputQueue.size()) {
+            if (mClock != NULL && mOutputQueue.size()) {
                 sp<MediaFrame> next = *mOutputQueue.begin();
                 int64_t delay = next->pts.useconds() - mClock->get().useconds();
                 if (delay < 0) {
@@ -634,7 +639,7 @@ namespace mtdcy {
                 if (mPositionEvent != NULL) {
                     mPositionEvent->fire(kTimeEnd);
                 }
-            } else {
+            } else if (mClock != NULL) {
                 WARN("renderer %zu: codec slightly underrun...", mID);
             }
             return REFRESH_RATE;
@@ -679,9 +684,12 @@ namespace mtdcy {
         mID = (eCodecFormat)format.findInt32(kKeyFormat);
         eCodecType type = GetCodecType(mID);
         
+        bool clock = options.contains("Clock");
+        
         String name = String::format("%d", mID);
         
-        mDecodeLooper = new Looper(name + "decode");
+        mDecodeLooper = new Looper(name + "_decode");
+        mDecodeLooper->loop();
         mDecodeSession = new DecodeSession(mDecodeLooper, format, options);
         
         if (mDecodeSession->mCodec == NULL) {
@@ -691,23 +699,28 @@ namespace mtdcy {
         
         Message render = mDecodeSession->mCodec->formats();
         
-        mRenderLooper = new Looper(name + "render");
-        mRenderSession = new RenderSession(mRenderLooper, mID, render, options);
+        mRenderLooper = mDecodeLooper;
+        if (clock) {
+            mRenderLooper = new Looper(name + "_render");
+            mRenderLooper->loop();
+        }
         
-        // bind decode session and render session.
-        mRenderSession->mRequestFrameEvent = mDecodeSession;
-        mDecodeSession->mFrameReadyEvent = mRenderSession;
+        Message dup = options;
+        dup.set<sp<RequestFrameEvent> >("RequestFrameEvent", mDecodeSession);
+        mRenderSession = new RenderSession(mRenderLooper, mID, render, dup);
     }
 
     MediaSession::~MediaSession() {
         DEBUG("track %zu: destroy...", mID);
+        if (mRenderLooper != NULL && mRenderLooper != mDecodeLooper) {
+            mRenderLooper->terminate();
+        }
+        
         if (mDecodeLooper != NULL) {
             mDecodeLooper->terminate();
         }
-        
-        if (mRenderLooper != NULL) {
-            mRenderLooper->terminate();
-        }
+        mDecodeLooper.clear();
+        mRenderLooper.clear();
         mDecodeSession.clear();
         mRenderSession.clear();
     }

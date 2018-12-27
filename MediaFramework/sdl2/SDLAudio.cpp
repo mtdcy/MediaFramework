@@ -134,7 +134,7 @@ namespace mtdcy {
         return mFormat != NULL ? OK : NO_INIT;
     }
 
-    const Message& SDLAudio::formats() const {
+    Message SDLAudio::formats() const {
         return *mFormat;
     }
 

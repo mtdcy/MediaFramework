@@ -191,7 +191,7 @@ namespace mtdcy {
         return mFormat != NULL ? OK : NO_INIT;
     }
 
-    const Message& SDLVideo::formats() const {
+    Message SDLVideo::formats() const {
         return *mFormat;
     }
 

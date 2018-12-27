@@ -50,9 +50,9 @@ namespace mtdcy {
     struct MediaFrame {
         MediaFrame() : pts(kTimeInvalid), duration(kTimeInvalid) { }
 
-        sp<Buffer>          data[8];        ///< frame data&size, packed or plannar
-        MediaTime           pts;            ///< display time in us
-        MediaTime           duration;       ///< duration of this frame
+        sp<Buffer>              data[8];    ///< frame data&size, packed or plannar
+        MediaTime               pts;        ///< display time in us
+        MediaTime               duration;   ///< duration of this frame
         union {
             int32_t             format;     ///< sample format, @see ePixelFormat, @see eSampleFormat
             struct {

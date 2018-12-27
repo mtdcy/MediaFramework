@@ -54,7 +54,7 @@ namespace mtdcy {
         public:
             virtual String          string() const;
             virtual status_t        status() const;
-            virtual const Message&  formats() const;
+            virtual Message         formats() const;
             virtual status_t        configure(const Message& options);
             virtual status_t        write(const sp<MediaFrame>& input);
             virtual status_t        flush();

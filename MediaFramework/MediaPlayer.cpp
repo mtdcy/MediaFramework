@@ -123,6 +123,8 @@ namespace mtdcy {
         mHasAudio(false), mClock(new SharedClock),
         mUpdateRenderPosition(new UpdateRenderPosition(this))
     {
+        mLooper->loop();
+        
         if (options.contains("RenderPositionEvent")) {
             mPositionEvent = options.find<sp<RenderPositionEvent> >("RenderPositionEvent");
         }
