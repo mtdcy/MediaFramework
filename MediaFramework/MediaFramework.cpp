@@ -113,9 +113,10 @@ namespace mtdcy {
         sp<MediaDecoder> codec;
         eCodecFormat format = (eCodecFormat)formats.findInt32(kKeyFormat);
         eCodecType type = GetCodecType(format);
+        eModeType mode = (eModeType)formats.findInt32(kKeyMode, kModeTypeDefault);
         
 #ifdef __APPLE__
-        if (type == kCodecTypeVideo) {
+        if (type == kCodecTypeVideo && mode != kModeTypeSoftware) {
             codec = new VideoToolbox::VTDecoder(formats);
             if (codec->status() != OK) codec.clear();
         }

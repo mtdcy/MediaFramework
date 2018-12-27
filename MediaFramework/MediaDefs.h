@@ -117,9 +117,9 @@ enum eSampleFormat {
 };
 
 enum eModeType {
-    kModeTypeNormal     = 0,
+    kModeTypeNormal     = 0,                ///< use hardware accel if available
+    kModeTypeSoftware,                      ///< no hardware accel.
     kModeTypePreview,
-    kModeTypeSoftware,                      // no hardware accel.
     kModeTypeDefault    = kModeTypeNormal
 };
 

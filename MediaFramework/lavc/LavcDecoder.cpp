@@ -412,8 +412,8 @@ namespace mtdcy { namespace Lavc {
         eCodecFormat codec = (eCodecFormat)formats.findInt32(kKeyFormat);
         eCodecType type = GetCodecType(codec);
         
-        eModeType mode = (eModeType)formats.findInt32(kKeyMode, kModeTypeNormal);
-        bool hwaccel = mode == kModeTypeNormal;
+        eModeType mode = (eModeType)formats.findInt32(kKeyMode, kModeTypeDefault);
+        bool hwaccel = mode != kModeTypeSoftware;
         
         AVCodecID id = get_av_codec_id(codec);
         
@@ -471,7 +471,7 @@ namespace mtdcy { namespace Lavc {
 #if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(57,106,102)
         avcc->refcounted_frames     = 1;
 #endif
-        if (mode == kModeTypeNormal) {
+        if (mode != kModeTypePreview) {
             avcc->thread_count      = GetCpuCount() + 1;
             avcc->thread_type       = FF_THREAD_FRAME | FF_THREAD_SLICE;
         } else {
