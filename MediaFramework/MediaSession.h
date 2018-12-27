@@ -80,7 +80,7 @@ namespace mtdcy {
         size_t                  number; ///< number frames to request
         sp<FrameReadyEvent>     event;  ///< event for return the frame, @see FrameReadyEvent
     };
-    typedef Event<FrameRequestPayload>  RequestFrameEvent;
+    typedef Event<FrameRequestPayload>  FrameRequestEvent;
 
     /**
      * For update render position to target.
@@ -93,11 +93,6 @@ namespace mtdcy {
     typedef Event<sp<MediaFrame> > RenderEvent;
 
     /**
-     * For handling error or working as async callback
-     */
-    typedef Event<status_t> StatusEvent;
-
-    /**
      * media session for audio/video/subtile decoding and render.
      * supporting both internal and external renderer.
      * what we do:
@@ -106,7 +101,7 @@ namespace mtdcy {
      * 3. do format convert if neccessary
      * 4. render at time
      * so, client don't have to care about decode, timing, thread, etc...
-     * @note MediaTrack takes one or two threads.
+     * @note MediaSession takes one or two threads.
      */
     class MediaSession {
         public:
@@ -116,11 +111,10 @@ namespace mtdcy {
              * about options:
              *  "PacketRequestEvent"    - [sp<PacketRequestEvent>]  - mandatory
              *  "RenderPositionEvent"   - [sp<RenderPositionEvent>] - optional
-             *  "Clock"                 - [sp<Clock>]               - mandatory     //TODO: make this optional
+             *  "Clock"                 - [sp<Clock>]               - optional
              *  "RenderEvent"           - [sp<RenderEvent>]         - optional
              *  "SDL_Window"            - [pointer|void *]          - optional
-             * if RenderEvent exists, external renderer will be used, and
-             * internal renderer will not create.
+             * if RenderEvent exists, external renderer will be used
              * if RenderEvent not exists, internal renderer will be used, and
              * SDL_Window must exists.
              *
@@ -139,23 +133,16 @@ namespace mtdcy {
              * @return return OK on success, otherwise error code
              * @note prepare will display the first image of video
              */
-            status_t    prepare(const MediaTime& ts, const sp<StatusEvent>& se = NULL);
+            status_t    prepare(const MediaTime& ts);
 
             /**
              * flush codec and renderer, and reset context.
              * @return return OK on success, otherwise error code
              */
-            status_t    flush(const sp<StatusEvent>& se = NULL);
+            status_t    flush();
 
         private:
-            struct DecodeSession;
-            struct RenderSession;
-
-            eCodecFormat        mID;
-            sp<Looper>          mDecodeLooper;
-            sp<Looper>          mRenderLooper;
-            sp<DecodeSession>   mDecodeSession;
-            sp<RenderSession>   mRenderSession;
+            sp<FrameReadyEvent> mFrameReadyEvent;
 
         private:
             MediaSession() { }
