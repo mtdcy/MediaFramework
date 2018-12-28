@@ -91,65 +91,52 @@ namespace mtdcy {
      * For render frames to external renderer.
      */
     typedef Event<sp<MediaFrame> > RenderEvent;
+    
+    /**
+     * For handle error status
+     */
+    typedef Event<status_t> StatusEvent;
+    
+    /**
+     * For client to control session
+     */
+    enum eControlEventType {
+        kControlEventPrepare,   ///< +ts
+        kControlEventFlush,     ///< -ts
+    };
+    struct ControlEventPayload {
+        eControlEventType   type;   ///< mandatory
+        MediaTime           ts;     ///< @see eControlEventType
+        sp<StatusEvent>     event;  ///< optional
+    };
+    typedef Event<ControlEventPayload> ControlEvent;
 
     /**
-     * media session for audio/video/subtile decoding and render.
-     * supporting both internal and external renderer.
+     * create a session for packet stream.
      * what we do:
      * 1. request packets from source
      * 2. decode packet to frame
      * 3. do format convert if neccessary
      * 4. render at time
      * so, client don't have to care about decode, timing, thread, etc...
+     * --
+     * about formats, @see MediaExtractor
+     * about options:
+     *  "PacketRequestEvent"    - [sp<PacketRequestEvent>]  - mandatory
+     *  "RenderPositionEvent"   - [sp<RenderPositionEvent>] - optional
+     *  "Clock"                 - [sp<Clock>]               - optional
+     *  "RenderEvent"           - [sp<RenderEvent>]         - optional
+     *  "SDL_Window"            - [pointer|void *]          - optional
+     * if RenderEvent exists, external renderer will be used
+     * if RenderEvent not exists, internal renderer will be used, and
+     * SDL_Window must exists.
+     *
+     * @param formats   formats of packet stream. @see MediaExtractor
+     * @param options   option and parameter for this session, see notes before
      * @note MediaSession takes one or two threads.
      */
-    class MediaSession {
-        public:
-            /**
-             * create a session for packet stream.
-             * about formats, @see MediaExtractor
-             * about options:
-             *  "PacketRequestEvent"    - [sp<PacketRequestEvent>]  - mandatory
-             *  "RenderPositionEvent"   - [sp<RenderPositionEvent>] - optional
-             *  "Clock"                 - [sp<Clock>]               - optional
-             *  "RenderEvent"           - [sp<RenderEvent>]         - optional
-             *  "SDL_Window"            - [pointer|void *]          - optional
-             * if RenderEvent exists, external renderer will be used
-             * if RenderEvent not exists, internal renderer will be used, and
-             * SDL_Window must exists.
-             *
-             * @param formats   formats of packet stream. @see MediaExtractor
-             * @param options   option and parameter for this session, see notes before
-             */
-            static sp<MediaSession> Create(const Message& formats, const Message& options);
-        
-            ~MediaSession();
-
-            /**
-             * prepare codec and renderer, and other context. must
-             * flush before prepare again.
-             * TODO: prepare again without flush
-             * @param ts    when we want to prepare
-             * @return return OK on success, otherwise error code
-             * @note prepare will display the first image of video
-             */
-            status_t    prepare(const MediaTime& ts);
-
-            /**
-             * flush codec and renderer, and reset context.
-             * @return return OK on success, otherwise error code
-             */
-            status_t    flush();
-
-        private:
-            sp<FrameReadyEvent> mFrameReadyEvent;
-
-        private:
-            MediaSession() { }
-            DISALLOW_EVILS(MediaSession);
-    };
-
-
+    typedef ControlEvent MediaSession;
+    sp<MediaSession> MediaSessionCreate(const Message& formats, const Message& options);
 };
 
 #endif 

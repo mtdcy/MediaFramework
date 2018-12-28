@@ -47,39 +47,73 @@
 #define PROGRESS_UPDATE_RATE (1000000LL)
 
 namespace mtdcy {
-
-    class OnRequestPacket : public PacketRequestEvent {
-        public:
-            OnRequestPacket(MediaPlayer *tgt, size_t id, const sp<Looper>& lp) :
-                PacketRequestEvent(lp), mTgt(tgt), mID(id) { }
-
-        private:
-            virtual void onEvent(const PacketRequestPayload& v)
-            { mTgt->onRequestPacket(mID, v); }
-            MediaPlayer *mTgt;
-            const size_t mID;
+    struct CountedStatusEvent : public StatusEvent {
+        sp<StatusEvent> mStatusEvent;
+        volatile int mCount;
+        Mutex mLock;
+        Condition mWait;
+        status_t mStatus;
+        
+        CountedStatusEvent(const sp<StatusEvent>& event, size_t n) :
+        StatusEvent(), mStatusEvent(event), mCount(n), mStatus(OK) { }
+        
+        virtual void onEvent(const status_t& st) {
+            int old = atomic_sub(&mCount, 1);
+            CHECK_GE(old, 1);
+            if (old == 1 || st != OK) {
+                if (mStatusEvent != NULL) {
+                    mStatusEvent->fire(st);
+                } else {
+                    AutoLock _l(mLock);
+                    mWait.signal();
+                    mStatus = st;
+                }
+            }
+        }
+        
+        status_t wait() {
+            AutoLock _l(mLock);
+            mWait.wait(mLock);
+            return mStatus;
+        }
     };
 
-    class OnUpdateRenderPosition : public RenderPositionEvent {
-        public:
-            OnUpdateRenderPosition(MediaPlayer *tgt, size_t id, const sp<Looper>& lp) :
-                RenderPositionEvent(lp), mTgt(tgt), mID(id) { }
+    struct OnRequestPacket : public PacketRequestEvent {
+        sp<MediaExtractor>  mMedia;
+        const size_t        mIndex;
+    
+        OnRequestPacket(const sp<MediaExtractor>& media, size_t index, const sp<Looper>& lp) :
+            PacketRequestEvent(lp), mMedia(media), mIndex(index) { }
+        
+        virtual void onEvent(const PacketRequestPayload& v) {
+            // NO lock to mMedia, as all PacketRequestEvent run in the same looper
+            sp<MediaPacket> pkt = mMedia->read(mIndex, v.mode, v.ts);
+            
+            if (pkt == NULL) {
+                INFO("%zu: eos", mIndex);
+            }
+            
+            sp<PacketReadyEvent> event = v.event;
+            event->fire(pkt);
+        }
+    };
 
-        private:
-            virtual void onEvent(const MediaTime& v)
-            { mTgt->onUpdateRenderPosition(mID, v); }
-            MediaPlayer *mTgt;
-            const size_t mID;
+    struct OnUpdateRenderPosition : public RenderPositionEvent {
+        MediaPlayer *mTgt;
+        const size_t mID;
+    
+        OnUpdateRenderPosition(MediaPlayer *tgt, size_t id, const sp<Looper>& lp) :
+            RenderPositionEvent(lp), mTgt(tgt), mID(id) { }
+        virtual void onEvent(const MediaTime& v)
+        { mTgt->onUpdateRenderPosition(mID, v); }
     };
     
-    class UpdateRenderPosition : public Runnable {
-        public:
-            UpdateRenderPosition(MediaPlayer *tgt) :
-                Runnable(), mTgt(tgt) { }
-
-        private:
-            virtual void run() { mTgt->updateRenderPosition(); }
-            MediaPlayer *mTgt;
+    struct UpdateRenderPosition : public Runnable {
+        MediaPlayer *mTgt;
+    
+        UpdateRenderPosition(MediaPlayer *tgt) :
+            Runnable(), mTgt(tgt) { }
+        virtual void run() { mTgt->updateRenderPosition(); }
     };
 
     struct MediaContext {
@@ -100,10 +134,10 @@ namespace mtdcy {
                 eCodecFormat codec,
                 eCodecType type,
                 size_t index,
-                const sp<MediaSession>& pq) :
+                const sp<MediaSession>& ms) :
             mCodec(codec), mType(type),
             mMedia(mc), mIndex(index),
-            mMediaSession(pq), mInputEOS(false),
+            mMediaSession(ms),
             mState(kSessionStateInit)
         { }
 
@@ -112,8 +146,7 @@ namespace mtdcy {
         sp<MediaContext>    mMedia;
         size_t              mIndex;
         sp<MediaSession>    mMediaSession;
-        bool                mInputEOS;
-        eSessionState            mState;
+        eSessionState       mState;
     };
 
 
@@ -201,19 +234,18 @@ namespace mtdcy {
             }
 
             options.set<sp<PacketRequestEvent> >("PacketRequestEvent",
-                    new OnRequestPacket(this, mNextId, mLooper));
+                    new OnRequestPacket(extractor, i, mLooper));
+            
             options.set<sp<RenderPositionEvent> >("RenderPositionEvent",
                     new OnUpdateRenderPosition(this, mNextId, mLooper));
 
             if (kCodecTypeAudio == type || numTracks == 1) {
-                options.set<sp<Clock> >("Clock",
-                                        mClock->getClock(kClockRoleMaster));
+                options.set<sp<Clock> >("Clock", mClock->getClock(kClockRoleMaster));
             } else {
-                options.set<sp<Clock> >("Clock",
-                                        mClock->getClock());
+                options.set<sp<Clock> >("Clock", mClock->getClock());
             }
 
-            sp<MediaSession> session = MediaSession::Create(formats, options);
+            sp<MediaSession> session = MediaSessionCreate(formats, options);
             if (session == NULL) {
                 ERROR("create session for %s[%zu] failed", url.c_str(), i);
                 continue;
@@ -231,23 +263,30 @@ namespace mtdcy {
         return OK;
     }
     
-    status_t MediaPlayer::prepare() {
-        AutoLock _l(mLock);
+    status_t MediaPlayer::prepare(const MediaTime& ts) {
+        mLock.lock();
         if (mState != kStateInit &&
             mState != kStateStopped) {
             ERROR("prepare in invalid state");
+            mLock.unlock();
             return INVALID_OPERATION;
         }
+        
+        sp<CountedStatusEvent> event = new CountedStatusEvent(NULL, mContext.size());
+        ControlEventPayload pl = { kControlEventPrepare, ts, event };
         
         HashTable<size_t, sp<SessionContext> >::iterator it = mContext.begin();
         for (; it != mContext.end(); ++it) {
             sp<SessionContext>& sc = it.value();
-            sc->mMediaSession->prepare(kTimeBegin);
+            sc->mMediaSession->fire(pl);
         }
 
         mState = kStateReady;
         
-        return OK;
+        mLock.unlock();
+        return event->wait();
+        
+        //return OK;
     }
 
     status_t MediaPlayer::start() {
@@ -262,7 +301,6 @@ namespace mtdcy {
         HashTable<size_t, sp<SessionContext> >::iterator it = mContext.begin();
         for (; it != mContext.end(); ++it) {
             sp<SessionContext>& sc = it.value();
-            sc->mInputEOS = false;
             //sc->mMediaSession->start();
         }
 
@@ -307,10 +345,12 @@ namespace mtdcy {
         }
         INFO("stop...");
 
+        ControlEventPayload pl = { kControlEventFlush };
+        
         HashTable<size_t, sp<SessionContext> >::iterator it = mContext.begin();
         for (; it != mContext.end(); ++it) {
             sp<SessionContext>& sc = it.value();
-            sc->mMediaSession->flush();
+            sc->mMediaSession->fire(pl);
         }
 
         mClock->reset();
@@ -339,8 +379,8 @@ namespace mtdcy {
         for (; it != mContext.end(); ++it) {
             sp<SessionContext>& sc = it.value();
             // flush then prepare at new position
-            sc->mMediaSession->flush();
-            sc->mMediaSession->prepare(ts);
+            //sc->mMediaSession->flush();
+            //sc->mMediaSession->prepare(ts);
         }
         
         mClock->update(ts - 500000LL);  // give 500ms to let session prepare
@@ -348,36 +388,8 @@ namespace mtdcy {
         return OK;
     }
 
-    void MediaPlayer::onRequestPacket(size_t id, PacketRequestPayload v) {
-        DEBUG("%zu: request packet", id);
-        AutoLock _l(mLock);
-
-        sp<SessionContext>& sc = mContext[id];
-        sp<MediaContext>& mc = sc->mMedia;
-
-        if (sc->mInputEOS) {
-            INFO("%zu: eos", id);
-            v.event->fire(NULL);
-            return;
-        }
-
-        sp<MediaPacket> pkt = mc->mExtractor->read(
-                sc->mIndex,
-                v.mode, v.ts
-                );
-
-        if (pkt == NULL) {
-            INFO("%zu: eos", id);
-            sc->mInputEOS = true;
-        }
-
-        v.event->fire(pkt);
-    }
-
     void MediaPlayer::onUpdateRenderPosition(size_t id, const MediaTime& ts) {
         DEBUG("%zu: update render position %.3f(s)", id, ts/1E6);
-        AutoLock _l(mLock);
-        
         if (ts == kTimeEnd) {
             INFO("eos...");
             mLooper->remove(mUpdateRenderPosition);
@@ -385,15 +397,19 @@ namespace mtdcy {
                 mPositionEvent->fire(kTimeEnd);
             }
         }
-
-        sp<SessionContext>& sc = mContext[id];
         
+#if 0
+        // change context
+        // handle this with another looper to avoid dead lock
+        AutoLock _l(mLock);
+        sp<SessionContext>& sc = mContext[id];
         if (ts == kTimeEnd) {
             sc->mMediaSession->flush();
             sc->mState = kSessionStateInit;
         }
         
         // TODO
+#endif
     }
 
     void MediaPlayer::updateRenderPosition() {

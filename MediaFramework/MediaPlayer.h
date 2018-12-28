@@ -61,7 +61,7 @@ namespace mtdcy {
 
         private:
             size_t                  mID;
-            sp<MediaDecoder>          mCodec;
+            sp<MediaDecoder>        mCodec;
             sp<Handler>             mHandler;
             sp<RenderEvent>         mRenderer;
             bool                    mFlushed;
@@ -79,6 +79,9 @@ namespace mtdcy {
             DISALLOW_EVILS(Previewer);
     };
 
+    /**
+     * TODO: remove return value status_t, replace with StatusEvent
+     */
     class MediaPlayer {
         public:
             /**
@@ -110,7 +113,7 @@ namespace mtdcy {
              * prepare engine after add media
              * @return return OK on success, otherwise error code
              */
-            status_t prepare();
+            status_t prepare(const MediaTime& ts);
             /**
              * return status of current engine. can be called in any stage
              * as it will check different conditions on different stage.
@@ -162,24 +165,22 @@ namespace mtdcy {
 
         private:
             // for PacketQueue request packet
-            friend class OnRequestPacket;
+            friend struct OnRequestPacket;
             void onRequestPacket(size_t, PacketRequestPayload);
 
             // for PacketQueue update render position
-            friend class OnUpdateRenderPosition;
+            friend struct OnUpdateRenderPosition;
             void onUpdateRenderPosition(size_t, const MediaTime&);
 
             // update render position to client
-            friend class UpdateRenderPosition;
+            friend struct UpdateRenderPosition;
             void updateRenderPosition();
 
         private:
             // external static context
             sp<RenderPositionEvent> mPositionEvent;
         
-
-            // internal context
-            // static context
+            // internal static context
             sp<Looper> mLooper;
         
             // volatile context

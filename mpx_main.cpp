@@ -183,7 +183,7 @@ int main (int argc, char **argv) {
     engine->addMedia(filename, options);
 
     if (engine->status() == OK) {
-        engine->prepare();
+        engine->prepare(kTimeBegin);
     }
 
     SDL_Event event;
@@ -200,7 +200,7 @@ int main (int argc, char **argv) {
                         if (!started) {
                             if (engine->state() != MediaPlayer::kStateReady &&
                                 engine->state() != MediaPlayer::kStatePaused)
-                                engine->prepare();
+                                engine->prepare(kTimeBegin);
                             engine->start();
                             started = true;
                         } else {
