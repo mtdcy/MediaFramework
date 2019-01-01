@@ -64,37 +64,18 @@ namespace mtdcy {
         }
         notifyListeners_l(kClockStateTicking);
     }
-
-    void SharedClock::update(const MediaTime& t) {
-        if (atomic_load(&mMasterClock)) {
-            AutoLock _l(mLock);
-            mClockInt.mMediaTime = t;
-            // update only media time, leaving others
-            // to master clock
-        } else {
-            _update(t, SystemTimeUs());
-        }
-    }
-
-    void SharedClock::update(const MediaTime& t, int64_t real) {
-        if (atomic_load(&mMasterClock)) {
-            // do NOTHING, wait master to update
-        } else {
-            _update(t, real);
-        }
+    
+    void SharedClock::set(const MediaTime& t) {
+        AutoLock _l(mLock);
+        mClockInt.mMediaTime  = t;
+        mClockInt.mSystemTime = SystemTimeUs();
+        atomic_add(&mGeneration, 1);
     }
     
-    void SharedClock::_update(const MediaTime& t, int64_t real) {
+    void SharedClock::update(ClockInt& c) {
         AutoLock _l(mLock);
-        bool notify = false;
-        if (mClockInt.mPaused) {
-            mClockInt.mPaused = false;
-        }
-        mClockInt.mMediaTime  = t;
-        mClockInt.mSystemTime = real;
+        mClockInt = c;
         atomic_add(&mGeneration, 1);
-        
-        //if (notify) notifyListeners_l(kClockStateTicking);
     }
 
     MediaTime SharedClock::get() const {
@@ -205,17 +186,23 @@ namespace mtdcy {
  
     void Clock::update(const MediaTime& t) {
         CHECK_EQ(mRole, (uint32_t)kClockRoleMaster);
-
-        // FIXME: update only if ....
-        mClock._update(t, SystemTimeUs());
+        mClockInt.mMediaTime = t;
+        mClockInt.mSystemTime = SystemTimeUs();
+        if (mClockInt.mPaused) {
+            mClockInt.mPaused = false;
+        }
+        mClock.update(mClockInt);
         reload();
     }
 
     void Clock::update(const MediaTime& t, int64_t real) {
         CHECK_EQ(mRole, (uint32_t)kClockRoleMaster);
-
-        // FIXME: update only if ....
-        mClock._update(t, real);
+        mClockInt.mMediaTime = t;
+        mClockInt.mSystemTime = real;
+        if (mClockInt.mPaused) {
+            mClockInt.mPaused = false;
+        }
+        mClock.update(mClockInt);
         reload();
     }
 
@@ -237,5 +224,11 @@ namespace mtdcy {
 
         MediaTime now = SystemTimeUs();
         return mClockInt.mMediaTime + (now - mClockInt.mSystemTime) * mClockInt.mSpeed;
+    }
+    
+    void Clock::set(const MediaTime& t) {
+        mClockInt.mMediaTime = t;
+        mClockInt.mSystemTime = SystemTimeUs();
+        mClock.update(mClockInt);
     }
 }

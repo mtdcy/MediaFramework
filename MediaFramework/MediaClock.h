@@ -57,7 +57,7 @@ __END_DECLS
 
 namespace mtdcy {
     
-    typedef Event<eClockState>  ClockEvent;
+    typedef TypedEvent<eClockState>  ClockEvent;
 
     /**
      * clock for av sync and speed control. all session share
@@ -71,6 +71,11 @@ namespace mtdcy {
         public:
             SharedClock();
 
+            /**
+             * set clock time, without alter clock state
+             * @param   ts      media time
+             */
+            void        set(const MediaTime& ts);
             /**
              * start this clock.
              */
@@ -101,18 +106,6 @@ namespace mtdcy {
              * @return clock speed in double.
              */
             double      speed() const;
-            /**
-             * update clock with new media time + current
-             * system time.
-             * @param   ts      media time
-             */
-            void        update(const MediaTime& t);
-            /**
-             * update clock with new media time
-             * @param   ts      media time
-             * @param   real    system time in us
-             */
-            void        update(const MediaTime& t, int64_t real);
 
             /**
              * get clock media time
@@ -129,8 +122,6 @@ namespace mtdcy {
             sp<Clock>   getClock(eClockRole role = kClockRoleSlave);
 
         private:
-            friend class Clock;
-            void        _update(const MediaTime& t, int64_t real);
             void        _regListener(const sp<ClockEvent>& ce);
             void        _unregListener(const sp<ClockEvent>& ce);
         
@@ -149,6 +140,8 @@ namespace mtdcy {
                 MediaTime   mSystemTime;
                 double      mSpeed;
             };
+            friend class Clock;
+            void            update(ClockInt&);
             ClockInt        mClockInt;
             List<sp<ClockEvent> >   mListeners;
 
@@ -201,6 +194,8 @@ namespace mtdcy {
              */
             void        update(const MediaTime&);
             void        update(const MediaTime&, int64_t);
+            /** @see SharedClock::set() */
+            void        set(const MediaTime&);
 
         private:
             /**

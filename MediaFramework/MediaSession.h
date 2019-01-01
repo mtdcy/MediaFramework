@@ -51,7 +51,7 @@ namespace mtdcy {
      * For pushing packets to target. when a packet is ready,
      * fire this event, and target will get the packet.
      */
-    typedef Event<sp<MediaPacket> > PacketReadyEvent;
+    typedef TypedEvent<sp<MediaPacket> > PacketReadyEvent;
 
     /**
      * For pull packets from packet source.
@@ -64,44 +64,44 @@ namespace mtdcy {
         size_t                  number; ///< number packets to request
         sp<PacketReadyEvent>    event;  ///< event for return the packet, @see PacketReadyEvent
     };
-    typedef Event<PacketRequestPayload> PacketRequestEvent;
+    typedef TypedEvent<PacketRequestPayload> PacketRequestEvent;
 
     /**
      * For pushing frames to target. when a frame is ready,
      * fire this event, and target will receive the frame.
      */
-    typedef Event<sp<MediaFrame> >  FrameReadyEvent;
+    typedef TypedEvent<sp<MediaFrame> >  FrameReadyEvent;
 
     /**
      * For pull frames from frame source
      */
     struct FrameRequestPayload {
-        MediaTime               ts;     ///< timestamp of the frame
+        MediaTime               ts;     ///< timestamp of the start frame
         size_t                  number; ///< number frames to request
         sp<FrameReadyEvent>     event;  ///< event for return the frame, @see FrameReadyEvent
     };
-    typedef Event<FrameRequestPayload>  FrameRequestEvent;
+    typedef TypedEvent<FrameRequestPayload>  FrameRequestEvent;
 
     /**
      * For update render position to target.
      */
-    typedef Event<MediaTime> RenderPositionEvent;
+    typedef TypedEvent<MediaTime> RenderPositionEvent;
 
     /**
      * For render frames to external renderer.
      */
-    typedef Event<sp<MediaFrame> > RenderEvent;
+    typedef TypedEvent<sp<MediaFrame> > RenderEvent;
     
     /**
      * For handle error status
      */
-    typedef Event<status_t> StatusEvent;
+    typedef TypedEvent<status_t> StatusEvent;
     
     /**
      * For client to control session
      */
     enum eControlEventType {
-        kControlEventPrepare,   ///< +ts
+        kControlEventPrepare,   ///< +ts && ts >= kTimeBegin
         kControlEventFlush,     ///< -ts
     };
     struct ControlEventPayload {
@@ -109,7 +109,7 @@ namespace mtdcy {
         MediaTime           ts;     ///< @see eControlEventType
         sp<StatusEvent>     event;  ///< optional
     };
-    typedef Event<ControlEventPayload> ControlEvent;
+    typedef TypedEvent<ControlEventPayload> ControlEvent;
 
     /**
      * create a session for packet stream.

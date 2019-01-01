@@ -34,68 +34,30 @@
  *
  */
 
-#ifndef _MPX_H
-#define _MPX_H 
+#ifndef _MEDIA_PLAYER_H
+#define _MEDIA_PLAYER_H
 
 #include <MediaToolkit/Toolkit.h>
 #include <MediaFramework/MediaClock.h>
 #include <MediaFramework/MediaSession.h>
 
 namespace mtdcy {
-    /**
-     * For handle error.
-     */ 
-    typedef Event<status_t> ErrorEvent;
-
-    // for video preview or thumbnail
-    class Previewer {
-        public:
-            Previewer(const Message&, const Message&);
-            virtual ~Previewer();
-            virtual status_t status() const { return OK; }
-            virtual status_t prepare()  { return OK; }
-            virtual status_t start()    { return OK; }
-            virtual status_t stop()     { return OK; }
-            virtual status_t flush()    { return OK; }
-            virtual status_t seek(int64_t ts) { return OK; }
-
-        private:
-            size_t                  mID;
-            sp<MediaDecoder>        mCodec;
-            sp<Handler>             mHandler;
-            sp<RenderEvent>         mRenderer;
-            bool                    mFlushed;
-
-        private:
-            virtual void handleMessage(const sp<Message>&);
-            enum {
-                kCommandPacketReady,
-                kCommandFlushTimeout,
-            };
-            void onPacketReady(const sp<MediaPacket>&);
-            void onFlush();
-
-        private:
-            DISALLOW_EVILS(Previewer);
-    };
-
-    /**
-     * TODO: remove return value status_t, replace with StatusEvent
-     */
+    struct MPContext;
     class MediaPlayer {
         public:
-            /**
-             * create a engine with options
-             * about options:
-             *  "RenderPositionEvent"   - [sp<RenderPositionEvent>] - optional
-             * @param options   option and parameter for engine
-             */
-            MediaPlayer(const Message& options);
-            virtual ~MediaPlayer();
+            virtual ~MediaPlayer() { }
 
-        public:
             /**
-             * add a media to engine.
+             * create a player with options
+             * about options:
+             *  "StatusEvent"           - [sp<StatusEvent>]         - optional
+             *  "RenderPositionEvent"   - [sp<RenderPositionEvent>] - optional
+             * @param options   option and parameter for player
+             */
+            static sp<MediaPlayer> Create(const Message& options);
+
+            /**
+             * add a media to player.
              * about options:
              *  "RenderEvent"   - [sp<RenderEvent>]     - optional
              *  "SDL_Window"    - [pointer|void *]      - optional
@@ -110,96 +72,39 @@ namespace mtdcy {
              */
             status_t addMedia(const String& url, const Message& options);
             /**
-             * prepare engine after add media
+             * prepare player after add media
              * @return return OK on success, otherwise error code
              */
             status_t prepare(const MediaTime& ts);
             /**
-             * return status of current engine. can be called in any stage
-             * as it will check different conditions on different stage.
-             * @return return OK on success, otherwise error code
-             */
-            status_t status() const { return mStatus; }
-            /**
-             * start this engine.
+             * start this player.
              * @return return OK on success, otherwise error code.
              * @note there must be at least one media exists and start success.
              */
             status_t start();
             /**
-             * pause this engine.
+             * pause this player.
              * @return return OK on success, otherwise error code.
              */
             status_t pause();
             /**
-             * stop this engine.
+             * stop this player.
              * @return return OK on success, otherwise error code.
              */
             status_t stop();
             /**
-             * seek to a new position
-             * @param ts timestamp in us.
+             * reset this player.
              * @return return OK on success, otherwise error code.
              */
-            status_t seek(int64_t ts);
+            status_t reset();
+
+        private:
+            sp<MPContext>   mContext;
         
-            /**
-             * the state machine's value
-             */
-            enum eStateType {
-                kStateInvalid,
-                kStateInit,
-                kStateReady,
-                kStatePlaying,
-                kStatePaused,
-                kStateStopped,
-            };
-            /**
-             * return current state
-             * @return @see eStateType
-             */
-            eStateType state() const;
-
         private:
-            void setError_l(status_t);
-
-        private:
-            // for PacketQueue request packet
-            friend struct OnRequestPacket;
-            void onRequestPacket(size_t, PacketRequestPayload);
-
-            // for PacketQueue update render position
-            friend struct OnUpdateRenderPosition;
-            void onUpdateRenderPosition(size_t, const MediaTime&);
-
-            // update render position to client
-            friend struct UpdateRenderPosition;
-            void updateRenderPosition();
-
-        private:
-            // external static context
-            sp<RenderPositionEvent> mPositionEvent;
-        
-            // internal static context
-            sp<Looper> mLooper;
-        
-            // volatile context
-            volatile status_t mStatus;
-            volatile eStateType mState;
-
-            mutable Mutex mLock;
-            struct SessionContext;
-            HashTable<size_t, sp<SessionContext> > mContext;
-            size_t mNextId;
-
-            bool mHasAudio;
-
-            sp<SharedClock> mClock;
-            sp<Runnable>    mUpdateRenderPosition;
-
-        private:
+            MediaPlayer() { }
             DISALLOW_EVILS(MediaPlayer);
     };
 }
 
-#endif //
+#endif // _MEDIA_PLAYER_H

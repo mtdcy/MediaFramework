@@ -49,6 +49,12 @@ static bool mouse_down = false;
 static SDL_Window *window = NULL;
 static SDL_Window *preview_window = NULL;
 
+struct MPStatus : public StatusEvent {
+    virtual void onEvent(const status_t& st) {
+        INFO("==> status %d", st);
+    }
+};
+
 struct Progress : public RenderPositionEvent {
     Progress() : RenderPositionEvent() { }
     virtual void onEvent(const MediaTime& v) {
@@ -166,8 +172,9 @@ int main (int argc, char **argv) {
     sp<RenderPositionEvent> callback = new Progress;
     Message option0;
     option0.set<sp<RenderPositionEvent> >("RenderPositionEvent", callback);
-    sp<MediaPlayer> engine = new MediaPlayer(option0);
-
+    option0.set<sp<StatusEvent> >("StatusEvent", new MPStatus);
+        
+    sp<MediaPlayer> engine = MediaPlayer::Create(option0);
 
     sp<MainThreadRenderer> renderer = new MainThreadRenderer;
     sp<PreviewRenderer> renderer1 = new PreviewRenderer;
@@ -182,9 +189,9 @@ int main (int argc, char **argv) {
     options.set<sp<RenderEvent> >("PreviewRenderEvent", renderer1);
     engine->addMedia(filename, options);
 
-    if (engine->status() == OK) {
+    //if (engine->status() == OK) {
         engine->prepare(kTimeBegin);
-    }
+    //}
 
     SDL_Event event;
     bool quit = false;
@@ -198,9 +205,9 @@ int main (int argc, char **argv) {
                 switch (event.key.keysym.sym) {
                     case SDLK_SPACE:
                         if (!started) {
-                            if (engine->state() != MediaPlayer::kStateReady &&
-                                engine->state() != MediaPlayer::kStatePaused)
-                                engine->prepare(kTimeBegin);
+                            //if (engine->state() != MediaPlayer::kStateReady &&
+                            //    engine->state() != MediaPlayer::kStatePaused)
+                            //    engine->prepare(kTimeBegin);
                             engine->start();
                             started = true;
                         } else {
@@ -214,10 +221,10 @@ int main (int argc, char **argv) {
                         started = false;
                         break;
                     case SDLK_RIGHT:
-                        engine->seek(progress * 1000000LL + 5000000LL);
+                        engine->prepare(progress * 1000000LL + 5000000LL);
                         break;
                     case SDLK_LEFT:
-                        engine->seek(progress * 1000000ll - 5000000LL);
+                        engine->prepare(progress * 1000000ll - 5000000LL);
                         break;
                 }
                 break;

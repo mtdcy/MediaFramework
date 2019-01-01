@@ -42,18 +42,30 @@
 #define MAX_COUNT (8)
 #define REFRESH_RATE (10000LL)    // 10ms
 
+// media session <= control session
+//  packet ready event
+//          v
+//  decode session  <= looper
+//          v
+//  frame request event
+//          v
+//  frame ready event
+//          v
+//  render session  <= control session
+//                  <= clock event
+//                  <= looper(external)
+
 namespace mtdcy {
 
     // no control session, control by FrameRequestEvent.
-    struct DecodeSession : public FrameRequestEvent, public PacketReadyEvent {
+    struct DecodeSession : public Looper, public FrameRequestEvent, public PacketReadyEvent {
         // external static context
-        sp<PacketRequestEvent>  mSource;        // where we get packets
         eCodecFormat            mID;
-        sp<Looper>              mLooper;        // looper been used
+        sp<PacketRequestEvent>  mSource;        // where we get packets
         // internal static context
         sp<MediaDecoder>        mCodec;         // reference to codec
 
-        // decoder scope context
+        // internal mutable context
         // TODO: clock for decoder, handle late frames
         List<sp<MediaPacket> >  mInputQueue;    // input packets queue
         bool                    mInputEOS;      // end of input ?
@@ -64,15 +76,20 @@ namespace mtdcy {
         size_t                  mPacketsComsumed;
         size_t                  mFramesDecoded;
 
-        DecodeSession(const sp<Looper>& lp, const Message& format, const Message& options) :
-            FrameRequestEvent(lp), PacketReadyEvent(lp),    // all event in the same looper
-            mSource(NULL), mID(kCodecFormatUnknown),
-            mLooper(lp), mCodec(NULL),
+        DecodeSession(const String& name, const Message& format, const Message& options) :
+            Looper(name),
+            FrameRequestEvent(sp_Retain(this)),
+            PacketReadyEvent(sp_Retain(this)),    // all event in the same looper
+            // external static context
+            mID(kCodecFormatUnknown), mSource(NULL),
+            // internal static context
+            mCodec(NULL),
+            // internal mutable context
             mInputEOS(false), mLastPacketTime(kTimeInvalid),
             // statistics
             mPacketsReceived(0), mPacketsComsumed(0), mFramesDecoded(0)
         {
-            CHECK_TRUE(mLooper != NULL);
+            loop();     // start looper
 
             // setup external context
             CHECK_TRUE(options.contains("PacketRequestEvent"));
@@ -92,7 +109,7 @@ namespace mtdcy {
         }
 
         virtual ~DecodeSession() {
-            mLooper->terminate();
+            terminate();    // stop looper
         }
 
         void requestPacket(const MediaTime& ts = kTimeInvalid) {
@@ -121,11 +138,13 @@ namespace mtdcy {
         }
 
         void onPacketReady(const sp<MediaPacket>& pkt) {
-            DEBUG("codec %zu: packet %.3f(s) ready", mID, pkt->dts.seconds());
             if (pkt == NULL) {
                 INFO("codec %zu: eos detected", mID);
                 mInputEOS = true;
             } else {
+                DEBUG("codec %zu: packet %.3f|%.3f(s) ready",
+                     mID, pkt->dts.seconds(), pkt->pts.seconds());
+                
                 ++mPacketsReceived;
                 // @see MediaExtractor::read(), packets should in dts order.
                 if (pkt->dts < mLastPacketTime) {
@@ -150,6 +169,7 @@ namespace mtdcy {
 
             mInputEOS = false;
             mInputQueue.clear();
+            mCodec->flush();
             mLastPacketTime = kTimeBegin;
 
             mPacketsReceived = 0;
@@ -222,6 +242,7 @@ namespace mtdcy {
                 sp<MediaPacket> packet = *mInputQueue.begin();
                 CHECK_TRUE(packet != NULL);
 
+                DEBUG("codec %zu: decode pkt %.3f(s)", mID, packet->dts.seconds());
                 status_t st = mCodec->write(packet);
                 if (st == TRY_AGAIN) {
                     DEBUG("codec %zu: codec is full with frames", mID);
@@ -243,8 +264,12 @@ namespace mtdcy {
 
             FrameRequestPayload& request = *mFrameRequests.begin();
             if (frame != NULL || mInputEOS) {
-                if (frame != NULL) ++mFramesDecoded;
+                if (frame != NULL) {
+                    DEBUG("codec %zu: decoded frame %.3f(s) ready", mID, frame->pts.seconds());
+                    ++mFramesDecoded;
+                }
                 request.event->fire(frame);
+                
                 --request.number;
                 if (request.number == 0) mFrameRequests.pop();
             } else {
@@ -375,28 +400,6 @@ namespace mtdcy {
             mLooper->terminate();
         }
 
-        struct OnClockEvent : public ClockEvent {
-            RenderSession *mTgt;
-
-            OnClockEvent(RenderSession *tgt, const sp<Looper>& lp) :
-                ClockEvent(lp), mTgt(tgt) { }
-
-            virtual void onEvent(const eClockState& cs) {
-                INFO("clock state => %d", cs);
-                switch (cs) {
-                    case kClockStateTicking:
-                        mTgt->onStartRenderer();
-                        break;
-                    case kClockStatePaused:
-                        mTgt->onPauseRenderer();
-                        break;
-                    case kClockStateReset:
-                    default:
-                        break;
-                }
-            }
-        };
-
         void requestFrame() {
             // don't request frame if eos detected.
             if (mOutputEOS) return;
@@ -470,19 +473,25 @@ namespace mtdcy {
             // always render the first video
             if (mLastFrameTime == kTimeInvalid) {
                 sp<MediaFrame> frame = *mOutputQueue.begin();
+                INFO("renderer %zu: first frame %.3f(s)",
+                     mID, frame->pts.seconds());
+
+                // notify about the first render postion
+                if (mPositionEvent != NULL) {
+                    mPositionEvent->fire(frame->pts);
+                }
+                
                 if (GetCodecType(mID) == kCodecTypeVideo) {
-                    INFO("renderer %zu: first frame %.3f(s)",
-                            mID, frame->pts.seconds());
                     if (mExternalRenderer != NULL) {
                         mExternalRenderer->fire(frame);
                     } else {
                         mOut->write(frame);
                     }
                 }
-
-                // notify about the first render postion
-                if (mPositionEvent != NULL) {
-                    mPositionEvent->fire(frame->pts);
+                
+                if (mClock != NULL && mClock->role() == kClockRoleMaster) {
+                    DEBUG("renderer %zu: set clock time %.3f(s)", mID, frame->pts.seconds());
+                    mClock->set(frame->pts);
                 }
             }
 
@@ -492,13 +501,12 @@ namespace mtdcy {
 
         void onPrepareRenderer(const MediaTime& ts, const sp<StatusEvent>& se) {
             INFO("renderer %zu: prepare renderer...", mID);
+            CHECK_TRUE(ts >= kTimeBegin);
 
             // tell decoder to prepare
             FrameRequestPayload payload;
             payload.ts = ts;
             mFrameRequestEvent->fire(payload);
-
-            // TODO: prepare again without flush
 
             // reset flags
             mLastUpdateTime = 0;
@@ -506,40 +514,16 @@ namespace mtdcy {
             mLastFrameTime = kTimeInvalid;
             mFrameRequests = 0;
             mStatusEvent = se;
+            mOutputQueue.clear();
 
             // request MIN_COUNT frames
             requestFrame();
             // -> onFrameReady
 
             // if no clock, start render directly
-            if (mClock == NULL) onStartRenderer();
-        }
-
-        void onStartRenderer() {
-            INFO("renderer %zu: start", mID);
-            //onPrintStat();
-
-            // check
-            if (mLooper->exists(mPresentFrame)) {
-                ERROR("renderer %zu: already started");
-                return;
+            if (mClock == NULL && !mLooper->exists(mPresentFrame)) {
+                onStartRenderer();
             }
-
-            // start
-            // case 1: start at eos
-            if (mOutputEOS && mOutputQueue.empty()) {
-                // eos, do nothing
-                ERROR("renderer %zu: start at eos", mID);
-            }
-            // case 3: frames ready
-            else {
-                onRender();
-            }
-        }
-
-        void onPauseRenderer() {
-            INFO("renderer %zu: pause at %.3f(s)", mID, mClock->get().seconds());
-            mLooper->remove(mPresentFrame);
         }
 
         void onFlushRenderer() {
@@ -679,6 +663,56 @@ namespace mtdcy {
             }
             return REFRESH_RATE;
         }
+        
+        // using clock to control render session
+        struct OnClockEvent : public ClockEvent {
+            RenderSession *mTgt;
+            
+            OnClockEvent(RenderSession *tgt, const sp<Looper>& lp) :
+            ClockEvent(lp), mTgt(tgt) { }
+            
+            virtual void onEvent(const eClockState& cs) {
+                INFO("clock state => %d", cs);
+                switch (cs) {
+                    case kClockStateTicking:
+                        mTgt->onStartRenderer();
+                        break;
+                    case kClockStatePaused:
+                        mTgt->onPauseRenderer();
+                        break;
+                    case kClockStateReset:
+                    default:
+                        break;
+                }
+            }
+        };
+        
+        void onStartRenderer() {
+            INFO("renderer %zu: start", mID);
+            //onPrintStat();
+            
+            // check
+            if (mLooper->exists(mPresentFrame)) {
+                ERROR("renderer %zu: already started");
+                return;
+            }
+            
+            // start
+            // case 1: start at eos
+            if (mOutputEOS && mOutputQueue.empty()) {
+                // eos, do nothing
+                ERROR("renderer %zu: start at eos", mID);
+            }
+            // case 3: frames ready
+            else {
+                onRender();
+            }
+        }
+        
+        void onPauseRenderer() {
+            INFO("renderer %zu: pause at %.3f(s)", mID, mClock->get().seconds());
+            mLooper->remove(mPresentFrame);
+        }
 
         // FrameReadyEvent
         virtual void onEvent(const sp<MediaFrame>& frame) {
@@ -708,11 +742,8 @@ namespace mtdcy {
 
         bool clock = options.contains("Clock");
 
-        String name = String::format("%d", id);
-
-        sp<Looper> lp1 = new Looper(name + "_decode");
-        lp1->loop();
-        sp<DecodeSession> ds = new DecodeSession(lp1, format, options);
+        String name = String::format("%d.decode", id);
+        sp<DecodeSession> ds = new DecodeSession(name, format, options);
 
         if (ds->mCodec == NULL) {
             ERROR("failed to initial decoder");
@@ -720,15 +751,15 @@ namespace mtdcy {
         }
 
         // do we need a new looper for renderer ?
-        sp<Looper> lp2 = lp1;
+        sp<Looper> rlp = ds;
         if (clock) {
-            lp2 = new Looper(name + "_render");
-            lp2->loop();
+            rlp = new Looper(String::format("%d.render", id));
+            rlp->loop();
         }
 
         Message dup = options;
         dup.set<sp<FrameRequestEvent> >("FrameRequestEvent", ds);
-        sp<RenderSession> rs = new RenderSession(lp2, id,
+        sp<RenderSession> rs = new RenderSession(rlp, id,
                 ds->mCodec->formats(), dup);
 
         // test if RenderSession is valid
