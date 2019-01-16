@@ -180,6 +180,7 @@ int main (int argc, char **argv) {
     sp<PreviewRenderer> renderer1 = new PreviewRenderer;
 
     Message options;
+    options.setString("url", filename);
     options.set<sp<RenderPositionEvent> >("ProgressEvent", callback);
     if (sExternalRenderer) {
         options.set<sp<RenderEvent> >("RenderEvent", renderer);
@@ -187,7 +188,7 @@ int main (int argc, char **argv) {
         options.setPointer("SDL_Window", window);
     }
     options.set<sp<RenderEvent> >("PreviewRenderEvent", renderer1);
-    engine->addMedia(filename, options);
+    engine->addMedia(options);
 
     //if (engine->status() == OK) {
         engine->prepare(kTimeBegin);

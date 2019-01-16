@@ -42,10 +42,10 @@
 #include <MediaFramework/MediaSession.h>
 
 namespace mtdcy {
-    struct MPContext;
+    struct StateMachine;
     class MediaPlayer {
         public:
-            virtual ~MediaPlayer() { }
+        virtual ~MediaPlayer();
 
             /**
              * create a player with options
@@ -70,7 +70,7 @@ namespace mtdcy {
              * @param options option and parameter for this media
              * @return return OK on success, otherwise error code
              */
-            status_t addMedia(const String& url, const Message& options);
+            status_t addMedia(const Message& media);
             /**
              * prepare player after add media
              * @return return OK on success, otherwise error code
@@ -99,10 +99,10 @@ namespace mtdcy {
             status_t reset();
 
         private:
-            sp<MPContext>   mContext;
+            sp<StateMachine>    mSM;
         
         private:
-            MediaPlayer() { }
+            MediaPlayer();
             DISALLOW_EVILS(MediaPlayer);
     };
 }
