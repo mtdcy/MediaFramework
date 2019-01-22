@@ -79,8 +79,10 @@ target_link_libraries(${PROJECT_NAME} ${SDL2_LIBRARY})
 if (APPLE)
     target_link_libraries(${PROJECT_NAME} "-framework MediaToolkit")
 
-    # FFmpeg.framework
+    # FFmpeg.framework, FIXME
     target_link_libraries(${PROJECT_NAME} "-framework FFmpeg")
+    # ffmpeg header structure need this
+    include_directories(/Library/Frameworks/FFmpeg.framework/Headers)
 
     # VideoToolbox
     target_link_libraries(${PROJECT_NAME} "-framework CoreFoundation")
