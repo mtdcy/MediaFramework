@@ -49,6 +49,7 @@
 
 #define kPreferredPixelFormat kPixelFormatNV12
 
+// https://www.objc.io/issues/23-video/videotoolbox/
 // http://www.enkichen.com/2018/03/24/videotoolbox/?utm_source=tuicool&utm_medium=referral
 namespace mtdcy { namespace VideoToolbox {
 
@@ -520,6 +521,11 @@ namespace mtdcy { namespace VideoToolbox {
 
     sp<MediaFrame> createMediaFrame(CVPixelBufferRef pixbuf) {
         sp<MediaFrame> frame = new MediaFrame;
+        
+        IOSurfaceRef surface = CVPixelBufferGetIOSurface(pixbuf);
+        if (surface) {
+            // TODO
+        }
 
         OSType cvPixelFormat = CVPixelBufferGetPixelFormatType(pixbuf);
         CVReturn err;

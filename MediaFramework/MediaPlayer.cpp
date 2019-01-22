@@ -260,9 +260,9 @@ namespace mtdcy {
                                                   new OnUpdateRenderPosition(looper, mpc->mNextId));
             
             if (kCodecTypeAudio == type || numTracks == 1) {
-                options.set<sp<Clock> >("Clock", mpc->mClock->getClock(kClockRoleMaster));
+                options.set<sp<Clock> >("Clock", new Clock(mpc->mClock, kClockRoleMaster));
             } else {
-                options.set<sp<Clock> >("Clock", mpc->mClock->getClock());
+                options.set<sp<Clock> >("Clock", new Clock(mpc->mClock));
             }
             
             sp<MediaSession> session = MediaSessionCreate(formats, options);

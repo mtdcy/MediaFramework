@@ -39,25 +39,27 @@
 
 namespace mtdcy {
     SharedClock::ClockInt::ClockInt() :
-        mPaused(true),
         mMediaTime(kTimeBegin), mSystemTime(kTimeBegin),
+        mPaused(true),
         mSpeed(1.0f)
     {
 
     }
 
     SharedClock::SharedClock() :
-        mGeneration(0), mMasterClock(0),
+        mGeneration(1), mMasterClock(0),
         mClockInt()
     {
     }
 
     void SharedClock::start() {
+        AutoLock _l(mLock);
+        if (!mClockInt.mPaused) return;
+        
         if (atomic_load(&mMasterClock)) {
             // wait master clock to update
             // BUT, we still set clock state here.
         } else {
-            AutoLock _l(mLock);
             mClockInt.mPaused = false;
             mClockInt.mSystemTime = SystemTimeUs();
             atomic_add(&mGeneration, 1);
@@ -66,19 +68,25 @@ namespace mtdcy {
     }
     
     void SharedClock::set(const MediaTime& t) {
+        // NOT alter clock state here
         AutoLock _l(mLock);
         mClockInt.mMediaTime  = t;
         mClockInt.mSystemTime = SystemTimeUs();
         atomic_add(&mGeneration, 1);
     }
     
-    void SharedClock::update(ClockInt& c) {
+    void SharedClock::update(const ClockInt& c) {
         AutoLock _l(mLock);
         mClockInt = c;
         atomic_add(&mGeneration, 1);
     }
 
     MediaTime SharedClock::get() const {
+        AutoLock _l(mLock);
+        return get_l();
+    }
+    
+    MediaTime SharedClock::get_l() const {
         if (mClockInt.mPaused) {
             return mClockInt.mMediaTime;
         }
@@ -90,7 +98,9 @@ namespace mtdcy {
 
     void SharedClock::pause() {
         AutoLock _l(mLock);
-        mClockInt.mMediaTime = get();
+        if (mClockInt.mPaused) return;
+        
+        mClockInt.mMediaTime = get_l();
         mClockInt.mSystemTime = SystemTimeUs();
         mClockInt.mPaused = true;
         atomic_add(&mGeneration, 1);
@@ -98,6 +108,7 @@ namespace mtdcy {
     }
 
     bool SharedClock::isPaused() const {
+        AutoLock _l(mLock);
         return mClockInt.mPaused;
     }
 
@@ -108,80 +119,72 @@ namespace mtdcy {
     }
 
     double SharedClock::speed() const {
+        AutoLock _l(mLock);
         return mClockInt.mSpeed;
     }
 
     void SharedClock::reset() {
         AutoLock _l(mLock);
 
-        mClockInt.mMediaTime = 0;
-        mClockInt.mSystemTime = 0;
+        mClockInt.mMediaTime = kTimeBegin;
+        mClockInt.mSystemTime = kTimeBegin;
         mClockInt.mPaused = true;
         atomic_add(&mGeneration, 1);
         
         notifyListeners_l(kClockStateReset);
     }
-
-    sp<Clock> SharedClock::getClock(eClockRole role) {
-        if (role == kClockRoleMaster) {
-            int old = atomic_add(&mMasterClock, 1);
-            CHECK_EQ(old , 0);
-        }
-        return new Clock(*this, role);
+    
+    void SharedClock::_regListener(const void * who, const sp<ClockEvent> &ce) {
+        AutoLock _l(mLock);
+        mListeners.erase(who);
+        mListeners.insert(who, ce);
     }
     
-    void SharedClock::_regListener(const sp<ClockEvent> &ce) {
+    void SharedClock::_unregListener(const void * who) {
         AutoLock _l(mLock);
-        mListeners.push(ce);
-    }
-    
-    void SharedClock::_unregListener(const sp<ClockEvent> &ce) {
-        AutoLock _l(mLock);
-        List<sp<ClockEvent> >::iterator it = mListeners.begin();
-        for (; it != mListeners.end(); ++it) {
-            if (ce == (*it)) {
-                mListeners.erase(it);
-                break;
-            }
-        }
+        mListeners.erase(who);
     }
     
     void SharedClock::notifyListeners_l(eClockState state) {
-        List<sp<ClockEvent> >::iterator it = mListeners.begin();
+        HashTable<const void *, sp<ClockEvent> >::iterator it = mListeners.begin();
         for (; it != mListeners.end(); ++it) {
-            (*it)->fire(state);
+            it.value()->fire(state);
         }
     }
 
-    Clock::Clock(SharedClock& sc, eClockRole role) :
-        mClock(sc), mRole(role), mListener(NULL),
-        mGeneration(0)
+    Clock::Clock(const sp<SharedClock>& sc, eClockRole role) :
+        mClock(sc), mRole(role), mGeneration(0)
     {
+        if (role == kClockRoleMaster) {
+            int old = atomic_add(&mClock->mMasterClock, 1);
+            CHECK_EQ(old, 0);   // only one master clock allowed
+        }
         reload();
     }
 
     Clock::~Clock() {
         if (mRole == kClockRoleMaster) {
-            atomic_sub(&mClock.mMasterClock, 1);
+            atomic_sub(&mClock->mMasterClock, 1);
         }
+        mClock.clear();
     }
 
     void Clock::reload() const {
-        int gen = atomic_load(&mClock.mGeneration);
+        int gen = atomic_load(&mClock->mGeneration);
+        CHECK_GE(gen, mGeneration);
         if (gen == mGeneration) return;
 
-        AutoLock _l(mClock.mLock);
+        AutoLock _l(mClock->mLock);
         mGeneration = gen;
-        mClockInt = mClock.mClockInt;
+        mClockInt = mClock->mClockInt;
     }
     
     void Clock::setListener(const sp<ClockEvent> &ce) {
         if (ce == NULL) {
-            if (mListener != NULL) mClock._unregListener(mListener);
+            mClock->_unregListener(this);
         } else {
-            mClock._regListener(ce);
+            mClock->_regListener(this, ce);
         }
-        mListener = ce;
     }
  
     void Clock::update(const MediaTime& t) {
@@ -191,7 +194,7 @@ namespace mtdcy {
         if (mClockInt.mPaused) {
             mClockInt.mPaused = false;
         }
-        mClock.update(mClockInt);
+        mClock->update(mClockInt);
         reload();
     }
 
@@ -202,7 +205,7 @@ namespace mtdcy {
         if (mClockInt.mPaused) {
             mClockInt.mPaused = false;
         }
-        mClock.update(mClockInt);
+        mClock->update(mClockInt);
         reload();
     }
 
@@ -229,6 +232,7 @@ namespace mtdcy {
     void Clock::set(const MediaTime& t) {
         mClockInt.mMediaTime = t;
         mClockInt.mSystemTime = SystemTimeUs();
-        mClock.update(mClockInt);
+        mClock->update(mClockInt);
+        reload();
     }
 }

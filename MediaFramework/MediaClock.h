@@ -113,17 +113,9 @@ namespace mtdcy {
              */
             MediaTime   get() const;
 
-        public:
-            /**
-             * get a shadow clock
-             * @param   role    @see kClockRole*
-             * @note only one master is allowed
-             */
-            sp<Clock>   getClock(eClockRole role = kClockRoleSlave);
-
         private:
-            void        _regListener(const sp<ClockEvent>& ce);
-            void        _unregListener(const sp<ClockEvent>& ce);
+            void        _regListener(const void * who, const sp<ClockEvent>& ce);
+            void        _unregListener(const void * who);
         
             void        notifyListeners_l(eClockState state);
 
@@ -135,16 +127,19 @@ namespace mtdcy {
             mutable Mutex   mLock;
             struct ClockInt {
                 ClockInt();
-                bool        mPaused;
                 MediaTime   mMediaTime;
                 MediaTime   mSystemTime;
+                bool        mPaused;
                 double      mSpeed;
             };
-            friend class Clock;
-            void            update(ClockInt&);
             ClockInt        mClockInt;
-            List<sp<ClockEvent> >   mListeners;
+        
+            friend class Clock;
+        
+            void            update(const ClockInt&);
+            HashTable<const void *, sp<ClockEvent> > mListeners;
 
+            MediaTime       get_l() const;
         private:
             DISALLOW_EVILS(SharedClock);
     };
@@ -154,16 +149,13 @@ namespace mtdcy {
      * @see SharedClock
      */
     class Clock {
-        protected:
-            friend class SharedClock;
+        public:
             /**
              * create a shadow of SharedClock
              * @param sc    reference to SharedClock
              * @param role  @see SharedClock::eClockRole
              */
-            Clock(SharedClock& sc, eClockRole role);
-
-        public:
+            Clock(const sp<SharedClock>& sc, eClockRole role = kClockRoleSlave);
             ~Clock();
 
         public:
@@ -205,9 +197,9 @@ namespace mtdcy {
             void        reload() const;
 
         private:
-            SharedClock&                    mClock;
+            // NO lock here
+            sp<SharedClock>                 mClock;
             const eClockRole                mRole;
-            sp<ClockEvent>                  mListener;
             /**
              * shadow of SharedClock::mGeneration
              */
