@@ -202,6 +202,11 @@ enum {
 #define kKeyRealTime    "realtime"  ///< int32_t, bool
 #define kKeyMask        "mask"      ///< int32_t
 
+/**
+ * some device need to pause/unpause implicit
+ */
+#define kKeyPause       "pause"     ///< int32_t, bool
+
 __END_DECLS
 
 #ifdef __cplusplus

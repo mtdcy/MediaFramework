@@ -705,6 +705,12 @@ namespace mtdcy {
             }
             // case 3: frames ready
             else {
+                if (mOut != NULL) {
+                    Message options;
+                    options.setInt32(kKeyPause, 0);
+                    mOut->configure(options);
+                }
+                
                 onRender();
             }
         }
@@ -712,6 +718,12 @@ namespace mtdcy {
         void onPauseRenderer() {
             INFO("renderer %zu: pause at %.3f(s)", mID, mClock->get().seconds());
             mLooper->remove(mPresentFrame);
+            
+            if (mOut != NULL) {
+                Message options;
+                options.setInt32(kKeyPause, 1);
+                mOut->configure(options);
+            }
         }
 
         // FrameReadyEvent

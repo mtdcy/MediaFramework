@@ -139,6 +139,17 @@ namespace mtdcy {
     }
 
     status_t SDLAudio::configure(const Message& options) {
+        if (options.contains(kKeyPause)) {
+            bool pause = options.findInt32(kKeyPause);
+            
+            AutoLock _l(mLock);
+            if (SDL_GetAudioStatus() == SDL_AUDIO_PLAYING && pause) {
+                mFlushing = true;
+                mWait.signal();
+            }
+            return OK;
+        }
+        
         return INVALID_OPERATION;
     }
 
