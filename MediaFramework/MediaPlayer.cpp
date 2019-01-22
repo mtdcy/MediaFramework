@@ -44,15 +44,15 @@
 
 #include <SDL.h>
 
-#define PROGRESS_UPDATE_RATE (1000000LL)
-
 namespace mtdcy {
-
+    
+    
     struct CountedStatusEvent : public StatusEvent {
         volatile int mCount;
         sp<StatusEvent> kept;
 
-        void keep(const sp<StatusEvent>& _kept) { kept = _kept; }
+        // FIXME:
+        void keep(const sp<StatusEvent>& self) { kept = self; }
 
         CountedStatusEvent(const sp<Looper>& lp, size_t n) :
             StatusEvent(lp), mCount(n) { }
@@ -95,6 +95,8 @@ namespace mtdcy {
     struct SessionContext {
         eCodecFormat        mCodec;
         sp<MediaSession>    mMediaSession;
+        int64_t             mStartTime;
+        int64_t             mEndTime;
 
         SessionContext(eCodecFormat codec, const sp<MediaSession>& ms) :
             mCodec(codec),  mMediaSession(ms) { }
@@ -103,6 +105,7 @@ namespace mtdcy {
     struct MPContext {
         // external static context
         sp<RenderPositionEvent> mRenderPositionEvent;
+        int64_t mRenderPositionUpdateInterval;
         sp<StatusEvent> mStatusEvent;
 
         // mutable context
@@ -115,7 +118,8 @@ namespace mtdcy {
 
         MPContext(const Message& options) :
             // external static context
-            mRenderPositionEvent(NULL), mStatusEvent(NULL),
+            mRenderPositionEvent(NULL), mRenderPositionUpdateInterval(500000LL),
+            mStatusEvent(NULL),
             // internal static context
             // mutable context
             mNextId(0),mHasAudio(false),
@@ -124,6 +128,10 @@ namespace mtdcy {
         {
             if (options.contains("RenderPositionEvent")) {
                 mRenderPositionEvent = options.find<sp<RenderPositionEvent> >("RenderPositionEvent");
+            }
+            
+            if (options.contains("RenderPositionUpdateInterval")) {
+                mRenderPositionUpdateInterval = options.findInt64("RenderPositionUpdateInterval");
             }
 
             if (options.contains("StatusEvent")) {
@@ -151,17 +159,15 @@ namespace mtdcy {
             sp<Looper> looper = Looper::getLooper();
             MPContext *mpc = static_cast<MPContext*>(looper->opaque());
 
-            if (mpc->mClock->isPaused()) {
-                INFO("stop update progress");
-                return;
-            }
-
+            // send render position info to client
             MediaTime ts = mpc->mClock->get();
             INFO("current progress %.3f(s)", ts.seconds());
-
             mpc->mRenderPositionEvent->fire(ts);
 
-            looper->post(new UpdateRenderPosition, PROGRESS_UPDATE_RATE);
+            if (mpc->mClock->isPaused() == false) {
+                looper->post(new UpdateRenderPosition,
+                             mpc->mRenderPositionUpdateInterval);
+            }
         }
     };
 
@@ -182,38 +188,118 @@ namespace mtdcy {
             }
         }
     };
+    
+    static void prepareMedia(const sp<Looper>& looper, MPContext* mpc, const Message& media) {
+        
+        const char * url = media.findString("url");
+        INFO("prepare media %s", url);
+        
+        sp<Content> pipe = Content::Create(url);
+        if (pipe == NULL) {
+            ERROR("create pipe failed");
+            mpc->setStatus(UNKNOWN_ERROR);
+            return;
+        }
+        
+        sp<MediaExtractor> extractor = MediaExtractor::Create(pipe, NULL);
+        if (extractor == NULL || extractor->status() != OK) {
+            ERROR("create extractor failed");
+            mpc->setStatus(UNKNOWN_ERROR);
+            return;
+        }
+        
+        sp<RenderEvent> externalRenderer;
+        void *nativeWindow = NULL;
+        if (media.contains("RenderEvent")) {
+            externalRenderer = media.find<sp<RenderEvent> >("RenderEvent");
+        }
+        
+        if (media.contains("SDL_Window")) {
+            nativeWindow = media.findPointer("SDL_Window");
+        }
+        
+        //double startTimeUs = options.findDouble("StartTime");
+        //double endTimeUs = options.findDouble("EndTime");
+        
+        Message fileFormats = extractor->formats();
+        size_t numTracks = fileFormats.findInt32(kKeyCount);
+        
+        uint32_t activeTracks = 0;
+        for (size_t i = 0; i < numTracks; ++i) {
+            // PacketRequestEvent
+            sp<MediaSource> ms = new MediaSource(looper, extractor, i);
+            
+            String name = String::format("track-%zu", i);
+            const Message& formats = fileFormats.find<Message>(name);
+            
+            DEBUG("session %zu: %s", i, formats.string().c_str());
+            
+            eCodecFormat codec = (eCodecFormat)formats.findInt32(kKeyFormat);
+            eCodecType type = GetCodecType(codec);
+            if (type == kCodecTypeAudio) {
+                if (mpc->mHasAudio) {
+                    INFO("ignore this audio");
+                    continue;
+                } else {
+                    mpc->mHasAudio = true;
+                }
+            }
+            
+            Message options;
+            if (type == kCodecTypeVideo) {
+                if (externalRenderer != NULL) {
+                    options.set<sp<RenderEvent> >("RenderEvent", externalRenderer);
+                } else if (nativeWindow) {
+                    options.setPointer("SDL_Window", nativeWindow);
+                }
+            }
+            
+            options.set<sp<PacketRequestEvent> >("PacketRequestEvent", ms);
+            
+            options.set<sp<RenderPositionEvent> >("RenderPositionEvent",
+                                                  new OnUpdateRenderPosition(looper, mpc->mNextId));
+            
+            if (kCodecTypeAudio == type || numTracks == 1) {
+                options.set<sp<Clock> >("Clock", mpc->mClock->getClock(kClockRoleMaster));
+            } else {
+                options.set<sp<Clock> >("Clock", mpc->mClock->getClock());
+            }
+            
+            sp<MediaSession> session = MediaSessionCreate(formats, options);
+            if (session == NULL) {
+                ERROR("create session for %s[%zu] failed", url, i);
+                continue;
+            }
+            
+            // save this packet queue
+            mpc->mSessions.insert(mpc->mNextId++, SessionContext(codec, session));
+            activeTracks |= (1<<i);
+        }
+        
+        // tell extractor which tracks are enabled.
+        Message config;
+        config.setInt32(kKeyMask, activeTracks);
+        extractor->configure(config);
+    }
 
-    enum eStateType {
-        kStateInvalid,
-        kStateInit,
-        kStateReady,
-        kStatePlaying,
-        kStatePaused,
-        kStateStopped,
-        kStateFlushed,
-        kStateMax,
-    };
-
-    struct StateLink {
+    static struct StateLink {
         eStateType  from;
         eStateType  to;
     } kStateLinks[] = {
-        { kStateInvalid,        kStateInit      },  // add media
-        { kStateInit,           kStateReady     },  // prepare
+        { kStateInvalid,        kStateInitial   },  // add media
+        { kStateInitial,        kStateReady     },  // prepare
         { kStateReady,          kStatePlaying   },  // start
-        { kStatePlaying,        kStateStopped   },  // stop
-        { kStateStopped,        kStateFlushed   },  // flush
-        { kStateFlushed,        kStateInvalid   },  // release
-        // pause
-        { kStatePlaying,        kStatePaused    },  // pause
-        { kStatePaused,         kStatePlaying   },  // start @ paused
-        { kStatePaused,         kStateStopped   },  // stop @ paused
+        { kStatePlaying,        kStateIdle      },  // pause
+        { kStateIdle,           kStateFlushed   },  // flush
+        { kStateFlushed,        kStateReleased  },  // release
+        // start
+        { kStateIdle,           kStatePlaying   },  // start @ paused
         // prepare
         { kStateFlushed,        kStateReady     },  // prepare @ flushed
         // flush
         { kStateReady,          kStateFlushed   },  // flush @ ready
         // release
-        { kStateInit,           kStateInvalid   },  // release @ init
+        { kStateInitial,        kStateReleased  },  // release @ init
     };
 #define NELEM(x)    (sizeof(x) / sizeof(x[0]))
 
@@ -245,8 +331,8 @@ namespace mtdcy {
         }
     };
 
-    struct InitState : public State {
-        InitState() : State(kStateInit) { }
+    struct InitialState : public State {
+        InitialState() : State(kStateInitial) { }
         virtual void onLeaveState() {
             // NOTHING
         }
@@ -256,85 +342,15 @@ namespace mtdcy {
             sp<Looper> looper = Looper::getLooper();
             MPContext *mpc = static_cast<MPContext*>(looper->opaque());
 
-            const char * url = media.findString("url");
-            sp<Content> pipe = Content::Create(url);
-            if (pipe == NULL) {
-                ERROR("create pipe failed");
-                mpc->setStatus(UNKNOWN_ERROR);
-                return;
-            }
-
-            sp<MediaExtractor> extractor = MediaExtractor::Create(pipe, NULL);
-            if (extractor == NULL || extractor->status() != OK) {
-                ERROR("create extractor failed");
-                mpc->setStatus(UNKNOWN_ERROR);
-                return;
-            }
-
-            sp<RenderEvent> externalRenderer;
-            void *nativeWindow = NULL;
-            if (media.contains("RenderEvent")) {
-                externalRenderer = media.find<sp<RenderEvent> >("RenderEvent");
-            }
-
-            if (media.contains("SDL_Window")) {
-                nativeWindow = media.findPointer("SDL_Window");
-            }
-
-            //double startTimeUs = options.findDouble("StartTime");
-            //double endTimeUs = options.findDouble("EndTime");
-
-            Message fileFormats = extractor->formats();
-            size_t numTracks = fileFormats.findInt32(kKeyCount);
-
-            for (size_t i = 0; i < numTracks; ++i) {
-                // PacketRequestEvent
-                sp<MediaSource> ms = new MediaSource(looper, extractor, i);
-
-                String sessionName = String::format("track-%zu", i);
-                const Message& formats = fileFormats.find<Message>(sessionName);
-
-                DEBUG("session %zu: %s", i, formats.string().c_str());
-
-                eCodecFormat codec = (eCodecFormat)formats.findInt32(kKeyFormat);
-                eCodecType type = GetCodecType(codec);
-                if (type == kCodecTypeAudio) {
-                    if (mpc->mHasAudio) {
-                        INFO("ignore this audio");
-                        continue;
-                    } else {
-                        mpc->mHasAudio = true;
-                    }
+            if (media.contains(kKeyCount)) {
+                size_t count = media.findInt32(kKeyCount);
+                for (size_t i = 0; i < count; ++i) {
+                    String name = String::format("media-%zu", i);
+                    const Message& _media = media.find<Message>(name);
+                    prepareMedia(looper, mpc, _media);
                 }
-
-                Message options;
-                if (type == kCodecTypeVideo) {
-                    if (externalRenderer != NULL) {
-                        options.set<sp<RenderEvent> >("RenderEvent", externalRenderer);
-                    } else if (nativeWindow) {
-                        options.setPointer("SDL_Window", nativeWindow);
-                    }
-                }
-
-                options.set<sp<PacketRequestEvent> >("PacketRequestEvent", ms);
-
-                options.set<sp<RenderPositionEvent> >("RenderPositionEvent",
-                        new OnUpdateRenderPosition(looper, mpc->mNextId));
-
-                if (kCodecTypeAudio == type || numTracks == 1) {
-                    options.set<sp<Clock> >("Clock", mpc->mClock->getClock(kClockRoleMaster));
-                } else {
-                    options.set<sp<Clock> >("Clock", mpc->mClock->getClock());
-                }
-
-                sp<MediaSession> session = MediaSessionCreate(formats, options);
-                if (session == NULL) {
-                    ERROR("create session for %s[%zu] failed", url, i);
-                    continue;
-                }
-
-                // save this packet queue
-                mpc->mSessions.insert(mpc->mNextId++, SessionContext(codec, session));
+            } else {
+                prepareMedia(looper, mpc, media);
             }
         }
     };
@@ -350,10 +366,12 @@ namespace mtdcy {
                     st, mpc->mClock->get().seconds());
 
             // notify client
-            mpc->mStatusEvent->fire(st);
+            if (mpc->mStatusEvent != NULL)
+                mpc->mStatusEvent->fire(st);
 
             // notify the render position
-            mpc->mRenderPositionEvent->fire(mpc->mClock->get());
+            if (mpc->mRenderPositionEvent != NULL)
+                mpc->mRenderPositionEvent->fire(mpc->mClock->get());
         }
     };
 
@@ -365,10 +383,10 @@ namespace mtdcy {
 
         virtual void onEnterState(const Message& payload) {
             // -> ready by prepare
-            MediaTime ts = payload.find<MediaTime>("time");
-
             sp<Looper> looper = Looper::getLooper();
             MPContext *mpc = static_cast<MPContext*>(looper->opaque());
+            
+            MediaTime ts = payload.find<MediaTime>("time");
 
             // set clock time
             mpc->mClock->set(ts);
@@ -402,8 +420,8 @@ namespace mtdcy {
         }
     };
 
-    struct PausedState : public State {
-        PausedState() : State(kStatePaused) { }
+    struct IdleState : public State {
+        IdleState() : State(kStateIdle) { }
         virtual void onLeaveState() {
             // NOTHING
         }
@@ -413,28 +431,8 @@ namespace mtdcy {
             MPContext *mpc = static_cast<MPContext*>(looper->opaque());
 
             mpc->mClock->pause();
-        }
-    };
-
-    struct StoppedState : public State {
-        StoppedState() : State(kStateStopped) { }
-        virtual void onLeaveState() {
-
-        }
-        virtual void onEnterState(const Message& payload) {
-            // -> stopped by stop
-            sp<Looper> looper = Looper::getLooper();
-            MPContext *mpc = static_cast<MPContext*>(looper->opaque());
-
-            ControlEventPayload pl = { kControlEventFlush };
-
-            HashTable<size_t, SessionContext>::iterator it = mpc->mSessions.begin();
-            for (; it != mpc->mSessions.end(); ++it) {
-                SessionContext& sc = it.value();
-                sc.mMediaSession->fire(pl);
-            }
-
-            mpc->mClock->reset();
+            
+            // we may have to suspend codec after some time
         }
     };
     
@@ -444,24 +442,47 @@ namespace mtdcy {
             
         }
         virtual void onEnterState(const Message& payload) {
+            sp<Looper> looper = Looper::getLooper();
+            MPContext *mpc = static_cast<MPContext*>(looper->opaque());
+            
+            ControlEventPayload pl = { kControlEventFlush };
+            
+            HashTable<size_t, SessionContext>::iterator it = mpc->mSessions.begin();
+            for (; it != mpc->mSessions.end(); ++it) {
+                SessionContext& sc = it.value();
+                sc.mMediaSession->fire(pl);
+            }
+            
+            mpc->mClock->reset();
+        }
+    };
+    
+    struct ReleasedState : public State {
+        ReleasedState() : State(kStateReleased) { }
+        
+        virtual void onLeaveState() {
             
         }
+        
+        virtual void onEnterState(const Message& payload) {
+        }
+    };
+    
+    static sp<State> sStates[kStateMax] = {
+        new InvalidState,
+        new InitialState,
+        new ReadyState,
+        new PlayingState,
+        new IdleState,
+        new FlushedState,
+        new ReleasedState,
     };
 
     struct StateMachine : public Looper {
         Mutex           mLock;
         eStateType      mState;
-        sp<State>       mStates[kStateMax];
 
         StateMachine() : Looper("mp"), mState(kStateInvalid) {
-            mStates[kStateInvalid]  = new InvalidState;
-            mStates[kStateInit]     = new InitState;
-            mStates[kStateReady]    = new ReadyState;
-            mStates[kStatePlaying]  = new PlayingState;
-            mStates[kStatePaused]   = new PausedState;
-            mStates[kStateStopped]  = new StoppedState;
-            mStates[kStateFlushed]  = new FlushedState;
-
             loop();
         }
 
@@ -471,27 +492,29 @@ namespace mtdcy {
 
         eStateType state() const { return mState; }
 
-        struct StateRunnable : public Runnable {
-            sp<State>   mFrom;
-            sp<State>   mTo;
+        struct Transition : public Runnable {
+            eStateType  mFrom;
+            eStateType  mTo;
             Message     mPayload;
-            StateRunnable(const sp<State>& from, const sp<State>& to, const Message& payload) :
+            Transition(eStateType from, eStateType to, const Message& payload) :
                 mFrom(from), mTo(to), mPayload(payload) { }
+            
             virtual void run() {
-                mFrom->onLeaveState();
-                mTo->onEnterState(mPayload);
+                sStates[mFrom]->onLeaveState();
+                sStates[mTo]->onEnterState(mPayload);
             }
         };
 
-        void setState(eStateType state, const Message& payload) {
+        status_t setState(eStateType state, const Message& payload) {
             eStateType to = state;
             if (checkStateTransition(mState, state) != OK) {
                 ERROR("invalid state transition %d => %d", mState, state);
-                to = kStateInvalid;
+                return INVALID_OPERATION;
             }
-            sp<Runnable> runnable = new StateRunnable(mStates[mState], mStates[to], payload);
+            sp<Runnable> runnable = new Transition(mState, to, payload);
             post(runnable);
             mState = state;
+            return OK;
         }
     };
 
@@ -515,37 +538,37 @@ namespace mtdcy {
 
     status_t MediaPlayer::addMedia(const Message& media) {
         INFO("add media @ %s", media.string().c_str());
-        mSM->setState(kStateInit, media);
-        return OK;
+        return mSM->setState(kStateInitial, media);
     }
 
     status_t MediaPlayer::prepare(const MediaTime& ts) {
         INFO("prepare @ %.3f(s)", ts.seconds());
         Message payload;
         payload.set<MediaTime>("time", ts);
-        mSM->setState(kStateReady, payload);
-        return OK;
+        return mSM->setState(kStateReady, payload);
     }
 
     status_t MediaPlayer::start() {
         INFO("start");
         Message payload;
-        mSM->setState(kStatePlaying, payload);
-        return OK;
+        return mSM->setState(kStatePlaying, payload);
     }
 
     status_t MediaPlayer::pause() {
         INFO("pause");
         Message payload;
-        mSM->setState(kStatePaused, payload);
-        return OK;
+        return mSM->setState(kStateIdle, payload);
     }
-
-    status_t MediaPlayer::stop() {
-        INFO("stop");
+    
+    status_t MediaPlayer::flush() {
+        INFO("flush");
         Message payload;
-        mSM->setState(kStateStopped, payload);
-        return OK;
+        return mSM->setState(kStateFlushed, payload);
     }
 
+    status_t MediaPlayer::release() {
+        INFO("release");
+        Message payload;
+        return mSM->setState(kStateReleased, payload);
+    }
 }

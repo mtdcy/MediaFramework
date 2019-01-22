@@ -43,6 +43,18 @@
 
 namespace mtdcy {
     struct StateMachine;
+    //
+    enum eStateType {
+        kStateInvalid,
+        kStateInitial,  // mp with media
+        kStateReady,    // mp ready to play
+        kStatePlaying,  // mp is playing
+        kStateIdle,     // mp is not playing
+        kStateFlushed,  // mp
+        kStateReleased, // mp context is released
+        kStateMax,
+    };
+    
     class MediaPlayer {
         public:
         virtual ~MediaPlayer();
@@ -55,6 +67,11 @@ namespace mtdcy {
              * @param options   option and parameter for player
              */
             static sp<MediaPlayer> Create(const Message& options);
+        
+            /**
+             * 
+             */
+            eStateType state() const;
 
             /**
              * add a media to player.
@@ -88,15 +105,13 @@ namespace mtdcy {
              */
             status_t pause();
             /**
-             * stop this player.
-             * @return return OK on success, otherwise error code.
+             * flush this player
              */
-            status_t stop();
+            status_t flush();
             /**
-             * reset this player.
-             * @return return OK on success, otherwise error code.
+             * release this player
              */
-            status_t reset();
+            status_t release();
 
         private:
             sp<StateMachine>    mSM;

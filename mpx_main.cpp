@@ -218,7 +218,7 @@ int main (int argc, char **argv) {
                         break;
                     case SDLK_q:
                     case SDLK_ESCAPE:
-                        engine->stop();
+                        engine->flush();
                         started = false;
                         break;
                     case SDLK_RIGHT:

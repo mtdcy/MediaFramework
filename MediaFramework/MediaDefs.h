@@ -200,6 +200,7 @@ enum {
  * kKeyRealTime - decode not faster than 1x realtime, power saving
  */
 #define kKeyRealTime    "realtime"  ///< int32_t, bool
+#define kKeyMask        "mask"      ///< int32_t
 
 __END_DECLS
 
