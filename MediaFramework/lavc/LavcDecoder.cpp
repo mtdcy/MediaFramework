@@ -38,7 +38,7 @@
 
 #include "LavcDecoder.h"
 
-#include <FFmpeg.h>
+#include <FFmpeg/FFmpeg.h>
 
 #include <mpeg4/Systems.h>
 #include <mpeg4/Audio.h>
