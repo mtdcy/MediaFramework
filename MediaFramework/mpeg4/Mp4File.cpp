@@ -460,7 +460,7 @@ namespace mtdcy {
             int64_t encodeDelay = 0;
             int64_t encodePadding = 0;
             sp<EditListBox> elst = FindBoxInside(trak, "edts", "elst");
-            if (elst->entries.size()) {
+            if (elst != NULL && elst->entries.size()) {
                 size_t i = 0;
                 if (elst->entries[0].media_time == -1) {
                     startTime = elst->entries[0].segment_duration;
