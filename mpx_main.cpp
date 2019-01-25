@@ -32,102 +32,21 @@
 //          1. 20181126     initial version
 //
 
-#define LOG_TAG "mpx.main"
+#define GL_SILENCE_DEPRECATION
+#define LOG_TAG "mpx.gl.main"
 //#define LOG_NDEBUG 0
 
 #include <MediaFramework/MediaFramework.h>
+#ifdef __APPLE__
+#include <OpenGL/gl.h>
+#else
+#include <GL/gl.h>
+#endif
 #include <SDL.h>
 
-using namespace mtdcy;
-
-static bool started = false;
-static int64_t duration = 0;
-static double progress = 0;
-static int mouse_x = 0;
-static int mouse_y = 0;
-static bool mouse_down = false;
-static SDL_Window *window = NULL;
-static SDL_Window *preview_window = NULL;
-
-struct MPStatus : public StatusEvent {
-    virtual void onEvent(const status_t& st) {
-        INFO("==> status %d", st);
-    }
-};
-
-struct Progress : public RenderPositionEvent {
-    Progress() : RenderPositionEvent() { }
-    virtual void onEvent(const MediaTime& v) {
-        //INFO("progress %" PRId64, v);
-        progress = v.seconds();
-    }
-};
-
-static bool sExternalRenderer = true;
-static sp<MediaFrame> sFrame;
 #define EVENT_FRAME_READY (SDL_USEREVENT + 1)
-struct MainThreadRenderer : public RenderEvent {
-    virtual void onEvent(const sp<MediaFrame>& frame) {
-        sFrame = frame;
-        SDL_Event event;
-        event.type = EVENT_FRAME_READY;
-        SDL_PushEvent(&event);
-    }
-};
-
-static sp<MediaFrame> sPreviewFrame;
-#define EVENT_PREVIEW_READY (SDL_USEREVENT+2)
-struct PreviewRenderer : public RenderEvent {
-    virtual void onEvent(const sp<MediaFrame>& frame) {
-        sPreviewFrame = frame;
-        SDL_Event event;
-        event.type = EVENT_PREVIEW_READY;
-        SDL_PushEvent(&event);
-    }
-};
-
-#include <MediaFramework/sdl2/SDLVideo.h>
-static sp<SDLVideo> sRenderer;
-void render() {
-    if (sRenderer == NULL) {
-        Message params;
-        params.setInt32(kKeyFormat, sFrame->format);
-        params.setInt32(kKeyWidth, sFrame->v.width);
-        params.setInt32(kKeyHeight, sFrame->v.height);
-        params.setPointer("SDL_Window", window);
-        sRenderer = new SDLVideo(params);
-        if (sRenderer->status() != OK) {
-            ERROR("create renderer failed.");
-        }
-    }
-
-    CHECK_TRUE(sRenderer != NULL);
-
-    sRenderer->write(sFrame);
-}
-
-static sp<SDLVideo> sPreviewRenderer;
-void renderPreview() {
-    if (sPreviewRenderer == NULL) {
-        Message params;
-        INFO("%d x %d", sPreviewFrame->v.width, sPreviewFrame->v.height);
-        params.setInt32(kKeyFormat, sFrame->format);
-        params.setInt32(kKeyWidth, sPreviewFrame->v.width);
-        params.setInt32(kKeyHeight, sPreviewFrame->v.height);
-        params.setPointer("SDL_Window", preview_window);
-        sPreviewRenderer = new SDLVideo(params);
-        if (sPreviewRenderer->status() != OK) {
-            ERROR("create renderer failed.");
-        }
-    }
-
-    CHECK_TRUE(sPreviewRenderer != NULL);
-
-    SDL_SetWindowPosition(preview_window, mouse_x, mouse_y);
-    SDL_ShowWindow(preview_window);
-
-    sPreviewRenderer->write(sPreviewFrame);
-}
+#define DOUBLE_BUFFER 1
+//#define TEST_SCREEN
 
 #ifdef DEBUG_MALLOC
 extern "C" {
@@ -135,153 +54,189 @@ extern "C" {
     void malloc_debug_end();
 }
 #endif
-int main (int argc, char **argv) {
-    
-    INFO("Toolkit version %#x", TOOLKIT_VERSION);
-    
-#ifdef DEBUG_MALLOC
-    malloc_debug_begin(); {
-#endif
-    SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
 
-    window = SDL_CreateWindow("sdl video player",
-            SDL_WINDOWPOS_UNDEFINED,
-            SDL_WINDOWPOS_UNDEFINED,
-            800,
-            480,
-            SDL_WINDOW_OPENGL
-            |SDL_WINDOW_RESIZABLE
-            |SDL_WINDOW_SHOWN
-            |SDL_WINDOW_ALLOW_HIGHDPI);
+using namespace mtdcy;
 
-    preview_window = SDL_CreateWindow("preview",
-            SDL_WINDOWPOS_UNDEFINED,
-            SDL_WINDOWPOS_UNDEFINED,
-            160,
-            96,
-            SDL_WINDOW_OPENGL
-            |SDL_WINDOW_HIDDEN
-            |SDL_WINDOW_BORDERLESS
-            |SDL_WINDOW_ALWAYS_ON_TOP
-            |SDL_WINDOW_POPUP_MENU
-            |SDL_WINDOW_ALLOW_HIGHDPI);
+static SDL_Window * window = NULL;
+static sp<MediaPlayer> mp;
+static double position = 0;
 
-    const String filename = argv[1];
-    SDL_SetWindowTitle(window, filename.basename().c_str());
-
-    sp<RenderPositionEvent> callback = new Progress;
-    Message option0;
-    option0.set<sp<RenderPositionEvent> >("RenderPositionEvent", callback);
-    option0.set<sp<StatusEvent> >("StatusEvent", new MPStatus);
-        
-    sp<MediaPlayer> engine = MediaPlayer::Create(option0);
-
-    sp<MainThreadRenderer> renderer = new MainThreadRenderer;
-    sp<PreviewRenderer> renderer1 = new PreviewRenderer;
-
-    Message options;
-    options.setString("url", filename);
-    options.set<sp<RenderPositionEvent> >("ProgressEvent", callback);
-    if (sExternalRenderer) {
-        options.set<sp<RenderEvent> >("RenderEvent", renderer);
-    } else {
-        options.setPointer("SDL_Window", window);
+struct MPStatus : public StatusEvent {
+    virtual void onEvent(const status_t& st) {
+        INFO("==> status %d", st);
     }
-    options.set<sp<RenderEvent> >("PreviewRenderEvent", renderer1);
-    engine->addMedia(options);
+};
 
-    //if (engine->status() == OK) {
-        engine->prepare(kTimeBegin);
-    //}
+struct MPRenderPosition : public RenderPositionEvent {
+    MPRenderPosition() : RenderPositionEvent() { }
+    virtual void onEvent(const MediaTime& v) {
+        //INFO("progress %" PRId64, v);
+        position = v.seconds();
+    }
+};
 
+static void display() {
     SDL_Event event;
-    bool quit = false;
-    while (!quit && SDL_WaitEvent(&event)) {
+    event.type = EVENT_FRAME_READY;
+    SDL_PushEvent(&event);
+}
+
+static sp<MediaFrame> sCurrentFrame;
+struct MPRender : public RenderEvent {
+    MPRender() : RenderEvent() { }
+    virtual void onEvent(const sp<MediaFrame>& frame) {
+        sCurrentFrame = frame;
+        display();
+    }
+};
+
+static void handleReshape() {
+    display();
+}
+
+static sp<MediaOut> out;
+static void handleDisplay() {
+    INFO("display");
+    if (sCurrentFrame == NULL) return;
+    
+    if (out == NULL) {
+        INFO("creating media out device");
+        Uint32 flags = SDL_GetWindowFlags(window);
+        if (flags & SDL_WINDOW_ALLOW_HIGHDPI) {
+            // get scale factor of high resolution
+            SDL_SetWindowSize(window, sCurrentFrame->v.width/2, sCurrentFrame->v.height/2);
+        } else {
+            SDL_SetWindowSize(window, sCurrentFrame->v.width, sCurrentFrame->v.height);
+        }
+        
+        Message options;
+        options.setInt32(kKeyWidth, sCurrentFrame->v.width);
+        options.setInt32(kKeyHeight, sCurrentFrame->v.height);
+        options.setInt32(kKeyFormat, sCurrentFrame->v.format);
+        options.setPointer("SDL_Window", window);
+        out = MediaOut::Create(kCodecTypeVideo, options);
+        CHECK_TRUE(out != NULL);
+    }
+    
+    //glViewport(0, 0, 800, 480);
+#ifdef TEST_SCREEN
+    glClearColor(0, 1.0, 0, 1.0);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glFlush();
+#endif
+    
+    out->write(sCurrentFrame);
+    
+#if DOUBLE_BUFFER
+    SDL_GL_SwapWindow(window);
+#endif
+}
+
+static void loop() {
+    SDL_Event event;
+    while (SDL_WaitEvent(&event)) {
         switch (event.type) {
-            case SDL_QUIT:
-                // quit without stop, for testing purpose
-                quit = true;
+            case EVENT_FRAME_READY:
+                handleDisplay();
                 break;
+            case SDL_QUIT:
+                return;
             case SDL_KEYDOWN:
                 switch (event.key.keysym.sym) {
                     case SDLK_SPACE:
-                        if (!started) {
-                            //if (engine->state() != MediaPlayer::kStateReady &&
-                            //    engine->state() != MediaPlayer::kStatePaused)
-                            //    engine->prepare(kTimeBegin);
-                            engine->start();
-                            started = true;
-                        } else {
-                            engine->pause();
-                            started = false;
-                        }
+                        mp->start();
                         break;
                     case SDLK_q:
                     case SDLK_ESCAPE:
-                        engine->flush();
-                        started = false;
-                        break;
-                    case SDLK_RIGHT:
-                        engine->prepare(progress * 1000000LL + 5000000LL);
-                        break;
-                    case SDLK_LEFT:
-                        engine->prepare(progress * 1000000ll - 5000000LL);
                         break;
                 }
-                break;
-            case SDL_MOUSEBUTTONDOWN:
-                mouse_x = event.button.x;
-                mouse_y = event.button.y;
-                mouse_down = true;
-
-                //engine->pause();
-                //engine->peek(progress, renderer1);
-                break;
-            case SDL_MOUSEMOTION:
-                if (mouse_down) {
-                    //int delta = event.motion.x - mouse_x;
-                    //engine->preview(progress + 5000000LL);
-                    int w,h;
-                    SDL_GetWindowSize(window, &w, &h);
-                    static int64_t lastpos = 0;
-                    int64_t pos = (duration * event.motion.x) / w;
-                    // usally 1s has only one sync frame.
-                    if (abs(pos - lastpos) > 1000000LL) {
-                        lastpos = pos;
-                    }
-                } break;
-            case SDL_MOUSEBUTTONUP:
-                mouse_down = false;
-                //engine->start();
                 break;
             case SDL_WINDOWEVENT:
                 switch (event.window.type) {
                     case SDL_WINDOWEVENT_RESIZED:
                     case SDL_WINDOWEVENT_EXPOSED:
-                        INFO("window changed, refresh");
-                        render();
-                        break;
+                        handleReshape();
                 } break;
-            case EVENT_FRAME_READY:
-                render();
-                break;
-            case EVENT_PREVIEW_READY:
-                renderPreview();
-                break;
+            case SDL_MOUSEBUTTONDOWN:
+            case SDL_MOUSEMOTION:
+            case SDL_MOUSEBUTTONUP:
             default:
                 break;
         }
     }
+}
 
-    engine.clear();
+static Uint32 window_flags() {
+    Uint32 flags = SDL_WINDOW_RESIZABLE|SDL_WINDOW_SHOWN;
+    flags |= SDL_WINDOW_OPENGL;
+#ifdef __APPLE__
+    flags |= SDL_WINDOW_ALLOW_HIGHDPI;
+#endif
+    return flags;
+}
 
-    sRenderer.clear();
-    sFrame.clear();
-    callback.clear();
-    renderer.clear();
-
-    SDL_DestroyWindow(window);
-    window = NULL;
+int main (int argc, char **argv) {
+    
+    INFO("Toolkit version %#x", TOOLKIT_VERSION);
+    const String url = argv[argc - 1];
+    INFO("url: %s", url.c_str());
+    
+#ifdef DEBUG_MALLOC
+    malloc_debug_begin(); {
+#endif
+        
+        // init window
+        SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
+        
+        window = SDL_CreateWindow(url.basename().c_str(),
+                                  SDL_WINDOWPOS_UNDEFINED,
+                                  SDL_WINDOWPOS_UNDEFINED,
+                                  800,
+                                  480,
+                                  window_flags());
+        
+        // create gl context
+#if DOUBLE_BUFFER
+        SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+#else
+        SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 0);
+#endif
+        SDL_GLContext glcontext = SDL_GL_CreateContext(window);
+        
+        INFO("gl version: %s", glGetString(GL_VERSION));
+        INFO("glsl version: %s", glGetString(GL_SHADING_LANGUAGE_VERSION));
+        
+        // create the mp
+        Message options;
+        options.set<sp<RenderPositionEvent> >("RenderPositionEvent", new MPRenderPosition);
+        options.set<sp<StatusEvent> >("StatusEvent", new MPStatus);
+        mp = MediaPlayer::Create(options);
+        
+        // add media to the mp
+        Message media;
+        media.setString("url", url);
+        media.set<sp<RenderEvent> >("RenderEvent", new MPRender);
+        mp->addMedia(media);
+        
+        // prepare the mp
+        mp->prepare(kTimeBegin);
+        
+        // loop
+        loop();
+        
+        // clearup
+        mp->release();
+        mp.clear();
+        
+        SDL_GL_DeleteContext(glcontext);
+        SDL_DestroyWindow(window);
+        window = NULL;
+        
+        // clear static context
+        sCurrentFrame.clear();
+        
+        // quit sdl
+        SDL_Quit();
 #ifdef DEBUG_MALLOC
     } malloc_debug_end();
 #endif

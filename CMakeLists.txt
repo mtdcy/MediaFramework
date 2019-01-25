@@ -52,7 +52,8 @@ set (SOURCE_FILES
     MediaFramework/mpeg4/Box.cpp
     MediaFramework/lavc/LavcDecoder.cpp
     MediaFramework/sdl2/SDLAudio.cpp
-    MediaFramework/sdl2/SDLVideo.cpp
+    #MediaFramework/sdl2/SDLVideo.cpp
+    MediaFramework/opengl/GLVideo.cpp
     )
 
 if (APPLE)
@@ -89,6 +90,7 @@ if (APPLE)
     target_link_libraries(${PROJECT_NAME} "-framework CoreMedia")
     target_link_libraries(${PROJECT_NAME} "-framework CoreVideo")
     target_link_libraries(${PROJECT_NAME} "-framework VideoToolbox")
+    target_link_libraries(${PROJECT_NAME} "-framework OpenGL")
 endif()
 
 # link static

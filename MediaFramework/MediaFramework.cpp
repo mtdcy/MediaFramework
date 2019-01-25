@@ -46,6 +46,8 @@
 #endif
 #include "sdl2/SDLAudio.h"
 #include "sdl2/SDLVideo.h"
+#include "opengl/GLVideo.h"
+
 #if 0
 #include "wave/WaveFile.h" 
 #include "ape/ApeFile.h"
@@ -139,7 +141,9 @@ namespace mtdcy {
         if (type == kCodecTypeAudio) {
             out = new SDLAudio(format);
         } else if (type == kCodecTypeVideo) {
-            out = new SDLVideo(format);
+            // TODO: auto select out device
+            out = new GLVideo(format);
+            //out = new SDLVideo(format);
         }
         if (out == NULL || out->status() != OK) return NULL;
         return out;

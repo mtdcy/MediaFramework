@@ -364,8 +364,8 @@ namespace mtdcy {
                     // FIXME: accpet pix fmt from client.
                 } else {
                     Message dup = format;
-                    CHECK_TRUE(options.contains("SDL_Window"));
-                    dup.setPointer("SDL_Window", options.findPointer("SDL_Window"));
+                    //CHECK_TRUE(options.contains("SDL_Window"));
+                    //dup.setPointer("SDL_Window", options.findPointer("SDL_Window"));
                     mOut = MediaOut::Create(kCodecTypeVideo, dup);
                     if (mOut == NULL || mOut->status() != OK) {
                         ERROR("track %zu: create out failed", mID);
