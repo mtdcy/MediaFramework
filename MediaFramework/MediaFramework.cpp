@@ -133,22 +133,7 @@ namespace mtdcy {
         }
 
         return codec;
-    }
-
-    sp<MediaOut> MediaOut::Create(eCodecType type, const Message& format) {
-        sp<MediaOut> out;
-
-        if (type == kCodecTypeAudio) {
-            out = new SDLAudio(format);
-        } else if (type == kCodecTypeVideo) {
-            // TODO: auto select out device
-            out = new GLVideo(format);
-            //out = new SDLVideo(format);
-        }
-        if (out == NULL || out->status() != OK) return NULL;
-        return out;
-    }
-    
+    }    
 };
 
 #include <libyuv.h>

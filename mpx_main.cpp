@@ -44,7 +44,12 @@
 #endif
 #include <SDL.h>
 
-#define EVENT_FRAME_READY (SDL_USEREVENT + 1)
+#include "MediaFramework/opengl/GLVideo.h"
+
+#define EVENT_PREPARE       (SDL_USEREVENT + 1)
+#define EVENT_FRAME_READY   (SDL_USEREVENT + 2)
+#define EVENT_FLUSH         (SDL_USEREVENT + 3)
+
 #define DOUBLE_BUFFER 1
 //#define TEST_SCREEN
 
@@ -75,48 +80,46 @@ struct MPRenderPosition : public RenderPositionEvent {
     }
 };
 
-static void display() {
+static void sendEvent(Uint32 type) {
     SDL_Event event;
-    event.type = EVENT_FRAME_READY;
+    event.type = type;
     SDL_PushEvent(&event);
 }
 
-static sp<MediaFrame> sCurrentFrame;
-struct MPRender : public RenderEvent {
-    MPRender() : RenderEvent() { }
-    virtual void onEvent(const sp<MediaFrame>& frame) {
-        sCurrentFrame = frame;
-        display();
+static sp<MediaOut> _out;
+static sp<MediaFrame> _frame;
+static Message _format;
+struct MediaOutProxy : public MediaOut {
+    MediaOutProxy() : MediaOut() { }
+    virtual ~MediaOutProxy() { }
+    virtual status_t status() const { return OK; }
+    virtual String string() const { return ""; }
+    virtual Message formats() const { return _format; }
+    virtual status_t configure(const Message& options) { return INVALID_OPERATION; }
+    virtual status_t prepare(const Message& options) {
+        _format = options;
+        sendEvent(EVENT_PREPARE);
+        return OK;
+    }
+    virtual status_t write(const sp<MediaFrame>& frame) {
+        _frame = frame;
+        sendEvent(EVENT_FRAME_READY);
+        return OK;
+    }
+    virtual status_t flush() {
+        _frame = NULL;
+        sendEvent(EVENT_FLUSH);
+        return OK;
     }
 };
 
 static void handleReshape() {
-    display();
+    sendEvent(EVENT_FRAME_READY);
 }
 
-static sp<MediaOut> out;
 static void handleDisplay() {
     INFO("display");
-    if (sCurrentFrame == NULL) return;
-    
-    if (out == NULL) {
-        INFO("creating media out device");
-        Uint32 flags = SDL_GetWindowFlags(window);
-        if (flags & SDL_WINDOW_ALLOW_HIGHDPI) {
-            // get scale factor of high resolution
-            SDL_SetWindowSize(window, sCurrentFrame->v.width/2, sCurrentFrame->v.height/2);
-        } else {
-            SDL_SetWindowSize(window, sCurrentFrame->v.width, sCurrentFrame->v.height);
-        }
-        
-        Message options;
-        options.setInt32(kKeyWidth, sCurrentFrame->v.width);
-        options.setInt32(kKeyHeight, sCurrentFrame->v.height);
-        options.setInt32(kKeyFormat, sCurrentFrame->v.format);
-        options.setPointer("SDL_Window", window);
-        out = MediaOut::Create(kCodecTypeVideo, options);
-        CHECK_TRUE(out != NULL);
-    }
+    if (_frame == NULL) return;
     
     //glViewport(0, 0, 800, 480);
 #ifdef TEST_SCREEN
@@ -125,7 +128,7 @@ static void handleDisplay() {
     glFlush();
 #endif
     
-    out->write(sCurrentFrame);
+    _out->write(_frame);
     
 #if DOUBLE_BUFFER
     SDL_GL_SwapWindow(window);
@@ -138,6 +141,12 @@ static void loop() {
         switch (event.type) {
             case EVENT_FRAME_READY:
                 handleDisplay();
+                break;
+            case EVENT_PREPARE:
+                CHECK_TRUE(_out->prepare(_format) == OK);
+                break;
+            case EVENT_FLUSH:
+                CHECK_TRUE(_out->flush() == OK);
                 break;
             case SDL_QUIT:
                 return;
@@ -206,6 +215,9 @@ int main (int argc, char **argv) {
         INFO("gl version: %s", glGetString(GL_VERSION));
         INFO("glsl version: %s", glGetString(GL_SHADING_LANGUAGE_VERSION));
         
+        // setup local context
+        _out = new GLVideo();
+        
         // create the mp
         Message options;
         options.set<sp<RenderPositionEvent> >("RenderPositionEvent", new MPRenderPosition);
@@ -215,7 +227,7 @@ int main (int argc, char **argv) {
         // add media to the mp
         Message media;
         media.setString("url", url);
-        media.set<sp<RenderEvent> >("RenderEvent", new MPRender);
+        media.set<sp<MediaOut> >("MediaOut", new MediaOutProxy);
         mp->addMedia(media);
         
         // prepare the mp
@@ -233,7 +245,9 @@ int main (int argc, char **argv) {
         window = NULL;
         
         // clear static context
-        sCurrentFrame.clear();
+        _out.clear();
+        _frame.clear();
+        _format.clear();
         
         // quit sdl
         SDL_Quit();

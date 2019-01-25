@@ -86,11 +86,6 @@ namespace mtdcy {
      * For update render position to target.
      */
     typedef TypedEvent<MediaTime> RenderPositionEvent;
-
-    /**
-     * For render frames to external renderer.
-     */
-    typedef TypedEvent<sp<MediaFrame> > RenderEvent;
     
     /**
      * For handle error status

@@ -49,11 +49,12 @@ namespace mtdcy {
     struct OpenGLContext;
     class GLVideo : public MediaOut {
         public:
-            GLVideo(const Message& format);
+            GLVideo();
             virtual ~GLVideo();
 
         public:
             virtual String          string() const;
+            virtual status_t        prepare(const Message& options);
             virtual status_t        status() const;
             virtual Message         formats() const;
             virtual status_t        configure(const Message& options);

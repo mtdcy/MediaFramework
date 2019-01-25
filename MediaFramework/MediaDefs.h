@@ -106,11 +106,6 @@ enum ePixelFormat {
     kPixelFormatRGB888,             ///< packed RGB 8:8:8, 24 bpp
     kPixelFormatARGB,               ///< packed ARGB, 32 bpp, AARRGGBB
     kPixelFormatRGBA,               ///< packed RGBA, 32 bpp, RRGGBBAA
-    
-    // hardware format
-#ifdef __APPLE__
-    kPixelFormatVideoToolbox    = 0x10000,
-#endif
 };
 
 // FIXME: code sample infomation into format
@@ -218,9 +213,9 @@ enum {
 #define kKeyPause       "pause"     ///< int32_t, bool
 
 /**
- * hardware frame
+ * hardware accel
  */
-#define kKeyHardwareFrame   "hw-frame"  ///< int32_t, bool 
+#define kKeyHwAccel     "hwaccel"  ///< int32_t, bool
 
 __END_DECLS
 

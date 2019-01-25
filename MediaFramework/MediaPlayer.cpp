@@ -208,16 +208,16 @@ namespace mtdcy {
             return;
         }
         
-        sp<RenderEvent> externalRenderer;
-        void *nativeWindow = NULL;
-        if (media.contains("RenderEvent")) {
-            externalRenderer = media.find<sp<RenderEvent> >("RenderEvent");
+        sp<MediaOut> external;
+        if (media.contains("MediaOut")) {
+            external = media.find<sp<MediaOut> >("MediaOut");
         }
         
+#if 0
         if (media.contains("SDL_Window")) {
             nativeWindow = media.findPointer("SDL_Window");
         }
-        
+#endif
         //double startTimeUs = options.findDouble("StartTime");
         //double endTimeUs = options.findDouble("EndTime");
         
@@ -247,10 +247,8 @@ namespace mtdcy {
             
             Message options;
             if (type == kCodecTypeVideo) {
-                if (externalRenderer != NULL) {
-                    options.set<sp<RenderEvent> >("RenderEvent", externalRenderer);
-                } else if (nativeWindow) {
-                    options.setPointer("SDL_Window", nativeWindow);
+                if (external != NULL) {
+                    options.set<sp<MediaOut> >("MediaOut", external);
                 }
             }
             

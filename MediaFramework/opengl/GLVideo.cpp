@@ -447,8 +447,12 @@ namespace mtdcy {
         CHECK_NULL(pixbuf);
         
         OSType pixtype = CVPixelBufferGetPixelFormatType(pixbuf);
-        CHECK_TRUE(pixtype == kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange); // nv12
-        CHECK_EQ(CVPixelBufferGetPlaneCount(pixbuf), glc->config->n_textures);
+        if (CVPixelBufferIsPlanar(pixbuf)) {
+            CHECK_EQ(CVPixelBufferGetPlaneCount(pixbuf), glc->config->n_textures);
+        } else {
+            CHECK_EQ(1, glc->config->n_textures);
+        }
+        //CHECK_TRUE(pixtype == kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange); // nv12
         
         IOSurfaceRef iosurface = CVPixelBufferGetIOSurface(pixbuf);
         CHECK_NULL(iosurface);
@@ -544,26 +548,46 @@ namespace mtdcy {
     
 
     ////////////////////////////////////////////////////////////////////
-    GLVideo::GLVideo(const Message& format) : MediaOut(),
-    mGLContext(NULL)
-    {
-        INFO("gl video => %s", format.string().c_str());
-        // is gl context ready for current thread
+    GLVideo::GLVideo() : MediaOut(),
+    mGLContext(NULL) {
         
-
-        int32_t width       = format.findInt32(kKeyWidth);
-        int32_t height      = format.findInt32(kKeyHeight);
-        ePixelFormat pixel  = (ePixelFormat)format.findInt32(kKeyFormat);
+    }
+    
+    status_t GLVideo::prepare(const Message& options) {
+        INFO("gl video => %s", options.string().c_str());
+        
+        bool hwaccel = options.findInt32(kKeyHwAccel, 0);
+        
+        // is gl context ready for current thread
+#ifdef __APPLE__
+        CHECK_NULL(CGLGetCurrentContext());
+#endif
+        
+        int32_t width       = options.findInt32(kKeyWidth);
+        int32_t height      = options.findInt32(kKeyHeight);
+        ePixelFormat pixel  = (ePixelFormat)options.findInt32(kKeyFormat);
 
         switch (pixel) {
             case kPixelFormatNV12:
-                mGLContext = init(&s_config_nv12);
+                if (hwaccel) {
+                    mGLContext = init_rectangle(&s_config_vt_nv12, width, height);
+                } else {
+                    mGLContext = init(&s_config_nv12);
+                }
                 break;
             case kPixelFormatYUV420P:
-                mGLContext = init(&s_config_yuv420);
+                if (hwaccel) {
+                    FATAL("FIXME");
+                } else {
+                    mGLContext = init(&s_config_yuv420);
+                }
                 break;
-            case kPixelFormatVideoToolbox:
-                mGLContext = init_rectangle(&s_config_vt_nv12, width, height);
+            case kPixelFormatYUV422P:
+                if (hwaccel) {
+                    mGLContext = init_rectangle(&s_config_vt_y422p, width, height);
+                } else {
+                    FATAL("FIXME");
+                }
                 break;
             default:
                 FATAL("FIXME");
@@ -571,7 +595,7 @@ namespace mtdcy {
         
         if (mGLContext == NULL) {
             ERROR("failed to init context");
-            return;
+            return BAD_VALUE;
         }
 
 #ifdef TEST_COLOR
@@ -582,6 +606,7 @@ namespace mtdcy {
 #endif
         mGLContext->width   = width;
         mGLContext->height  = height;
+        return OK;
     }
 
     GLVideo::~GLVideo() {

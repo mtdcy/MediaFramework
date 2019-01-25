@@ -73,11 +73,13 @@ static SDL_AudioFormat get_sdl_sample_format(eSampleFormat a) {
 
 namespace mtdcy {
 
-    SDLAudio::SDLAudio(const Message& wanted_format) :
+    SDLAudio::SDLAudio() :
         MediaOut(),
         mInitByUs(false), 
         mPendingFrame(0), mFlushing(false), mSilence(0)
-    {
+    { }
+    
+    status_t SDLAudio::prepare(const Message& options) {
         if (SDL_WasInit(SDL_INIT_AUDIO) == SDL_INIT_AUDIO) {
             INFO("sdl audio has been initialized");
         } else {
@@ -88,9 +90,9 @@ namespace mtdcy {
         SDL_AudioSpec wanted_spec, spec;
 
         // sdl only support s16.
-        wanted_spec.channels    = wanted_format.findInt32(kKeyChannels);
-        wanted_spec.freq        = wanted_format.findInt32(kKeySampleRate);
-        wanted_spec.format      = get_sdl_sample_format((eSampleFormat)wanted_format.findInt32(kKeyFormat));
+        wanted_spec.channels    = options.findInt32(kKeyChannels);
+        wanted_spec.freq        = options.findInt32(kKeySampleRate);
+        wanted_spec.format      = get_sdl_sample_format((eSampleFormat)options.findInt32(kKeyFormat));
         wanted_spec.silence     = 0;
         wanted_spec.samples     = 2048;
         wanted_spec.callback    = onSDLCallback;
@@ -98,7 +100,7 @@ namespace mtdcy {
 
         if (SDL_OpenAudio(&wanted_spec, &spec) < 0) {
             ERROR("SDL_OpenAudio failed. %s", SDL_GetError());
-            return;
+            return BAD_VALUE;
         }
 
         sp<Message> format      = new Message;
@@ -114,6 +116,7 @@ namespace mtdcy {
         mFormat     = format;
         mSampleFormat = spec.format;
         INFO("SDL audio init done.");
+        return OK;
     }
 
     SDLAudio::~SDLAudio() {

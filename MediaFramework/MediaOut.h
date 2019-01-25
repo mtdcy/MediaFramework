@@ -51,13 +51,7 @@ namespace mtdcy {
      */
     class MediaOut {
     public:
-        /**
-         * create a output device based on provided parameters
-         * @param type      codec type @see eCodecType
-         * @param options   option and parameter for creating device
-         * @return return reference to a new output device
-         */
-        static sp<MediaOut> Create(eCodecType type, const Message& options);
+        MediaOut() { }
         virtual ~MediaOut() { }
         
     public:
@@ -66,6 +60,12 @@ namespace mtdcy {
          * @return return a string of information
          */
         virtual String          string() const = 0;
+        /**
+         * prepare a output device based on provided parameters
+         * @param options   option and parameter for creating device
+         * @return return reference to a new output device
+         */
+        virtual status_t        prepare(const Message& options) = 0;
         /**
          * get status of this output device.
          * @return return OK if everything is OK, otherwise error code
@@ -95,9 +95,6 @@ namespace mtdcy {
          * @return return OK on success, otherwise error code
          */
         virtual status_t        flush() = 0;
-        
-    protected:
-        MediaOut() { }
         
     private:
         DISALLOW_EVILS(MediaOut);

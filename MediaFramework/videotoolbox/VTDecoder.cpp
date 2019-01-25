@@ -48,7 +48,7 @@
 #endif
 
 // kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange -> nv12
-#define kPreferredPixelFormat kPixelFormatNV12
+#define kPreferredPixelFormat kPixelFormatYUV422P
 
 // https://www.objc.io/issues/23-video/videotoolbox/
 // http://www.enkichen.com/2018/03/24/videotoolbox/?utm_source=tuicool&utm_medium=referral
@@ -421,6 +421,7 @@ namespace mtdcy { namespace VideoToolbox {
         formats.setInt32(kKeyWidth, mVTContext->width);
         formats.setInt32(kKeyHeight, mVTContext->height);
         formats.setInt32(kKeyFormat, mVTContext->pixel);
+        formats.setInt32(kKeyHwAccel, 1);
         INFO(" => %s", formats.string().c_str());
         return formats;
     }
@@ -539,18 +540,16 @@ namespace mtdcy { namespace VideoToolbox {
 
     sp<MediaFrame> createMediaFrame(CVPixelBufferRef pixbuf) {
         sp<MediaFrame> frame = new MediaFrame;
+        frame->format = get_pix_format(CVPixelBufferGetPixelFormatType(pixbuf));
         
         // TODO: find out this frame is backend by gpu memory or system memory
         IOSurfaceRef surface = CVPixelBufferGetIOSurface(pixbuf);
-        if (surface) {
+        CHECK_NULL(surface);
+        if (1) {
             frame->data[0]          = new Buffer(new PixelBuffer(pixbuf));
-            frame->format           = kPixelFormatVideoToolbox;
             frame->v.strideWidth    = CVPixelBufferGetWidth(pixbuf);
             frame->v.sliceHeight    = CVPixelBufferGetHeight(pixbuf);
         } else {
-            OSType cvPixelFormat = CVPixelBufferGetPixelFormatType(pixbuf);
-            frame->format = get_pix_format(cvPixelFormat);
-
             CVReturn err = CVPixelBufferLockBaseAddress(pixbuf, kCVPixelBufferLock_ReadOnly);
             if (err != kCVReturnSuccess) {
                 ERROR("Error locking the pixel buffer");

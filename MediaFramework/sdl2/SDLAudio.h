@@ -48,11 +48,12 @@ namespace mtdcy {
 
     class SDLAudio : public MediaOut {
         public:
-            SDLAudio(const Message& format);
+            SDLAudio();
             virtual ~SDLAudio();
 
         public:
             virtual String          string() const;
+            virtual status_t        prepare(const Message& options);
             virtual status_t        status() const;
             virtual Message         formats() const;
             virtual status_t        configure(const Message& options);

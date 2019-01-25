@@ -37,6 +37,8 @@
 #include <MediaToolkit/Toolkit.h>
 
 #include "MediaSession.h"
+#include "opengl/GLVideo.h"
+#include "sdl2/SDLAudio.h"
 
 #define MIN_COUNT (4)
 #define MAX_COUNT (8)
@@ -298,7 +300,6 @@ namespace mtdcy {
         eCodecFormat            mID;
         sp<Looper>              mLooper;    // keep a ref, for terminate()
         sp<RenderPositionEvent> mPositionEvent;
-        sp<RenderEvent>         mExternalRenderer;
         sp<MediaOut>            mOut;
         sp<ColorConvertor>      mColorConvertor;
         sp<Clock>               mClock;
@@ -325,7 +326,7 @@ namespace mtdcy {
             ControlEvent(lp), FrameReadyEvent(lp),  // share the same looper
             // external static context
             mID(id), mLooper(lp),
-            mPositionEvent(NULL), mExternalRenderer(NULL),
+            mPositionEvent(NULL),
             // internal static context
             mOut(NULL), mColorConvertor(NULL), mClock(NULL),
             mFrameRequestEvent(NULL), mLatency(0),
@@ -357,35 +358,31 @@ namespace mtdcy {
 
             if (type == kCodecTypeVideo) {
                 ePixelFormat pixel = (ePixelFormat)format.findInt32(kKeyFormat);
-                ePixelFormat pixFmtAccepted = kPixelFormatYUV420P;
-                if (options.contains("RenderEvent")) {
-                    INFO("track %zu: using external renderer...", mID);
-                    mExternalRenderer = options.find<sp<RenderEvent> >("RenderEvent");
-                    // FIXME: accpet pix fmt from client.
+                ePixelFormat pixFmtAccepted;
+                if (options.contains("MediaOut")) {
+                    mOut = options.find<sp<MediaOut> >("MediaOut");
                 } else {
-                    Message dup = format;
-                    //CHECK_TRUE(options.contains("SDL_Window"));
-                    //dup.setPointer("SDL_Window", options.findPointer("SDL_Window"));
-                    mOut = MediaOut::Create(kCodecTypeVideo, dup);
-                    if (mOut == NULL || mOut->status() != OK) {
-                        ERROR("track %zu: create out failed", mID);
-                        return;
-                    }
-                    pixFmtAccepted = (ePixelFormat)mOut->formats().findInt32(kKeyFormat);// color convert
-                    if (pixFmtAccepted != pixel) {
-                        mColorConvertor = new ColorConvertor(pixFmtAccepted);
-                    }
+                    mOut = new GLVideo();
                 }
-
+                
+                if (mOut->prepare(format) != OK) {
+                    ERROR("track %zu: create out failed", mID);
+                    return;
+                }
+                
+                pixFmtAccepted = (ePixelFormat)mOut->formats().findInt32(kKeyFormat);// color convert
+                if (pixFmtAccepted != pixel) {
+                    mColorConvertor = new ColorConvertor(pixFmtAccepted);
+                }
             } else if (type == kCodecTypeAudio) {
-                mOut = MediaOut::Create(kCodecTypeAudio, format);
-                if (mOut == NULL || mOut->status() != OK) {
+                mOut = new SDLAudio();
+                
+                if (mOut->prepare(format) != OK) {
                     ERROR("track %zu: create out failed", mID);
                     return;
                 }
 
-                Message _format = mOut->formats();
-                mLatency = _format.findInt32(kKeyLatency);
+                mLatency = mOut->formats().findInt32(kKeyLatency);
             } else {
                 FATAL("FIXME");
             }
@@ -482,11 +479,7 @@ namespace mtdcy {
                 }
                 
                 if (GetCodecType(mID) == kCodecTypeVideo) {
-                    if (mExternalRenderer != NULL) {
-                        mExternalRenderer->fire(frame);
-                    } else {
-                        mOut->write(frame);
-                    }
+                    mOut->write(frame);
                 }
                 
                 if (mClock != NULL && mClock->role() == kClockRoleMaster) {
@@ -604,12 +597,7 @@ namespace mtdcy {
             }
 
             DEBUG("renderer %zu: render frame %.3f(s)", mID, frame->pts.seconds());
-            status_t rt = OK;
-            if (mExternalRenderer != NULL) {
-                mExternalRenderer->fire(frame);
-            } else {
-                rt = mOut->write(frame);
-            }
+            status_t rt = mOut->write(frame);
 
             CHECK_TRUE(rt == OK); // always eat frame
             mOutputQueue.pop();
@@ -652,8 +640,7 @@ namespace mtdcy {
             } else if (mOutputEOS) {
                 INFO("renderer %zu: eos...", mID);
                 // tell out device about eos
-                if (mExternalRenderer != NULL) mExternalRenderer->fire(NULL);
-                else mOut->write(NULL);
+                mOut->write(NULL);
 
                 if (mPositionEvent != NULL) {
                     mPositionEvent->fire(kTimeEnd);
@@ -775,7 +762,7 @@ namespace mtdcy {
                 ds->mCodec->formats(), dup);
 
         // test if RenderSession is valid
-        if (rs->mOut == NULL && rs->mExternalRenderer == NULL) {
+        if (rs->mOut == NULL) {
             ERROR("failed to initial render");
             return NULL;
         }
