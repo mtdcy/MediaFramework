@@ -47,6 +47,7 @@
 #define DEBUGV(fmt, ...) do {} while(0)
 #endif
 
+// kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange -> nv12
 #define kPreferredPixelFormat kPixelFormatNV12
 
 // https://www.objc.io/issues/23-video/videotoolbox/
@@ -88,6 +89,7 @@ namespace mtdcy { namespace VideoToolbox {
         OSType          b;
     } kPixelMap[] = {
         {kPixelFormatYUV420P,       kCVPixelFormatType_420YpCbCr8Planar},
+        {kPixelFormatYUV422P,       kCVPixelFormatType_422YpCbCr8},
 #ifdef kCFCoreFoundationVersionNumber10_7
         {kPixelFormatNV12,          kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange},
 #endif
@@ -111,20 +113,20 @@ namespace mtdcy { namespace VideoToolbox {
         return 0;
     }
 
-    struct CVPixelFrame {
-        CVPixelFrame(CVPixelBufferRef pix, MediaTime& pts, MediaTime& duration) :
+    // for store unorderred image buffers and sort them
+    struct Image {
+        Image(CVPixelBufferRef pix, MediaTime& pts, MediaTime& duration) :
         image(CVPixelBufferRetain(pix)), pts(pts), duration(duration) { }
         
-        CVPixelFrame(const CVPixelFrame& rhs) :
+        Image(const Image& rhs) :
         image(CVPixelBufferRetain(rhs.image)), pts(rhs.pts), duration(rhs.duration) { }
         
-        virtual ~CVPixelFrame()
-        { if (image) CFRelease(image); }
+        ~Image() { if (image) CFRelease(image); }
         
         CVPixelBufferRef    image;
         MediaTime           pts;
         MediaTime           duration;
-        bool operator<(const CVPixelFrame& rhs) const {
+        bool operator<(const Image& rhs) const {
             return pts < rhs.pts;
         }
     };
@@ -152,7 +154,7 @@ namespace mtdcy { namespace VideoToolbox {
         bool                            inputEOS;
 
         Mutex                           mLock;
-        List<CVPixelFrame>              mImages;
+        List<Image>                     mImages;
     };
 
     static void OutputCallback(void *decompressionOutputRefCon,
@@ -177,7 +179,7 @@ namespace mtdcy { namespace VideoToolbox {
 
         MediaTime pts ( presentationTimeStamp.value, presentationTimeStamp.timescale );
         MediaTime duration ( presentationDuration.value, presentationDuration.timescale );
-        CVPixelFrame frame(imageBuffer, pts, duration);
+        Image frame(imageBuffer, pts, duration);
 
         vtc->mImages.push(frame);
         vtc->mImages.sort();
@@ -273,10 +275,13 @@ namespace mtdcy { namespace VideoToolbox {
         CFDictionarySetValue(attr, kCVPixelBufferIOSurfacePropertiesKey, surfaceProp);
         CFDictionarySetValue(attr, kCVPixelBufferWidthKey, w);
         CFDictionarySetValue(attr, kCVPixelBufferHeightKey, h);
+#if 1 // https://ffmpeg.org/pipermail/ffmpeg-devel/2017-December/222481.html
 #if TARGET_OS_IPHONE
         CFDictionarySetValue(attr, kCVPixelBufferOpenGLESCompatibilityKey, kCFBooleanTrue);
 #else
+        //kCVPixelBufferOpenGLCompatibilityKey
         CFDictionarySetValue(attr, kCVPixelBufferIOSurfaceOpenGLTextureCompatibilityKey, kCFBooleanTrue);
+#endif
 #endif
 
         CFRelease(surfaceProp);
@@ -288,6 +293,7 @@ namespace mtdcy { namespace VideoToolbox {
 
     }
 
+    // https://github.com/jyavenard/DecodeTest/blob/master/DecodeTest/VTDecoder.mm
     sp<VTContext> createSession(const Message& formats) {
         sp<VTContext> vtc = new VTContext;
 
@@ -342,7 +348,7 @@ namespace mtdcy { namespace VideoToolbox {
         CFDictionaryRef destinationImageBufferAttributes = setupImageBufferAttributes(
                 width,
                 height,
-                get_cv_pix_format(kPixelFormatNV12));
+                get_cv_pix_format(kPreferredPixelFormat));
 
         VTDecompressionOutputCallbackRecord callback;
         callback.decompressionOutputCallback = OutputCallback;
@@ -384,9 +390,9 @@ namespace mtdcy { namespace VideoToolbox {
         if (status) {
             return NULL;
         } else {
-            vtc->width = width;
+            vtc->width  = width;
             vtc->height = height;
-            vtc->pixel = kPixelFormatNV12;
+            vtc->pixel  = kPreferredPixelFormat;
             return vtc;
         }
     }
@@ -518,69 +524,73 @@ namespace mtdcy { namespace VideoToolbox {
         VTDecompressionSessionWaitForAsynchronousFrames(mVTContext->session);
         return OK;
     }
+    
+    struct PixelBuffer : public Memory {
+        PixelBuffer(CVPixelBufferRef ref) : Memory(), pixbuf(CVPixelBufferRetain(ref)) { }
+        virtual ~PixelBuffer() { CFRelease(data()); }
+        
+        virtual void*       data() { return pixbuf; };
+        virtual const void* data() const { return pixbuf; };
+        virtual size_t      capacity() const { return 1; } ;
+        virtual status_t    resize(size_t) { return INVALID_OPERATION; }
+        
+        CVPixelBufferRef pixbuf;
+    };
 
     sp<MediaFrame> createMediaFrame(CVPixelBufferRef pixbuf) {
         sp<MediaFrame> frame = new MediaFrame;
         
+        // TODO: find out this frame is backend by gpu memory or system memory
         IOSurfaceRef surface = CVPixelBufferGetIOSurface(pixbuf);
         if (surface) {
-            // TODO
-        }
-
-        OSType cvPixelFormat = CVPixelBufferGetPixelFormatType(pixbuf);
-        CVReturn err;
-
-        switch (cvPixelFormat) {
-            case kCVPixelFormatType_420YpCbCr8Planar:
-                frame->format = kPixelFormatYUV420P;
-                break;
-#ifdef kCFCoreFoundationVersionNumber10_7
-            case kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange:
-                frame->format = kPixelFormatNV12;
-                break;
-#endif
-            default:
-                FATAL("Unsupported pixel format: %#x", cvPixelFormat);
-        }
-
-        err = CVPixelBufferLockBaseAddress(pixbuf, kCVPixelBufferLock_ReadOnly);
-        if (err != kCVReturnSuccess) {
-            ERROR("Error locking the pixel buffer");
-            return NULL;
-        }
-
-        size_t left, right, top, bottom;
-        CVPixelBufferGetExtendedPixels(pixbuf, &left, &right, &top, &bottom);
-        DEBUGV("paddings %zu %zu %zu %zu", left, right, top, bottom);
-
-        if (CVPixelBufferIsPlanar(pixbuf)) {
-            // as we have to copy the data, copy to continueslly space
-            DEBUGV("CVPixelBufferGetDataSize %zu", CVPixelBufferGetDataSize(pixbuf));
-            DEBUGV("CVPixelBufferGetPlaneCount %zu", CVPixelBufferGetPlaneCount(pixbuf));
-
-            sp<Buffer> data = new Buffer(CVPixelBufferGetDataSize(pixbuf));
-            size_t planes = CVPixelBufferGetPlaneCount(pixbuf);
-            for (size_t i = 0; i < planes; i++) {
-                DEBUGV("CVPixelBufferGetBaseAddressOfPlane %p", CVPixelBufferGetBaseAddressOfPlane(pixbuf, i));
-                DEBUGV("CVPixelBufferGetBytesPerRowOfPlane %zu", CVPixelBufferGetBytesPerRowOfPlane(pixbuf, i));
-                DEBUGV("CVPixelBufferGetWidthOfPlane %zu", CVPixelBufferGetWidthOfPlane(pixbuf, i));
-                DEBUGV("CVPixelBufferGetHeightOfPlane %zu", CVPixelBufferGetHeightOfPlane(pixbuf, i));
-                data->write((const char *)CVPixelBufferGetBaseAddressOfPlane(pixbuf, i),
-                        CVPixelBufferGetBytesPerRowOfPlane(pixbuf, i) *
-                        CVPixelBufferGetHeightOfPlane(pixbuf, i));
-            }
-            frame->data[0] = data;
+            frame->data[0]          = new Buffer(new PixelBuffer(pixbuf));
+            frame->format           = kPixelFormatVideoToolbox;
+            frame->v.strideWidth    = CVPixelBufferGetWidth(pixbuf);
+            frame->v.sliceHeight    = CVPixelBufferGetHeight(pixbuf);
         } else {
-            // FIXME: is this right
-            frame->data[0] = new Buffer(
-                    (const char*)CVPixelBufferGetBaseAddress(pixbuf),
-                    CVPixelBufferGetBytesPerRow(pixbuf));
+            OSType cvPixelFormat = CVPixelBufferGetPixelFormatType(pixbuf);
+            frame->format = get_pix_format(cvPixelFormat);
+
+            CVReturn err = CVPixelBufferLockBaseAddress(pixbuf, kCVPixelBufferLock_ReadOnly);
+            if (err != kCVReturnSuccess) {
+                ERROR("Error locking the pixel buffer");
+                return NULL;
+            }
+
+            size_t left, right, top, bottom;
+            CVPixelBufferGetExtendedPixels(pixbuf, &left, &right, &top, &bottom);
+            DEBUGV("paddings %zu %zu %zu %zu", left, right, top, bottom);
+
+            if (CVPixelBufferIsPlanar(pixbuf)) {
+                // as we have to copy the data, copy to continueslly space
+                DEBUGV("CVPixelBufferGetDataSize %zu", CVPixelBufferGetDataSize(pixbuf));
+                DEBUGV("CVPixelBufferGetPlaneCount %zu", CVPixelBufferGetPlaneCount(pixbuf));
+
+                sp<Buffer> data = new Buffer(CVPixelBufferGetDataSize(pixbuf));
+                size_t planes = CVPixelBufferGetPlaneCount(pixbuf);
+                for (size_t i = 0; i < planes; i++) {
+                    DEBUGV("CVPixelBufferGetBaseAddressOfPlane %p", CVPixelBufferGetBaseAddressOfPlane(pixbuf, i));
+                    DEBUGV("CVPixelBufferGetBytesPerRowOfPlane %zu", CVPixelBufferGetBytesPerRowOfPlane(pixbuf, i));
+                    DEBUGV("CVPixelBufferGetWidthOfPlane %zu", CVPixelBufferGetWidthOfPlane(pixbuf, i));
+                    DEBUGV("CVPixelBufferGetHeightOfPlane %zu", CVPixelBufferGetHeightOfPlane(pixbuf, i));
+                    data->write((const char *)CVPixelBufferGetBaseAddressOfPlane(pixbuf, i),
+                            CVPixelBufferGetBytesPerRowOfPlane(pixbuf, i) *
+                            CVPixelBufferGetHeightOfPlane(pixbuf, i));
+                }
+                frame->data[0] = data;
+            } else {
+                // FIXME: is this right
+                frame->data[0] = new Buffer(
+                        (const char*)CVPixelBufferGetBaseAddress(pixbuf),
+                        CVPixelBufferGetBytesPerRow(pixbuf));
+            }
+
+            frame->v.strideWidth    = CVPixelBufferGetWidth(pixbuf);
+            frame->v.sliceHeight    = CVPixelBufferGetHeight(pixbuf);
+
+            CVPixelBufferUnlockBaseAddress(pixbuf, kCVPixelBufferLock_ReadOnly);
         }
-
-        frame->v.strideWidth    = CVPixelBufferGetWidth(pixbuf);
-        frame->v.sliceHeight    = CVPixelBufferGetHeight(pixbuf);
-
-        CVPixelBufferUnlockBaseAddress(pixbuf, kCVPixelBufferLock_ReadOnly);
+        
         return frame;
     }
 
@@ -597,7 +607,7 @@ namespace mtdcy { namespace VideoToolbox {
         }
 
         AutoLock _l(mVTContext->mLock);
-        CVPixelFrame frame = *mVTContext->mImages.begin();
+        Image frame = *mVTContext->mImages.begin();
         mVTContext->mImages.pop();
 
         sp<MediaFrame> out = createMediaFrame(frame.image);
