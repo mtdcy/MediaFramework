@@ -43,7 +43,7 @@ namespace mtdcy { namespace VideoToolbox {
     struct VTContext;
     class VTDecoder : public MediaDecoder {
         public:
-            VTDecoder(const Message& params);
+            VTDecoder(const Message& params, const Message& options);
 
             virtual ~VTDecoder();
 

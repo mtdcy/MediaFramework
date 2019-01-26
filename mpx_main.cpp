@@ -52,6 +52,8 @@
 
 #define DOUBLE_BUFFER 1
 //#define TEST_SCREEN
+#define MAIN_THREAD_RENDER
+#define PREFER_MODE kModeTypeDefault
 
 #ifdef DEBUG_MALLOC
 extern "C" {
@@ -97,6 +99,7 @@ struct MediaOutProxy : public MediaOut {
     virtual Message formats() const { return _format; }
     virtual status_t configure(const Message& options) { return INVALID_OPERATION; }
     virtual status_t prepare(const Message& options) {
+        INFO("prepare => %s", options.string().c_str());
         _format = options;
         sendEvent(EVENT_PREPARE);
         return OK;
@@ -107,6 +110,7 @@ struct MediaOutProxy : public MediaOut {
         return OK;
     }
     virtual status_t flush() {
+        INFO("flush");
         _frame = NULL;
         sendEvent(EVENT_FLUSH);
         return OK;
@@ -118,7 +122,7 @@ static void handleReshape() {
 }
 
 static void handleDisplay() {
-    INFO("display");
+    //INFO("display");
     if (_frame == NULL) return;
     
     //glViewport(0, 0, 800, 480);
@@ -227,7 +231,10 @@ int main (int argc, char **argv) {
         // add media to the mp
         Message media;
         media.setString("url", url);
+        media.setInt32(kKeyMode, PREFER_MODE);
+#ifdef MAIN_THREAD_RENDER
         media.set<sp<MediaOut> >("MediaOut", new MediaOutProxy);
+#endif
         mp->addMedia(media);
         
         // prepare the mp
@@ -237,7 +244,11 @@ int main (int argc, char **argv) {
         loop();
         
         // clearup
+        mp->pause();
+        mp->flush();
         mp->release();
+        SDL_Delay(500); // 500ms
+        
         mp.clear();
         
         SDL_GL_DeleteContext(glcontext);

@@ -57,7 +57,7 @@ namespace mtdcy {
          * @return return reference to new codec if supported and
          *         initilized successful. otherwise return NULL.
          */
-        static sp<MediaDecoder> Create(const Message& formats);
+        static sp<MediaDecoder> Create(const Message& formats, const Message& options);
         virtual ~MediaDecoder() { }
         
     public:

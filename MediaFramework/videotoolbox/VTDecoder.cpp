@@ -48,7 +48,7 @@
 #endif
 
 // kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange -> nv12
-#define kPreferredPixelFormat kPixelFormatYUV422P
+#define kPreferredPixelFormat kPixelFormatNV12
 
 // https://www.objc.io/issues/23-video/videotoolbox/
 // http://www.enkichen.com/2018/03/24/videotoolbox/?utm_source=tuicool&utm_medium=referral
@@ -294,7 +294,7 @@ namespace mtdcy { namespace VideoToolbox {
     }
 
     // https://github.com/jyavenard/DecodeTest/blob/master/DecodeTest/VTDecoder.mm
-    sp<VTContext> createSession(const Message& formats) {
+    sp<VTContext> createSession(const Message& formats, const Message& options) {
         sp<VTContext> vtc = new VTContext;
 
         eCodecFormat codec_format = (eCodecFormat)formats.findInt32(kKeyFormat);
@@ -397,12 +397,12 @@ namespace mtdcy { namespace VideoToolbox {
         }
     }
 
-    VTDecoder::VTDecoder(const Message& formats) {
+    VTDecoder::VTDecoder(const Message& formats, const Message& options) {
         INFO("%s", formats.string().c_str());
 
         DEBUG("VTDecompressionSessionGetTypeID: %#x", VTDecompressionSessionGetTypeID());
 
-        mVTContext = createSession(formats);
+        mVTContext = createSession(formats, options);
     }
 
     VTDecoder::~VTDecoder() {

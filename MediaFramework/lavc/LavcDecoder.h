@@ -44,7 +44,7 @@ namespace mtdcy { namespace Lavc {
 
     class LavcDecoder : public MediaDecoder {
         public:
-            LavcDecoder(const Message& params);
+            LavcDecoder(const Message& params, const Message& options);
 
             virtual ~LavcDecoder();
 

@@ -103,7 +103,7 @@ namespace mtdcy {
 
             eCodecType type = GetCodecType(mID);
 
-            mCodec = MediaDecoder::Create(format);
+            mCodec = MediaDecoder::Create(format, options);
             if (mCodec == NULL || mCodec->status() != OK) {
                 ERROR("track %zu: create codec failed", mID);
                 return;

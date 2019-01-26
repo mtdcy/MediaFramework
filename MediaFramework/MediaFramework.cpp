@@ -111,21 +111,21 @@ namespace mtdcy {
         return module;
     }
 
-    sp<MediaDecoder> MediaDecoder::Create(const Message& formats) {
+    sp<MediaDecoder> MediaDecoder::Create(const Message& formats, const Message& options) {
         sp<MediaDecoder> codec;
         eCodecFormat format = (eCodecFormat)formats.findInt32(kKeyFormat);
         eCodecType type = GetCodecType(format);
-        eModeType mode = (eModeType)formats.findInt32(kKeyMode, kModeTypeDefault);
+        eModeType mode = (eModeType)options.findInt32(kKeyMode, kModeTypeDefault);
         
 #ifdef __APPLE__
         if (type == kCodecTypeVideo && mode != kModeTypeSoftware) {
-            codec = new VideoToolbox::VTDecoder(formats);
+            codec = new VideoToolbox::VTDecoder(formats, options);
             if (codec->status() != OK) codec.clear();
         }
         // FALL BACK TO SOFTWARE DECODER
 #endif
         if (codec == NULL) {
-            codec = new Lavc::LavcDecoder(formats);
+            codec = new Lavc::LavcDecoder(formats, options);
         }
         
         if (codec == NULL || codec->status() != OK) {
@@ -133,7 +133,7 @@ namespace mtdcy {
         }
 
         return codec;
-    }    
+    }
 };
 
 #include <libyuv.h>

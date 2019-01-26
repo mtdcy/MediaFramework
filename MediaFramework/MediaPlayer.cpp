@@ -208,6 +208,8 @@ namespace mtdcy {
             return;
         }
         
+        eModeType mode = (eModeType)media.findInt32(kKeyMode, kModeTypeNormal);
+        
         sp<MediaOut> external;
         if (media.contains("MediaOut")) {
             external = media.find<sp<MediaOut> >("MediaOut");
@@ -246,6 +248,7 @@ namespace mtdcy {
             }
             
             Message options;
+            options.setInt32(kKeyMode, mode);
             if (type == kCodecTypeVideo) {
                 if (external != NULL) {
                     options.set<sp<MediaOut> >("MediaOut", external);

@@ -406,13 +406,13 @@ namespace mtdcy { namespace Lavc {
         return OK;
     }
     
-    static AVCodecContext* allocCodecContext(const Message& formats) {
+    static AVCodecContext* allocCodecContext(const Message& formats, const Message& options) {
         CHECK_TRUE(formats.contains(kKeyFormat));
         
         eCodecFormat codec = (eCodecFormat)formats.findInt32(kKeyFormat);
         eCodecType type = GetCodecType(codec);
         
-        eModeType mode = (eModeType)formats.findInt32(kKeyMode, kModeTypeDefault);
+        eModeType mode = (eModeType)options.findInt32(kKeyMode, kModeTypeDefault);
         bool hwaccel = mode != kModeTypeSoftware;
         
         AVCodecID id = get_av_codec_id(codec);
@@ -518,15 +518,15 @@ namespace mtdcy { namespace Lavc {
         return avcc;
     }
     
-    LavcDecoder::LavcDecoder(const Message& format) :
+    LavcDecoder::LavcDecoder(const Message& format, const Message& options) :
     MediaDecoder(),
     mMode(kModeTypeNormal),
     mContext(NULL),
     mInputCount(0),
     mOutputCount(0)
     {
-        mMode = format.findInt32(kKeyMode, kModeTypeNormal);
-        mContext = allocCodecContext(format);
+        mMode = options.findInt32(kKeyMode, kModeTypeNormal);
+        mContext = allocCodecContext(format, options);
         
         if (!mContext) {
             ERROR("failed to alloc codec context.");
