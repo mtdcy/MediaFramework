@@ -71,6 +71,8 @@ namespace mtdcy {
         // TODO: clock for decoder, handle late frames
         List<sp<MediaPacket> >  mInputQueue;    // input packets queue
         bool                    mInputEOS;      // end of input ?
+        bool                    mSignalCodecEOS;    // tell codec eos
+        bool                    mOutputEOS;         // end of output ?
         MediaTime               mLastPacketTime;    // test packets in dts order?
         List<FrameRequestPayload>   mFrameRequests; // requests queue
         // statistics
@@ -87,7 +89,7 @@ namespace mtdcy {
             // internal static context
             mCodec(NULL),
             // internal mutable context
-            mInputEOS(false), mLastPacketTime(kTimeInvalid),
+            mInputEOS(false), mSignalCodecEOS(false), mLastPacketTime(kTimeInvalid),
             // statistics
             mPacketsReceived(0), mPacketsComsumed(0), mFramesDecoded(0)
         {
@@ -158,7 +160,7 @@ namespace mtdcy {
             }
 
             // always decode as long as there is packet exists.
-            if (mFrameRequests.size() && (mInputQueue.size() || mInputEOS)) {
+            while (mFrameRequests.size() && mInputQueue.size()) {
                 onDecode();
             }
         }
@@ -170,6 +172,8 @@ namespace mtdcy {
             // TODO: prepare again without flush
 
             mInputEOS = false;
+            mOutputEOS = false;
+            mSignalCodecEOS = false;
             mInputQueue.clear();
             mCodec->flush();
             mLastPacketTime = kTimeBegin;
@@ -204,28 +208,24 @@ namespace mtdcy {
                 return;
                 // NO need to queue the request
             }
-            // request to prepare ?
+            // request to prepare @ ts
             else if (request.ts != kTimeInvalid) {
                 onPrepareDecoder(request.ts);
                 return;
                 // NO need to queue the request
+            } else if (mOutputEOS) {
+                WARN("codec %zu: request frame at eos", mID);
+                // DO NOTHING
+                return;
             }
             CHECK_TRUE(request.event != NULL);
-
-            // case 1: input eos && no packets in queue
-            // push eos frame to renderer
-            if (mInputEOS && mInputQueue.empty()) {
-                sp<FrameReadyEvent> fre = request.event;
-                fre->fire(NULL);
-                return;
-                // NO need to queue the request
-            }
-
+            
             // request.ts == kTimeInvalid => request next
             mFrameRequests.push(request);
             // case 2: packet is ready
             // decode the first packet
-            if (mInputQueue.size()) {
+            // or drain the codec if input eos
+            if (mInputEOS || mInputQueue.size()) {
                 onDecode();
             }
             // case 3: packet is not ready && not eos
@@ -238,6 +238,7 @@ namespace mtdcy {
         void onDecode() {
             DEBUG("codec %zu: with %zu packets ready", mID, mInputQueue.size());
             CHECK_TRUE(mInputQueue.size() || mInputEOS);
+            CHECK_FALSE(mOutputEOS);
 
             // push packets to codec
             if (mInputQueue.size()) {
@@ -255,31 +256,38 @@ namespace mtdcy {
                     mInputQueue.pop();
                     ++mPacketsComsumed;
                 }
-            } else {
+            } else if (!mSignalCodecEOS) {
                 CHECK_TRUE(mInputEOS);
                 // tell codec about eos
                 mCodec->write(NULL);
+                mSignalCodecEOS = true;
             }
 
             // drain from codec
             sp<MediaFrame> frame = mCodec->read();
-
             FrameRequestPayload& request = *mFrameRequests.begin();
-            if (frame != NULL || mInputEOS) {
+            if (frame == NULL && !mInputEOS) {
+                WARN("codec %zu: is initializing...", mID);
+            } else {
                 if (frame != NULL) {
                     DEBUG("codec %zu: decoded frame %.3f(s) ready", mID, frame->pts.seconds());
                     ++mFramesDecoded;
+                } else {
+                    INFO("codec %zu: codec eos detected", mID);
+                    mOutputEOS = true;
                 }
                 request.event->fire(frame);
                 
-                --request.number;
-                if (request.number == 0) mFrameRequests.pop();
-            } else {
-                WARN("codec %zu: is initializing...", mID);
+                if (mOutputEOS) {
+                    mFrameRequests.clear(); // clear requests
+                } else {
+                    --request.number;
+                    if (request.number == 0) mFrameRequests.pop();
+                }
             }
 
             // prepare input packet for next frame
-            requestPacket();
+            if (!mInputEOS) requestPacket();
         }
 
         // PacketReadyEvent
