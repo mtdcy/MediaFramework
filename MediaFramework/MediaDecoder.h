@@ -49,28 +49,22 @@ namespace mtdcy {
     /**
      * base class for audio/video codecs
      */
-    class MediaDecoder {
-    public:
+    struct MediaDecoder {
         /**
-         * create a codec based on provided formats.
-         * @param formats   @see MediaExtractor::formats()
-         * @return return reference to new codec if supported and
-         *         initilized successful. otherwise return NULL.
+         * allocate a codec object
+         * @param format    @see eCodecFormat
+         * @param mode      @see eModeType
+         * @return return reference to new codec if supported. otherwise return NULL.
          */
-        static sp<MediaDecoder> Create(const Message& formats, const Message& options);
-        virtual ~MediaDecoder() { }
+        static sp<MediaDecoder> Create(eCodecFormat format, eModeType mode);
         
-    public:
+        MediaDecoder() { }
+        virtual ~MediaDecoder() { }
         /**
          * get information of this codec.
          * @return return a string of information
          */
-        virtual String          string() const = 0;
-        /**
-         * get status of this codec.
-         * @return return OK if everything is OK, otherwise error code
-         */
-        virtual status_t        status() const = 0;
+        virtual String          string() const { return ""; }
         /**
          * get output format information of this codec.
          * about the output format:
@@ -85,20 +79,21 @@ namespace mtdcy {
          */
         virtual Message         formats() const = 0;
         /**
-         * configure this codec
-         * @param options   option and parameter
-         * @return return OK on success, otherwise error code.
+         * initial codec object with format and options
+         * @param format    stream format
+         * @param options   option and parameter for initial the object
+         * @return return kMediaNoError on success.
          */
-        virtual status_t        configure(const Message& options) = 0;
+        virtual MediaError      init(const Message& format, const Message& options) = 0;
         /**
          * push MediaPacket to codec in decoding order.
          * @param input     reference of MediaPacket
-         * @return return OK on success, return TRY_AGAIN if input is full,
-         *         otherwise return error code. if TRY_AGAIN, read from
-         *         codec before write new packets.
+         * @return return kMediaNoError on success.
+         *         return kMediaErrorResourceBusy if input is full,
+         *         otherwise return error code.
          * @note push a NULL packet to notify codec of eos
          */
-        virtual status_t        write(const sp<MediaPacket>& input) = 0;
+        virtual MediaError      write(const sp<MediaPacket>& input) = 0;
         /**
          * pull MediaFrame from codec in presentation order.
          * @return  return reference of new MediaFrame.
@@ -107,15 +102,15 @@ namespace mtdcy {
         virtual sp<MediaFrame>  read() = 0;
         /**
          * flush context and delayed frame
-         * @return return OK on success, otherwise error code
+         * @return return kMediaNoError on success, otherwise error code
          */
-        virtual status_t        flush() = 0;
-        
-    protected:
-        MediaDecoder() { }
-        
-    private:
-        DISALLOW_EVILS(MediaDecoder);
+        virtual MediaError      flush() = 0;
+        /**
+         * configure this codec
+         * @param options   option and parameter
+         * @return return kMediaNoError on success, otherwise error code.
+         */
+        virtual MediaError      configure(const Message& options) { return kMediaErrorNotSupported; }
     };
 
 

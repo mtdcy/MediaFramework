@@ -37,15 +37,11 @@
 
 #include "MediaDefs.h"
 #include "ColorConvertor.h"
+#include "MediaDecoder.h"
 
 //#include "mp3/Mp3File.h"
 #include "mpeg4/Mp4File.h"
-#include "lavc/LavcDecoder.h"
-#ifdef __APPLE__
-#include "videotoolbox/VTDecoder.h"
-#endif
 #include "sdl2/SDLAudio.h"
-#include "sdl2/SDLVideo.h"
 #include "opengl/GLVideo.h"
 
 #if 0
@@ -111,25 +107,20 @@ namespace mtdcy {
         return module;
     }
 
-    sp<MediaDecoder> MediaDecoder::Create(const Message& formats, const Message& options) {
+    sp<MediaDecoder> CreateVideoToolboxDecoder();
+    sp<MediaDecoder> CreateLavcDecoder(eModeType mode);
+    sp<MediaDecoder> MediaDecoder::Create(eCodecFormat format, eModeType mode) {
         sp<MediaDecoder> codec;
-        eCodecFormat format = (eCodecFormat)formats.findInt32(kKeyFormat);
         eCodecType type = GetCodecType(format);
-        eModeType mode = (eModeType)options.findInt32(kKeyMode, kModeTypeDefault);
         
 #ifdef __APPLE__
         if (type == kCodecTypeVideo && mode != kModeTypeSoftware) {
-            codec = new VideoToolbox::VTDecoder(formats, options);
-            if (codec->status() != OK) codec.clear();
+            codec = CreateVideoToolboxDecoder();
         }
         // FALL BACK TO SOFTWARE DECODER
 #endif
         if (codec == NULL) {
-            codec = new Lavc::LavcDecoder(formats, options);
-        }
-        
-        if (codec == NULL || codec->status() != OK) {
-            return NULL;
+            codec = CreateLavcDecoder(mode);
         }
 
         return codec;

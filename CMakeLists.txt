@@ -57,7 +57,7 @@ set (SOURCE_FILES
     )
 
 if (APPLE)
-    list (APPEND SOURCE_FILES MediaFramework/videotoolbox/VTDecoder.cpp)
+    list (APPEND SOURCE_FILES MediaFramework/videotoolbox/VideoToolboxDecoder.cpp)
 endif()
 
 file (GLOB PUBLIC_HEADERS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "MediaFramework/*.h")

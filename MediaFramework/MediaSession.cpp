@@ -102,11 +102,12 @@ namespace mtdcy {
             // setup decoder...
             CHECK_TRUE(format.contains(kKeyFormat));
             mID = (eCodecFormat)format.findInt32(kKeyFormat);
+            eModeType mode = (eModeType)options.findInt32(kKeyMode, kModeTypeDefault);
 
             eCodecType type = GetCodecType(mID);
 
-            mCodec = MediaDecoder::Create(format, options);
-            if (mCodec == NULL || mCodec->status() != OK) {
+            mCodec = MediaDecoder::Create(mID, mode);
+            if (mCodec->init(format, options) != kMediaNoError) {
                 ERROR("track %zu: create codec failed", mID);
                 return;
             }
@@ -246,11 +247,11 @@ namespace mtdcy {
                 CHECK_TRUE(packet != NULL);
 
                 DEBUG("codec %zu: decode pkt %.3f(s)", mID, packet->dts.seconds());
-                status_t st = mCodec->write(packet);
-                if (st == TRY_AGAIN) {
+                MediaError err = mCodec->write(packet);
+                if (err == kMediaErrorResourceBusy) {
                     DEBUG("codec %zu: codec is full with frames", mID);
                 } else {
-                    if (st != OK) {
+                    if (err != kMediaNoError) {
                         ERROR("codec %zu: write packet failed.", mID);
                     }
                     mInputQueue.pop();

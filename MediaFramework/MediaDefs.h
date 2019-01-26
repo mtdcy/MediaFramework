@@ -217,6 +217,18 @@ enum {
  */
 #define kKeyHwAccel     "hwaccel"  ///< int32_t, bool
 
+
+enum MediaError {
+    kMediaNoError                   = 0,
+    kMediaErrorUnknown              = -10000,
+    kMediaErrorNotSupported         = -10001,
+    kMediaErrorInvalidOperation     = -10002,
+    kMediaErrorNotInitialied        = -10003,
+    kMediaErrorBadValue             = -10004,
+    kMediaErrorTryAgain             = -10005,
+    kMediaErrorResourceBusy         = -10006,
+};
+
 __END_DECLS
 
 #ifdef __cplusplus
