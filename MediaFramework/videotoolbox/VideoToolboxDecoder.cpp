@@ -546,7 +546,7 @@ struct VideoToolboxDecoder : public MediaDecoder {
         formats.setInt32(kKeyWidth, mVTContext->width);
         formats.setInt32(kKeyHeight, mVTContext->height);
         formats.setInt32(kKeyFormat, mVTContext->pixel);
-        formats.setInt32(kKeyHwAccel, 1);
+        formats.setInt32(kKeyOpenGLCompatible, 1);
         INFO(" => %s", formats.string().c_str());
         return formats;
     }

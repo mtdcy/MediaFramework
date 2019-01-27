@@ -213,9 +213,11 @@ enum {
 #define kKeyPause       "pause"     ///< int32_t, bool
 
 /**
- * hardware accel
+ * opengl compatible frame
+ * used for passing opengl compatible memory to MediaOut,
+ * to avoid memory copy
  */
-#define kKeyHwAccel     "hwaccel"  ///< int32_t, bool
+#define kKeyOpenGLCompatible    "opengl"  ///< int32_t, bool
 
 
 enum MediaError {

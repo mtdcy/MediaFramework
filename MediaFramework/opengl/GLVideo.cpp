@@ -197,6 +197,7 @@ namespace mtdcy {
         }
     );
     
+#ifdef __APPLE__
     // xxx: WHY NO COLOR MATRIX NEED HERE?
     static const char * fsh_vt_yuv422p = SL(
         varying vec2 v_texcoord;
@@ -226,6 +227,7 @@ namespace mtdcy {
             gl_FragColor = vec4(rgb, 1.0);
         }
     );
+#endif
     
     static const GLfloat position_vertices_original[] = {
         // x    y
@@ -319,7 +321,7 @@ namespace mtdcy {
         return n;
     }
     
-    static sp<OpenGLContext> init(const Config *config) {
+    static sp<OpenGLContext> initContext(const Config *config) {
         sp<OpenGLContext> glc = new OpenGLContext;
         
         glc->objs[OBJ_VERTEX_SHADER]    = initShader(GL_VERTEX_SHADER, config->s_vsh);
@@ -372,8 +374,27 @@ namespace mtdcy {
         return glc;
     }
     
+    static void clearContext(sp<OpenGLContext>& glc) {
+        if (glc->objs[OBJ_TEXTURE0]) {
+            glDeleteTextures(glc->config->n_textures, &glc->objs[OBJ_TEXTURE0]);
+            glc->objs[OBJ_TEXTURE0] = 0;
+        }
+        if (glc->objs[OBJ_VERTEX_SHADER]) {
+            glDeleteShader(glc->objs[OBJ_VERTEX_SHADER]);
+            glc->objs[OBJ_VERTEX_SHADER] = 0;
+        }
+        if (glc->objs[OBJ_FRAGMENT_SHADER]) {
+            glDeleteShader(glc->objs[OBJ_FRAGMENT_SHADER]);
+            glc->objs[OBJ_FRAGMENT_SHADER] = 0;
+        }
+        if (glc->objs[OBJ_PROGRAM]) {
+            glDeleteProgram(glc->objs[OBJ_PROGRAM]);
+            glc->objs[OBJ_PROGRAM] = 0;
+        }
+    }
+    
     static sp<OpenGLContext> init_rectangle(const Config *config, GLint w, GLint h) {
-        sp<OpenGLContext> glc = init(config);
+        sp<OpenGLContext> glc = initContext(config);
         if (glc == NULL) return NULL;
         
         CHECK_GE(glc->uniforms[UNIFORM_RESOLUTION], 0);
@@ -382,7 +403,13 @@ namespace mtdcy {
         return glc;
     }
     
-    static void update(const sp<OpenGLContext>& glc, int32_t w, int32_t h, uint8_t* planes[]) {
+    static void updateTexture(const sp<OpenGLContext>& glc, const sp<MediaFrame>& frame) {
+        uint8_t * planes[3] = {
+            frame->planes[0].data,
+            frame->planes[1].data,
+            frame->planes[2].data,
+        };
+        
         GLint index[glc->config->n_textures];
         for (size_t i = 0; i < glc->config->n_textures; ++i) {
             glActiveTexture(GL_TEXTURE0 + i);
@@ -391,8 +418,8 @@ namespace mtdcy {
             
             glTexImage2D(glc->config->e_target, 0,
                          glc->config->a_format[i].internalformat,
-                         (GLsizei)(w * glc->config->a_format[i].width),
-                         (GLsizei)(h * glc->config->a_format[i].height),
+                         (GLsizei)(frame->v.width * glc->config->a_format[i].width),
+                         (GLsizei)(frame->v.height * glc->config->a_format[i].height),
                          0,
                          glc->config->a_format[i].format,
                          glc->config->a_format[i].type,
@@ -403,20 +430,13 @@ namespace mtdcy {
         
         glUniform1iv(glc->uniforms[UNIFORM_PLANES], glc->config->n_textures, index);
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+        CHECK_GL_ERROR();
         
         glFlush();  // always assume single buffer here, let client handle swap buffers
+        CHECK_GL_ERROR();
     }
     
-    static void updateTexture(const sp<OpenGLContext>& glc, const sp<MediaFrame>& frame) {
-        uint8_t * planes[3] = {
-            frame->planes[0].data,
-            frame->planes[1].data,
-            frame->planes[2].data,
-        };
-        
-        update(glc, frame->v.width, frame->v.height, planes);
-    }
-    
+#ifdef __APPLE__
     static void updateTexture_VideoToolbox(const sp<OpenGLContext>& glc, const sp<MediaFrame>& frame) {
         GLsizei w = frame->v.width;
         GLsizei h = frame->v.height;
@@ -463,7 +483,9 @@ namespace mtdcy {
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
         
         glFlush();  // always assume single buffer here, let client handle swap buffers
+        CHECK_GL_ERROR();
     }
+#endif
     
     static const Config s_config_yuv420 = {
         .s_vsh      = vsh_yuv,
@@ -494,6 +516,7 @@ namespace mtdcy {
         .update     = updateTexture,
     };
     
+#ifdef __APPLE__
     // about rectangle texture
     // https://www.khronos.org/opengl/wiki/Rectangle_Texture
     // about yuv422
@@ -524,18 +547,20 @@ namespace mtdcy {
         .s_uniforms = { "u_planes", "u_colorMatrix", "u_resolution" },
         .update     = updateTexture_VideoToolbox,
     };
-    
+#endif
 
     ////////////////////////////////////////////////////////////////////
-    GLVideo::GLVideo() : MediaOut(),
-    mGLContext(NULL) {
-        
+    GLVideo::GLVideo() : MediaOut(), mGLContext(NULL) { }
+    
+    GLVideo::~GLVideo() {
+        if (mGLContext == NULL) return;
+        clearContext(mGLContext);
     }
     
     status_t GLVideo::prepare(const Message& options) {
         INFO("gl video => %s", options.string().c_str());
         
-        bool hwaccel = options.findInt32(kKeyHwAccel, 0);
+        bool ogl = options.findInt32(kKeyOpenGLCompatible, 0);
         
         // is gl context ready for current thread
 #ifdef __APPLE__
@@ -548,22 +573,26 @@ namespace mtdcy {
 
         switch (pixel) {
             case kPixelFormatNV12:
-                if (hwaccel) {
+                if (ogl) {
+#ifdef __APPLE__
                     mGLContext = init_rectangle(&s_config_vt_nv12, width, height);
+#endif
                 } else {
-                    mGLContext = init(&s_config_nv12);
+                    mGLContext = initContext(&s_config_nv12);
                 }
                 break;
             case kPixelFormatYUV420P:
-                if (hwaccel) {
+                if (ogl) {
                     FATAL("FIXME");
                 } else {
-                    mGLContext = init(&s_config_yuv420);
+                    mGLContext = initContext(&s_config_yuv420);
                 }
                 break;
             case kPixelFormatYUYV422:
-                if (hwaccel) {
+                if (ogl) {
+#ifdef __APPLE__
                     mGLContext = init_rectangle(&s_config_vt_y422p, width, height);
+#endif
                 } else {
                     FATAL("FIXME");
                 }
@@ -572,10 +601,7 @@ namespace mtdcy {
                 FATAL("FIXME");
         }
         
-        if (mGLContext == NULL) {
-            ERROR("failed to init context");
-            return BAD_VALUE;
-        }
+        CHECK_TRUE(mGLContext != NULL);
 
 #ifdef TEST_COLOR
         mGLContext->format  = TEST_COLOR;
@@ -586,27 +612,6 @@ namespace mtdcy {
         mGLContext->width   = width;
         mGLContext->height  = height;
         return OK;
-    }
-
-    GLVideo::~GLVideo() {
-        if (mGLContext == NULL) return;
-        
-        if (mGLContext->objs[OBJ_TEXTURE0]) {
-            glDeleteTextures(mGLContext->config->n_textures, &mGLContext->objs[OBJ_TEXTURE0]);
-            mGLContext->objs[OBJ_TEXTURE0] = 0;
-        }
-        if (mGLContext->objs[OBJ_VERTEX_SHADER]) {
-            glDeleteShader(mGLContext->objs[OBJ_VERTEX_SHADER]);
-            mGLContext->objs[OBJ_VERTEX_SHADER] = 0;
-        }
-        if (mGLContext->objs[OBJ_FRAGMENT_SHADER]) {
-            glDeleteShader(mGLContext->objs[OBJ_FRAGMENT_SHADER]);
-            mGLContext->objs[OBJ_FRAGMENT_SHADER] = 0;
-        }
-        if (mGLContext->objs[OBJ_PROGRAM]) {
-            glDeleteProgram(mGLContext->objs[OBJ_PROGRAM]);
-            mGLContext->objs[OBJ_PROGRAM] = 0;
-        }
     }
 
     String GLVideo::string() const {
