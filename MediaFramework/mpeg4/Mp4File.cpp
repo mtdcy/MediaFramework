@@ -84,6 +84,14 @@ namespace mtdcy {
         }
 
     }
+    
+    struct Mp4Packet : public MediaPacket {
+        sp<Buffer> buffer;
+        Mp4Packet(const sp<Buffer>& _buffer) : MediaPacket(), buffer(_buffer) {
+            data    = (uint8_t*)buffer->data();
+            size    = buffer->size();
+        }
+    };
 
     ///////////////////////////////////////////////////////////////////////////
     Mp4File::Mp4File(sp<Content>& pipe, const Message& params) :
@@ -705,10 +713,9 @@ namespace mtdcy {
         }
 #endif
         // init MediaPacket context
-        sp<MediaPacket> packet = new MediaPacket;
-        packet->format  = track.mCodec;
-        packet->data    = sample;
+        sp<MediaPacket> packet = new Mp4Packet(sample);
         packet->index   = sampleIndex;
+        packet->format  = track.mCodec;
         packet->flags   = flags;
         packet->pts     = MediaTime(s.pts, track.mDuration.timescale);
         packet->dts     = MediaTime(s.dts, track.mDuration.timescale);

@@ -243,6 +243,23 @@ namespace mtdcy {
     }
 }
 
+struct DefaultMediaPacket : public MediaPacket {
+    DefaultMediaPacket() : MediaPacket() { }
+    virtual ~DefaultMediaPacket() { }
+    sp<Buffer> buffer;
+};
+
+namespace mtdcy {
+    sp<MediaPacket> MediaPacketCreate(size_t size) {
+        sp<Buffer> buffer = new Buffer(size);
+        sp<DefaultMediaPacket> packet = new DefaultMediaPacket;
+        packet->buffer  = buffer;
+        packet->data    = (uint8_t*)buffer->data();
+        packet->size    = buffer->capacity();
+        return packet;
+    }
+}
+
 #include <libyuv.h>
 namespace mtdcy {
     

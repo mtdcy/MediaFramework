@@ -44,23 +44,35 @@ __END_DECLS
 
 #ifdef __cplusplus
 namespace mtdcy {
-
+#endif
+    
     /**
      * media packet class for compressed audio and video packets
      */
     struct MediaPacket {
+        uint8_t *           data;       ///< packet data
+        size_t              size;       ///< data size in bytes
+        
         size_t              index;      ///< sample index, 0 based value
-        sp<Buffer>          data;       ///< data buffer and data size
         eCodecFormat        format;     ///< packet format @see eCodecFormat
         uint32_t            flags;      ///< @see kFrameFlag*
-        MediaTime           dts;        ///< dts in track's timescale
-        MediaTime           pts;        ///< pts in track's timecasle
-        sp<Message>         extra;      ///< extra informations
-
-        MediaPacket() : index(0), data(NULL), format(kCodecFormatUnknown),
-        flags(kFrameFlagNone), dts(kTimeInvalid), pts(kTimeInvalid), extra(NULL) { }
+        MediaTime           dts;        ///< packet decoding time
+        MediaTime           pts;        ///< packet presentation time
+        
+        void *              opaque;     ///< opaque
+        
+#ifdef __cplusplus
+        MediaPacket() : data(NULL), index(0), format(kCodecFormatUnknown),
+        flags(kFrameFlagNone), dts(kTimeInvalid), pts(kTimeInvalid) { }
+#endif
     };
+    
+    /**
+     * create a packet backend by Buffer
+     */
+    sp<MediaPacket> MediaPacketCreate(size_t size);
 
+#ifdef __cplusplus
 };
 #endif // __cplusplus
 

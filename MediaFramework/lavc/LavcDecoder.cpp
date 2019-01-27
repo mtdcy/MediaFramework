@@ -571,8 +571,8 @@ struct LavcDecoder : public MediaDecoder {
                     input->flags);
 
             AVPacket *pkt   = av_packet_alloc();
-            pkt->data   = (uint8_t*)input->data->data();
-            pkt->size   = input->data->size();
+            pkt->data   = input->data;
+            pkt->size   = input->size;
             // FIXME:
             pkt->pts    = input->pts.value;
             pkt->dts    = input->dts.value;

@@ -429,12 +429,12 @@ static CMSampleBufferRef createCMSampleBuffer(const sp<VTContext>& vtc,
 
     OSStatus status = CMBlockBufferCreateWithMemoryBlock(
             kCFAllocatorDefault,        // structureAllocator -> default allocator
-            const_cast<char*>(packet->data->data()), // memoryBlock
-            packet->data->capacity(),   // blockLength
+            (char*)packet->data,        // memoryBlock
+            packet->size,               // blockLength
             kCFAllocatorNull,           // blockAllocator -> no deallocation
             NULL,                       // customBlockSource
             0,                          // offsetToData
-            packet->data->size(),       // dataLength
+            packet->size,               // dataLength
             0,                          // flags
             &blockBuffer);
 
