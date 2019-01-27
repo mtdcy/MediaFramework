@@ -382,7 +382,7 @@ namespace mtdcy {
         return glc;
     }
     
-    static void update(const sp<OpenGLContext>& glc, int32_t w, int32_t h, const char* planes[]) {
+    static void update(const sp<OpenGLContext>& glc, int32_t w, int32_t h, uint8_t* planes[]) {
         GLint index[glc->config->n_textures];
         for (size_t i = 0; i < glc->config->n_textures; ++i) {
             glActiveTexture(GL_TEXTURE0 + i);
@@ -407,43 +407,22 @@ namespace mtdcy {
         glFlush();  // always assume single buffer here, let client handle swap buffers
     }
     
-    static void updateTexture_yuv420p(const sp<OpenGLContext>& glc, const sp<MediaFrame>& frame) {
-        const char * planes[3];
-        planes[0] = frame->data[0]->data();
-        if (frame->data[1] != NULL) {
-            planes[1] = frame->data[1]->data();
-            planes[2] = frame->data[2]->data();
-        } else {
-            size_t Ysize = frame->v.strideWidth * frame->v.sliceHeight;
-            planes[1] = planes[0] + Ysize;
-            planes[2] = planes[1] + Ysize / 4;
-        }
-        GLsizei w = frame->v.strideWidth;
-        GLsizei h = frame->v.sliceHeight;
+    static void updateTexture(const sp<OpenGLContext>& glc, const sp<MediaFrame>& frame) {
+        uint8_t * planes[3] = {
+            frame->planes[0].data,
+            frame->planes[1].data,
+            frame->planes[2].data,
+        };
         
-        update(glc, w, h, planes);
-    }
-    
-    static void updateTexture_nv12(const sp<OpenGLContext>& glc, const sp<MediaFrame>& frame) {
-        const char * planes[2];
-        planes[0] = frame->data[0]->data();
-        if (frame->data[1] != NULL) {
-            planes[1] = frame->data[1]->data();
-        } else {
-            size_t Ysize = frame->v.strideWidth * frame->v.sliceHeight;
-            planes[1] = planes[0] + Ysize;
-        }
-        GLsizei w = frame->v.strideWidth;
-        GLsizei h = frame->v.sliceHeight;
-
-        update(glc, w, h, planes);
+        update(glc, frame->v.width, frame->v.height, planes);
     }
     
     static void updateTexture_VideoToolbox(const sp<OpenGLContext>& glc, const sp<MediaFrame>& frame) {
-        GLsizei w = frame->v.strideWidth;
-        GLsizei h = frame->v.sliceHeight;
+        GLsizei w = frame->v.width;
+        GLsizei h = frame->v.height;
         
-        CVPixelBufferRef pixbuf = (CVPixelBufferRef)frame->data[0]->data();
+        CHECK_NULL(frame->opaque);
+        CVPixelBufferRef pixbuf = (CVPixelBufferRef)frame->opaque;
         CHECK_NULL(pixbuf);
         
         OSType pixtype = CVPixelBufferGetPixelFormatType(pixbuf);
@@ -498,7 +477,7 @@ namespace mtdcy {
         },
         .s_attrs    = { "a_position", "a_texcoord" },
         .s_uniforms = { "u_planes", "u_colorMatrix", NULL },
-        .update     = updateTexture_yuv420p,
+        .update     = updateTexture,
     };
     
     static const Config s_config_nv12 = {
@@ -512,12 +491,12 @@ namespace mtdcy {
         },
         .s_attrs    = { "a_position", "a_texcoord" },
         .s_uniforms = { "u_planes", "u_colorMatrix", NULL },
-        .update     = updateTexture_nv12,
+        .update     = updateTexture,
     };
     
     // about rectangle texture
     // https://www.khronos.org/opengl/wiki/Rectangle_Texture
-    // about yuv422p
+    // about yuv422
     // https://www.khronos.org/registry/OpenGL/extensions/APPLE/APPLE_ycbcr_422.txt
     static const Config s_config_vt_y422p = {
         .s_vsh      = vsh_yuv,
@@ -582,7 +561,7 @@ namespace mtdcy {
                     mGLContext = init(&s_config_yuv420);
                 }
                 break;
-            case kPixelFormatYUV422P:
+            case kPixelFormatYUYV422:
                 if (hwaccel) {
                     mGLContext = init_rectangle(&s_config_vt_y422p, width, height);
                 } else {

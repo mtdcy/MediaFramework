@@ -91,7 +91,8 @@ struct {
     OSType          b;
 } kPixelMap[] = {
     {kPixelFormatYUV420P,       kCVPixelFormatType_420YpCbCr8Planar},
-    {kPixelFormatYUV422P,       kCVPixelFormatType_422YpCbCr8},
+    {kPixelFormatUYVY422,       kCVPixelFormatType_422YpCbCr8},
+    {kPixelFormatYUYV422,       kCVPixelFormatType_422YpCbCr8_yuvs},
 #ifdef kCFCoreFoundationVersionNumber10_7
     {kPixelFormatNV12,          kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange},
 #endif
@@ -116,19 +117,34 @@ OSType get_cv_pix_format(ePixelFormat a) {
 }
 
 // for store unorderred image buffers and sort them
-struct Image {
-    Image(CVPixelBufferRef pix, MediaTime& pts, MediaTime& duration) :
-        image(CVPixelBufferRetain(pix)), pts(pts), duration(duration) { }
+struct VTMediaFrame : public MediaFrame {
+    VTMediaFrame(CVPixelBufferRef pixbuf, const MediaTime& _pts, const MediaTime& _duration) : MediaFrame() {
+        planes[0].data  = NULL;
+        pts         = _pts;
+        duration    = _duration;
+        v.format    = get_pix_format(CVPixelBufferGetPixelFormatType(pixbuf));
+        v.width     = CVPixelBufferGetWidth(pixbuf);
+        v.height    = CVPixelBufferGetHeight(pixbuf);
+        v.rect.x    = 0;
+        v.rect.y    = 0;
+        v.rect.w    = v.width;
+        v.rect.h    = v.height;
+        opaque = CVPixelBufferRetain(pixbuf);
+    }
 
-    Image(const Image& rhs) :
-        image(CVPixelBufferRetain(rhs.image)), pts(rhs.pts), duration(rhs.duration) { }
+    VTMediaFrame(const VTMediaFrame& rhs) {
+        planes[0].data  = NULL;
+        pts         = rhs.pts;
+        duration    = rhs.duration;
+        v           = rhs.v;
+        opaque      = CVPixelBufferRetain((CVPixelBufferRef)rhs.opaque);
+    }
 
-    ~Image() { if (image) CFRelease(image); }
+    virtual ~VTMediaFrame() {
+        CVPixelBufferRelease((CVPixelBufferRef)opaque);
+    }
 
-    CVPixelBufferRef    image;
-    MediaTime           pts;
-    MediaTime           duration;
-    bool operator<(const Image& rhs) const {
+    bool operator<(const VTMediaFrame& rhs) const {
         return pts < rhs.pts;
     }
 };
@@ -154,7 +170,7 @@ struct VTContext {
 
     Mutex                           mLock;
     bool                            mInputEOS;
-    List<Image>                     mImages;
+    List<VTMediaFrame>              mImages;
     MediaTime                       mLastFramePTS;
 };
 
@@ -187,7 +203,7 @@ static void OutputCallback(void *decompressionOutputRefCon,
 
     MediaTime pts ( presentationTimeStamp.value, presentationTimeStamp.timescale );
     MediaTime duration ( presentationDuration.value, presentationDuration.timescale );
-    Image frame(imageBuffer, pts, duration);
+    VTMediaFrame frame(imageBuffer, pts, duration);
 
     vtc->mImages.push(frame);
     vtc->mImages.sort();
@@ -468,68 +484,51 @@ static CMSampleBufferRef createCMSampleBuffer(const sp<VTContext>& vtc,
     }
 }
 
-struct PixelBuffer : public Memory {
-    PixelBuffer(CVPixelBufferRef ref) : Memory(), pixbuf(CVPixelBufferRetain(ref)) { }
-    virtual ~PixelBuffer() { CFRelease(data()); }
+sp<MediaFrame> readVideoToolboxFrame(CVPixelBufferRef pixbuf) {
+    sp<MediaFrame> frame = MediaFrameCreate(get_pix_format(CVPixelBufferGetPixelFormatType(pixbuf)),
+            CVPixelBufferGetWidth(pixbuf),
+            CVPixelBufferGetHeight(pixbuf));
 
-    virtual void*       data() { return pixbuf; };
-    virtual const void* data() const { return pixbuf; };
-    virtual size_t      capacity() const { return 1; } ;
-    virtual status_t    resize(size_t) { return INVALID_OPERATION; }
-
-    CVPixelBufferRef pixbuf;
-};
-
-sp<MediaFrame> createMediaFrame(CVPixelBufferRef pixbuf) {
-    sp<MediaFrame> frame = new MediaFrame;
-    frame->format = get_pix_format(CVPixelBufferGetPixelFormatType(pixbuf));
-
-    IOSurfaceRef surface = CVPixelBufferGetIOSurface(pixbuf);
-    CHECK_NULL(surface);
-    if (surface) {
-        frame->data[0]          = new Buffer(new PixelBuffer(pixbuf));
-        frame->v.strideWidth    = CVPixelBufferGetWidth(pixbuf);
-        frame->v.sliceHeight    = CVPixelBufferGetHeight(pixbuf);
-    } else {
-        CVReturn err = CVPixelBufferLockBaseAddress(pixbuf, kCVPixelBufferLock_ReadOnly);
-        if (err != kCVReturnSuccess) {
-            ERROR("Error locking the pixel buffer");
-            return NULL;
-        }
-
-        size_t left, right, top, bottom;
-        CVPixelBufferGetExtendedPixels(pixbuf, &left, &right, &top, &bottom);
-        DEBUGV("paddings %zu %zu %zu %zu", left, right, top, bottom);
-
-        if (CVPixelBufferIsPlanar(pixbuf)) {
-            // as we have to copy the data, copy to continueslly space
-            DEBUGV("CVPixelBufferGetDataSize %zu", CVPixelBufferGetDataSize(pixbuf));
-            DEBUGV("CVPixelBufferGetPlaneCount %zu", CVPixelBufferGetPlaneCount(pixbuf));
-
-            sp<Buffer> data = new Buffer(CVPixelBufferGetDataSize(pixbuf));
-            size_t planes = CVPixelBufferGetPlaneCount(pixbuf);
-            for (size_t i = 0; i < planes; i++) {
-                DEBUGV("CVPixelBufferGetBaseAddressOfPlane %p", CVPixelBufferGetBaseAddressOfPlane(pixbuf, i));
-                DEBUGV("CVPixelBufferGetBytesPerRowOfPlane %zu", CVPixelBufferGetBytesPerRowOfPlane(pixbuf, i));
-                DEBUGV("CVPixelBufferGetWidthOfPlane %zu", CVPixelBufferGetWidthOfPlane(pixbuf, i));
-                DEBUGV("CVPixelBufferGetHeightOfPlane %zu", CVPixelBufferGetHeightOfPlane(pixbuf, i));
-                data->write((const char *)CVPixelBufferGetBaseAddressOfPlane(pixbuf, i),
-                        CVPixelBufferGetBytesPerRowOfPlane(pixbuf, i) *
-                        CVPixelBufferGetHeightOfPlane(pixbuf, i));
-            }
-            frame->data[0] = data;
-        } else {
-            // FIXME: is this right
-            frame->data[0] = new Buffer(
-                    (const char*)CVPixelBufferGetBaseAddress(pixbuf),
-                    CVPixelBufferGetBytesPerRow(pixbuf));
-        }
-
-        frame->v.strideWidth    = CVPixelBufferGetWidth(pixbuf);
-        frame->v.sliceHeight    = CVPixelBufferGetHeight(pixbuf);
-
-        CVPixelBufferUnlockBaseAddress(pixbuf, kCVPixelBufferLock_ReadOnly);
+    CVReturn err = CVPixelBufferLockBaseAddress(pixbuf, kCVPixelBufferLock_ReadOnly);
+    if (err != kCVReturnSuccess) {
+        ERROR("Error locking the pixel buffer");
+        return NULL;
     }
+
+    size_t left, right, top, bottom;
+    CVPixelBufferGetExtendedPixels(pixbuf, &left, &right, &top, &bottom);
+    DEBUGV("paddings %zu %zu %zu %zu", left, right, top, bottom);
+
+    if (CVPixelBufferIsPlanar(pixbuf)) {
+        // as we have to copy the data, copy to continueslly space
+        DEBUGV("CVPixelBufferGetDataSize %zu", CVPixelBufferGetDataSize(pixbuf));
+        DEBUGV("CVPixelBufferGetPlaneCount %zu", CVPixelBufferGetPlaneCount(pixbuf));
+
+        sp<Buffer> data = new Buffer(CVPixelBufferGetDataSize(pixbuf));
+        size_t planes = CVPixelBufferGetPlaneCount(pixbuf);
+        for (size_t i = 0; i < planes; i++) {
+            DEBUGV("CVPixelBufferGetBaseAddressOfPlane %p", CVPixelBufferGetBaseAddressOfPlane(pixbuf, i));
+            DEBUGV("CVPixelBufferGetBytesPerRowOfPlane %zu", CVPixelBufferGetBytesPerRowOfPlane(pixbuf, i));
+            DEBUGV("CVPixelBufferGetWidthOfPlane %zu", CVPixelBufferGetWidthOfPlane(pixbuf, i));
+            DEBUGV("CVPixelBufferGetHeightOfPlane %zu", CVPixelBufferGetHeightOfPlane(pixbuf, i));
+
+            CHECK_LE(CVPixelBufferGetBytesPerRowOfPlane(pixbuf, i) *
+                    CVPixelBufferGetHeightOfPlane(pixbuf, i),
+                    frame->planes[i].size);
+            memcpy(frame->planes[i].data,
+                    CVPixelBufferGetBaseAddressOfPlane(pixbuf, i),
+                    CVPixelBufferGetBytesPerRowOfPlane(pixbuf, i) *
+                    CVPixelBufferGetHeightOfPlane(pixbuf, i));
+        }
+    } else {
+        // FIXME: is this right
+        CHECK_LE(CVPixelBufferGetBytesPerRow(pixbuf), frame->planes[0].size);
+        memcpy(frame->planes[0].data,
+                CVPixelBufferGetBaseAddress(pixbuf),
+                CVPixelBufferGetBytesPerRow(pixbuf));
+    }
+
+    CVPixelBufferUnlockBaseAddress(pixbuf, kCVPixelBufferLock_ReadOnly);
 
     return frame;
 }
@@ -565,7 +564,7 @@ struct VideoToolboxDecoder : public MediaDecoder {
         CHECK_TRUE(mVTContext != NULL);
         return kMediaNoError;
     }
-    
+
     virtual MediaError write(const sp<MediaPacket>& input) {
         if (input == NULL) {
             INFO("eos");
@@ -618,7 +617,7 @@ struct VideoToolboxDecoder : public MediaDecoder {
         }
         return kMediaNoError;
     }
-    
+
     virtual sp<MediaFrame> read() {
         if (mVTContext->mInputEOS && mVTContext->mImages.empty()) {
             INFO("eos...");
@@ -632,18 +631,11 @@ struct VideoToolboxDecoder : public MediaDecoder {
         }
 
         AutoLock _l(mVTContext->mLock);
-        Image frame = *mVTContext->mImages.begin();
-        mVTContext->mImages.pop();
+        VTMediaFrame& frame = *mVTContext->mImages.begin();
 
-        sp<MediaFrame> out = createMediaFrame(frame.image);
-        if (out == NULL) {
-            ERROR("createMediaFrame failed.");
-            return NULL;
-        }
-
-        out->v.width = mVTContext->width;
-        out->v.height = mVTContext->height;
-        out->pts = frame.pts;
+        // fix the width & height
+        frame.v.rect.w  = mVTContext->width;
+        frame.v.rect.h  = mVTContext->height;
 
         if (mVTContext->mLastFramePTS >= frame.pts) {
             ERROR("last %.3f(s), this %.3f(s)", mVTContext->mLastFramePTS.seconds(), frame.pts.seconds());
@@ -651,21 +643,19 @@ struct VideoToolboxDecoder : public MediaDecoder {
             mVTContext->mLastFramePTS = frame.pts;
         }
 
-        DEBUG("frame size %zu %.3f(s) => %d x %d => %d x %d",
-                out->data[0]->size(),
-                out->pts.seconds(),
-                out->v.width,
-                out->v.height,
-                out->v.strideWidth,
-                out->v.sliceHeight);
-
+#if 0
+        sp<MediaFrame> out = readVideoToolboxFrame((CVPixelBufferRef)frame.opaque);
+#else
+        sp<MediaFrame> out = new VTMediaFrame(frame);
+#endif
+        mVTContext->mImages.pop();
         return out;
     }
 
     virtual MediaError flush() {
         VTDecompressionSessionFinishDelayedFrames(mVTContext->decompressionSession);
         VTDecompressionSessionWaitForAsynchronousFrames(mVTContext->decompressionSession);
-        
+
         AutoLock _l(mVTContext->mLock);
         mVTContext->mImages.clear();
         mVTContext->mLastFramePTS = kTimeBegin;
@@ -674,6 +664,12 @@ struct VideoToolboxDecoder : public MediaDecoder {
 };
 
 namespace mtdcy {
+    bool IsVideoToolboxSupported(eCodecFormat format) {
+        CMPixelFormatType cm = get_cm_codec_type(format);
+        if (cm == 0) return false;
+        else return true;
+    }
+
     sp<MediaDecoder> CreateVideoToolboxDecoder() {
         return new VideoToolboxDecoder();
     }

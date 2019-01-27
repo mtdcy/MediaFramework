@@ -41,6 +41,13 @@
 
 __BEGIN_DECLS
 
+enum eModeType {
+    kModeTypeNormal     = 0,                ///< use hardware accel if available
+    kModeTypeSoftware,                      ///< no hardware accel.
+    kModeTypePreview,
+    kModeTypeDefault    = kModeTypeNormal
+};
+
 __END_DECLS
 
 #ifdef __cplusplus

@@ -107,14 +107,17 @@ namespace mtdcy {
         return module;
     }
 
+#ifdef __APPLE__
     sp<MediaDecoder> CreateVideoToolboxDecoder();
+    bool IsVideoToolboxSupported(eCodecFormat format);
+#endif
     sp<MediaDecoder> CreateLavcDecoder(eModeType mode);
     sp<MediaDecoder> MediaDecoder::Create(eCodecFormat format, eModeType mode) {
         sp<MediaDecoder> codec;
         eCodecType type = GetCodecType(format);
         
 #ifdef __APPLE__
-        if (type == kCodecTypeVideo && mode != kModeTypeSoftware) {
+        if (type == kCodecTypeVideo && mode != kModeTypeSoftware && IsVideoToolboxSupported(format)) {
             codec = CreateVideoToolboxDecoder();
         }
         // FALL BACK TO SOFTWARE DECODER
@@ -126,6 +129,119 @@ namespace mtdcy {
         return codec;
     }
 };
+
+using namespace mtdcy;
+
+struct PixelFormatDesc {
+    const char *    desc;
+    const size_t    n_planes;
+    const float     n_size[MEDIA_FRAME_NB_PLANES];
+};
+
+static PixelFormatDesc s_yuv[] = {
+    {   // kPixelFormatUnknown
+        .desc       = "unknown",
+        .n_planes   = 0,
+    },
+    {   // kPixelFormatYUV420P
+        .desc       = "planar yuv 4:2:0, 3 planes Y/U/V",
+        .n_planes   = 3,
+        .n_size     = { 1, 0.25, 0.25 },
+    },
+};
+
+struct SampleFormatDesc {
+    const char *    desc;
+    const size_t    n_size;     // sample size in bytes
+};
+
+static SampleFormatDesc s_samples[] = {
+    {   // kSampleFormatUnknown
+        .desc       = "unknown",
+    },
+    {   // kSampleFormatU8
+        .desc       = "unsigned 8 bit sample",
+        .n_size     = 1,
+    },
+    {   // kSampleFormatS16
+        .desc       = "signed 16 bit sample",
+        .n_size     = 2,
+    },
+    {   // kSampleFormatS24
+        .desc       = "signed 24 bit sample",
+        .n_size     = 3,
+    },
+    {   // kSampleFormatS32
+        .desc       = "signed 32 bit sample",
+        .n_size     = 4,
+    },
+    {   // kSampleFormatFLT
+        .desc       = "float sample",
+        .n_size     = sizeof(float),
+    },
+};
+
+MediaFrame::MediaFrame() : pts(kTimeInvalid), duration(kTimeInvalid) {
+    for (size_t i = 0; i < MEDIA_FRAME_NB_PLANES; ++i) {
+        planes[i].data = NULL;
+        planes[i].size = 0;
+    }
+    format = 0;
+    opaque = NULL;
+}
+
+struct DefaultMediaFrame : public MediaFrame {
+    DefaultMediaFrame() : MediaFrame() { }
+    virtual ~DefaultMediaFrame() { }
+    sp<Buffer> buffer[MEDIA_FRAME_NB_PLANES];
+};
+
+namespace mtdcy {
+    sp<MediaFrame> MediaFrameCreate(ePixelFormat format, int32_t w, int32_t h) {
+        sp<DefaultMediaFrame> frame = new DefaultMediaFrame;
+        const size_t size = w * h;
+        
+        if (format > kPixelFormatUnknown && format < kPixelFormatYUYV422) {
+            const PixelFormatDesc *desc = &s_yuv[format];
+            for (size_t i = 0; i < desc->n_planes; ++i) {
+                frame->planes[i].size   = size * desc->n_size[i];
+                frame->buffer[i] = new Buffer(frame->planes[i].size);
+                frame->planes[i].data = (uint8_t*)frame->buffer[i]->data();
+            }
+        } else {
+            FATAL("FIXME");
+        }
+        frame->v.format     = format;
+        frame->v.width      = w;
+        frame->v.height     = h;
+        frame->v.rect.x     = 0;
+        frame->v.rect.y     = 0;
+        frame->v.rect.w     = w;
+        frame->v.rect.h     = h;
+        return frame;
+    }
+    
+    sp<MediaFrame> MediaFrameCreate(eSampleFormat format, bool planar, int32_t channels, int32_t freq, int32_t samples) {
+        sp<DefaultMediaFrame> frame = new DefaultMediaFrame;
+        const SampleFormatDesc *desc = &s_samples[format];
+        if (planar) {
+            for (size_t i = 0; i < channels; ++i) {
+                frame->planes[i].size   = desc->n_size * samples;
+                frame->buffer[i]        = new Buffer(frame->planes[i].size);
+                frame->planes[i].data   = (uint8_t*)frame->buffer[i]->data();
+            }
+        } else {
+            frame->planes[0].size       = desc->n_size * samples * channels;
+            frame->buffer[0]            = new Buffer(frame->planes[0].size);
+            frame->planes[0].data       = (uint8_t*)frame->buffer[0]->data();
+        }
+        frame->a.format     = format;
+        frame->a.channels   = channels;
+        frame->a.freq       = freq;
+        frame->a.samples    = samples;
+        return frame;
+    }
+}
 
 #include <libyuv.h>
 namespace mtdcy {
@@ -159,48 +275,30 @@ namespace mtdcy {
     sp<MediaFrame> ColorConvertor::convert(const sp<MediaFrame>& input) {
         if (input->v.format == mFormat) return input;
         
-        sp<MediaFrame> out = new MediaFrame;
-        
-        out->v.width        = input->v.width;
-        out->v.height       = input->v.height;
-        out->v.strideWidth  = input->v.strideWidth;
-        out->v.sliceHeight  = input->v.sliceHeight;
+        sp<MediaFrame> out = MediaFrameCreate(mFormat, input->v.width, input->v.height);
+        out->v              = input->v;
+        out->v.format       = mFormat;
         out->pts            = input->pts;
+        out->duration       = input->duration;
         
         if (mFormat == kPixelFormatYUV420P) {
-            const size_t size_y = input->v.strideWidth * input->v.sliceHeight;
-
             switch (input->v.format) {
                 case kPixelFormatNV12:
                 {
-                    const uint8_t *src_y = (const uint8_t *)input->data[0]->data();
-                    const uint8_t *src_uv;
-                    if (input->data[1] != NULL) {
-                        src_uv = (const uint8_t *)input->data[1]->data();
-                    } else {
-                        src_uv = src_y + size_y;
-                    }
-                    out->data[0] = new Buffer((size_y * 3) / 2);
-                    uint8_t *dst_y = (uint8_t*)out->data[0]->data();
-                    uint8_t *dst_u = dst_y + size_y;
-                    uint8_t *dst_v = dst_u + size_y / 4;
                     libyuv::NV12ToI420(
-                        src_y,  input->v.strideWidth,
-                        src_uv, input->v.strideWidth,
-                        dst_y,  input->v.strideWidth,
-                        dst_u,  input->v.strideWidth / 2,
-                        dst_v,  input->v.strideWidth / 2,
-                        input->v.strideWidth,
-                        input->v.sliceHeight
+                        input->planes[0].data,  input->v.width,
+                        input->planes[1].data, input->v.width,
+                        out->planes[0].data,  out->v.width,
+                        out->planes[1].data,  out->v.width / 2,
+                        out->planes[2].data,  out->v.width / 2,
+                        input->v.width,
+                        input->v.height
                     );
                 } break;
                 default:
                     FATAL("FIXME");
                     break;
             }
-            
-            out->data[0]->step((size_y * 3) / 2);
-            out->format = kPixelFormatYUV420P;
         } else {
             FATAL("FIXME");
         }

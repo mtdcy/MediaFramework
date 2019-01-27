@@ -95,33 +95,33 @@ enum eCodecType {
 eCodecType GetCodecType(eCodecFormat format);
 
 enum ePixelFormat {
-    kPixelFormatUnknown     = 0,    ///< Unknown
+    kPixelFormatUnknown     = 0,        ///< Unknown
     
-    kPixelFormatYUV420P     = 0x100,///< Planar YUV 4:2:0, 12bpp
-    kPixelFormatYUV422P,            ///< Planar YUV 4:2:2, 16bpp
-    kPixelFormatNV12,               ///< 2 planes Y/UV, 12 bpp
-                                    ///< 1 plane for Y, 1 plane for UV(interleaved)
-    kPixelFormatNV21,               ///< 2 planes Y/VU, 12 bpp
-    kPixelFormatRGB565      = 0x200,///< packed RGB 5:6:5, 16 bpp
-    kPixelFormatRGB888,             ///< packed RGB 8:8:8, 24 bpp
-    kPixelFormatARGB,               ///< packed ARGB, 32 bpp, AARRGGBB
-    kPixelFormatRGBA,               ///< packed RGBA, 32 bpp, RRGGBBAA
+    // about yuv: http://www.fourcc.org/yuv.php
+    // planar yuv
+    kPixelFormatYUV420P,                ///< Planar YUV 4:2:0, 12bpp, 3 planes Y/U/V
+    kPixelFormatYUV422P,                ///< Planar YUV 4:2:2, 16bpp, 3 planes Y/U/V
+    kPixelFormatYUV444P,                ///< Planar YUV 4:4:4, 24bpp, 3 planes Y/U/V
+    kPixelFormatNV12,                   ///< Planar YUV 4:2:0, 12bpp, 2 planes Y/UV(interleaved)
+    kPixelFormatNV21,                   ///< same as nv12, but uv are swapped
+    // packed yuv
+    kPixelFormatYUYV422     = 0x100,    ///< Packed YUV 4:2:2, 16bpp, Y0 Cb Y1 Cr
+    kPixelFormatUYVY422,                ///< Packed YUV 4:2:2, 16bpp, Cb Y0 Cr Y1
+    // packed rgb
+    kPixelFormatRGB565      = 0x200,    ///< packed RGB 5:6:5, 16 bpp
+    kPixelFormatRGB888,                 ///< packed RGB 8:8:8, 24 bpp
+    kPixelFormatARGB,                   ///< packed ARGB, 32 bpp, AARRGGBB
+    kPixelFormatRGBA,                   ///< packed RGBA, 32 bpp, RRGGBBAA
 };
 
 // FIXME: code sample infomation into format
 enum eSampleFormat {
     kSampleFormatUnknown    = 0,
+    kSampleFormatU8,
     kSampleFormatS16,
     kSampleFormatS24,
     kSampleFormatS32,
     kSampleFormatFLT,
-};
-
-enum eModeType {
-    kModeTypeNormal     = 0,                ///< use hardware accel if available
-    kModeTypeSoftware,                      ///< no hardware accel.
-    kModeTypePreview,
-    kModeTypeDefault    = kModeTypeNormal
 };
 
 /**

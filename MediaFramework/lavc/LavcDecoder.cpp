@@ -52,30 +52,6 @@
 
 using namespace mtdcy;
 
-// map AVFrame to Buffer, so we don't have to realloc memory again
-struct AVFrameMemory : public Memory {
-    AVFrameMemory(AVBufferRef *ref);
-    virtual ~AVFrameMemory();
-    virtual void*       data() { return mBuffer->data; }
-    virtual const void* data() const { return mBuffer->data; }
-    virtual size_t      capacity() const { return mBuffer->size; }
-    virtual status_t    resize(size_t newCapacity) {
-        CHECK_TRUE(av_buffer_is_writable(mBuffer));
-        CHECK_TRUE(av_buffer_realloc(&mBuffer, newCapacity) == 0);
-        return OK;
-    }
-    AVBufferRef *mBuffer;
-};
-
-// AVBufferRef *av_buffer_ref(AVBufferRef *buf);
-
-AVFrameMemory::AVFrameMemory(AVBufferRef * ref) :
-    Memory(), mBuffer(av_buffer_ref(ref)) { }
-
-    AVFrameMemory::~AVFrameMemory() {
-        av_buffer_unref(&mBuffer);
-    }
-
 struct {
     eCodecFormat    a;
     AVCodecID       b;
@@ -180,6 +156,56 @@ AVSampleFormat get_av_sample_format(eSampleFormat a) {
     return AV_SAMPLE_FMT_NONE;
 }
 
+// map AVFrame to MediaFrame, so we don't have to realloc memory again
+struct AVMediaFrame : public MediaFrame {
+    AVMediaFrame(AVCodecContext *avcc, AVFrame *frame) : MediaFrame() {
+        opaque = av_frame_alloc();
+        av_frame_ref((AVFrame*)opaque, frame);
+        
+        for (size_t i = 0; i < MEDIA_FRAME_NB_PLANES; ++i) {
+            planes[i].data = NULL;
+        }
+        
+        if (avcc->codec_type == AVMEDIA_TYPE_AUDIO) {
+            a.format        = get_sample_format((AVSampleFormat)frame->format);
+            a.channels      = frame->channels;
+            a.freq          = frame->sample_rate;
+            a.samples       = frame->nb_samples;
+            if (av_sample_fmt_is_planar((AVSampleFormat)frame->format)) {
+                for (size_t i = 0; i < frame->channels; ++i) {
+                    planes[i].data  = frame->data[i];
+                    // linesize may have extra bytes.
+                    planes[i].size  = frame->nb_samples * av_get_bytes_per_sample((AVSampleFormat)frame->format);
+                }
+            } else {
+                planes[0].data  = frame->data[0];
+                planes[0].size  = frame->linesize[0];
+            }
+        } else if (avcc->codec_type == AVMEDIA_TYPE_VIDEO) {
+            v.format        = get_pix_format((AVPixelFormat)frame->format);
+            v.width         = frame->width;
+            v.height        = frame->height;
+            v.rect.x        = 0;
+            v.rect.y        = 0;
+            v.rect.w        = avcc->width;
+            v.rect.h        = avcc->height;
+            for (size_t i = 0; frame->data[i] != NULL; ++i) {
+                planes[i].data  = frame->data[i];
+                planes[i].size  = frame->buf[i]->size; 
+            }
+        } else {
+            FATAL("FIXME");
+        }
+        // this may be wrong
+        pts         = MediaTime(frame->pts * avcc->time_base.num, avcc->time_base.den);
+        duration    = kTimeInvalid;
+    }
+    
+    virtual ~AVMediaFrame() {
+        av_frame_free((AVFrame**)&opaque);
+    }
+};
+
 struct CodecContext {
 };
 
@@ -232,74 +258,6 @@ static int get_buffer(AVCodecContext *avcc, AVFrame *frame, int flags) {
     // TODO
     return avcodec_default_get_buffer2(avcc, frame, flags);
 }
-
-#ifdef __APPLE__
-static status_t readVideoToolboxFrame(sp<MediaFrame>& frame, CVPixelBufferRef pixbuf) {
-    OSType native_fmt = CVPixelBufferGetPixelFormatType(pixbuf);
-    CVReturn err;
-
-    switch (native_fmt) {
-        case kCVPixelFormatType_420YpCbCr8Planar:
-            frame->format = kPixelFormatYUV420P;
-            break;
-#if 0
-        case kCVPixelFormatType_422YpCbCr8:
-            frame->fmt = Media::Codec::YUV422;
-            break;
-        case kCVPixelFormatType_32BGRA:
-            frame->fmt = Media::Codec::BGRA;
-            break;
-#endif
-#ifdef kCFCoreFoundationVersionNumber10_7
-        case kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange:
-            frame->format = kPixelFormatNV12;
-            break;
-#endif
-        default:
-            FATAL("Unsupported pixel format: %#x", native_fmt);
-    }
-
-    err = CVPixelBufferLockBaseAddress(pixbuf, kCVPixelBufferLock_ReadOnly);
-    if (err != kCVReturnSuccess) {
-        ERROR("Error locking the pixel buffer");
-        return UNKNOWN_ERROR;
-    }
-
-    size_t left, right, top, bottom;
-    CVPixelBufferGetExtendedPixels(pixbuf, &left, &right, &top, &bottom);
-    DEBUG("paddings %zu %zu %zu %zu", left, right, top, bottom);
-
-    if (CVPixelBufferIsPlanar(pixbuf)) {
-        // as we have to copy the data, copy to continueslly space
-        DEBUG("CVPixelBufferGetDataSize %zu", CVPixelBufferGetDataSize(pixbuf));
-        DEBUG("CVPixelBufferGetPlaneCount %zu", CVPixelBufferGetPlaneCount(pixbuf));
-
-        sp<Buffer> data = new Buffer(CVPixelBufferGetDataSize(pixbuf));
-        size_t planes = CVPixelBufferGetPlaneCount(pixbuf);
-        for (size_t i = 0; i < planes; i++) {
-            DEBUG("CVPixelBufferGetBaseAddressOfPlane %p", CVPixelBufferGetBaseAddressOfPlane(pixbuf, i));
-            DEBUG("CVPixelBufferGetBytesPerRowOfPlane %zu", CVPixelBufferGetBytesPerRowOfPlane(pixbuf, i));
-            DEBUG("CVPixelBufferGetWidthOfPlane %zu", CVPixelBufferGetWidthOfPlane(pixbuf, i));
-            DEBUG("CVPixelBufferGetHeightOfPlane %zu", CVPixelBufferGetHeightOfPlane(pixbuf, i));
-            data->write((const char *)CVPixelBufferGetBaseAddressOfPlane(pixbuf, i),
-                    CVPixelBufferGetBytesPerRowOfPlane(pixbuf, i) *
-                    CVPixelBufferGetHeightOfPlane(pixbuf, i));
-        }
-        frame->data[0] = data;
-    } else {
-        // FIXME: is this right
-        frame->data[0] = new Buffer(
-                (const char*)CVPixelBufferGetBaseAddress(pixbuf),
-                CVPixelBufferGetBytesPerRow(pixbuf));
-    }
-
-    frame->v.strideWidth    = CVPixelBufferGetWidth(pixbuf);
-    frame->v.sliceHeight    = CVPixelBufferGetHeight(pixbuf);
-
-    CVPixelBufferUnlockBaseAddress(pixbuf, kCVPixelBufferLock_ReadOnly);
-    return OK;
-}
-#endif
 
 static status_t setupHwAccelContext(AVCodecContext *avcc) {
 
@@ -517,9 +475,13 @@ static AVCodecContext* allocCodecContext(eModeType mode, const Message& formats,
     return avcc;
 }
 
+#ifdef __APPLE__
+sp<MediaFrame> readVideoToolboxFrame(CVPixelBufferRef);
+#endif
+
 struct LavcDecoder : public MediaDecoder {
     eModeType               mMode;
-    void *                  mContext;   // AVCodecContext, hide from caller
+    AVCodecContext *        mContext;   // AVCodecContext, hide from caller
     List<MediaTime>         mTimestamps;
 
     // statistics
@@ -533,7 +495,7 @@ struct LavcDecoder : public MediaDecoder {
     mOutputCount(0) { }
 
     virtual ~LavcDecoder() {
-        AVCodecContext *avcc = (AVCodecContext*)mContext;
+        AVCodecContext *avcc = mContext;
         if (avcc) {
 #if 0 // no need to free hwaccel_context manually
             if (avcc->hwaccel_context) {
@@ -552,7 +514,7 @@ struct LavcDecoder : public MediaDecoder {
 
     virtual Message formats() const {
         Message formats;
-        AVCodecContext* avcc = (AVCodecContext*)mContext;
+        AVCodecContext* avcc = mContext;
         if (avcc->codec_type == AVMEDIA_TYPE_AUDIO) {
             formats.setInt32(kKeyFormat, get_sample_format(avcc->sample_fmt));
             formats.setInt32(kKeyChannels, avcc->channels);
@@ -598,7 +560,7 @@ struct LavcDecoder : public MediaDecoder {
     }
     
     virtual MediaError write(const sp<MediaPacket>& input) {
-        AVCodecContext *avcc = (AVCodecContext*)mContext;
+        AVCodecContext *avcc = mContext;
         if (input != NULL && input->data != NULL) {
             ++mInputCount;
 
@@ -654,7 +616,7 @@ struct LavcDecoder : public MediaDecoder {
     
     virtual sp<MediaFrame> read() {
         AVFrame *internal = av_frame_alloc();
-        AVCodecContext *avcc = (AVCodecContext*)mContext;
+        AVCodecContext *avcc = mContext;
 
         // receive frame from avcodec
         int ret = avcodec_receive_frame(avcc, internal);
@@ -673,60 +635,21 @@ struct LavcDecoder : public MediaDecoder {
                     av_make_error_string(err_str, 64, ret));
             return NULL;
         }
-
-        sp<MediaFrame> out = new MediaFrame;
-        // set before copy/ref buffer, so we can override it.
-        if (avcc->codec_type == AVMEDIA_TYPE_AUDIO) {
-            out->a.channels     = internal->channels;
-            out->a.rate         = internal->sample_rate;
-            out->a.samples      = internal->nb_samples;
-        } else {
-            out->format         = get_pix_format((AVPixelFormat)internal->format);
-            out->v.width        = internal->width;
-            out->v.height       = internal->height;
-            out->v.strideWidth  = out->v.width;     // this usually is wrong
-            out->v.sliceHeight  = out->v.height;    // this usually is wrong
+        
+        sp<MediaFrame> out;
+#ifdef __APPLE__
+        if (internal->format == AV_PIX_FMT_VIDEOTOOLBOX) {
+            out = readVideoToolboxFrame((CVPixelBufferRef)internal->data[3]);
+        } else
+#endif
+        {
+            out = new AVMediaFrame(avcc, internal);
         }
-
-#if 0
-        out->pts                = internal->pts;
-#else
+        
+#if 1
         out->pts                = *mTimestamps.begin();
         mTimestamps.pop();
 #endif
-
-        if (internal->format == AV_PIX_FMT_VIDEOTOOLBOX) {
-#ifdef __APPLE__
-            if (readVideoToolboxFrame(out, (CVPixelBufferRef)internal->data[3]) != OK) {
-                return NULL;
-            }
-#else
-            FATAL("AV_PIX_FMT_VIDEOTOOLBOX on system other than macOS");
-#endif
-        } else {
-            if (avcc->codec_type == AVMEDIA_TYPE_VIDEO) {
-                // FIXME: this is only right for yuv
-                out->v.strideWidth  = internal->linesize[0];
-            }
-            for (size_t i = 0; internal->data[i] != NULL; ++i) {
-                // audio and video have different define for linesize
-                size_t n = 0;
-                if (avcc->codec_type == AVMEDIA_TYPE_AUDIO) {
-                    // linesize may have extra bytes.
-                    n = internal->nb_samples * av_get_bytes_per_sample((AVSampleFormat)internal->format);
-                } else {
-                    // just copy all the data
-                    n = internal->buf[i]->size;
-                }
-
-                // no memcpy
-                out->data[i] = new Buffer(new AVFrameMemory(internal->buf[i]));
-                out->data[i]->step(n);
-                DEBUG("frame plane %zu, linesize %zu, size %zu",
-                        i, n, out->data[i]->size());
-            }
-        }
-
 
 #if LOG_NDEBUG == 0
         if (avcc->codec_type == AVMEDIA_TYPE_VIDEO) {
@@ -753,7 +676,7 @@ struct LavcDecoder : public MediaDecoder {
     }
 
     virtual MediaError flush() {
-        AVCodecContext *avcc = (AVCodecContext*)mContext;
+        AVCodecContext *avcc = mContext;
         if (avcc && avcodec_is_open(avcc)) {
             avcodec_flush_buffers(avcc);
         }

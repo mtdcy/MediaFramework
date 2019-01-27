@@ -70,6 +70,7 @@ namespace mtdcy {
             Mutex                   mLock;
             Condition               mWait;
             sp<Buffer>              mPendingFrame;
+            size_t                  mBytesLeft;
             bool                    mFlushing;
             size_t                  mSilence;
 

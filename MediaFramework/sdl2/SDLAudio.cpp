@@ -174,16 +174,15 @@ namespace mtdcy {
     
     template <class TYPE>
     sp<Buffer> interleave(const sp<MediaFrame>& frame) {
-        TYPE * p[8];
+        TYPE * p[MEDIA_FRAME_NB_PLANES];
         for (size_t i = 0; i < frame->a.channels; ++i)
-            p[i] = (TYPE*)frame->data[i]->data();
+            p[i] = (TYPE*)frame->planes[i].data;
         
-        size_t n = frame->data[0]->size() * frame->a.channels;
+        size_t n = frame->planes[0].size * frame->a.channels;
         sp<Buffer> out = new Buffer(n);
         TYPE * dest = (TYPE*)out->data();
         
-        size_t samples = frame->data[0]->size() / sizeof(TYPE);
-        for (size_t i = 0; i < samples; ++i)
+        for (size_t i = 0; i < frame->a.samples; ++i)
             for (size_t j = 0; j < frame->a.channels; ++j)
                 dest[frame->a.channels * i + j] = p[j][i];
         
@@ -205,7 +204,7 @@ namespace mtdcy {
             //mSilence = 1;
         }
         
-        if (input->data[1] != NULL) {
+        if (input->planes[1].data != NULL) {
             switch (mSampleFormat) {
                 case AUDIO_S16SYS:
                     mPendingFrame   = interleave<int16_t>(input);
@@ -221,7 +220,9 @@ namespace mtdcy {
                     break;
             }
         } else {
-            mPendingFrame   = input->data[0];
+            //INFO("frame %zu %d %d %d", input->planes[0].size, input->a.channels, input->a.freq, input->a.samples);
+            mPendingFrame   = new Buffer((const char *)input->planes[0].data,
+                                         input->planes[0].size);
         }
         
         mWait.signal();
