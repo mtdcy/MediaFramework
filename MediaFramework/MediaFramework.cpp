@@ -38,19 +38,10 @@
 #include "MediaDefs.h"
 #include "ColorConvertor.h"
 #include "MediaDecoder.h"
+#include "MediaExtractor.h"
 
-//#include "mp3/Mp3File.h"
-#include "mpeg4/Mp4File.h"
 #include "sdl2/SDLAudio.h"
 #include "opengl/GLVideo.h"
-
-#if 0
-#include "wave/WaveFile.h" 
-#include "ape/ApeFile.h"
-#include "dsd/DsdFile.h"
-#include "aac/AacFile.h"
-#include "flac/FlacFile.h"
-#endif
 
 extern "C" {
     eCodecType GetCodecType(eCodecFormat format) {
@@ -69,42 +60,13 @@ extern "C" {
 
 namespace mtdcy {
     
-
-    sp<MediaExtractor> MediaExtractor::Create(sp<Content>& pipe, const Message& params) {
-        eFileFormat fileType = (eFileFormat)params.findInt32(kKeyFormat, kFileFormatUnknown);
-        // if someone want to force format.
-        if (fileType == kFileFormatUnknown) {
-            fileType = MediaFormatDetect(*pipe);
-            pipe->seek(0);  // reset pipe
-        }
-
-        sp<MediaExtractor> module;
-        if (fileType == kFileFormatMP3) {
-            //module = new Mp3File(pipe, params);
-        } else if (fileType == kFileFormatMP4)
-            module = new Mp4File(pipe, params);
-#if 0
-        if (fileType.equals(Media::File::APE)) 
-            module = new ApeFile(pipe, params);
-        else if (fileType.equals(Media::File::MP3))
-            module = new Mp3File(pipe, params);
-        else if (fileType.equals(Media::File::WAVE))
-            module = new WaveFile(pipe, params);
-        else if (fileType.equals(Media::File::DSF) || fileType.equals(Media::File::DFF))
-            module = new DsdFile(pipe, params);
-        else if (fileType.equals(Media::File::AAC))
-            module = new AacFile(pipe, params);
-        else if (fileType.equals(Media::File::FLAC))
-            module = new FlacFile(pipe, params);
-        else if (fileType == Media::File::MP4) 
-            module = new Mp4File(pipe, params);
-#endif
-
-        if (module == 0 || module->status() != OK) {
+    sp<MediaExtractor> CreateMp4File();
+    sp<MediaExtractor> MediaExtractor::Create(eFileFormat format) {
+        if (format == kFileFormatMP4)
+            return CreateMp4File();
+        else {
             return NULL;
         }
-
-        return module;
     }
 
 #ifdef __APPLE__
@@ -147,7 +109,12 @@ static PixelFormatDesc s_yuv[] = {
         .desc       = "planar yuv 4:2:0, 3 planes Y/U/V",
         .n_planes   = 3,
         .n_size     = { 1, 0.25, 0.25 },
-    },
+    },  // kPixelFormatYUV422P
+    {
+        .desc       = "planar yuv 4:2:2, 3 planes Y/U/V",
+        .n_planes   = 3,
+        .n_size     = { 1, 0.5, 0.5 },
+    }
 };
 
 struct SampleFormatDesc {

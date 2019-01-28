@@ -39,8 +39,8 @@
 #define LOG_TAG "MTD"
 #define LOG_NDEBUG 0
 
+#include "MediaExtractor.h"
 #include <MediaFramework/MediaDefs.h>
-#include <MediaFramework/mp3/Mp3File.h>
 //#include <MediaFramework/mp3/id3/ID3.h>
 
 #define MAX(a, b) (a > b ? a : b)

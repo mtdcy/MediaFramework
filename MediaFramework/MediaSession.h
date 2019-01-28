@@ -90,7 +90,7 @@ namespace mtdcy {
     /**
      * For handle error status
      */
-    typedef TypedEvent<status_t> StatusEvent;
+    typedef TypedEvent<MediaError> StatusEvent;
     
     /**
      * For client to control session

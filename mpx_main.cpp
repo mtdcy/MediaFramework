@@ -69,7 +69,7 @@ static sp<MediaPlayer> mp;
 static double position = 0;
 
 struct MPStatus : public StatusEvent {
-    virtual void onEvent(const status_t& st) {
+    virtual void onEvent(const MediaError& st) {
         INFO("==> status %d", st);
     }
 };

@@ -59,16 +59,16 @@ namespace mtdcy {
 
         virtual ~CountedStatusEvent() { }
 
-        virtual void onEvent(const status_t& st) {
+        virtual void onEvent(const MediaError& st) {
             int old = atomic_sub(&mCount, 1);
             CHECK_GT(old, 0);
-            if (old == 1 || st != OK) {
+            if (old == 1 || st != kMediaNoError) {
                 onFinished(st);
                 kept.clear();
             }
         }
 
-        virtual void onFinished(status_t st) = 0;
+        virtual void onFinished(MediaError st) = 0;
     };
 
     // for MediaSession request packet, which always run in player's looper
@@ -144,7 +144,7 @@ namespace mtdcy {
         }
 
         // TODO: set status and put state machine into invalid
-        void setStatus(status_t st) {
+        void setStatus(MediaError st) {
             if (mStatusEvent != NULL) {
                 mStatusEvent->fire(st);
             }
@@ -197,14 +197,16 @@ namespace mtdcy {
         sp<Content> pipe = Content::Create(url);
         if (pipe == NULL) {
             ERROR("create pipe failed");
-            mpc->setStatus(UNKNOWN_ERROR);
+            mpc->setStatus(kMediaErrorUnknown);
             return;
         }
         
-        sp<MediaExtractor> extractor = MediaExtractor::Create(pipe, NULL);
-        if (extractor == NULL || extractor->status() != OK) {
+        sp<MediaExtractor> extractor = MediaExtractor::Create(MediaFormatDetect(*pipe));
+        
+        Message options;
+        if (extractor->init(pipe, options) != kMediaNoError) {
             ERROR("create extractor failed");
-            mpc->setStatus(UNKNOWN_ERROR);
+            mpc->setStatus(kMediaErrorUnknown);
             return;
         }
         
@@ -254,7 +256,8 @@ namespace mtdcy {
                     options.set<sp<MediaOut> >("MediaOut", external);
                 }
             }
-            
+            options.setInt32(kKeyRequestFormat, kPixelFormatNV12);
+            options.setInt32(kKeyOpenGLCompatible, true);
             options.set<sp<PacketRequestEvent> >("PacketRequestEvent", ms);
             
             options.set<sp<RenderPositionEvent> >("RenderPositionEvent",
@@ -360,7 +363,7 @@ namespace mtdcy {
         PrepareStatusEvent(const sp<Looper>& looper, size_t n) :
             CountedStatusEvent(looper, n) { }
 
-        virtual void onFinished(status_t st) {
+        virtual void onFinished(MediaError st) {
             MPContext *mpc = static_cast<MPContext*>(Looper::getLooper()->opaque());
 
             INFO("prepare finished with status %d, current pos %.3f(s)",

@@ -36,433 +36,574 @@
 //#define LOG_NDEBUG 0
 #include <MediaToolkit/Toolkit.h>
 
-#include "Mp4File.h"
 #include "Systems.h"
 #include "tags/id3/ID3.h"
 #include "Box.h"
+#include <MediaFramework/MediaTime.h>
 
 // reference: 
 // ISO/IEC 14496-12: ISO base media file format
 // ISO/IEC 14496-14: mp4 file format
 // http://atomicparsley.sourceforge.net/mpeg-4files.html
 // http://www.mp4ra.org/atoms.html
-namespace mtdcy {
-    using namespace MPEG4;
+using namespace mtdcy;
+using namespace MPEG4;
 
+struct {
+    const char *        name;
+    const eCodecFormat  format;
+} kCodecMap[] = {
+    {"mp4a",        kAudioCodecFormatAAC},
+    {"avc1",        kVideoCodecFormatH264},
+    {"avc2",        kVideoCodecFormatH264},
+    {"hvc1",        kVideoCodecFormatHEVC},
+    // END OF LIST
+    {"",            kCodecFormatUnknown},
+};
+
+eCodecFormat get_codec_format(const String& name) {
+    for (size_t i = 0; kCodecMap[i].format != kCodecFormatUnknown; ++i) {
+        if (name == kCodecMap[i].name)
+            return kCodecMap[i].format;
+    }
+    return kCodecFormatUnknown;
+}
+
+// TODO:
+status_t prepareMetaData(const sp<Box>& meta, const sp<Message>& target) {
+    if (meta == 0 || target == 0) {
+        ERROR("bad parameters.");
+        return BAD_VALUE;
+    }
+
+    sp<iTunesItemKeysBox> keys = FindBox(meta, "keys");
+    sp<iTunesItemListBox> ilst = FindBox(meta, "ilst");
+    if (ilst == 0) {
+        ERROR("ilst is missing.");
+        return NO_INIT;
+    }
+
+}
+
+struct Sample {
+    uint64_t            offset;
+    size_t              size;   // in bytes
+    int64_t             dts;
+    int64_t             pts;
+    uint32_t            flags;
+};
+
+struct Track {
+    Track() : codec(kCodecFormatUnknown), trackIndex(0),
+    sampleIndex(0), duration(kTimeInvalid),
+    startTime(kTimeInvalid) { }
+
+    eCodecFormat        codec;
+    size_t              trackIndex;
+    size_t              sampleIndex;
+    MediaTime           duration;
+    MediaTime           startTime;
+    Vector<Sample>      sampleTable;
+
+    union {
+        struct {
+            int32_t     width;
+            int32_t     height;
+        } video;
+        struct {
+            int32_t     sampleRate;
+            int32_t     channelCount;
+        } audio;
+    };
+    sp<CommonBox>       esds;
+};
+
+struct M4 {
+    Vector<sp<Track> >  tracks;
+    MediaTime           duration;
     struct {
-        const char *        name;
-        const eCodecFormat  format;
-    } kCodecMap[] = {
-        {"mp4a",        kAudioCodecFormatAAC},
-        {"avc1",        kVideoCodecFormatH264},
-        {"avc2",        kVideoCodecFormatH264},
-        {"hvc1",        kVideoCodecFormatHEVC},
-        // END OF LIST
-        {"",            kCodecFormatUnknown},
-    };
+        size_t          offset;
+        size_t          length;
+    } meta;
+};
 
-    eCodecFormat get_codec_format(const String& name) {
-        for (size_t i = 0; kCodecMap[i].format != kCodecFormatUnknown; ++i) {
-            if (name == kCodecMap[i].name)
-                return kCodecMap[i].format;
-        }
-        return kCodecFormatUnknown;
+static sp<Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderBox>& mvhd) {
+    if (CheckTrackBox(trak) == false) {
+        ERROR("bad TrackBox");
+        return NULL;
     }
 
-    // TODO:
-    status_t prepareMetaData(const sp<Box>& meta, const sp<Message>& target) {
-        if (meta == 0 || target == 0) {
-            ERROR("bad parameters.");
-            return BAD_VALUE;
-        }
+    sp<Track> track = new Track;
 
-        sp<iTunesItemKeysBox> keys = FindBox(meta, "keys");
-        sp<iTunesItemListBox> ilst = FindBox(meta, "ilst");
-        if (ilst == 0) {
-            ERROR("ilst is missing.");
-            return NO_INIT;
-        }
-
+    sp<TrackHeaderBox> tkhd = FindBox(trak, "tkhd");
+    if (tkhd == 0) {
+        ERROR("tkhd is missing.");
+        return NULL;
     }
-    
-    struct Mp4Packet : public MediaPacket {
-        sp<Buffer> buffer;
-        Mp4Packet(const sp<Buffer>& _buffer) : MediaPacket(), buffer(_buffer) {
-            data    = (uint8_t*)buffer->data();
-            size    = buffer->size();
-        }
-    };
+    // TODO: learn more from tkhd
 
-    ///////////////////////////////////////////////////////////////////////////
-    Mp4File::Mp4File(sp<Content>& pipe, const Message& params) :
-        MediaExtractor(),
-        mContent(pipe), mStatus(NO_INIT)
-    {
-        bool mdat = false;
-        sp<Buffer> moov;
-        sp<Buffer> meta;
+    // duration
+    sp<MediaBox> mdia = FindBox(trak, "mdia");
+    if (mdia == 0) {
+        ERROR("mdia is missing.");
+        return NULL;
+    }
 
-        FileTypeBox ftyp;
-        while (!mdat || moov == 0) {
-            sp<Buffer> boxHeader    = pipe->read(8);
-            if (boxHeader == 0 || boxHeader->size() < 8) {
-                DEBUG("lack of data. ");
-                break;
-            }
+    sp<MediaHeaderBox> mdhd = FindBox(mdia, "mdhd");
+    if (mdhd == 0) {
+        ERROR("mdhd is missing");
+        return NULL;
+    }
 
-            BitReader br(*boxHeader);
+    track->duration = MediaTime(mdhd->duration, mdhd->timescale);
 
-            size_t boxHeadLength    = 8;
-            // if size is 1 then the actual size is in the field largesize;
-            // if size is 0, then this box is the last one in the file
-            uint64_t boxSize        = br.rb32();
-            const String boxType    = br.readS(4);
+    sp<HandlerBox> hdlr = FindBox(mdia, "hdlr");
+    if (hdlr == 0) {
+        ERROR("hdlr is missing.");
+        return NULL;
+    }
 
-            if (boxSize == 1) {
-                sp<Buffer> largesize    = pipe->read(8);
-                BitReader br(*largesize);
-                boxSize         = br.rb64();
-                boxHeadLength   = 16;
-            }
+    DEBUG("handler: [%s] %s", hdlr->handler_type.c_str(),
+            hdlr->handler_name.c_str());
 
-            DEBUG("file: %s %" PRIu64, boxType.c_str(), boxSize);
+    sp<MediaInformationBox> minf = FindBox(mdia, "minf");
+    if (minf == 0) {
+        ERROR("minf is missing.");
+        return NULL;
+    }
 
-            if (boxType == "mdat") {
-                mdat = true;
-                // ISO/IEC 14496-12: Section 8.2 Page 23
-                DEBUG("skip media data box");
-                pipe->skip(boxSize - boxHeadLength);
-                continue;
-            }
+    sp<DataReferenceBox> dinf = FindBox(minf, "dinf");
+    if (dinf == 0) {
+        ERROR("dinf is missing.");
+        return NULL;
+    }
+    // XXX: handle dinf
 
-            if (boxSize == 0) {
-                DEBUG("box extend to the end.");
-                break;
-            }
+    sp<SampleTableBox> stbl = FindBox(minf, "stbl");
+    if (stbl == 0) {
+        ERROR("stbl is missing.");
+        return NULL;
+    }
 
-            CHECK_GE((size_t)boxSize, boxHeadLength);
+    sp<SampleDescriptionBox> stsd = FindBox(stbl, "stsd");
+    if (stsd == 0) {
+        ERROR("stsd is missing.");
+        return NULL;
+    }
+    if (stsd->child.size() == 0) {
+        ERROR("SampleEntry is missing from stsb.");
+        return NULL;
+    }
 
-            // empty box
-            if (boxSize == boxHeadLength) {
-                DEBUG("empty top level box %s", boxType.c_str());
-                continue;
-            }
+    if (stsd->child.size() > 1) {
+        WARN("stsd with multi SampleEntry");
+    }
 
-            boxSize     -= boxHeadLength;
-            sp<Buffer> boxPayload   = pipe->read(boxSize);
-            if (boxPayload == 0 || boxPayload->size() != boxSize) {
-                ERROR("truncated file ?");
-                break;
-            }
+    // find sample infomations
+    sp<SampleEntry> sampleEntry = stsd->child[0];
+    track->codec = get_codec_format(sampleEntry->name);
 
-            BitReader _br(*boxPayload);
-            if (boxType == "ftyp") {
-                // ISO/IEC 14496-12: Section 4.3 Page 12
-                DEBUG("file type box");
-                ftyp = FileTypeBox(_br, boxSize);
-            } else if (boxType == "moov") {
-                // ISO/IEC 14496-12: Section 8.1 Page 22
-                DEBUG("movie box");
-                moov = boxPayload;
-            } else if (boxType == "meta") {
-                DEBUG("meta box");
-                meta = boxPayload;
-            } else {
-                ERROR("unknown top level box: %s", boxType.c_str());
-            }
-        }
-
-        if (moov != 0 && mdat) {
-            BitReader br(*moov);
-            sp<MovieBox> box = new MovieBox;
-            if (box->parse(br, br.size(), ftyp) == OK) {
-#if 1 // LOG_NDEBUG == 0
-                PrintBox(box);
-#endif
-                mStatus = prepare(box);
-            }
-            mMovieBox = box;
+    if (hdlr->handler_type == "soun") {
+        track->audio.channelCount = sampleEntry->sound.channelcount;
+        if (sampleEntry->sound.samplerate) {
+            track->audio.sampleRate = sampleEntry->sound.samplerate;
         } else {
-            ERROR("moov/mdat is missing.");
+            ERROR("sample rate missing from sample entry box, using timescale in mdhd");
+            track->audio.sampleRate = mdhd->timescale;
         }
-
-        if (mStatus == OK && meta != NULL) {
-            BitReader br(*meta);
-            sp<MetaBox> box = new MetaBox();
-            if (box->parse(br, br.size(), ftyp) == OK) {
-#if LOG_NDEBUG == 0
-                PrintBox(box);
-#endif
-                // TODO
-            }
-        }
+    } else if (hdlr->handler_type == "vide") {
+        track->video.width = sampleEntry->visual.width;
+        track->video.height = sampleEntry->visual.height;
     }
 
-    status_t Mp4File::prepare(const sp<MovieBox>& moov) {
-        sp<MovieHeaderBox> mvhd = FindBox(moov, "mvhd");
-        if (mvhd == 0) {
-            ERROR("can not find mvhd.");
-            return NO_INIT;
+    for (size_t i = 0; i < sampleEntry->child.size(); ++i) {
+        sp<Box> box = sampleEntry->child[i];
+        String knownBox = "esds avcC hvcC";
+        if (knownBox.indexOf(box->name) >= 0) {
+            track->esds = box;
         }
-
-        for (size_t i = 0; ; ++i) {
-            sp<TrackBox> trak = FindBox(moov, "trak", i);
-            if (trak == 0) break;
-
-            sp<Track> track = prepareTrack(trak, mvhd);
-            
-            if (track == NULL) continue;
-            
-            mTracks.push(track);
-        }
-
-        if (mTracks.empty()) {
-            ERROR("no valid track present.");
-            return NO_INIT;
-        }
-        
-        INFO("%zu tracks ready", mTracks.size());
-        return OK;
-    }
-
-    sp<Mp4File::Track> Mp4File::prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderBox>& mvhd) {
-        if (CheckTrackBox(trak) == false) {
-            ERROR("bad TrackBox");
-            return NULL;
-        }
-        
-        sp<Track> track = new Track;
-        track->mIndex = mTracks.size();
-
-        sp<TrackHeaderBox> tkhd = FindBox(trak, "tkhd");
-        if (tkhd == 0) {
-            ERROR("tkhd is missing.");
-            return NULL;
-        }
-        // TODO: learn more from tkhd
-        
-        // duration
-        sp<MediaBox> mdia = FindBox(trak, "mdia");
-        if (mdia == 0) {
-            ERROR("mdia is missing.");
-            return NULL;
-        }
-
-        sp<MediaHeaderBox> mdhd = FindBox(mdia, "mdhd");
-        if (mdhd == 0) {
-            ERROR("mdhd is missing");
-            return NULL;
-        }
-
-        track->mDuration = MediaTime(mdhd->duration, mdhd->timescale);
-
-        sp<HandlerBox> hdlr = FindBox(mdia, "hdlr");
-        if (hdlr == 0) {
-            ERROR("hdlr is missing.");
-            return NULL;
-        }
-
-        DEBUG("handler: [%s] %s", hdlr->handler_type.c_str(),
-                hdlr->handler_name.c_str());
-
-        track->mIsAudio = hdlr->handler_type == "soun";
-        
-        sp<MediaInformationBox> minf = FindBox(mdia, "minf");
-        if (minf == 0) {
-            ERROR("minf is missing.");
-            return NULL;
-        }
-
-        sp<DataReferenceBox> dinf = FindBox(minf, "dinf");
-        if (dinf == 0) {
-            ERROR("dinf is missing.");
-            return NULL;
-        }
-        // XXX: handle dinf
-
-        sp<SampleTableBox> stbl = FindBox(minf, "stbl");
-        if (stbl == 0) {
-            ERROR("stbl is missing.");
-            return NULL;
-        }
-
-        sp<SampleDescriptionBox> stsd = FindBox(stbl, "stsd");
-        if (stsd == 0) {
-            ERROR("stsd is missing.");
-            return NULL;
-        }
-        if (stsd->child.size() == 0) {
-            ERROR("SampleEntry is missing from stsb.");
-            return NULL;
-        }
-
-        if (stsd->child.size() > 1) {
-            WARN("stsd with multi SampleEntry");
-        }
-
-        sp<SampleEntry> sampleEntry = stsd->child[0];
-        track->mCodec = get_codec_format(sampleEntry->name);
-
-        sp<TimeToSampleBox> stts    = FindBox(stbl, "stts");    // dts
-        sp<SampleToChunkBox> stsc   = FindBox(stbl, "stsc");    // sample to chunk
-        sp<ChunkOffsetBox> stco     = FindBox(stbl, "stco", "co64");    // chunk offset
-        sp<SampleSizeBox> stsz      = FindBox(stbl, "stsz", "stz2");
-        if (stts == 0 || stsc == 0 || stco == 0 || stsz == 0) {
-            ERROR("stts/stsc/stco/stsz is missing.");
-            return NULL;
-        }
-
-        sp<SyncSampleBox> stss = FindBox(stbl, "stss");
-        sp<ShadowSyncSampleBox> stsh = FindBox(stbl, "stsh");
-
-        // FIXME: no-output sample
-        const uint64_t now = SystemTimeUs();
-        uint64_t dts = 0;
-        for (size_t i = 0; i < stts->entries.size(); ++i) {
-            for (size_t j = 0; j < stts->entries[i].sample_count; ++j) {
-                dts += stts->entries[i].sample_delta;
-                Sample s = { 0/*offset*/, 0/*size*/,
-                    dts, 0/*pts*/,
-                    stss != NULL ? kFrameFlagNone : kFrameFlagSync};
-                track->mSampleTable.push(s);
-            }
-        }
-
-        // ctts => pts
-        sp<CompositionOffsetBox> ctts = FindBox(stbl, "ctts");
-        if (ctts != 0) {
-            size_t sampleIndex = 0;
-            for (size_t i = 0; i < ctts->entries.size(); ++i) {
-                for (size_t j = 0; j < ctts->entries[i].sample_count; ++j && ++sampleIndex) {
-                    Sample& s = track->mSampleTable[sampleIndex];
-                    s.pts = s.dts + ctts->entries[i].sample_offset;
-                }
-            }
+        // esds in mov.
+        else if (box->name == "wave") {
+            track->esds = FindBox(box, "esds");
         } else {
-            DEBUG("ctts is not present.");
-            for (size_t i = 0; i < track->mSampleTable.size(); ++i) {
-                Sample& s = track->mSampleTable[i];
-                s.pts = s.dts;
-            }
+            INFO("ignore box %s", box->name.c_str());
         }
+    }
 
-        // stco + stsc + stsz => sample size & offset
-        CHECK_EQ((size_t)stsc->entries[0].first_chunk, 1);
+    sp<TimeToSampleBox> stts    = FindBox(stbl, "stts");    // dts
+    sp<SampleToChunkBox> stsc   = FindBox(stbl, "stsc");    // sample to chunk
+    sp<ChunkOffsetBox> stco     = FindBox(stbl, "stco", "co64");    // chunk offset
+    sp<SampleSizeBox> stsz      = FindBox(stbl, "stsz", "stz2");
+    if (stts == 0 || stsc == 0 || stco == 0 || stsz == 0) {
+        ERROR("stts/stsc/stco/stsz is missing.");
+        return NULL;
+    }
+
+    sp<SyncSampleBox> stss = FindBox(stbl, "stss");
+    sp<ShadowSyncSampleBox> stsh = FindBox(stbl, "stsh");
+
+    // FIXME: no-output sample
+    const uint64_t now = SystemTimeUs();
+    uint64_t dts = 0;
+    for (size_t i = 0; i < stts->entries.size(); ++i) {
+        for (size_t j = 0; j < stts->entries[i].sample_count; ++j) {
+            dts += stts->entries[i].sample_delta;
+            Sample s = { 0/*offset*/, 0/*size*/,
+                dts, kTimeValueInvalid/*pts*/,
+                stss != NULL ? kFrameFlagNone : kFrameFlagSync};
+            track->sampleTable.push(s);
+        }
+    }
+
+    // ctts => pts
+    sp<CompositionOffsetBox> ctts = FindBox(stbl, "ctts");
+    if (ctts != 0) {
         size_t sampleIndex = 0;
-        size_t stscIndex = 0;
-        // first, go through each chunk
-        for (size_t chunkIndex = 0; chunkIndex < stco->entries.size(); ++chunkIndex) {
-            // find out how many samples in this chunk
-            while (stscIndex + 1 < stsc->entries.size() &&
-                    stsc->entries[stscIndex + 1].first_chunk <= chunkIndex + 1) {
-                ++stscIndex;
-            }
-            const size_t numSamples = stsc->entries[stscIndex].samples_per_chunk;
-
-            // set each samples offset and size
-            uint64_t offset = stco->entries[chunkIndex];
-            for (size_t i = 0; i < numSamples; ++i && ++sampleIndex) {
-                Sample& s = track->mSampleTable[sampleIndex];
-
-                s.offset = offset;
-                s.size = stsz->sample_size ?  stsz->sample_size : stsz->entries[sampleIndex];
-
-                offset += s.size;
+        for (size_t i = 0; i < ctts->entries.size(); ++i) {
+            for (size_t j = 0; j < ctts->entries[i].sample_count; ++j) {
+                Sample& s = track->sampleTable[sampleIndex++];
+                s.pts = s.dts + ctts->entries[i].sample_offset;
             }
         }
-
-        // stss => key frames
-        if (stss != NULL) {
-            for (size_t i = 0; i < stss->entries.size(); ++i) {
-                Sample& s = track->mSampleTable[stss->entries[i] - 1];
-                s.flags |= kFrameFlagSync;
-                //INFO("sync frame %d", stss->entries[i]);
-            }
-            INFO("every %zu frame has one sync frame",
-                    track->mSampleTable.size() / stss->entries.size());
+    } else if (hdlr->handler_type == "soun") {
+        // for audio, pts == dts
+        for (size_t i = 0; i < track->sampleTable.size(); ++i) {
+            Sample& s = track->sampleTable[i];
+            s.pts = s.dts;
         }
+    } else {
+        ERROR("ctts is not present. pts will be missing");
+    }
 
-        // ISO/IEC 14496-12:2015 Section 8.6.4
-        sp<SampleDependencyTypeBox> sdtp = FindBox(stbl, "sdtp");
-        if (sdtp != NULL) {
-            for (size_t i = 0; i < sdtp->dependency.size(); ++i) {
-                uint8_t dep = sdtp->dependency[i];
-                uint8_t is_leading = (dep & 0xc0) >> 6;
-                uint8_t sample_depends_on = (dep & 0x30) >> 4;
-                uint8_t sample_is_depended_on = (dep & 0xc) >> 2;
-                uint8_t sample_has_redundancy = (dep & 0x3);
+    // stco + stsc + stsz => sample size & offset
+    CHECK_EQ((size_t)stsc->entries[0].first_chunk, 1);
+    size_t sampleIndex = 0;
+    size_t stscIndex = 0;
+    // first, go through each chunk
+    for (size_t chunkIndex = 0; chunkIndex < stco->entries.size(); ++chunkIndex) {
+        // find out how many samples in this chunk
+        while (stscIndex + 1 < stsc->entries.size() &&
+                stsc->entries[stscIndex + 1].first_chunk <= chunkIndex + 1) {
+            ++stscIndex;
+        }
+        const size_t numSamples = stsc->entries[stscIndex].samples_per_chunk;
+
+        // set each samples offset and size
+        uint64_t offset = stco->entries[chunkIndex];
+        for (size_t i = 0; i < numSamples; ++i && ++sampleIndex) {
+            Sample& s = track->sampleTable[sampleIndex];
+
+            s.offset = offset;
+            s.size = stsz->sample_size ?  stsz->sample_size : stsz->entries[sampleIndex];
+
+            offset += s.size;
+        }
+    }
+
+    // stss => key frames
+    if (stss != NULL) {
+        for (size_t i = 0; i < stss->entries.size(); ++i) {
+            Sample& s = track->sampleTable[stss->entries[i] - 1];
+            s.flags |= kFrameFlagSync;
+            //INFO("sync frame %d", stss->entries[i]);
+        }
+        INFO("every %zu frame has one sync frame",
+                track->sampleTable.size() / stss->entries.size());
+    }
+
+    // ISO/IEC 14496-12:2015 Section 8.6.4
+    sp<SampleDependencyTypeBox> sdtp = FindBox(stbl, "sdtp");
+    if (sdtp != NULL) {
+        for (size_t i = 0; i < sdtp->dependency.size(); ++i) {
+            uint8_t dep = sdtp->dependency[i];
+            uint8_t is_leading = (dep & 0xc0) >> 6;
+            uint8_t sample_depends_on = (dep & 0x30) >> 4;
+            uint8_t sample_is_depended_on = (dep & 0xc) >> 2;
+            uint8_t sample_has_redundancy = (dep & 0x3);
 #if 1
-                DEBUG("is leading %d, sample_depends_on %d, "
-                        "sample_is_depended_on %d, sample_has_redundancy %d",
-                        is_leading,
-                        sample_depends_on,
-                        sample_is_depended_on,
-                        sample_has_redundancy);
+            DEBUG("is leading %d, sample_depends_on %d, "
+                    "sample_is_depended_on %d, sample_has_redundancy %d",
+                    is_leading,
+                    sample_depends_on,
+                    sample_is_depended_on,
+                    sample_has_redundancy);
 #endif
-                Sample& s = track->mSampleTable[i];
-                if (sample_depends_on == 2)     s.flags |= kFrameFlagSync;
-                if (is_leading == 2)            s.flags |= kFrameFlagLeading;
-                if (sample_is_depended_on == 2) s.flags |= kFrameFlagDisposal;
-                if (sample_has_redundancy == 1) s.flags |= kFrameFlagRedundant;
-            }
+            Sample& s = track->sampleTable[i];
+            if (sample_depends_on == 2)     s.flags |= kFrameFlagSync;
+            if (is_leading == 2)            s.flags |= kFrameFlagLeading;
+            if (sample_is_depended_on == 2) s.flags |= kFrameFlagDisposal;
+            if (sample_has_redundancy == 1) s.flags |= kFrameFlagRedundant;
         }
+    }
 
-        DEBUG("init sample table takes %.2f", (SystemTimeUs() - now) / 1E6);
+    DEBUG("init sample table takes %.2f", (SystemTimeUs() - now) / 1E6);
 #if 0
-        for (size_t i = 0; i < track.mSampleTable.size(); ++i) {
-            Sample& s   = track.mSampleTable[i];
-            DEBUG("sample %zu: %" PRIu64 " %zu %" PRIu64 " %" PRIu64,
-                    i, s.offset, s.size,
-                    s.dts, s.pts);
-        }
-        DEBUG("stsz size %zu", stsz->entries.size());
+    for (size_t i = 0; i < track.mSampleTable.size(); ++i) {
+        Sample& s   = track.mSampleTable[i];
+        DEBUG("sample %zu: %" PRIu64 " %zu %" PRIu64 " %" PRIu64,
+                i, s.offset, s.size,
+                s.dts, s.pts);
+    }
+    DEBUG("stsz size %zu", stsz->entries.size());
 #endif
-        DEBUG("num samples %zu total %zu", track.mSampleTable.size(),
-                track.mSampleTable.size() * sizeof(Sample));
+    DEBUG("num samples %zu total %zu", track->sampleTable.size(),
+            track->sampleTable.size() * sizeof(Sample));
 
 #if 1
-        sp<TrackReferenceBox> tref = FindBox(trak, "tref");
-        if (tref != 0) {
-            CHECK_EQ(tref->child.size(), 1);
-            sp<TrackReferenceTypeBox> type = tref->child[0];
-            DEBUG("tref %s", type->name.c_str());
-            // TODO
-        }
+    sp<TrackReferenceBox> tref = FindBox(trak, "tref");
+    if (tref != 0) {
+        CHECK_EQ(tref->child.size(), 1);
+        sp<TrackReferenceTypeBox> type = tref->child[0];
+        DEBUG("tref %s", type->name.c_str());
+        // TODO
+    }
 #endif
 
-        track->mTrackBox = trak;
-        return track;
+    return track;
+}
+
+sp<M4> prepare(sp<Content>& pipe) {
+    sp<M4> m4 = new M4;
+    
+    MediaError err = kMediaNoError;
+    FileTypeBox ftyp;
+    sp<Buffer>  moovData;  // this is our target
+    bool mdat = false;
+    
+    while (!mdat || moovData == NULL) {
+        sp<Buffer> boxHeader    = pipe->read(8);
+        if (boxHeader == 0 || boxHeader->size() < 8) {
+            DEBUG("lack of data. ");
+            break;
+        }
+        
+        BitReader br(*boxHeader);
+        
+        size_t boxHeadLength    = 8;
+        // if size is 1 then the actual size is in the field largesize;
+        // if size is 0, then this box is the last one in the file
+        uint64_t boxSize        = br.rb32();
+        const String boxType    = br.readS(4);
+        
+        if (boxSize == 1) {
+            sp<Buffer> large    = pipe->read(8);
+            BitReader br(*large);
+            boxSize             = br.rb64();
+            boxHeadLength       = 16;
+        }
+        
+        DEBUG("file: %s %" PRIu64, boxType.c_str(), boxSize);
+        
+        if (boxType == "mdat") {
+            mdat = true;
+            // ISO/IEC 14496-12: Section 8.2 Page 23
+            DEBUG("skip media data box");
+            pipe->skip(boxSize - boxHeadLength);
+            continue;
+        }
+        
+        if (boxSize == 0) {
+            DEBUG("box extend to the end.");
+            break;
+        }
+        
+        CHECK_GE((size_t)boxSize, boxHeadLength);
+        
+        // empty box
+        if (boxSize == boxHeadLength) {
+            DEBUG("empty top level box %s", boxType.c_str());
+            continue;
+        }
+        
+        if (boxType == "meta") {
+            m4->meta.offset     = pipe->tell();
+            m4->meta.length     = boxSize;
+            INFO("find meta box @ %zu(%zu)", m4->meta.offset, m4->meta.length);
+            pipe->skip(boxSize);
+            continue;
+        }
+        
+        boxSize     -= boxHeadLength;
+        sp<Buffer> boxPayload   = pipe->read(boxSize);
+        if (boxPayload == 0 || boxPayload->size() != boxSize) {
+            ERROR("truncated file ?");
+            break;
+        }
+        
+        if (boxType == "ftyp") {
+            // ISO/IEC 14496-12: Section 4.3 Page 12
+            DEBUG("file type box");
+            BitReader _br(*boxPayload);
+            ftyp = FileTypeBox(_br, boxSize);
+        } else if (boxType == "moov") {
+            // ISO/IEC 14496-12: Section 8.1 Page 22
+            DEBUG("movie box");
+            moovData = boxPayload;
+        } else {
+            ERROR("unknown top level box: %s", boxType.c_str());
+        }
     }
     
-    String Mp4File::string() const {
-        return String("Mp4File");
+    // ftyp maybe missing from mp4
+    if (moovData == NULL) {
+        ERROR("moov is missing");
+        return NULL;
+    }
+    
+    if (mdat == false) {
+        ERROR("mdat is missing");
+        return NULL;
+    }
+    
+    sp<MovieBox> moov = new MovieBox;
+    if (moov->parse(BitReader(*moovData), moovData->size(), ftyp) != OK) {
+        ERROR("bad moov box?");
+        return NULL;
+    }
+    PrintBox(moov);
+
+    sp<MovieHeaderBox> mvhd = FindBox(moov, "mvhd");
+    if (mvhd == 0) {
+        ERROR("can not find mvhd.");
+        return NULL;
     }
 
-    status_t Mp4File::status() const {
-        return mStatus;
+    for (size_t i = 0; ; ++i) {
+        sp<TrackBox> trak = FindBox(moov, "trak", i);
+        if (trak == 0) break;
+
+        sp<Track> track = prepareTrack(trak, mvhd);
+
+        if (track == NULL) continue;
+
+        track->trackIndex = m4->tracks.size();
+        m4->tracks.push(track);
     }
 
-    // FIXME: build format messagge at runtime, as we don't need to
-    // hold the message for whole life time, it is waste of memory,
-    // and it is not good structure for frequently access.
-    Message Mp4File::formats() const {
+    if (m4->tracks.empty()) {
+        ERROR("no valid track present.");
+        return NULL;
+    }
+    
+    // TODO: handle meta box
+
+    INFO("%zu tracks ready", m4->tracks.size());
+    return m4;
+}
+
+static size_t findSampleIndex(const sp<M4>& m4,
+        size_t index,
+        int64_t ts,
+        eModeReadType mode,
+        size_t *match = NULL) {
+    const Track& track = *m4->tracks[index];
+    const Vector<Sample>& tbl = track.sampleTable;
+
+    size_t first = 0;
+    size_t second = tbl.size() - 1;
+    size_t mid = 0;
+
+    // using binary search to find sample index
+    // closest search
+    size_t search_count = 0;
+    while (first < second) {
+        mid = (first + second) / 2; // truncated happens
+        const Sample& s0 = tbl[mid];
+        const Sample& s1 = tbl[mid + 1];
+        if (s0.dts <= ts && s1.dts > ts) first = second = mid;
+        else if (s0.dts > ts) second = mid;
+        else first = mid;
+        ++search_count;
+    }
+
+    // find sync sample index
+    do {
+        const Sample& s = tbl[first];
+        if (s.flags & kFrameFlagSync) break;
+        if (first == 0) {
+            WARN("track %zu: no sync at start");
+            mode = kModeReadNextSync;
+            break;
+        }
+        --first;
+    } while (first > 0);
+
+    while (second < tbl.size()) {
+        const Sample& s = tbl[second];
+        if (s.flags & kFrameFlagSync) break;
+        ++second;
+    }
+    // force last sync, if second sync pointer not exists
+    if (second == tbl.size()) mode = kModeReadLastSync;
+
+    size_t result;
+    if (mode == kModeReadLastSync) {
+        result = first;
+    } else if (mode == kModeReadNextSync) {
+        result = second;
+    } else { // closest
+        if (mid - first > second - mid)
+            result = second;
+        else
+            result = first;
+    }
+
+
+    INFO("track %zu: seek %.3f(s) => [%zu - %zu - %zu] => %zu # %zu",
+            index, (double)ts / track.duration.timescale,
+            first, mid, second, result,
+            search_count);
+
+    if (match) *match = mid;
+    return result;
+}
+
+#include <MediaFramework/MediaPacket.h>
+#include <MediaFramework/MediaExtractor.h>
+
+struct Mp4Packet : public MediaPacket {
+    sp<Buffer> buffer;
+    Mp4Packet(const sp<Buffer>& _buffer) : MediaPacket(), buffer(_buffer) {
+        data    = (uint8_t*)buffer->data();
+        size    = buffer->size();
+    }
+};
+
+struct Mp4File : public MediaExtractor {
+    sp<Content>             mContent;
+    sp<M4>                  mContext;
+
+    Mp4File() : MediaExtractor(), mContent(NULL) { }
+
+    virtual ~Mp4File() { }
+
+    virtual Message formats() const {
         Message info;
         info.setInt32(kKeyFormat, kFileFormatMP4);
-        
-        sp<MovieHeaderBox> mvhd = FindBox(mMovieBox, "mvhd");
-        info.set<MediaTime>(kKeyDuration, MediaTime(mvhd->duration, mvhd->timescale));
-        
-        info.setInt32(kKeyCount, mTracks.size());
-        
-        for (size_t i = 0; i < mTracks.size(); ++i) {
-            sp<TrackBox> trak = mTracks[i]->mTrackBox;
-            
+        info.set<MediaTime>(kKeyDuration, mContext->duration);
+        info.setInt32(kKeyCount, mContext->tracks.size());
+
+        for (size_t i = 0; i < mContext->tracks.size(); ++i) {
+            const sp<Track>& trak = mContext->tracks[i];
+
             Message trakInfo;
-            
-            sp<MediaBox> mdia = FindBox(trak, "mdia");
-            sp<MediaHeaderBox> mdhd = FindBox(mdia, "mdhd");
-            trakInfo.set<MediaTime>(kKeyDuration, MediaTime( mdhd->duration, mdhd->timescale ));
-            
+            trakInfo.setInt32(kKeyFormat, trak->codec);
+            trakInfo.set<MediaTime>(kKeyDuration, trak->duration);
+
+            eCodecType type = GetCodecType(trak->codec);
+            if (type == kCodecTypeAudio) {
+                trakInfo.setInt32(kKeySampleRate, trak->audio.sampleRate);
+                trakInfo.setInt32(kKeyChannels, trak->audio.channelCount);
+            } else if (type == kCodecTypeVideo) {
+                trakInfo.setInt32(kKeyWidth, trak->video.width);
+                trakInfo.setInt32(kKeyHeight, trak->video.height);
+            }
+
+            if (trak->esds != NULL) {
+                trakInfo.set<Buffer>(trak->esds->name, *trak->esds->data);
+            }
+
+#if 0
             // start time & encode delay/padding
             uint64_t startTime = 0;     // FIXME: learn more about start time.
             int64_t encodeDelay = 0;
@@ -475,63 +616,28 @@ namespace mtdcy {
                     DEBUG("startTime = %" PRId64, startTime);
                     ++i;
                 }
-                
+
                 // we only support one non-empty edit.
                 if (elst->entries.size() == i + 1) {
                     uint64_t media_time = elst->entries[i].media_time;
                     uint64_t segment_duration = elst->entries[i].segment_duration;
-                    
+
                     encodeDelay     = media_time;
                     // XXX: borrow from android, is it right???
                     encodePadding   = mdhd->duration - (media_time + segment_duration);
                     if (encodePadding < 0) encodePadding = 0;
-                    
+
                     trakInfo.setInt64(Media::EncoderDelay, encodeDelay);
                     trakInfo.setInt64(Media::EncoderPadding, encodePadding);
                 }
             }
-            
-            sp<SampleTableBox> stbl = FindBoxInside(mdia, "minf", "stbl");
-            sp<SampleDescriptionBox> stsd = FindBox(stbl, "stsd");
-            
-            sp<SampleEntry> sampleEntry = stsd->child[0];
-            eCodecFormat codec = get_codec_format(sampleEntry->name);
-            trakInfo.setInt32(kKeyFormat, codec);
-            
-            for (size_t i = 0; i < sampleEntry->child.size(); ++i) {
-                sp<Box> box = sampleEntry->child[i];
-                String knownBox = "esds avcC hvcC";
-                if (knownBox.indexOf(box->name) >= 0) {
-                    sp<CommonBox> csd = box;
-                    trakInfo.set<Buffer>(box->name, *csd->data);
-                }
-                // esds in mov.
-                else if (box->name == "wave") {
-                    sp<CommonBox> esds = FindBox(box, "esds");
-                    trakInfo.set<Buffer>(esds->name, *esds->data);
-                } else {
-                    INFO("ignore box %s", box->name.c_str());
-                }
-            }
-            
-            eCodecType type = GetCodecType(codec);
-            if (type == kCodecTypeAudio) {
-                if (sampleEntry->sound.samplerate) {
-                    trakInfo.setInt32(kKeySampleRate, sampleEntry->sound.samplerate);
-                } else {
-                    ERROR("sample rate missing from sample entry box, using timescale in mdhd");
-                    trakInfo.setInt32(kKeySampleRate, mdhd->timescale);
-                }
-                trakInfo.setInt32(kKeyChannels, sampleEntry->sound.channelcount);
-            } else if (type == kCodecTypeVideo) {
-                trakInfo.setInt32(kKeyWidth, sampleEntry->visual.width);
-                trakInfo.setInt32(kKeyHeight, sampleEntry->visual.height);
-            }
-            
+#endif
+
             String name = String::format("track-%zu", i);
             info.set<Message>(name, trakInfo);
         }
- 
+
+#if 0
         // TODO: meta
         // id3v2
         sp<ID3v2Box> id32 = FindBoxInside(mMovieBox, "meta", "ID32");
@@ -541,90 +647,35 @@ namespace mtdcy {
                 info.set<Message>(Media::ID3v2, parser.values());
             }
         }
-        
+#endif
+
         return info;
     }
 
-    status_t Mp4File::configure(const Message& options) {
-        return INVALID_OPERATION;
+    virtual MediaError init(sp<Content>& pipe, const Message& options) {
+        CHECK_TRUE(pipe != NULL);
+        pipe->reset();
+
+        mContext = prepare(pipe);
+        if (mContext == NULL) return kMediaErrorBadFormat;
+        
+        mContent = pipe;
+        return kMediaNoError;
     }
 
-    size_t Mp4File::seek(size_t index, int64_t ts, eModeReadType mode, size_t *match) const {
-        const Track& track = *mTracks[index];
-        const Vector<Sample>& tbl = track.mSampleTable;
-
-        size_t first = 0;
-        size_t second = tbl.size() - 1;
-        size_t mid = 0;
-
-        // using binary search to find sample index
-        // closest search
-        size_t search_count = 0;
-        while (first < second) {
-            mid = (first + second) / 2; // truncated happens
-            const Sample& s0 = tbl[mid];
-            const Sample& s1 = tbl[mid + 1];
-            if (s0.dts <= ts && s1.dts > ts) first = second = mid;
-            else if (s0.dts > ts) second = mid;
-            else first = mid;
-            ++search_count;
-        }
-
-        // find sync sample index
-        do {
-            const Sample& s = tbl[first];
-            if (s.flags & kFrameFlagSync) break;
-            if (first == 0) {
-                WARN("track %zu: no sync at start");
-                mode = kModeReadNextSync;
-                break;
-            }
-            --first;
-        } while (first > 0);
-
-        while (second < tbl.size()) {
-            const Sample& s = tbl[second];
-            if (s.flags & kFrameFlagSync) break;
-            ++second;
-        }
-        // force last sync, if second sync pointer not exists
-        if (second == tbl.size()) mode = kModeReadLastSync;
-
-        size_t result;
-        if (mode == kModeReadLastSync) {
-            result = first;
-        } else if (mode == kModeReadNextSync) {
-            result = second;
-        } else { // closest
-            if (mid - first > second - mid)
-                result = second;
-            else
-                result = first;
-        }
-
-
-        INFO("track %zu: seek %.3f(s) => [%zu - %zu - %zu] => %zu # %zu",
-                index, (double)ts / track.mDuration.timescale,
-                first, mid, second, result,
-                search_count);
-
-        if (match) *match = mid;
-        return result;
-    }
-
-    sp<MediaPacket> Mp4File::read(size_t index,
+    virtual sp<MediaPacket> read(size_t index,
             eModeReadType mode,
-            const MediaTime& _ts) {
-        Track& track = *mTracks[index];
-        Vector<Sample>& tbl = track.mSampleTable;
+            const MediaTime& _ts = kTimeInvalid) {
+        Track& track = *mContext->tracks[index];
+        Vector<Sample>& tbl = track.sampleTable;
 
         MediaTime ts = _ts;
 
         // first read, force mode = kModeReadFirst;
-        if (track.mStartTime == kTimeInvalid) {
+        if (track.startTime == kTimeInvalid) {
             INFO("track %zu: read first pakcet", index);
             mode = kModeReadFirst;
-            track.mStartTime = kTimeBegin.scale(track.mDuration.timescale);
+            track.startTime = kTimeBegin.scale(track.duration.timescale);
         }
 
         // ts will be ignored for these modes
@@ -637,21 +688,21 @@ namespace mtdcy {
 
         // calc sample index before read sample
         // determine direction and sample index based on mode
-        int sampleIndex = track.mSampleIndex;
+        int sampleIndex = track.sampleIndex;
         if (ts != kTimeInvalid) {
             // if ts exists, seek directly to new position,
             // seek() will take direction into account
-            ts = ts.scale(track.mDuration.timescale);
+            ts = ts.scale(track.duration.timescale);
 
             size_t match;
-            sampleIndex = seek(index, ts.value, mode, &match);
+            sampleIndex = findSampleIndex(mContext, index, ts.value, mode, &match);
 
             if (mode != kModeReadPeek) {
-                track.mStartTime = MediaTime(tbl[sampleIndex].dts,
-                        track.mDuration.timescale);
+                track.startTime = MediaTime(tbl[sampleIndex].dts,
+                        track.duration.timescale);
                 if (sampleIndex < match) {
-                    track.mStartTime = MediaTime(tbl[match].dts,
-                            track.mDuration.timescale);
+                    track.startTime = MediaTime(tbl[match].dts,
+                            track.duration.timescale);
                 }
             }
         } else if (mode == kModeReadNextSync) {
@@ -682,7 +733,7 @@ namespace mtdcy {
 
         // save sample index
         if (mode != kModeReadPeek) {
-            track.mSampleIndex = sampleIndex;
+            track.sampleIndex = sampleIndex;
         }
 
         // read sample data
@@ -699,26 +750,35 @@ namespace mtdcy {
         // setup flags
         uint32_t flags  = s.flags;
 #if 1
-        MediaTime dts( s.dts, track.mStartTime.timescale);
-        if (dts < track.mStartTime) {
+        MediaTime dts( s.dts, track.startTime.timescale);
+        if (dts < track.startTime) {
             if (flags & kFrameFlagDisposal) {
                 INFO("track %zu: drop frame", index);
-                return read(index, mode);
+                return read(index, mode, kTimeInvalid);
             } else {
                 INFO("track %zu: reference frame", index);
                 flags |= kFrameFlagReference;
             }
-        } else if (dts == track.mStartTime) {
+        } else if (dts == track.startTime) {
             INFO("track %zu: hit starting...", index);
         }
 #endif
         // init MediaPacket context
         sp<MediaPacket> packet = new Mp4Packet(sample);
         packet->index   = sampleIndex;
-        packet->format  = track.mCodec;
+        packet->format  = track.codec;
         packet->flags   = flags;
-        packet->pts     = MediaTime(s.pts, track.mDuration.timescale);
-        packet->dts     = MediaTime(s.dts, track.mDuration.timescale);
+        if (s.pts == kTimeValueInvalid)
+            packet->pts = kTimeInvalid;
+        else
+            packet->pts = MediaTime(s.pts, track.duration.timescale);
+        packet->dts     = MediaTime(s.dts, track.duration.timescale);
         return packet;
     }
 };
+
+namespace mtdcy {
+    sp<MediaExtractor> CreateMp4File() {
+        return new Mp4File;
+    }
+}

@@ -441,7 +441,7 @@ namespace mtdcy {
                 mOutputEOS = true;
                 if (mLastFrameTime == kTimeInvalid) {
                     WARN("renderer %zu: eos at start", mID);
-                    mStatusEvent->fire(UNKNOWN_ERROR);
+                    mStatusEvent->fire(kMediaErrorUnknown);
                     mStatusEvent = NULL;
                 }
                 // NOTHING TO DO
@@ -472,7 +472,7 @@ namespace mtdcy {
             // prepare done ?
             if (mStatusEvent != NULL && (mOutputQueue.size() >= MIN_COUNT || mOutputEOS)) {
                 INFO("renderer %zu: prepare done", mID);
-                mStatusEvent->fire(OK);
+                mStatusEvent->fire(kMediaNoError);
                 mStatusEvent = NULL;
             }
 

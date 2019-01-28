@@ -51,6 +51,8 @@
 // kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange <-> nv12
 #define kPreferredPixelFormat kPixelFormatNV12
 
+#define FORCE_DTS   0 // for testing
+
 // https://www.objc.io/issues/23-video/videotoolbox/
 // http://www.enkichen.com/2018/03/24/videotoolbox/?utm_source=tuicool&utm_medium=referral
 
@@ -112,7 +114,7 @@ OSType get_cv_pix_format(ePixelFormat a) {
     for (size_t i = 0; kPixelMap[i].a != kPixelFormatUnknown; ++i) {
         if (kPixelMap[i].a == a) return kPixelMap[i].b;
     }
-    FATAL("FIXME");
+    ERROR("FIXME: add map item for %d", a);
     return 0;
 }
 
@@ -151,7 +153,7 @@ struct VTMediaFrame : public MediaFrame {
 
 struct VTContext {
     VTContext() : decompressionSession(NULL), formatDescription(NULL),
-    mInputEOS(false), mLastFramePTS(kTimeBegin) { }
+    mInputEOS(false), mLastFrameTime(kTimeBegin) { }
 
     ~VTContext() {
         if (decompressionSession) {
@@ -171,7 +173,9 @@ struct VTContext {
     Mutex                           mLock;
     bool                            mInputEOS;
     List<VTMediaFrame>              mImages;
-    MediaTime                       mLastFramePTS;
+    List<MediaTime>                 mTimestamps;
+    
+    MediaTime                       mLastFrameTime;
 };
 
 static void OutputCallback(void *decompressionOutputRefCon,
@@ -187,7 +191,7 @@ static void OutputCallback(void *decompressionOutputRefCon,
     sp<MediaPacket> *packet = static_cast<sp<MediaPacket> * >(sourceFrameRefCon);
 
     DEBUG("packet %p, status %d, infoFlags %#x, imageBuffer %p, presentationTimeStamp %.3f(s)/%.3f(s)",
-            packet->get(), status, infoFlags, imageBuffer,
+            packet->get()->data, status, infoFlags, imageBuffer,
             CMTimeGetSeconds(presentationTimeStamp),
             CMTimeGetSeconds(presentationDuration));
 
@@ -201,7 +205,22 @@ static void OutputCallback(void *decompressionOutputRefCon,
     VTContext *vtc = (VTContext*)decompressionOutputRefCon;
     AutoLock _l(vtc->mLock);
 
-    MediaTime pts ( presentationTimeStamp.value, presentationTimeStamp.timescale );
+    MediaTime pts;
+    if (CMTIME_IS_INVALID(presentationTimeStamp) || FORCE_DTS) {
+        //WARN("decode output invalid pts");
+        pts = *vtc->mTimestamps.begin();
+        vtc->mTimestamps.pop();
+    } else {
+        pts = MediaTime( presentationTimeStamp.value, presentationTimeStamp.timescale );
+    }
+    
+#if 0
+    if (pts < vtc->mLastFrameTime) {
+        ERROR("unorderred frame %.3f(s) < %.3f(s)", pts.seconds(), vtc->mLastFrameTime.seconds());
+    }
+    vtc->mLastFrameTime = pts;
+#endif
+    
     MediaTime duration ( presentationDuration.value, presentationDuration.timescale );
     VTMediaFrame frame(imageBuffer, pts, duration);
 
@@ -270,7 +289,8 @@ CFDictionaryRef setupFormatDescriptionExtension(const Message& formats,
 
 CFDictionaryRef setupImageBufferAttributes(int32_t width,
         int32_t height,
-        OSType cv_pix_fmt) {
+        OSType cv_pix_fmt,
+        bool opengl) {
 
     CFNumberRef w   = CFNumberCreate(kCFAllocatorDefault,
             kCFNumberSInt32Type,
@@ -299,14 +319,15 @@ CFDictionaryRef setupImageBufferAttributes(int32_t width,
     CFDictionarySetValue(attr, kCVPixelBufferIOSurfacePropertiesKey, surfaceProp);
     CFDictionarySetValue(attr, kCVPixelBufferWidthKey, w);
     CFDictionarySetValue(attr, kCVPixelBufferHeightKey, h);
-#if 1 // https://ffmpeg.org/pipermail/ffmpeg-devel/2017-December/222481.html
+    if (opengl) {
+        // https://ffmpeg.org/pipermail/ffmpeg-devel/2017-December/222481.html
 #if TARGET_OS_IPHONE
-    CFDictionarySetValue(attr, kCVPixelBufferOpenGLESCompatibilityKey, kCFBooleanTrue);
+        CFDictionarySetValue(attr, kCVPixelBufferOpenGLESCompatibilityKey, kCFBooleanTrue);
 #else
-    //kCVPixelBufferOpenGLCompatibilityKey
-    CFDictionarySetValue(attr, kCVPixelBufferIOSurfaceOpenGLTextureCompatibilityKey, kCFBooleanTrue);
+        //kCVPixelBufferOpenGLCompatibilityKey
+        CFDictionarySetValue(attr, kCVPixelBufferIOSurfaceOpenGLTextureCompatibilityKey, kCFBooleanTrue);
 #endif
-#endif
+    }
 
     CFRelease(surfaceProp);
     CFRelease(fmt);
@@ -318,16 +339,27 @@ CFDictionaryRef setupImageBufferAttributes(int32_t width,
 }
 
 // https://github.com/jyavenard/DecodeTest/blob/master/DecodeTest/VTDecoder.mm
-sp<VTContext> createSession(const Message& formats, const Message& options) {
+sp<VTContext> createSession(const Message& formats, const Message& options, MediaError *err) {
     sp<VTContext> vtc = new VTContext;
 
     eCodecFormat codec_format = (eCodecFormat)formats.findInt32(kKeyFormat);
     int32_t width = formats.findInt32(kKeyWidth);
     int32_t height = formats.findInt32(kKeyHeight);
+    int32_t requested_format = options.findInt32(kKeyRequestFormat, kPreferredPixelFormat);
+    OSType cv_pix_fmt = get_cv_pix_format((ePixelFormat)requested_format);
+    bool opengl = options.findInt32(kKeyOpenGLCompatible);
+    
+    if (cv_pix_fmt == 0) {
+        ERROR("request format is not supported, fall to %d", kPreferredPixelFormat);
+        cv_pix_fmt = get_cv_pix_format(kPreferredPixelFormat);
+        //*err = kMediaErrorNotSupported;
+        //return NULL;
+    }
 
     CMVideoCodecType cm_codec_type = get_cm_codec_type(codec_format);
     if (cm_codec_type == 0) {
         ERROR("unsupported codec");
+        *err = kMediaErrorNotSupported;
         return NULL;
     }
 
@@ -372,7 +404,8 @@ sp<VTContext> createSession(const Message& formats, const Message& options) {
     CFDictionaryRef destinationImageBufferAttributes = setupImageBufferAttributes(
             width,
             height,
-            get_cv_pix_format(kPreferredPixelFormat));
+            cv_pix_fmt,
+            opengl);
 
     VTDecompressionOutputCallbackRecord callback;
     callback.decompressionOutputCallback = OutputCallback;
@@ -421,7 +454,7 @@ sp<VTContext> createSession(const Message& formats, const Message& options) {
     }
 }
 
-static CMSampleBufferRef createCMSampleBuffer(const sp<VTContext>& vtc,
+static CMSampleBufferRef createCMSampleBuffer(sp<VTContext>& vtc,
         const sp<MediaPacket>& packet) {
     DEBUG("CMBlockBufferGetTypeID: %#x", CMBlockBufferGetTypeID());
     CMBlockBufferRef  blockBuffer = NULL;
@@ -451,11 +484,13 @@ static CMSampleBufferRef createCMSampleBuffer(const sp<VTContext>& vtc,
         WARN("dts is missing");
         timingInfo[0].decodeTimeStamp = kCMTimeInvalid;
     }
-    if (packet->pts != kTimeInvalid) {
+    if (packet->pts != kTimeInvalid && !FORCE_DTS) {
         timingInfo[0].presentationTimeStamp = CMTimeMake(packet->pts.value, packet->pts.timescale);
     } else {
-        WARN("pts is missing");
+        //WARN("pts is missing");
         timingInfo[0].presentationTimeStamp = kCMTimeInvalid;
+        vtc->mTimestamps.push(packet->dts);
+        vtc->mTimestamps.sort();
     }
     // FIXME
     timingInfo[0].duration = kCMTimeInvalid;
@@ -560,8 +595,9 @@ struct VideoToolboxDecoder : public MediaDecoder {
 
         DEBUG("VTDecompressionSessionGetTypeID: %#x", VTDecompressionSessionGetTypeID());
 
-        mVTContext = createSession(format, options);
-        CHECK_TRUE(mVTContext != NULL);
+        MediaError err = kMediaErrorUnknown;
+        mVTContext = createSession(format, options, &err);
+        if (mVTContext == NULL) return err;
         return kMediaNoError;
     }
 
@@ -575,8 +611,8 @@ struct VideoToolboxDecoder : public MediaDecoder {
         }
 
         DEBUG("queue packet %p: size %zu, dts %.3f(s), pts %.3f(s)",
-                input.get(),
-                input->data->size(),
+                input->data,
+                input->size,
                 input->dts.seconds(),
                 input->pts.seconds());
 
@@ -636,13 +672,7 @@ struct VideoToolboxDecoder : public MediaDecoder {
         // fix the width & height
         frame.v.rect.w  = mVTContext->width;
         frame.v.rect.h  = mVTContext->height;
-
-        if (mVTContext->mLastFramePTS >= frame.pts) {
-            ERROR("last %.3f(s), this %.3f(s)", mVTContext->mLastFramePTS.seconds(), frame.pts.seconds());
-            CHECK_TRUE(mVTContext->mLastFramePTS < frame.pts);
-            mVTContext->mLastFramePTS = frame.pts;
-        }
-
+        
 #if 0
         sp<MediaFrame> out = readVideoToolboxFrame((CVPixelBufferRef)frame.opaque);
 #else
@@ -658,7 +688,6 @@ struct VideoToolboxDecoder : public MediaDecoder {
 
         AutoLock _l(mVTContext->mLock);
         mVTContext->mImages.clear();
-        mVTContext->mLastFramePTS = kTimeBegin;
         return kMediaNoError;
     }
 };

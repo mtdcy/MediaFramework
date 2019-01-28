@@ -37,6 +37,7 @@
 
 #include <MediaToolkit/Toolkit.h>
 #include <MediaFramework/MediaTime.h>
+#include <MediaFramework/MediaDefs.h>
 
 __BEGIN_DECLS 
 

@@ -36,9 +36,13 @@
 #define _MEDIA_TIME_H
 #include <MediaToolkit/Toolkit.h>
 
+__BEGIN_DECLS
+
 #define kTimeValueBegin     (0)
 #define kTimeValueInvalid   (-1)
 #define kTimeValueEnd       (-2)
+
+__END_DECLS
 
 #ifdef __cplusplus
 namespace mtdcy {
@@ -65,6 +69,8 @@ namespace mtdcy {
         }
 #endif
     };
+
+#ifdef __cplusplus
 
 #define kTimeInvalid        MediaTime( kTimeValueInvalid )
 #define kTimeBegin          MediaTime( kTimeValueBegin )
@@ -157,6 +163,8 @@ namespace mtdcy {
     COMPARE(>=)
     
 #undef COMPARE
+    
+#endif
 
 #ifdef __cplusplus
 };

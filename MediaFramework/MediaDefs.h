@@ -161,6 +161,7 @@ enum {
  * @see eSampleFormat
  */
 #define kKeyFormat      "format"    ///< int32_t
+#define kKeyRequestFormat   "request-format"    ///< int32_t
 
 /**
  * key of mode
@@ -229,6 +230,7 @@ enum MediaError {
     kMediaErrorBadValue             = -10004,
     kMediaErrorTryAgain             = -10005,
     kMediaErrorResourceBusy         = -10006,
+    kMediaErrorBadFormat            = -10007,   ///<
 };
 
 __END_DECLS
