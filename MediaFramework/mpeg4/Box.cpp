@@ -1244,6 +1244,15 @@ namespace mtdcy { namespace MPEG4 {
         sp<SampleDescriptionBox> stsd = FindBox(stbl, "stsd");
         if (stsd == NULL) return false;
         
+        sp<TimeToSampleBox> stts    = FindBox(stbl, "stts");
+        sp<SampleToChunkBox> stsc   = FindBox(stbl, "stsc");
+        sp<ChunkOffsetBox> stco     = FindBox(stbl, "stco", "co64");
+        sp<SampleSizeBox> stsz      = FindBox(stbl, "stsz", "stz2");
+        
+        if (stts == NULL || stsc == NULL || stco == NULL || stsz == NULL) {
+            return false;
+        }
+        
         return true;
     }
     

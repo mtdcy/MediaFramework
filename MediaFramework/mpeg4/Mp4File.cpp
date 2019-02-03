@@ -133,63 +133,26 @@ static sp<Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderBox>
         return NULL;
     }
 
-    sp<Track> track = new Track;
+    sp<TrackHeaderBox> tkhd             = FindBox(trak, "tkhd");
+    sp<MediaBox> mdia                   = FindBox(trak, "mdia");
+    sp<MediaHeaderBox> mdhd             = FindBox(mdia, "mdhd");
+    sp<HandlerBox> hdlr                 = FindBox(mdia, "hdlr");
+    sp<MediaInformationBox> minf        = FindBox(mdia, "minf");
+    sp<DataReferenceBox> dinf           = FindBox(minf, "dinf");
+    sp<SampleTableBox> stbl             = FindBox(minf, "stbl");
+    sp<SampleDescriptionBox> stsd       = FindBox(stbl, "stsd");
+    sp<TimeToSampleBox> stts            = FindBox(stbl, "stts");    // dts
+    sp<SampleToChunkBox> stsc           = FindBox(stbl, "stsc");    // sample to chunk
+    sp<ChunkOffsetBox> stco             = FindBox(stbl, "stco", "co64");    // chunk offset
+    sp<SampleSizeBox> stsz              = FindBox(stbl, "stsz", "stz2");
+    // optional
+    sp<SyncSampleBox> stss              = FindBox(stbl, "stss");
+    sp<ShadowSyncSampleBox> stsh        = FindBox(stbl, "stsh");
+    sp<CompositionOffsetBox> ctts       = FindBox(stbl, "ctts");
+    sp<TrackReferenceBox> tref          = FindBox(trak, "tref");
+    sp<SampleDependencyTypeBox> sdtp    = FindBox(stbl, "sdtp");
 
-    sp<TrackHeaderBox> tkhd = FindBox(trak, "tkhd");
-    if (tkhd == 0) {
-        ERROR("tkhd is missing.");
-        return NULL;
-    }
-    // TODO: learn more from tkhd
-
-    // duration
-    sp<MediaBox> mdia = FindBox(trak, "mdia");
-    if (mdia == 0) {
-        ERROR("mdia is missing.");
-        return NULL;
-    }
-
-    sp<MediaHeaderBox> mdhd = FindBox(mdia, "mdhd");
-    if (mdhd == 0) {
-        ERROR("mdhd is missing");
-        return NULL;
-    }
-
-    track->duration = MediaTime(mdhd->duration, mdhd->timescale);
-
-    sp<HandlerBox> hdlr = FindBox(mdia, "hdlr");
-    if (hdlr == 0) {
-        ERROR("hdlr is missing.");
-        return NULL;
-    }
-
-    DEBUG("handler: [%s] %s", hdlr->handler_type.c_str(),
-            hdlr->handler_name.c_str());
-
-    sp<MediaInformationBox> minf = FindBox(mdia, "minf");
-    if (minf == 0) {
-        ERROR("minf is missing.");
-        return NULL;
-    }
-
-    sp<DataReferenceBox> dinf = FindBox(minf, "dinf");
-    if (dinf == 0) {
-        ERROR("dinf is missing.");
-        return NULL;
-    }
-    // XXX: handle dinf
-
-    sp<SampleTableBox> stbl = FindBox(minf, "stbl");
-    if (stbl == 0) {
-        ERROR("stbl is missing.");
-        return NULL;
-    }
-
-    sp<SampleDescriptionBox> stsd = FindBox(stbl, "stsd");
-    if (stsd == 0) {
-        ERROR("stsd is missing.");
-        return NULL;
-    }
+    // check
     if (stsd->child.size() == 0) {
         ERROR("SampleEntry is missing from stsb.");
         return NULL;
@@ -198,10 +161,20 @@ static sp<Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderBox>
     if (stsd->child.size() > 1) {
         WARN("stsd with multi SampleEntry");
     }
-
+    
+    sp<Track> track = new Track;
+    track->duration = MediaTime(mdhd->duration, mdhd->timescale);
+    
+    DEBUG("handler: [%s] %s", hdlr->handler_type.c_str(),
+          hdlr->handler_name.c_str());
+    
     // find sample infomations
     sp<SampleEntry> sampleEntry = stsd->child[0];
     track->codec = get_codec_format(sampleEntry->name);
+    if (track->codec == kCodecFormatUnknown) {
+        ERROR("unsupported track sample '%s'", sampleEntry->name.c_str());
+        return track;
+    }
 
     if (hdlr->handler_type == "soun") {
         track->audio.channelCount = sampleEntry->sound.channelcount;
@@ -230,18 +203,6 @@ static sp<Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderBox>
         }
     }
 
-    sp<TimeToSampleBox> stts    = FindBox(stbl, "stts");    // dts
-    sp<SampleToChunkBox> stsc   = FindBox(stbl, "stsc");    // sample to chunk
-    sp<ChunkOffsetBox> stco     = FindBox(stbl, "stco", "co64");    // chunk offset
-    sp<SampleSizeBox> stsz      = FindBox(stbl, "stsz", "stz2");
-    if (stts == 0 || stsc == 0 || stco == 0 || stsz == 0) {
-        ERROR("stts/stsc/stco/stsz is missing.");
-        return NULL;
-    }
-
-    sp<SyncSampleBox> stss = FindBox(stbl, "stss");
-    sp<ShadowSyncSampleBox> stsh = FindBox(stbl, "stsh");
-
     // FIXME: no-output sample
     const uint64_t now = SystemTimeUs();
     uint64_t dts = 0;
@@ -256,7 +217,6 @@ static sp<Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderBox>
     }
 
     // ctts => pts
-    sp<CompositionOffsetBox> ctts = FindBox(stbl, "ctts");
     if (ctts != 0) {
         size_t sampleIndex = 0;
         for (size_t i = 0; i < ctts->entries.size(); ++i) {
@@ -312,7 +272,6 @@ static sp<Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderBox>
     }
 
     // ISO/IEC 14496-12:2015 Section 8.6.4
-    sp<SampleDependencyTypeBox> sdtp = FindBox(stbl, "sdtp");
     if (sdtp != NULL) {
         for (size_t i = 0; i < sdtp->dependency.size(); ++i) {
             uint8_t dep = sdtp->dependency[i];
@@ -336,6 +295,15 @@ static sp<Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderBox>
         }
     }
 
+#if 1
+    if (tref != 0) {
+        CHECK_EQ(tref->child.size(), 1);
+        sp<TrackReferenceTypeBox> type = tref->child[0];
+        DEBUG("tref %s", type->name.c_str());
+        // TODO
+    }
+#endif
+    
     DEBUG("init sample table takes %.2f", (SystemTimeUs() - now) / 1E6);
 #if 0
     for (size_t i = 0; i < track.mSampleTable.size(); ++i) {
@@ -348,16 +316,6 @@ static sp<Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderBox>
 #endif
     DEBUG("num samples %zu total %zu", track->sampleTable.size(),
             track->sampleTable.size() * sizeof(Sample));
-
-#if 1
-    sp<TrackReferenceBox> tref = FindBox(trak, "tref");
-    if (tref != 0) {
-        CHECK_EQ(tref->child.size(), 1);
-        sp<TrackReferenceTypeBox> type = tref->child[0];
-        DEBUG("tref %s", type->name.c_str());
-        // TODO
-    }
-#endif
 
     return track;
 }
