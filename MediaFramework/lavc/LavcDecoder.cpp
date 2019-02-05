@@ -57,18 +57,19 @@ struct {
     AVCodecID       b;
 } kCodecMap[] = {
     // audio
-    {kAudioCodecFormatAAC,      AV_CODEC_ID_AAC},
-    {kAudioCodecFormatMP3,      AV_CODEC_ID_MP3},
-    {kAudioCodecFormatAPE,      AV_CODEC_ID_APE},
-    {kAudioCodecFormatFLAC,     AV_CODEC_ID_FLAC},
-    {kAudioCodecFormatWMA,      AV_CODEC_ID_WMAV2},
-    {kAudioCodecFormatVorbis,   AV_CODEC_ID_VORBIS},
+    {kAudioCodecFormatAAC,      AV_CODEC_ID_AAC     },
+    {kAudioCodecFormatMP3,      AV_CODEC_ID_MP3     },
+    {kAudioCodecFormatAPE,      AV_CODEC_ID_APE     },
+    {kAudioCodecFormatFLAC,     AV_CODEC_ID_FLAC    },
+    {kAudioCodecFormatWMA,      AV_CODEC_ID_WMAV2   },
+    {kAudioCodecFormatVorbis,   AV_CODEC_ID_VORBIS  },
+    {kAudioCodecFormatDTS,      AV_CODEC_ID_DTS     },
 
     // video
-    {kVideoCodecFormatH264,     AV_CODEC_ID_H264},
-    {kVideoCodecFormatHEVC,     AV_CODEC_ID_H265},
-    {kVideoCodecFormatMPEG4,    AV_CODEC_ID_MPEG4},
-    {kVideoCodecFormatVC1,      AV_CODEC_ID_VC1},
+    {kVideoCodecFormatH264,     AV_CODEC_ID_H264    },
+    {kVideoCodecFormatHEVC,     AV_CODEC_ID_H265    },
+    {kVideoCodecFormatMPEG4,    AV_CODEC_ID_MPEG4   },
+    {kVideoCodecFormatVC1,      AV_CODEC_ID_VC1     },
 
     // END OF LIST
     {kCodecFormatUnknown,       AV_CODEC_ID_NONE}
@@ -132,10 +133,12 @@ struct {
     {kSampleFormatS16,          AV_SAMPLE_FMT_S16},
     {kSampleFormatS32,          AV_SAMPLE_FMT_S32},
     {kSampleFormatFLT,          AV_SAMPLE_FMT_FLT},
+    {kSampleFormatDBL,          AV_SAMPLE_FMT_DBL},
     // plannar
     {kSampleFormatS16,          AV_SAMPLE_FMT_S16P},
     {kSampleFormatS32,          AV_SAMPLE_FMT_S32P},
     {kSampleFormatFLT,          AV_SAMPLE_FMT_FLTP},
+    {kSampleFormatDBL,          AV_SAMPLE_FMT_DBLP},
     // END OF LIST
     {kSampleFormatUnknown,      AV_SAMPLE_FMT_NONE},
 };
@@ -298,18 +301,32 @@ static status_t setupHwAccelContext(AVCodecContext *avcc) {
     return OK;
 }
 
+static void parseAudioSpecificConfig(AVCodecContext *avcc, const Buffer& csd) {
+    BitReader br(csd);
+    MPEG4::AudioSpecificConfig asc(br);
+    if (asc.valid) {
+        avcc->extradata_size = csd.size();
+        CHECK_GE(avcc->extradata_size, 2);
+        avcc->extradata = (uint8_t*)av_mallocz(avcc->extradata_size +
+                                               AV_INPUT_BUFFER_PADDING_SIZE);
+        memcpy(avcc->extradata, csd.data(),
+               avcc->extradata_size);
+    } else {
+        ERROR("bad AudioSpecificConfig");
+    }
+}
+
 // parse AudioSpecificConfig from esds, for who needs AudioSpecificConfig
 static void parseESDS(AVCodecContext *avcc, const Buffer& esds) {
     BitReader br(esds);
     MPEG4::ES_Descriptor esd(br);
     // client have make sure it is in the right form
-    CHECK_TRUE(esd.valid);
-    avcc->extradata_size = esd.decConfigDescr.decSpecificInfo.csd->size();
-    CHECK_GE(avcc->extradata_size, 2);
-    avcc->extradata = (uint8_t*)av_mallocz(avcc->extradata_size +
-            AV_INPUT_BUFFER_PADDING_SIZE);
-    memcpy(avcc->extradata, esd.decConfigDescr.decSpecificInfo.csd->data(),
-            avcc->extradata_size);
+    if (esd.valid) {
+        CHECK_TRUE(esd.valid);
+        parseAudioSpecificConfig(avcc, *esd.decConfigDescr.decSpecificInfo.csd);
+    } else {
+        ERROR("bad esds");
+    }
 }
 
 static status_t setupExtraData(AVCodecContext *avcc, const Message& formats) {
@@ -322,8 +339,12 @@ static status_t setupExtraData(AVCodecContext *avcc, const Message& formats) {
                 parseESDS(avcc, *esds);
                 // aac sbr have real sample rate in AudioSpecificConfig
                 // but, DON'T fix avcc->sample_rate here
+            } else if (formats.contains("csd")) {
+                Buffer *csd;
+                formats.find<Buffer>("csd", &csd);
+                parseAudioSpecificConfig(avcc, *csd);
             } else {
-                ERROR("missing esds for aac");
+                ERROR("missing esds|csd for aac");
                 return UNKNOWN_ERROR;
             }
             break;

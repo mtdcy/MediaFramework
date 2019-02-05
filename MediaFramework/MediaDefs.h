@@ -62,6 +62,7 @@ enum eCodecFormat {
     kAudioCodecFormatAAC,
     kAudioCodecFormatWMA,
     kAudioCodecFormatAPE,
+    kAudioCodecFormatDTS,
     kAudioCodecFormatLast   = 0x200 - 1,
     // video
     kVideoCodecFormatFirst  = 0x200,
@@ -85,8 +86,8 @@ enum eCodecFormat {
 
 enum eCodecType {
     kCodecTypeUnknown       = 0,
-    kCodecTypeAudio         = 1,
-    kCodecTypeVideo         = 2,
+    kCodecTypeVideo         = 1,
+    kCodecTypeAudio         = 2,
     kCodecTypeSubtitle      = 3,
     kCodecTypeImage         = 4,
     kCodecTypeMax,
@@ -122,6 +123,7 @@ enum eSampleFormat {
     kSampleFormatS24,
     kSampleFormatS32,
     kSampleFormatFLT,
+    kSampleFormatDBL,
 };
 
 /**
@@ -220,6 +222,13 @@ enum {
  */
 #define kKeyOpenGLCompatible    "opengl"  ///< int32_t, bool
 
+/**
+ * csd keys
+ */
+#define kKeyCodecSpecificData   "csd"   ///< Buffer
+#define kKeyESDS                "esds"  ///< Buffer
+#define kKeyavcC                "avcC"  ///< Buffer
+#define kKeyhvcC                "hvcC"  ///< Buffer
 
 enum MediaError {
     kMediaNoError                   = 0,

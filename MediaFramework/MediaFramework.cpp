@@ -61,9 +61,12 @@ extern "C" {
 namespace mtdcy {
     
     sp<MediaExtractor> CreateMp4File();
+    sp<MediaExtractor> CreateMatroskaFile();
     sp<MediaExtractor> MediaExtractor::Create(eFileFormat format) {
         if (format == kFileFormatMP4)
             return CreateMp4File();
+        else if (format == kFileFormatMKV)
+            return CreateMatroskaFile();
         else {
             return NULL;
         }

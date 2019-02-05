@@ -50,6 +50,8 @@ set (SOURCE_FILES
     MediaFramework/mpeg4/Systems.cpp
     MediaFramework/mpeg4/Audio.cpp
     MediaFramework/mpeg4/Box.cpp
+    MediaFramework/matroska/EBML.cpp
+    MediaFramework/matroska/MatroskaFile.cpp
     MediaFramework/lavc/LavcDecoder.cpp
     MediaFramework/sdl2/SDLAudio.cpp
     #MediaFramework/sdl2/SDLVideo.cpp

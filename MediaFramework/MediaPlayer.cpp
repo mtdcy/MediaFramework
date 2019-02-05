@@ -239,6 +239,11 @@ namespace mtdcy {
             DEBUG("session %zu: %s", i, formats.string().c_str());
             
             eCodecFormat codec = (eCodecFormat)formats.findInt32(kKeyFormat);
+            if (codec == kCodecFormatUnknown) {
+                ERROR("ignore unknown codec");
+                continue;
+            }
+            
             eCodecType type = GetCodecType(codec);
             if (type == kCodecTypeAudio) {
                 if (mpc->mHasAudio) {
