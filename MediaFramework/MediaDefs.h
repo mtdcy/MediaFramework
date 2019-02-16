@@ -224,11 +224,15 @@ enum {
 
 /**
  * csd keys
+ * preferred format of csd
  */
-#define kKeyCodecSpecificData   "csd"   ///< Buffer
 #define kKeyESDS                "esds"  ///< Buffer
 #define kKeyavcC                "avcC"  ///< Buffer
 #define kKeyhvcC                "hvcC"  ///< Buffer
+/**
+ * raw codec specific data
+ */
+#define kKeyCodecSpecificData   "csd"   ///< Buffer
 
 enum MediaError {
     kMediaNoError                   = 0,
@@ -240,6 +244,7 @@ enum MediaError {
     kMediaErrorTryAgain             = -10005,
     kMediaErrorResourceBusy         = -10006,
     kMediaErrorBadFormat            = -10007,   ///<
+    kMediaErrorNoMoreData           = -10008,
 };
 
 __END_DECLS
@@ -284,22 +289,6 @@ namespace mtdcy {
         // For Mp3 & AAC [gapless playback]
         static const char *EncoderDelay         = "encoder-delay";  // int32_t
         static const char *EncoderPadding       = "encoder-padding";// int32_t 
-    };
-
-    ///////////////////////////////////////////////////////////////////////////
-    class Packetizer {
-        public:
-            Packetizer() {}
-            virtual ~Packetizer() {}
-
-        public:
-            // return true on success, false otherwise 
-            virtual bool        enqueue(const Buffer& in)   = 0;
-            virtual bool        dequeue(Buffer& out)   = 0;
-            virtual void        flush() = 0;
-
-        private:
-            DISALLOW_EVILS(Packetizer);
     };
 
     ///////////////////////////////////////////////////////////////////////////

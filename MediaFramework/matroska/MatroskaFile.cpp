@@ -40,12 +40,6 @@
 
 #include "EBML.h"
 
-//#define VERBOSE
-#ifdef VERBOSE
-#define DEBUGV(fmt, ...) DEBUG(fmt, ##__VA_ARGS__)
-#else
-#define DEBUGV(fmt, ...) do {} while(0)
-#endif
 
 // reference:
 // https://matroska.org/technical/specs/index.html
@@ -71,23 +65,25 @@ enum eTrackFlags {
 };
 
 static sp<EBMLElement> getSegmentElement(sp<Content>& pipe,
-                                         sp<EBMLMasterElement>& top,
-                                         int64_t segment,
-                                         uint64_t _id) {
-    sp<EBMLMasterElement> SEEKHEAD = FindEBMLElementInside(top, ID_SEGMENT, ID_SEEKHEAD);
-    if (SEEKHEAD == NULL) return NULL;
+                                         sp<EBMLMasterElement>& segment,
+                                         int64_t segment_offset,
+                                         uint64_t id) {
+    sp<EBMLElement> ebml = FindEBMLElement(segment, id);
+    if (ebml != NULL) return ebml;  // already parsed
     
-    EBMLInteger id = _id;
+    // else, go through SEEKHEAD
+    sp<EBMLMasterElement> SEEKHEAD = FindEBMLElement(segment, ID_SEEKHEAD);
+    if (SEEKHEAD == NULL) return NULL;
     
     List<sp<EBMLElement> >::iterator it = SEEKHEAD->children.begin();
     for (; it != SEEKHEAD->children.end(); ++it) {
         if ((*it)->id.u64 != ID_SEEK) continue;
         //CHECK_TRUE(ID_SEEK == (*it)->id.u64);
         sp<EBMLIntegerElement> SEEKID = FindEBMLElement(*it, ID_SEEKID);
-        if (SEEKID->vint.u64 == _id) {
+        if (SEEKID->vint.u64 == id) {
             sp<EBMLIntegerElement> SEEKPOSITION = FindEBMLElement(*it, ID_SEEKPOSITION);
-            CHECK_LT(segment + SEEKPOSITION->vint.u64, pipe->size());
-            pipe->seek(segment + SEEKPOSITION->vint.u64);
+            CHECK_LT(segment_offset + SEEKPOSITION->vint.u64, pipe->size());
+            pipe->seek(segment_offset + SEEKPOSITION->vint.u64);
             return ReadEBMLElement(pipe);
         }
     }
@@ -108,6 +104,7 @@ static struct {
     // audio
     { "A_AAC",                  kAudioCodecFormatAAC    },
     { "A_DTS",                  kAudioCodecFormatDTS    },
+    { "A_MPEG/L2",              kAudioCodecFormatMP3    },
     // END OF LIST
     { "",                       kCodecFormatUnknown     },
 };
@@ -122,6 +119,7 @@ static eCodecFormat GetCodecFormat(const String& codec) {
     return kCodecFormatUnknown;
 }
 
+#include <MediaFramework/MediaPacket.h>
 struct MatroskaTrack {
     MatroskaTrack() : id(0), format(kCodecFormatUnknown),
     frametime(0), timescale(1.0), next_dts(kTimeBegin) { }
@@ -141,69 +139,70 @@ struct MatroskaTrack {
         } v;
     };
     sp<Buffer>          csd;
-    List<sp<EBMLBlockElement> >     cache;
-    MediaTime           next_dts;
+    List<sp<MediaPacket> >  blocks;
+    MediaTime               next_dts;
 };
 
-struct CUEPoint {
-    MediaTime   time;
+struct TOCEntry {
+    TOCEntry() : time(0), track(0), cluster(0), block(0) { }
+    uint64_t    time;
     size_t      track;
     int64_t     cluster;
     size_t      block;
 };
 
-struct Cluster {
-};
-
-#if 0
-struct WAVEFORMATEX {
-    uint16_t    wFormatTag;
-    uint16_t    nChannels;
-    uint32_t    nSamplesPerSec;
-    uint32_t    nAvgBytesPerSec;
-    uint16_t    nBlockAlign;
-    uint16_t    wBitsPerSample;
-    sp<Buffer>  extra;
-    WAVEFORMATEX(BitReader& br) {
-        wFormatTag      = br.rb16();
-        nChannels       = br.rb16();
-        nSamplesPerSec  = br.rb32();
-        nAvgBytesPerSec = br.rb32();
-        nBlockAlign     = br.rb16();
-        wBitsPerSample  = br.rb16();
-    }
-};
-#endif
-
-#include <MediaFramework/MediaPacket.h>
+// Frames using references should be stored in "coding order".
 struct MatroskaPacket : public MediaPacket {
     sp<Buffer>  buffer;
-    MatroskaPacket(sp<Buffer>& _buffer) : MediaPacket(), buffer(_buffer) {
+    
+    MatroskaPacket(MatroskaTrack& trak,
+                   const sp<EBMLBlockElement>& block,
+                   uint64_t timecode) {
+        buffer  = block->data;
         data    = (uint8_t*)buffer->data();
         size    = buffer->size();
+        
+        pts     = MediaTime(timecode / trak.timescale, 1000000000LL);
+#if 0
+        dts     = kTimeInvalid;
+#else
+        if (trak.frametime > 0) {
+            dts = trak.next_dts;
+            trak.next_dts = dts + MediaTime((trak.frametime) / trak.timescale, 1000000000LL);
+        } else {
+            dts = pts;
+        }
+#endif
+        
+        format  = trak.format;
+        flags   = 0;
+        if (block->Flags & kBlockFlagKey)           flags |= kFrameFlagSync;
+        if (block->Flags & kBlockFlagDiscardable)   flags |= kFrameFlagDisposal;
     }
 };
 
 #include <MediaFramework/MediaExtractor.h>
 #include "mpeg4/Audio.h"
+#include "mpeg4/Video.h"
+#define TIMESCALE_DEF 1000000UL
 struct MatroskaFile : public MediaExtractor {
-    int64_t                 mSegment;
+    int64_t                 mSegment;   // offset of SEGMENT
+    int64_t                 mClusters;  // offset of CLUSTERs
     double                  mDuration;
     uint64_t                mTimeScale;
     sp<Content>             mContent;
-    List<MatroskaTrack>             mTracks;
-    List<CUEPoint>          mTOC;
-    sp<EBMLMasterElement>   mCluster;
-    size_t                  mBlock;
+    List<MatroskaTrack>     mTracks;
+    List<TOCEntry>          mTOC;
     
-    MatroskaFile() : mDuration(0), mTimeScale(1.0), mContent(NULL),
-    mCluster(NULL), mBlock(0) { }
+    MatroskaFile() : mDuration(0), mTimeScale(TIMESCALE_DEF), mContent(NULL)
+    { }
     
     virtual MediaError init(sp<Content>& pipe, const Message& options) {
         pipe->seek(0);
-        sp<EBMLMasterElement> top = ParseMatroska(pipe, &mSegment);
-        
+        sp<EBMLMasterElement> top = ParseMatroska(pipe, &mSegment, &mClusters);
+#if LOG_NDEBUG == 0
         PrintEBMLElements(top);
+#endif
         
         // check ebml header
         sp<EBMLMasterElement> EBMLHEADER = FindEBMLElement(top, ID_EBMLHEADER);
@@ -217,8 +216,15 @@ struct MatroskaFile : public MediaExtractor {
             return kMediaErrorNotSupported;
         }
         
+        // check SEGMENT
+        sp<EBMLMasterElement> SEGMENT = FindEBMLElement(top, ID_SEGMENT);
+        if (SEGMENT == NULL) {
+            ERROR("missing SEGMENT");
+            return kMediaErrorBadFormat;
+        }
+        
         // handle SEGMENTINFO
-        sp<EBMLMasterElement> SEGMENTINFO = getSegmentElement(pipe, top, mSegment, ID_SEGMENTINFO);
+        sp<EBMLMasterElement> SEGMENTINFO = getSegmentElement(pipe, SEGMENT, mSegment, ID_SEGMENTINFO);
         if (SEGMENTINFO == NULL) {
             ERROR("missing SEGMENTINFO");
             return kMediaErrorBadFormat;
@@ -230,6 +236,7 @@ struct MatroskaFile : public MediaExtractor {
             DEBUG("timecodescale %" PRId64, TIMECODESCALE->vint.u64);
             mTimeScale = TIMECODESCALE->vint.u64;
         }
+        if (!mTimeScale) mTimeScale = TIMESCALE_DEF;
         
         sp<EBMLFloatElement> DURATION = FindEBMLElement(SEGMENTINFO, ID_DURATION);
         if (DURATION != NULL) {
@@ -238,7 +245,7 @@ struct MatroskaFile : public MediaExtractor {
         DEBUG("duration %.3f(s)", mDuration / 1E9);
         
         // handle SEGMENT
-        sp<EBMLMasterElement> TRACKS = getSegmentElement(pipe, top, mSegment, ID_TRACKS);
+        sp<EBMLMasterElement> TRACKS = getSegmentElement(pipe, SEGMENT, mSegment, ID_TRACKS);
         if (TRACKS == NULL) {
             ERROR("missing TRACKS");
             return kMediaErrorBadFormat;
@@ -263,7 +270,7 @@ struct MatroskaFile : public MediaExtractor {
             sp<EBMLIntegerElement> DEFAULTDURATION = FindEBMLElement(TRACKENTRY, ID_DEFAULTDURATION);
             if (DEFAULTDURATION != NULL) {
                 DEBUG("frame time %" PRIu64, DEFAULTDURATION->vint.u64);
-                trak.frametime = DEFAULTDURATION->vint.u64;
+                trak.frametime = DEFAULTDURATION->vint.u64;     // ns, not scaled
             }
             
             sp<EBMLFloatElement> TRACKTIMECODESCALE = FindEBMLElement(TRACKENTRY, ID_TRACKTIMECODESCALE);
@@ -275,57 +282,68 @@ struct MatroskaFile : public MediaExtractor {
             sp<EBMLIntegerElement> TRACKTYPE = FindEBMLElement(TRACKENTRY, ID_TRACKTYPE);
             
             if (TRACKTYPE->vint.u32 & kTrackTypeAudio) {
-                sp<EBMLIntegerElement> SAMPLINGFREQUENCY = FindEBMLElementInside(TRACKENTRY, ID_AUDIO, ID_SAMPLINGFREQUENCY);
+                sp<EBMLFloatElement> SAMPLINGFREQUENCY = FindEBMLElementInside(TRACKENTRY, ID_AUDIO, ID_SAMPLINGFREQUENCY);
                 sp<EBMLIntegerElement> CHANNELS = FindEBMLElementInside(TRACKENTRY, ID_AUDIO, ID_CHANNELS);
                 
-                trak.a.sampleRate = SAMPLINGFREQUENCY->vint.u32;
+                trak.a.sampleRate = SAMPLINGFREQUENCY->vint.flt;
                 trak.a.channels = CHANNELS->vint.u32;
                 
+                if (trak.a.sampleRate == 0 && trak.format == kAudioCodecFormatAAC) {
+                    // XXX: do we have to fix the sample rate here?
+                }
             } else if (TRACKTYPE->vint.u32 & kTrackTypeVideo) {
                 sp<EBMLIntegerElement> PIXELWIDTH = FindEBMLElementInside(TRACKENTRY, ID_VIDEO, ID_PIXELWIDTH);
                 sp<EBMLIntegerElement> PIXELHEIGHT = FindEBMLElementInside(TRACKENTRY, ID_VIDEO, ID_PIXELHEIGHT);
                 
                 trak.v.width   = PIXELWIDTH->vint.u32;
                 trak.v.height  = PIXELHEIGHT->vint.u32;
-
             } else {
                 ERROR("TODO: track type %#x", TRACKTYPE->vint.u32);
             }
             
             sp<EBMLBinaryElement> CODECPRIVATE = FindEBMLElement(TRACKENTRY, ID_CODECPRIVATE);
             if (CODECPRIVATE != NULL) {
-                trak.csd = CODECPRIVATE->data;
+                trak.csd = CODECPRIVATE->data;  // handle csd in format()
             }
             
             mTracks.push(trak);
         }
         
         // CUES
-        sp<EBMLMasterElement> CUES = getSegmentElement(pipe, top, mSegment, ID_CUES);
+        sp<EBMLMasterElement> CUES = getSegmentElement(pipe, SEGMENT, mSegment, ID_CUES);
         PrintEBMLElements(CUES);
         
         it = CUES->children.cbegin();
         for (; it != CUES->children.cend(); ++it) {     // CUES can be very large, use iterator
             if ((*it)->id.u64 != ID_CUEPOINT) continue;
             
-            CUEPoint point;
+            TOCEntry entry;
             // CUEPOINT
             sp<EBMLIntegerElement> CUETIME = FindEBMLElement(*it, ID_CUETIME);
-            point.time = CUETIME->vint.i64;
+            entry.time = CUETIME->vint.u64;
             sp<EBMLIntegerElement> CUETRACK = FindEBMLElementInside(*it, ID_CUETRACKPOSITIONS, ID_CUETRACK);
-            point.track = CUETIME->vint.u32;
+            entry.track = CUETRACK->vint.u32;
             sp<EBMLIntegerElement> CUECLUSTERPOSITION = FindEBMLElementInside(*it, ID_CUETRACKPOSITIONS, ID_CUECLUSTERPOSITION);
-            point.cluster = CUECLUSTERPOSITION->vint.u64;
+            entry.cluster = CUECLUSTERPOSITION->vint.u64;
             sp<EBMLIntegerElement> CUERELATIVEPOSITION = FindEBMLElementInside(*it, ID_CUETRACKPOSITIONS, ID_CUERELATIVEPOSITION);
-            point.block = CUERELATIVEPOSITION->vint.u32;
-            mTOC.push(point);
+            if (CUERELATIVEPOSITION != NULL) {
+                entry.block = CUERELATIVEPOSITION->vint.u32;
+            }
+#if LOG_NDEBUG == 0
+            DEBUG("[%zu]: [%zu] %" PRIu64 ", %" PRId64 ", %zu",
+                  mTOC.size(), entry.track,
+                  entry.time, entry.cluster, entry.block);
+#endif
+            mTOC.push(entry);
         }
         
         // CLUSTER: read the first cluster
-        const CUEPoint& first = *mTOC.cbegin();
-        pipe->seek(first.cluster + mSegment);
-        mCluster = ReadEBMLElement(pipe);
-        mBlock = 0;
+        // XXX: first entry in TOC may not be the first cluster
+        const TOCEntry& first = *mTOC.cbegin();
+        INFO("search to first cluster %" PRId64 " vs %" PRId64,
+             mClusters,
+             first.cluster + mSegment);
+        pipe->seek(mClusters);
         
         mContent    = pipe;
         
@@ -350,6 +368,7 @@ struct MatroskaFile : public MediaExtractor {
                 trakInfo.setInt32(kKeyHeight, trak.v.height);
             } else {
                 ERROR("FIXME");
+                continue;
             }
             
             // https://haali.su/mkv/codecs.pdf
@@ -365,9 +384,17 @@ struct MatroskaFile : public MediaExtractor {
                     else
                         ERROR("bad AudioSpecificConfig");
                 } else if (trak.format == kVideoCodecFormatH264) {
-                    trakInfo.set<Buffer>(kKeyavcC, *trak.csd);
+                    BitReader br(*trak.csd);
+                    MPEG4::AVCDecoderConfigurationRecord avcC(br);
+                    if (avcC.valid) {
+                        trakInfo.set<Buffer>(kKeyavcC, *trak.csd);
+                    } else {
+                        ERROR("bad avcC");
+                    }
                 } else if (trak.format == kVideoCodecFormatHEVC) {
                     trakInfo.set<Buffer>(kKeyhvcC, *trak.csd);
+                } else if (trak.format == kVideoCodecFormatMPEG4) {
+                    trakInfo.set<Buffer>(kKeyESDS, *trak.csd);
                 }
             }
             
@@ -379,64 +406,57 @@ struct MatroskaFile : public MediaExtractor {
         return info;
     }
     
+    MediaError prepareBlocks(MatroskaTrack& trak) {
+        while (trak.blocks.empty()) {
+            // prepare packets
+            sp<EBMLMasterElement> cluster = ReadEBMLElement(mContent);
+            if (cluster == NULL || cluster->id.u64 != ID_CLUSTER) {
+                INFO("no more cluster");
+                break;
+            }
+            
+#if LOG_NDEBUG == 0
+            PrintEBMLElements(cluster);
+#endif
+            sp<EBMLIntegerElement> TIMECODE = FindEBMLElement(cluster, ID_TIMECODE);
+            
+            List<sp<EBMLElement> >::const_iterator it = cluster->children.cbegin();
+            for (; it != cluster->children.cend(); ++it) {
+                if ((*it)->id.u64 != ID_SIMPLEBLOCK) continue;
+                // TODO: handle BLOCKGROUP
+                sp<EBMLBlockElement> block = *it;
+                MatroskaTrack* tmp = NULL;
+                for (size_t i = 0; i < mTracks.size(); ++i) {
+                    if (mTracks[i].id == block->TrackNumber.u32)
+                        tmp = &mTracks[i];
+                }
+                CHECK_NULL(tmp);
+                
+                uint64_t timecode = (TIMECODE->vint.u64 + block->TimeCode) * mTimeScale;
+                tmp->blocks.push(new MatroskaPacket(*tmp, block, timecode));
+            }
+        }
+        return trak.blocks.empty() ? kMediaErrorNoMoreData: kMediaNoError;
+    }
+    
     // https://matroska.org/technical/specs/notes.html#TimecodeScale
     // https://matroska.org/technical/specs/notes.html
     virtual sp<MediaPacket> read(size_t index,
                                  eModeReadType mode,
                                  const MediaTime& ts = kTimeInvalid) {
-        if (mCluster == NULL) {
-            INFO("eos...");
+        
+        MatroskaTrack& trak = mTracks[index];
+        
+        // TODO: handle seek here
+        prepareBlocks(trak);
+        
+        if (trak.blocks.empty()) {
+            INFO("track %zu eos...", index);
             return NULL;
         }
         
-        MatroskaTrack& trak = mTracks[index];
-        sp<EBMLBlockElement> block;
-        if (trak.cache.size()) {
-            block = *trak.cache.begin();
-            trak.cache.pop();
-        } else {
-            for (;;) {
-                // get next SIMPLEBLOCK
-                block = mCluster->children[mBlock++];
-                if (block->id.u64 != ID_SIMPLEBLOCK) continue;
-                
-                if (block->TrackNumber.u32 != trak.id) {
-                    // cache block data
-                    MatroskaTrack *other = NULL;
-                    for (size_t i = 0; i < mTracks.size(); ++i) {
-                        if (mTracks[i].id == block->TrackNumber.u32) {
-                            other = &mTracks[i];
-                        }
-                    }
-                    CHECK_NULL(other);
-                    other->cache.push(block);
-                } else {
-                    break;
-                }
-            }
-        }
-        
-        sp<EBMLIntegerElement> TIMECODE = FindEBMLElement(mCluster, ID_TIMECODE);
-        
-        sp<MediaPacket> packet = new MatroskaPacket(block->data);
-        packet->pts     = MediaTime(((TIMECODE->vint.u64 + block->TimeCode) * mTimeScale) / trak.timescale, 1000000000LL);
-        if (trak.frametime > 0) {
-            // frametime is not scaled
-            packet->dts = trak.next_dts;
-            trak.next_dts = packet->dts + MediaTime((trak.frametime) / trak.timescale, 1000000000LL);
-        } else {
-            packet->dts = packet->pts;
-        }
-        packet->format  = trak.format;
-        packet->flags   = 0;
-        if (block->Flags & kBlockFlagKey)           packet->flags |= kFrameFlagSync;
-        if (block->Flags & kBlockFlagDiscardable)   packet->flags |= kFrameFlagDisposal;
-        
-        if (mBlock >= mCluster->children.size()) {
-            mCluster = ReadEBMLElement(mContent);
-            PrintEBMLElements(mCluster);
-            mBlock = 0;
-        }
+        sp<MediaPacket> packet = *trak.blocks.begin();
+        trak.blocks.pop();
         
         DEBUG("[%zu] packet %zu bytes, pts %.3f, dts %.3f, flags %#x", index,
               packet->size,

@@ -41,6 +41,8 @@
 #include <MediaFramework/MediaDefs.h>
 #include <MediaFramework/MediaDecoder.h>
 
+#include "mpeg4/Systems.h"
+
 //#define VERBOSE
 #ifdef VERBOSE
 #define DEBUGV(fmt, ...) DEBUG(fmt, ##__VA_ARGS__)
@@ -268,13 +270,19 @@ CFDictionaryRef setupFormatDescriptionExtension(const Message& formats,
         case kCMVideoCodecType_MPEG4Video:
             if (formats.contains("esds")) {
                 const Buffer& esds = formats.find<Buffer>("esds");
-                CFDataRef data = CFDataCreate(kCFAllocatorDefault,
-                        (const UInt8*)esds.data(),
-                        esds.size());
-                CFDictionarySetValue(atoms,
-                        CFSTR("esds"),
-                        data);
-                CFRelease(data);
+                BitReader br(esds);
+                MPEG4::ES_Descriptor esd(br);
+                if (esd.valid) {
+                    CFDataRef data = CFDataCreate(kCFAllocatorDefault,
+                            (const UInt8*)esds.data(),
+                            esds.size());
+                    CFDictionarySetValue(atoms,
+                            CFSTR("esds"),
+                            data);
+                    CFRelease(data);
+                } else {
+                    ERROR("bad esds");
+                }
             } else {
                 ERROR("missing esds");
             }

@@ -327,7 +327,7 @@ namespace mtdcy {
         
         sp<EBMLElement> EnumEBMLElement(sp<Content>& pipe);
         
-        sp<EBMLElement> ParseMatroska(sp<Content>& pipe, int64_t *segment_offset);
+        sp<EBMLElement> ParseMatroska(sp<Content>& pipe, int64_t *segment_offset, int64_t *clusters_offset);
         
         sp<EBMLElement> ReadEBMLElement(sp<Content>& pipe);
         

@@ -72,6 +72,7 @@ namespace mtdcy {
      * create a packet backend by Buffer
      */
     sp<MediaPacket> MediaPacketCreate(size_t size);
+    sp<MediaPacket> MediaPacketCreate(sp<Buffer>&);
 
 #ifdef __cplusplus
 };

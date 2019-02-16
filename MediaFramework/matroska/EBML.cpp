@@ -38,20 +38,38 @@
 
 #include "EBML.h"
 
+//#define VERBOSE
+#ifdef VERBOSE
+#define DEBUGV(fmt, ...) DEBUG(fmt, ##__VA_ARGS__)
+#else
+#define DEBUGV(fmt, ...) do {} while(0)
+#endif
+
 // reference:
 // https://matroska.org/technical/specs/index.html
 // https://matroska.org/files/matroska.pdf
 using namespace mtdcy;
 using namespace EBML;
 
-inline size_t EBMLCodeBytesLength(uint64_t v) {
-    size_t n = 1;
-    v >>= 8;
-    while (v) { ++n; v >>= 8; }
+inline size_t EBMLCodeBytesLength(uint64_t x) {
+    size_t n = 0;
+    while (x) { ++n; x >>= 8; }
     return n;
 }
 
+inline uint64_t EBMLCodeInteger(uint64_t x) {
+    size_t n = EBMLCodeBytesLength(x);
+    x |= (1 << (7 * n));
+    return x;
+}
+
 EBMLInteger::EBMLInteger(uint64_t x) : u64(x), length(EBMLCodeBytesLength(x)) { }
+
+static EBMLInteger EBMLIntegerNull(0);     // with value & length == 0
+
+bool operator==(EBMLInteger& lhs, EBMLInteger& rhs) {
+    return lhs.u64 == rhs.u64 && lhs.length == rhs.length;
+}
 
 #define MASK(n) ((1ULL<<(n))-1)
 inline uint8_t EBMLGetBytesLength(uint8_t v) {
@@ -65,6 +83,10 @@ inline EBMLInteger EBMLGetCodedInteger(BitReader& br) {
     vint.length = EBMLGetBytesLength(vint.u8);
     CHECK_GT(vint.length, 0);
     CHECK_LE(vint.length, 8);
+    if (br.numBitsLeft() < vint.length * 8) {
+        return EBMLIntegerNull;
+    }
+    
     if (vint.length > 1) {
         for (size_t i = 1; i < vint.length; ++i) {
             vint.u64 = (vint.u64 << 8) | br.r8();
@@ -73,10 +95,14 @@ inline EBMLInteger EBMLGetCodedInteger(BitReader& br) {
     return vint;
 }
 
-// vint with leading 1-bit removed
+inline uint64_t EBMLClearLeadingBit(uint64_t x, size_t length) {
+    return x & MASK(7 * length);
+}
+
+// vint without leading 1-bit removed
 inline EBMLInteger EBMLGetInteger(BitReader& br) {
     EBMLInteger vint = EBMLGetCodedInteger(br);
-    vint.u64 &= MASK(8 * vint.length - vint.length);    // clear the leading bit
+    vint.u64 = EBMLClearLeadingBit(vint.u64, vint.length);
     return vint;
 }
 
@@ -113,13 +139,20 @@ inline EBMLInteger EBMLGetFloat(BitReader& br, size_t n) {
 }
 
 inline EBMLInteger EBMLGetCodedInteger(sp<Content>& pipe) {
-    CHECK_LT(pipe->tell(), pipe->size());
+    if (pipe->tell() >= pipe->size()) {
+        return EBMLIntegerNull;
+    }
+    //CHECK_LT(pipe->tell(), pipe->size());
     sp<Buffer> data = pipe->read(1);
     EBMLInteger vint;
     vint.u64    = data->at(0);
     vint.length = EBMLGetBytesLength(vint.u8);
     CHECK_GT(vint.length, 0);
     CHECK_LE(vint.length, 8);
+    if (pipe->tell() + vint.length >= pipe->size()) {
+        return EBMLIntegerNull;
+    }
+    
     if (vint.length > 1) {
         if (pipe->tell() + vint.length >= pipe->size()) {
             vint.length = 0;    // invalid
@@ -133,18 +166,20 @@ inline EBMLInteger EBMLGetCodedInteger(sp<Content>& pipe) {
     return vint;
 }
 
-inline EBMLInteger EBMLGetLength(sp<Content>& pipe) {
+inline EBMLInteger EBMLGetInteger(sp<Content>& pipe) {
     EBMLInteger vint = EBMLGetCodedInteger(pipe);
-    if (vint.length == 0) return vint;
-    vint.u64 &= MASK(8 * vint.length - vint.length);    // clear the leading bit
+    vint.u64 = EBMLClearLeadingBit(vint.u64, vint.length);
     return vint;
 }
 
+#define EBMLGetLength   EBMLGetInteger
+
 status_t EBMLIntegerElement::parse(BitReader& br, size_t size) {
     vint = EBMLGetInteger(br, size);
-    DEBUG("integer %#x", vint.u64);
+    DEBUGV("integer %#x", vint.u64);
     return OK;
 }
+
 String EBMLIntegerElement::string() const {
     return String::format("%#x", vint.u64);
 
@@ -152,33 +187,36 @@ String EBMLIntegerElement::string() const {
 
 status_t EBMLStringElement::parse(BitReader& br, size_t size) {
     str = br.readS(size);
-    DEBUG("string %s", str.c_str());
+    DEBUGV("string %s", str.c_str());
     return OK;
 }
+
 String EBMLStringElement::string() const { return str; }
 
 status_t EBMLUTF8Element::parse(BitReader& br, size_t size) {
     utf8 = br.readS(size);
-    DEBUG("utf8 %s", utf8.c_str());
+    DEBUGV("utf8 %s", utf8.c_str());
     return OK;
 }
-String EBMLUTF8Element::string() const { return utf8; }
 
+String EBMLUTF8Element::string() const { return utf8; }
 
 status_t EBMLBinaryElement::parse(BitReader& br, size_t size) {
     data = br.readB(size);
-    DEBUG("binary %s", data->string(true).c_str());
+    DEBUGV("binary %s", data->string(true).c_str());
     return OK;
 }
+
 String EBMLBinaryElement::string() const {
     return String::format("%zu bytes binary", data->size());
 }
 
 status_t EBMLFloatElement::parse(BitReader& br, size_t size) {
     vint = EBMLGetFloat(br, size);
-    DEBUG("float %f", vint.flt);
+    DEBUGV("float %f", vint.flt);
     return OK;
 }
+
 String EBMLFloatElement::string() const {
     return String(vint.flt);
 
@@ -188,6 +226,7 @@ status_t EBMLEmptyElement::parse(BitReader& br, size_t size) {
     br.skipBytes(size);
     return OK;
 }
+
 String EBMLEmptyElement::string() const { return "*"; }
 
 status_t EBMLBlockElement::parse(BitReader& br, size_t size) {
@@ -209,8 +248,8 @@ status_t EBMLBlockElement::parse(BitReader& br, size_t size) {
 }
 
 String EBMLBlockElement::string() const {
-    return String::format("[%zu] % " PRId32 " Flags %#x",
-            (size_t)TrackNumber.u32,
+    return String::format("[%zu] % " PRId16 " Flags %#x",
+            (size_t)TrackNumber.i16,
             TimeCode, Flags);
 }
 
@@ -221,7 +260,7 @@ status_t EBMLMasterElement::parse(BitReader& br, size_t size) {
     while (remains) {
         EBMLInteger id      = EBMLGetCodedInteger(br);
         EBMLInteger length  = EBMLGetLength(br);
-        if (id.length == 0 || length.length == 0) {
+        if (id == EBMLIntegerNull || length == EBMLIntegerNull) {
             ERROR("invalid id or length");
             break;
         }
@@ -242,7 +281,7 @@ status_t EBMLMasterElement::parse(BitReader& br, size_t size) {
             br.skip(br.offset() - offset);
             continue;
         }
-        DEBUG("%s: + %s @ { %#x[%zu], %" PRIu32 " bytes[%zu], %s }",
+        DEBUGV("%s: + %s @ { %#x[%zu], %" PRIu32 " bytes[%zu], %s }",
                 name, elem->name, id.u64, id.length,
                 length.u32, length.length,
                 elem->string().c_str());
@@ -333,8 +372,8 @@ static const struct {
     ITEM(   DISPLAYUNIT,                kEBMLElementInteger     ),
     // AUDIO
     ITEM(   AUDIO,                      kEBMLElementMaster      ),
-    ITEM(   SAMPLINGFREQUENCY,          kEBMLElementInteger     ),
-    ITEM(   OUTPUTSAMPLINGFREQUENCY,    kEBMLElementInteger     ),
+    ITEM(   SAMPLINGFREQUENCY,          kEBMLElementFloat       ),
+    ITEM(   OUTPUTSAMPLINGFREQUENCY,    kEBMLElementFloat       ),
     ITEM(   CHANNELS,                   kEBMLElementInteger     ),
     ITEM(   BITDEPTH,                   kEBMLElementInteger     ),
     // CONTENTENCODINGS
@@ -475,9 +514,8 @@ namespace mtdcy { namespace EBML {
         }
     }
     
-    static EBMLInteger IDnull = EBMLInteger(0);
     sp<EBMLElement> EnumEBMLElement(sp<Content>& pipe) {
-        sp<EBMLMasterElement> top = new EBMLMasterElement("mkv", IDnull);
+        sp<EBMLMasterElement> top = new EBMLMasterElement("mkv", EBMLIntegerNull);
         sp<EBMLMasterElement> master = top;
         uint64_t n = pipe->size() - pipe->tell();
         for (uint64_t offset = 0; offset < n; ) {
@@ -528,15 +566,15 @@ namespace mtdcy { namespace EBML {
         return top;
     }
     
-    sp<EBMLElement> ParseMatroska(sp<Content>& pipe, int64_t *segment_offset) {
-        sp<EBMLMasterElement> top = new EBMLMasterElement("mkv", IDnull);
+    sp<EBMLElement> ParseMatroska(sp<Content>& pipe, int64_t *segment_offset, int64_t *clusters_offset) {
+        sp<EBMLMasterElement> top = new EBMLMasterElement("mkv", EBMLIntegerNull);
         sp<EBMLMasterElement> master = top;
         uint64_t n = pipe->size() - pipe->tell();
         for (uint64_t offset = 0; offset < n; ) {
             EBMLInteger id      = EBMLGetCodedInteger(pipe);
             EBMLInteger size    = EBMLGetLength(pipe);
             
-            if (id.u64 == 0 || size.u64 == 0) {
+            if (id == EBMLIntegerNull || size == EBMLIntegerNull) {
                 ERROR("bad file?");
                 break;
             }
@@ -557,9 +595,9 @@ namespace mtdcy { namespace EBML {
                 master = segment;
                 offset = 0;
                 n = size.u64;
-                continue;
             } else if (id.u32 == ID_CLUSTER) {
-                INFO("found cluster @ %#x", pipe->tell());
+                INFO("found CLUSTER @ %#x", pipe->tell());
+                if (clusters_offset) *clusters_offset = pipe->tell() - id.length - size.length;
                 break;
             } else {
                 //CHECK_LE(size.u32, 1024 * 1024);
@@ -579,21 +617,33 @@ namespace mtdcy { namespace EBML {
                 }
             }
             
-#if 1
-            // for quick check, seek head is what we need
-            // as SEEKHEAD contains info about other level 1 elements
-            if (id.u32 == ID_SEEKHEAD) break;
-#endif
+            // If all non-CLUSTER precede all CLUSTERs (→ section 5.5),
+            // a SEEKHEAD is not really necessary, otherwise, a missing
+            // SEEKHEAD leads to long file loading times or the inability
+            // to access certain data.
         }
         return top;
     }
     
     sp<EBMLElement> ReadEBMLElement(sp<Content>& pipe) {
+        // end of pipe
+        if (pipe->tell() == pipe->size()) return NULL;
+        
         EBMLInteger id = EBMLGetCodedInteger(pipe);
         EBMLInteger size = EBMLGetLength(pipe);
+        if (id == EBMLIntegerNull || size == EBMLIntegerNull) {
+            ERROR("bad element");
+            return NULL;
+        }
+        
         sp<EBMLElement> ebml = MakeEBMLElement(id);
         if (ebml == NULL) {
             ERROR("unknown element id %#x", id.u64);
+            return NULL;
+        }
+        
+        if (pipe->tell() + size.length >= pipe->size()) {
+            ERROR("bad pipe");
             return NULL;
         }
         

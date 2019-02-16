@@ -106,9 +106,24 @@ namespace mtdcy {
 
             eCodecType type = GetCodecType(mID);
 
+            // always set mCodec to null, if create or initial faileds
             mCodec = MediaDecoder::Create(mID, mode);
             if (mCodec->init(format, options) != kMediaNoError) {
                 ERROR("track %zu: create codec failed", mID);
+                mCodec.clear();
+                
+#if 1
+                if (mode != kModeTypeSoftware) {
+                    Message options_software = options;
+                    options_software.setInt32(kKeyMode, kModeTypeSoftware);
+                    mCodec = MediaDecoder::Create(mID, kModeTypeSoftware);
+                    
+                    if (mCodec->init(format, options_software) != kMediaNoError) {
+                        ERROR("track %zu: create software codec failed", mID);
+                        mCodec.clear();
+                    }
+                }
+#endif
                 return;
             }
         }

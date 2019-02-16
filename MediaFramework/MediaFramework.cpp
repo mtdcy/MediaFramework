@@ -39,7 +39,7 @@
 #include "ColorConvertor.h"
 #include "MediaDecoder.h"
 #include "MediaExtractor.h"
-
+#include "MediaPacketizer.h"
 #include "sdl2/SDLAudio.h"
 #include "opengl/GLVideo.h"
 
@@ -60,15 +60,19 @@ extern "C" {
 
 namespace mtdcy {
     
+    sp<MediaExtractor> CreateMp3File();
     sp<MediaExtractor> CreateMp4File();
     sp<MediaExtractor> CreateMatroskaFile();
     sp<MediaExtractor> MediaExtractor::Create(eFileFormat format) {
-        if (format == kFileFormatMP4)
-            return CreateMp4File();
-        else if (format == kFileFormatMKV)
-            return CreateMatroskaFile();
-        else {
-            return NULL;
+        switch (format) {
+            case kFileFormatMP3:
+                return CreateMp3File();
+            case kFileFormatMP4:
+                return CreateMp4File();
+            case kFileFormatMKV:
+                return CreateMatroskaFile();
+            default:
+                break;
         }
     }
 
@@ -92,6 +96,17 @@ namespace mtdcy {
         }
 
         return codec;
+    }
+    
+    sp<MediaPacketizer> CreateMp3Packetizer();
+    sp<MediaPacketizer> MediaPacketizer::Create(eCodecFormat format) {
+        switch (format) {
+            case kAudioCodecFormatMP3:
+                return CreateMp3Packetizer();
+            default:
+                INFO("no packetizer for %d", format);
+                return NULL;
+        }
     }
 };
 
@@ -226,6 +241,14 @@ namespace mtdcy {
         packet->buffer  = buffer;
         packet->data    = (uint8_t*)buffer->data();
         packet->size    = buffer->capacity();
+        return packet;
+    }
+    
+    sp<MediaPacket> MediaPacketCreate(sp<Buffer>& data) {
+        sp<DefaultMediaPacket> packet = new DefaultMediaPacket;
+        packet->buffer  = data;
+        packet->data    = (uint8_t*)data->data();
+        packet->size    = data->size();
         return packet;
     }
 }
