@@ -49,12 +49,12 @@ namespace mtdcy {
     /**
      * base class for audio/video output device
      */
-    class MediaOut {
-    public:
+    struct MediaOut {
+        static sp<MediaOut> Create(eCodecType);
+        
         MediaOut() { }
         virtual ~MediaOut() { }
         
-    public:
         /**
          * get information of this output device.
          * @return return a string of information
@@ -95,9 +95,6 @@ namespace mtdcy {
          * @return return OK on success, otherwise error code
          */
         virtual status_t        flush() = 0;
-        
-    private:
-        DISALLOW_EVILS(MediaOut);
     };
 
 

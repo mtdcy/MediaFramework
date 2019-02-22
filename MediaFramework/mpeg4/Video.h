@@ -100,10 +100,11 @@ namespace mtdcy { namespace MPEG4 {
         kAVCProfileCAVLC444Intra,
     };
     
-    // ISO/IEC 14495-15
+    // ISO/IEC 14495-15, 'avcC'
     struct AVCDecoderConfigurationRecord {
         AVCDecoderConfigurationRecord(const BitReader& br);
-        sp<Buffer> compose();
+        status_t compose(BitWriter& bw) const;
+        size_t size() const;
         
         bool        valid;
         uint8_t     AVCProfileIndication;

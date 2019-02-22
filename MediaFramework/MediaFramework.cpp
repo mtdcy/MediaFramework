@@ -41,7 +41,6 @@
 #include "MediaExtractor.h"
 #include "MediaPacketizer.h"
 #include "sdl2/SDLAudio.h"
-#include "opengl/GLVideo.h"
 
 extern "C" {
     eCodecType GetCodecType(eCodecFormat format) {
@@ -109,6 +108,18 @@ namespace mtdcy {
                 return CreateMp3Packetizer();
             default:
                 INFO("no packetizer for codec %d", format);
+                return NULL;
+        }
+    }
+    
+    sp<MediaOut> CreateGLVideo();
+    sp<MediaOut> MediaOut::Create(eCodecType type) {
+        switch (type) {
+            case kCodecTypeAudio:
+                return new SDLAudio;
+            case kCodecTypeVideo:
+                return CreateGLVideo();
+            default:
                 return NULL;
         }
     }

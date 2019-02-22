@@ -44,8 +44,6 @@
 #endif
 #include <SDL.h>
 
-#include "MediaFramework/opengl/GLVideo.h"
-
 #define EVENT_PREPARE       (SDL_USEREVENT + 1)
 #define EVENT_FRAME_READY   (SDL_USEREVENT + 2)
 #define EVENT_FLUSH         (SDL_USEREVENT + 3)
@@ -221,7 +219,7 @@ int main (int argc, char **argv) {
         INFO("glsl version: %s", glGetString(GL_SHADING_LANGUAGE_VERSION));
         
         // setup local context
-        _out = new GLVideo();
+        _out = MediaOut::Create(kCodecTypeVideo);
         
         // create the mp
         Message options;

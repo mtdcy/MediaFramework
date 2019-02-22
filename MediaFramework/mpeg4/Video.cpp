@@ -89,19 +89,25 @@ namespace mtdcy { namespace MPEG4 {
     //! }
     AVCDecoderConfigurationRecord::AVCDecoderConfigurationRecord(const BitReader& br) :
     valid(false) {
+        // 1
         if (br.r8() != 1) return;           // configurationVersion = 1
+        // 3
         AVCProfileIndication = br.r8();
         uint8_t profile_compatibility = br.r8();
         AVCLevelIndication = br.r8();
+        // (6 + 2 + 3 + 5) / 8 = 2
         if (br.read(6) != 0x3f) return;     // bit(6) reserved = ‘111111’b;
         lengthSizeMinusOne = br.read(2);    //
         if (br.read(3) != 0x7) return;      // bit(3) reserved = ‘111’b;
         size_t numOfSequenceParameterSets = br.read(5);
+        // n * (2 + x)
         for (size_t i = 0; i < numOfSequenceParameterSets; ++i) {
             size_t sequenceParameterSetLength = br.rb16();
             SPSs.push(br.readB(sequenceParameterSetLength));
         }
+        // 1
         size_t numOfPictureParameterSets = br.r8();
+        // n * (2 + x)
         for (size_t i = 0; i < numOfPictureParameterSets; ++i) {
             size_t pictureParameterSetLength = br.rb16();
             PPSs.push(br.readB(pictureParameterSetLength));
@@ -109,18 +115,47 @@ namespace mtdcy { namespace MPEG4 {
         valid = true;
     }
     
-    sp<Buffer> AVCDecoderConfigurationRecord::compose() {
-        // one sps + one pps
-        const size_t avcCLength = 5         //! avcc header
-        + 1                                 //! num sps
-        + 2 + SPSs.size()                   //! one sps
-        + 1                                 //! num pps
-        + 2 + PPSs.size();                  //! one pps
-
-        sp<Buffer> avcC = new Buffer(avcCLength);
-        BitWriter bw(*avcC);
-        bw.w8(1);
-        // TODO
+    status_t AVCDecoderConfigurationRecord::compose(BitWriter& bw) const {
+        CHECK_GE(bw.size(), size());
+        bw.w8(1);                           // configurationVersion
+        // TODO: get profile and level from sps
+        bw.w8(AVCProfileIndication);        // AVCProfileIndication
+        bw.w8(0);                           // profile_compatibility
+        bw.w8(AVCLevelIndication);          // AVCLevelIndication
+        bw.write(0x3f, 6);
+        bw.write(lengthSizeMinusOne, 2);    // lengthSizeMinusOne
+        bw.write(0x7, 3);                   //
+        bw.write(SPSs.size(), 5);           // numOfSequenceParameterSets
+        List<sp<Buffer> >::const_iterator it = SPSs.cbegin();
+        for (; it != SPSs.cend(); ++it) {
+            const sp<Buffer>& sps = *it;
+            bw.wb16(sps->size());           // sequenceParameterSetLength
+            bw.writeB(*sps);                // sps
+        }
+        bw.w8(PPSs.size());                 // numOfPictureParameterSets
+        for (; it != PPSs.cend(); ++it) {
+            const sp<Buffer>& pps = *it;
+            bw.wb16(pps->size());           // pictureParameterSetLength
+            bw.writeB(*pps);                // pps
+        }
+        bw.write();
+        return OK;
+    }
+    
+    size_t AVCDecoderConfigurationRecord::size() const {
+        size_t n = 1 + 3 + 2;
+        // sps
+        List<sp<Buffer> >::const_iterator it = SPSs.cbegin();
+        for (; it != SPSs.cend(); ++it) {
+            n += (2 + (*it)->size());
+        }
+        n += 1;     // numOfPictureParameterSets
+        // pps
+        it = PPSs.cbegin();
+        for (; it != PPSs.cend(); ++it) {
+            n += (2 + (*it)->size());
+        }
+        return n;
     }
     
 }; };

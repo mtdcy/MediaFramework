@@ -37,7 +37,6 @@
 #include <MediaToolkit/Toolkit.h>
 
 #include "MediaSession.h"
-#include "opengl/GLVideo.h"
 #include "sdl2/SDLAudio.h"
 
 #define MIN_COUNT (4)
@@ -388,7 +387,7 @@ namespace mtdcy {
                 if (options.contains("MediaOut")) {
                     mOut = options.find<sp<MediaOut> >("MediaOut");
                 } else {
-                    mOut = new GLVideo();
+                    mOut = MediaOut::Create(kCodecTypeVideo);
                 }
                 
                 if (mOut->prepare(format) != OK) {
