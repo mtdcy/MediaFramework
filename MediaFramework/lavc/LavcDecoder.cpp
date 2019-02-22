@@ -64,6 +64,7 @@ struct {
     {kAudioCodecFormatWMA,      AV_CODEC_ID_WMAV2   },
     {kAudioCodecFormatVorbis,   AV_CODEC_ID_VORBIS  },
     {kAudioCodecFormatDTS,      AV_CODEC_ID_DTS     },
+    {kAudioCodecFormatAC3,      AV_CODEC_ID_AC3     },
 
     // video
     {kVideoCodecFormatH264,     AV_CODEC_ID_H264    },
@@ -75,7 +76,7 @@ struct {
     {kCodecFormatUnknown,       AV_CODEC_ID_NONE}
 };
 
-eCodecFormat get_codec_format(AVCodecID b) {
+static eCodecFormat get_codec_format(AVCodecID b) {
     for (size_t i = 0; kCodecMap[i].b != AV_CODEC_ID_NONE; ++i) {
         if (kCodecMap[i].b == b)
             return kCodecMap[i].a;
@@ -84,7 +85,7 @@ eCodecFormat get_codec_format(AVCodecID b) {
     return kCodecFormatUnknown;
 }
 
-AVCodecID get_av_codec_id(eCodecFormat a) {
+static AVCodecID get_av_codec_id(eCodecFormat a) {
     for (size_t i = 0; kCodecMap[i].a != kCodecFormatUnknown; ++i) {
         if (kCodecMap[i].a == a)
             return kCodecMap[i].b;
@@ -108,7 +109,7 @@ struct {
     {kPixelFormatUnknown,       AV_PIX_FMT_NONE}
 };
 
-ePixelFormat get_pix_format(AVPixelFormat b) {
+static ePixelFormat get_pix_format(AVPixelFormat b) {
     for (size_t i = 0; kPixelMap[i].b != AV_PIX_FMT_NONE; ++i) {
         if (kPixelMap[i].b == b)
             return kPixelMap[i].a;
@@ -117,7 +118,7 @@ ePixelFormat get_pix_format(AVPixelFormat b) {
     return kPixelFormatUnknown;
 }
 
-AVPixelFormat get_av_pix_format(ePixelFormat a) {
+static AVPixelFormat get_av_pix_format(ePixelFormat a) {
     for (size_t i = 0; kPixelMap[i].a != kPixelFormatUnknown; ++i) {
         if (kPixelMap[i].a == a)
             return kPixelMap[i].b;
@@ -143,15 +144,16 @@ struct {
     {kSampleFormatUnknown,      AV_SAMPLE_FMT_NONE},
 };
 
-eSampleFormat get_sample_format(AVSampleFormat b) {
+static eSampleFormat get_sample_format(AVSampleFormat b) {
     for (size_t i = 0; kSampleMap[i].b != AV_SAMPLE_FMT_NONE; ++i) {
         if (kSampleMap[i].b == b) return kSampleMap[i].a;
     }
-    FATAL("fix the map");
-    return kSampleFormatUnknown;
+    //FATAL("fix the map");
+    //return kSampleFormatUnknown;
+    return kSampleFormatS16;    // default one
 }
 
-AVSampleFormat get_av_sample_format(eSampleFormat a) {
+static AVSampleFormat get_av_sample_format(eSampleFormat a) {
     for (size_t i = 0; kSampleMap[i].a != kSampleFormatUnknown; ++i) {
         if (kSampleMap[i].a == a) return kSampleMap[i].b;
     }
@@ -382,6 +384,41 @@ static status_t setupExtraData(AVCodecContext *avcc, const Message& formats) {
     return OK;
 }
 
+void av_log_callback(void *avcl, int level, const char *fmt, va_list vl) {
+    
+    level &= 0xff;
+    
+#if LOG_NDEBUG == 0
+    // NOTHING
+#else
+    if (level > AV_LOG_ERROR) return;
+#endif
+    
+    static int print_prefix = 1;
+    char line[1024] = { 0 };
+    AVClass* avc = avcl ? *(AVClass **) avcl : NULL;
+    
+    if (print_prefix && avc) {
+        if (avc->parent_log_context_offset) {
+            AVClass** parent = *(AVClass ***) (((uint8_t *) avcl) +
+                                               avc->parent_log_context_offset);
+            if (parent && *parent) {
+                snprintf(line, sizeof(line), "[%s @ %p] ",
+                         (*parent)->item_name(parent), parent);
+            }
+        }
+        snprintf(line + strlen(line), sizeof(line) - strlen(line), "[%s @ %p] ",
+                 avc->item_name(avcl), avcl);
+    }
+    
+    vsnprintf(line + strlen(line), sizeof(line) - strlen(line), fmt, vl);
+    
+    // we will add \n automatically
+    line[strlen(line)-1] = '\0';
+    
+    INFO("%s", line);
+}
+
 #ifdef __APPLE__
 sp<MediaFrame> readVideoToolboxFrame(CVPixelBufferRef);
 #endif
@@ -419,6 +456,10 @@ struct LavcDecoder : public MediaDecoder {
 
     virtual MediaError init(const Message& formats, const Message& options) {
         CHECK_TRUE(formats.contains(kKeyFormat));
+      
+#if LOG_NDEBUG == 0
+        av_log_set_callback(av_log_callback);
+#endif
         
         eCodecFormat codec = (eCodecFormat)formats.findInt32(kKeyFormat);
         eCodecType type = GetCodecType(codec);
@@ -450,6 +491,7 @@ struct LavcDecoder : public MediaDecoder {
             avcc->channels              = formats.findInt32(kKeyChannels);
             avcc->sample_rate           = formats.findInt32(kKeySampleRate);
             //avcc->bit_rate              = formats.findInt32(Media::Bitrate);
+            avcc->request_channel_layout = AV_CH_LAYOUT_STEREO;
         } else if (type == kCodecTypeVideo) {
             avcc->width                 = formats.findInt32(kKeyWidth);
             avcc->height                = formats.findInt32(kKeyHeight);
@@ -506,24 +548,27 @@ struct LavcDecoder : public MediaDecoder {
             return kMediaErrorUnknown;
         }
         
-#if LOG_NDEBUG == 0
+        INFO("codec %s open success with %d threads, type %d",
+             avcc->codec->name,
+             avcc->thread_count,
+             avcc->active_thread_type);
+#if 1 // LOG_NDEBUG == 0
         if (type == kCodecTypeVideo) {
-            DEBUG("w %d h %d, codec w %d h %d", avcc->width, avcc->height,
+            INFO("w %d h %d, codec w %d h %d", avcc->width, avcc->height,
                   avcc->coded_width, avcc->coded_height);
-            DEBUG("gop %d", avcc->gop_size);
-            DEBUG("pix_fmt %s", av_get_pix_fmt_name(avcc->pix_fmt));
+            INFO("gop %d", avcc->gop_size);
+            INFO("pix_fmt %s", av_get_pix_fmt_name(avcc->pix_fmt));
             if (avcc->hwaccel) {
                 DEBUG("%s %s %s",
                       avcc->hwaccel,
                       avcodec_get_name(avcc->hwaccel->id),
                       av_get_pix_fmt_name(avcc->hwaccel->pix_fmt));
             }
+        } else if (type == kCodecTypeAudio) {
+            INFO("channels %d, channel layout %d, sample rate %d",
+                  avcc->channels, avcc->channel_layout, avcc->sample_rate);
         }
 #endif
-        INFO("codec %s open success with %d threads, type %d",
-             avcc->codec->name,
-             avcc->thread_count,
-             avcc->active_thread_type);
         
         mContext = avcc;
         return kMediaNoError;
@@ -540,9 +585,8 @@ struct LavcDecoder : public MediaDecoder {
             // FIX sample rate of AAC SBR
             if (avcc->codec_id == AV_CODEC_ID_AAC &&
                 avcc->extradata_size >= 2) {
-                Buffer csd((const char *)avcc->extradata,
-                           (size_t)avcc->extradata_size);
-                BitReader br(csd);
+                BitReader br((const char *)avcc->extradata,
+                             (size_t)avcc->extradata_size);
                 MPEG4::AudioSpecificConfig config(br);
                 if (config.valid && config.sbr) {
                     INFO("fix sample rate %d => %d",
@@ -578,8 +622,8 @@ struct LavcDecoder : public MediaDecoder {
                     input->flags);
 
             AVPacket *pkt   = av_packet_alloc();
-            pkt->data   = input->data;
-            pkt->size   = input->size;
+            pkt->data       = input->data;
+            pkt->size       = input->size;
 #if 0
             // FIXME:
             if (input->pts != kTimeInvalid)
@@ -591,11 +635,11 @@ struct LavcDecoder : public MediaDecoder {
             else
                 pkt->dts    = AV_NOPTS_VALUE;
 #else
-            pkt->pts    = AV_NOPTS_VALUE;
-            pkt->dts    = AV_NOPTS_VALUE;
+            pkt->pts        = AV_NOPTS_VALUE;
+            pkt->dts        = AV_NOPTS_VALUE;
 #endif
             
-            pkt->flags  = 0;
+            pkt->flags      = 0;
 
             if (input->flags & kFrameFlagSync)
                 pkt->flags |= AV_PKT_FLAG_KEY;
@@ -672,19 +716,17 @@ struct LavcDecoder : public MediaDecoder {
 
 #if LOG_NDEBUG == 0
         if (avcc->codec_type == AVMEDIA_TYPE_VIDEO) {
-            DEBUG("frame %s %.3f(s) => %d x %d => %d x %d",
+            DEBUG("frame %s %.3f(s) => %d x %d => ",
                     av_get_pix_fmt_name((AVPixelFormat)internal->format),
-                    out->pts * av_q2d(avcc->pkt_timebase),
+                    out->pts.seconds(),
                     out->v.width,
-                    out->v.height,
-                    out->v.strideWidth,
-                    out->v.sliceHeight);
+                    out->v.height);
         } else {
             DEBUG("frame %s %.3f(s), %d %d nb_samples %d",
                     av_get_sample_fmt_name((AVSampleFormat)internal->format),
-                    out->pts * av_q2d(avcc->pkt_timebase),
+                    out->pts.seconds(),
                     out->a.channels,
-                    out->a.rate,
+                    out->a.freq,
                     internal->nb_samples);
         }
 #endif

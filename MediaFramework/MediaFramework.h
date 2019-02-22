@@ -26,7 +26,7 @@
  ******************************************************************************/
 
 
-// File:    Modules.h
+// File:    MediaFramework.h
 // Author:  mtdcy.chen
 // Changes: 
 //          1. 20160701     initial version

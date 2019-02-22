@@ -61,7 +61,7 @@ struct {
     {"",            kCodecFormatUnknown},
 };
 
-eCodecFormat get_codec_format(const String& name) {
+static eCodecFormat get_codec_format(const String& name) {
     for (size_t i = 0; kCodecMap[i].format != kCodecFormatUnknown; ++i) {
         if (name == kCodecMap[i].name)
             return kCodecMap[i].format;
@@ -70,7 +70,7 @@ eCodecFormat get_codec_format(const String& name) {
 }
 
 // TODO:
-status_t prepareMetaData(const sp<Box>& meta, const sp<Message>& target) {
+static status_t prepareMetaData(const sp<Box>& meta, const sp<Message>& target) {
     if (meta == 0 || target == 0) {
         ERROR("bad parameters.");
         return BAD_VALUE;
@@ -93,8 +93,8 @@ struct Sample {
     uint32_t            flags;
 };
 
-struct Track {
-    Track() : codec(kCodecFormatUnknown), trackIndex(0),
+struct Mp4Track {
+    Mp4Track() : codec(kCodecFormatUnknown), trackIndex(0),
     sampleIndex(0), duration(kTimeInvalid),
     startTime(kTimeInvalid) { }
 
@@ -118,16 +118,7 @@ struct Track {
     sp<CommonBox>       esds;
 };
 
-struct M4 {
-    Vector<sp<Track> >  tracks;
-    MediaTime           duration;
-    struct {
-        size_t          offset;
-        size_t          length;
-    } meta;
-};
-
-static sp<Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderBox>& mvhd) {
+static sp<Mp4Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderBox>& mvhd) {
     if (CheckTrackBox(trak) == false) {
         ERROR("bad TrackBox");
         return NULL;
@@ -162,7 +153,7 @@ static sp<Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderBox>
         WARN("stsd with multi SampleEntry");
     }
     
-    sp<Track> track = new Track;
+    sp<Mp4Track> track = new Mp4Track;
     track->duration = MediaTime(mdhd->duration, mdhd->timescale);
     
     DEBUG("handler: [%s] %s", hdlr->handler_type.c_str(),
@@ -320,141 +311,10 @@ static sp<Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderBox>
     return track;
 }
 
-sp<M4> prepare(sp<Content>& pipe) {
-    sp<M4> m4 = new M4;
-    
-    MediaError err = kMediaNoError;
-    FileTypeBox ftyp;
-    sp<Buffer>  moovData;  // this is our target
-    bool mdat = false;
-    
-    while (!mdat || moovData == NULL) {
-        sp<Buffer> boxHeader    = pipe->read(8);
-        if (boxHeader == 0 || boxHeader->size() < 8) {
-            DEBUG("lack of data. ");
-            break;
-        }
-        
-        BitReader br(*boxHeader);
-        
-        size_t boxHeadLength    = 8;
-        // if size is 1 then the actual size is in the field largesize;
-        // if size is 0, then this box is the last one in the file
-        uint64_t boxSize        = br.rb32();
-        const String boxType    = br.readS(4);
-        
-        if (boxSize == 1) {
-            sp<Buffer> large    = pipe->read(8);
-            BitReader br(*large);
-            boxSize             = br.rb64();
-            boxHeadLength       = 16;
-        }
-        
-        DEBUG("file: %s %" PRIu64, boxType.c_str(), boxSize);
-        
-        if (boxType == "mdat") {
-            mdat = true;
-            // ISO/IEC 14496-12: Section 8.2 Page 23
-            DEBUG("skip media data box");
-            pipe->skip(boxSize - boxHeadLength);
-            continue;
-        }
-        
-        if (boxSize == 0) {
-            DEBUG("box extend to the end.");
-            break;
-        }
-        
-        CHECK_GE((size_t)boxSize, boxHeadLength);
-        
-        // empty box
-        if (boxSize == boxHeadLength) {
-            DEBUG("empty top level box %s", boxType.c_str());
-            continue;
-        }
-        
-        if (boxType == "meta") {
-            m4->meta.offset     = pipe->tell();
-            m4->meta.length     = boxSize;
-            INFO("find meta box @ %zu(%zu)", m4->meta.offset, m4->meta.length);
-            pipe->skip(boxSize);
-            continue;
-        }
-        
-        boxSize     -= boxHeadLength;
-        sp<Buffer> boxPayload   = pipe->read(boxSize);
-        if (boxPayload == 0 || boxPayload->size() != boxSize) {
-            ERROR("truncated file ?");
-            break;
-        }
-        
-        if (boxType == "ftyp") {
-            // ISO/IEC 14496-12: Section 4.3 Page 12
-            DEBUG("file type box");
-            BitReader _br(*boxPayload);
-            ftyp = FileTypeBox(_br, boxSize);
-        } else if (boxType == "moov") {
-            // ISO/IEC 14496-12: Section 8.1 Page 22
-            DEBUG("movie box");
-            moovData = boxPayload;
-        } else {
-            ERROR("unknown top level box: %s", boxType.c_str());
-        }
-    }
-    
-    // ftyp maybe missing from mp4
-    if (moovData == NULL) {
-        ERROR("moov is missing");
-        return NULL;
-    }
-    
-    if (mdat == false) {
-        ERROR("mdat is missing");
-        return NULL;
-    }
-    
-    sp<MovieBox> moov = new MovieBox;
-    if (moov->parse(BitReader(*moovData), moovData->size(), ftyp) != OK) {
-        ERROR("bad moov box?");
-        return NULL;
-    }
-    PrintBox(moov);
-
-    sp<MovieHeaderBox> mvhd = FindBox(moov, "mvhd");
-    if (mvhd == 0) {
-        ERROR("can not find mvhd.");
-        return NULL;
-    }
-
-    for (size_t i = 0; ; ++i) {
-        sp<TrackBox> trak = FindBox(moov, "trak", i);
-        if (trak == 0) break;
-
-        sp<Track> track = prepareTrack(trak, mvhd);
-
-        if (track == NULL) continue;
-
-        track->trackIndex = m4->tracks.size();
-        m4->tracks.push(track);
-    }
-
-    if (m4->tracks.empty()) {
-        ERROR("no valid track present.");
-        return NULL;
-    }
-    
-    // TODO: handle meta box
-
-    INFO("%zu tracks ready", m4->tracks.size());
-    return m4;
-}
-
-static size_t findSampleIndex(const sp<M4>& m4,
-        size_t index,
+static size_t findSampleIndex(Mp4Track& track,
         int64_t ts,
         eModeReadType mode,
         size_t *match = NULL) {
-    const Track& track = *m4->tracks[index];
     const Vector<Sample>& tbl = track.sampleTable;
 
     size_t first = 0;
@@ -508,7 +368,7 @@ static size_t findSampleIndex(const sp<M4>& m4,
 
 
     INFO("track %zu: seek %.3f(s) => [%zu - %zu - %zu] => %zu # %zu",
-            index, (double)ts / track.duration.timescale,
+            track.trackIndex, (double)ts / track.duration.timescale,
             first, mid, second, result,
             search_count);
 
@@ -529,7 +389,12 @@ struct Mp4Packet : public MediaPacket {
 
 struct Mp4File : public MediaExtractor {
     sp<Content>             mContent;
-    sp<M4>                  mContext;
+    Vector<Mp4Track>        mTracks;
+    MediaTime               mDuration;
+    struct {
+        size_t              offset;
+        size_t              length;
+    } meta;
 
     Mp4File() : MediaExtractor(), mContent(NULL) { }
 
@@ -538,27 +403,27 @@ struct Mp4File : public MediaExtractor {
     virtual Message formats() const {
         Message info;
         info.setInt32(kKeyFormat, kFileFormatMP4);
-        info.set<MediaTime>(kKeyDuration, mContext->duration);
-        info.setInt32(kKeyCount, mContext->tracks.size());
+        info.set<MediaTime>(kKeyDuration, mDuration);
+        info.setInt32(kKeyCount, mTracks.size());
 
-        for (size_t i = 0; i < mContext->tracks.size(); ++i) {
-            const sp<Track>& trak = mContext->tracks[i];
+        for (size_t i = 0; i < mTracks.size(); ++i) {
+            const Mp4Track& trak = mTracks[i];
 
             Message trakInfo;
-            trakInfo.setInt32(kKeyFormat, trak->codec);
-            trakInfo.set<MediaTime>(kKeyDuration, trak->duration);
+            trakInfo.setInt32(kKeyFormat, trak.codec);
+            trakInfo.set<MediaTime>(kKeyDuration, trak.duration);
 
-            eCodecType type = GetCodecType(trak->codec);
+            eCodecType type = GetCodecType(trak.codec);
             if (type == kCodecTypeAudio) {
-                trakInfo.setInt32(kKeySampleRate, trak->audio.sampleRate);
-                trakInfo.setInt32(kKeyChannels, trak->audio.channelCount);
+                trakInfo.setInt32(kKeySampleRate, trak.audio.sampleRate);
+                trakInfo.setInt32(kKeyChannels, trak.audio.channelCount);
             } else if (type == kCodecTypeVideo) {
-                trakInfo.setInt32(kKeyWidth, trak->video.width);
-                trakInfo.setInt32(kKeyHeight, trak->video.height);
+                trakInfo.setInt32(kKeyWidth, trak.video.width);
+                trakInfo.setInt32(kKeyHeight, trak.video.height);
             }
 
-            if (trak->esds != NULL) {
-                trakInfo.set<Buffer>(trak->esds->name, *trak->esds->data);
+            if (trak.esds != NULL) {
+                trakInfo.set<Buffer>(trak.esds->name, *trak.esds->data);
             }
 
 #if 0
@@ -613,9 +478,129 @@ struct Mp4File : public MediaExtractor {
     virtual MediaError init(sp<Content>& pipe, const Message& options) {
         CHECK_TRUE(pipe != NULL);
         pipe->reset();
-
-        mContext = prepare(pipe);
-        if (mContext == NULL) return kMediaErrorBadFormat;
+    
+        FileTypeBox ftyp;
+        sp<Buffer>  moovData;  // this is our target
+        bool mdat = false;
+        
+        while (!mdat || moovData == NULL) {
+            sp<Buffer> boxHeader    = pipe->read(8);
+            if (boxHeader == 0 || boxHeader->size() < 8) {
+                DEBUG("lack of data. ");
+                break;
+            }
+            
+            BitReader br(*boxHeader);
+            
+            size_t boxHeadLength    = 8;
+            // if size is 1 then the actual size is in the field largesize;
+            // if size is 0, then this box is the last one in the file
+            uint64_t boxSize        = br.rb32();
+            const String boxType    = br.readS(4);
+            
+            if (boxSize == 1) {
+                sp<Buffer> large    = pipe->read(8);
+                BitReader br(*large);
+                boxSize             = br.rb64();
+                boxHeadLength       = 16;
+            }
+            
+            DEBUG("file: %s %" PRIu64, boxType.c_str(), boxSize);
+            
+            if (boxType == "mdat") {
+                mdat = true;
+                // ISO/IEC 14496-12: Section 8.2 Page 23
+                DEBUG("skip media data box");
+                pipe->skip(boxSize - boxHeadLength);
+                continue;
+            }
+            
+            if (boxSize == 0) {
+                DEBUG("box extend to the end.");
+                break;
+            }
+            
+            CHECK_GE((size_t)boxSize, boxHeadLength);
+            
+            // empty box
+            if (boxSize == boxHeadLength) {
+                DEBUG("empty top level box %s", boxType.c_str());
+                continue;
+            }
+            
+            if (boxType == "meta") {
+                meta.offset     = pipe->tell();
+                meta.length     = boxSize;
+                INFO("find meta box @ %zu(%zu)", meta.offset, meta.length);
+                pipe->skip(boxSize);
+                continue;
+            }
+            
+            boxSize     -= boxHeadLength;
+            sp<Buffer> boxPayload   = pipe->read(boxSize);
+            if (boxPayload == 0 || boxPayload->size() != boxSize) {
+                ERROR("truncated file ?");
+                break;
+            }
+            
+            if (boxType == "ftyp") {
+                // ISO/IEC 14496-12: Section 4.3 Page 12
+                DEBUG("file type box");
+                BitReader _br(*boxPayload);
+                ftyp = FileTypeBox(_br, boxSize);
+            } else if (boxType == "moov") {
+                // ISO/IEC 14496-12: Section 8.1 Page 22
+                DEBUG("movie box");
+                moovData = boxPayload;
+            } else {
+                ERROR("unknown top level box: %s", boxType.c_str());
+            }
+        }
+        
+        // ftyp maybe missing from mp4
+        if (moovData == NULL) {
+            ERROR("moov is missing");
+            return kMediaErrorBadFormat;
+        }
+        
+        if (mdat == false) {
+            ERROR("mdat is missing");
+            return kMediaErrorBadFormat;
+        }
+        
+        sp<MovieBox> moov = new MovieBox;
+        if (moov->parse(BitReader(*moovData), moovData->size(), ftyp) != OK) {
+            ERROR("bad moov box?");
+            return kMediaErrorBadFormat;
+        }
+        PrintBox(moov);
+        
+        sp<MovieHeaderBox> mvhd = FindBox(moov, "mvhd");
+        if (mvhd == 0) {
+            ERROR("can not find mvhd.");
+            return kMediaErrorBadFormat;
+        }
+        
+        for (size_t i = 0; ; ++i) {
+            sp<TrackBox> trak = FindBox(moov, "trak", i);
+            if (trak == 0) break;
+            
+            sp<Mp4Track> track = prepareTrack(trak, mvhd);
+            
+            if (track == NULL) continue;
+            
+            track->trackIndex = mTracks.size();
+            mTracks.push(*track);
+        }
+        
+        if (mTracks.empty()) {
+            ERROR("no valid track present.");
+            return kMediaErrorBadFormat;
+        }
+        
+        // TODO: handle meta box
+        
+        INFO("%zu tracks ready", mTracks.size());
         
         mContent = pipe;
         return kMediaNoError;
@@ -624,7 +609,7 @@ struct Mp4File : public MediaExtractor {
     virtual sp<MediaPacket> read(size_t index,
             eModeReadType mode,
             const MediaTime& _ts = kTimeInvalid) {
-        Track& track = *mContext->tracks[index];
+        Mp4Track& track = mTracks[index];
         Vector<Sample>& tbl = track.sampleTable;
 
         MediaTime ts = _ts;
@@ -653,7 +638,7 @@ struct Mp4File : public MediaExtractor {
             ts = ts.scale(track.duration.timescale);
 
             size_t match;
-            sampleIndex = findSampleIndex(mContext, index, ts.value, mode, &match);
+            sampleIndex = findSampleIndex(track, ts.value, mode, &match);
 
             if (mode != kModeReadPeek) {
                 track.startTime = MediaTime(tbl[sampleIndex].dts,

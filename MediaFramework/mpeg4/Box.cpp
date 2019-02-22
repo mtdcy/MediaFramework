@@ -32,7 +32,7 @@
 //          1. 20160701     initial version
 //
 
-#define LOG_TAG   "Box"
+#define LOG_TAG   "MPEG4.Box"
 //#define LOG_NDEBUG 0
 #include <MediaToolkit/Toolkit.h>
 #include "Box.h"

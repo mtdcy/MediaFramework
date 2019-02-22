@@ -33,7 +33,7 @@
 //
 
 #define LOG_TAG "MPEG4.Audio"
-#define LOG_NDEBUG 0 
+//#define LOG_NDEBUG 0 
 #include <MediaToolkit/Toolkit.h>
 
 #include "Audio.h" 
@@ -55,17 +55,17 @@ namespace mtdcy { namespace MPEG4 {
 
     static uint8_t objectType(const BitReader& br) {
         uint8_t aot = br.read(5);
-        INFO("aot %" PRIu8, aot);
+        DEBUG("aot %" PRIu8, aot);
         if (aot == 31) {
             aot = 32 + br.read(6);
-            INFO("aot %" PRIu8, aot);
+            DEBUG("aot %" PRIu8, aot);
         }
         return aot;
     }
 
     static uint32_t samplingRate(const BitReader& br) {
         uint8_t samplingFrequencyIndex = br.read(4);
-        INFO("samplingFrequencyIndex %" PRIu8, samplingFrequencyIndex);
+        DEBUG("samplingFrequencyIndex %" PRIu8, samplingFrequencyIndex);
         if (samplingFrequencyIndex == 15)
             return br.rb24();
         else 
@@ -88,7 +88,7 @@ namespace mtdcy { namespace MPEG4 {
         samplingFrequency       = samplingRate(br);
         uint8_t channelConfig   = br.read(4);
         channels                = kM4AChannels[channelConfig];
-        DEBUG("AOT %" PRIu8 ", samplingFrequency %" PRIu32 ", channels %" PRIu8,
+        INFO("AOT %" PRIu8 ", samplingFrequency %" PRIu32 ", channels %" PRIu8,
                 audioObjectType, samplingFrequency, channels);
 
         // AOT Specific Config

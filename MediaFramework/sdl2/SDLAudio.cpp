@@ -86,13 +86,22 @@ namespace mtdcy {
             mInitByUs = true;
             SDL_InitSubSystem(SDL_INIT_AUDIO);
         }
-
+        
+        eSampleFormat format = (eSampleFormat)options.findInt32(kKeyFormat);
+        uint32_t freq = options.findInt32(kKeySampleRate);
+        uint32_t chan = options.findInt32(kKeyChannels);
+     
+        return openDevice(format, freq, chan);
+    }
+    
+    status_t SDLAudio::openDevice(eSampleFormat format, uint32_t freq, uint32_t channels) {
+        INFO("open device: %d %d %d", format, freq, channels);
         SDL_AudioSpec wanted_spec, spec;
 
         // sdl only support s16.
-        wanted_spec.channels    = options.findInt32(kKeyChannels);
-        wanted_spec.freq        = options.findInt32(kKeySampleRate);
-        wanted_spec.format      = get_sdl_sample_format((eSampleFormat)options.findInt32(kKeyFormat));
+        wanted_spec.channels    = channels;
+        wanted_spec.freq        = freq;
+        wanted_spec.format      = get_sdl_sample_format((eSampleFormat)format);
         wanted_spec.silence     = 0;
         wanted_spec.samples     = 2048;
         wanted_spec.callback    = onSDLCallback;
@@ -102,19 +111,11 @@ namespace mtdcy {
             ERROR("SDL_OpenAudio failed. %s", SDL_GetError());
             return BAD_VALUE;
         }
-
-        sp<Message> format      = new Message;
-        format->setInt32(kKeyFormat, get_sample_format(spec.format));
-        format->setInt32(kKeyChannels, spec.channels);
-        format->setInt32(kKeySampleRate, spec.freq);
-        //format->setInt32(Media::BufferSize, spec.size); // FIXME
-        // assume double buffer
-        format->setInt32(kKeyLatency, 2 * (1000000LL * spec.samples) / spec.freq);
         
-        INFO("sink %s", format->string().c_str());
-
-        mFormat     = format;
-        mSampleFormat = spec.format;
+        mSampleFormat   = get_sample_format(spec.format);
+        mSampleRate     = spec.freq;
+        mChannels       = spec.channels;
+        
         INFO("SDL audio init done.");
         return OK;
     }
@@ -138,7 +139,11 @@ namespace mtdcy {
     }
 
     Message SDLAudio::formats() const {
-        return *mFormat;
+        Message info;
+        info.setInt32(kKeyFormat, mSampleFormat);
+        info.setInt32(kKeySampleRate, mSampleRate);
+        info.setInt32(kKeyChannels, mChannels);
+        return info;
     }
 
     status_t SDLAudio::configure(const Message& options) {
@@ -195,6 +200,13 @@ namespace mtdcy {
         DEBUG("write");
         if (input == NULL) return flush();
         
+        if (input->a.format != mSampleFormat ||
+            input->a.channels != mChannels ||
+            input->a.freq != mSampleRate) {
+            SDL_CloseAudio();
+            openDevice(input->a.format, input->a.freq, input->a.channels);
+        }
+        
         AutoLock _l(mLock);
 
         //DEBUG("write %s", input->string().c_str());
@@ -206,13 +218,13 @@ namespace mtdcy {
         
         if (input->planes[1].data != NULL) {
             switch (mSampleFormat) {
-                case AUDIO_S16SYS:
+                case kSampleFormatS16:
                     mPendingFrame   = interleave<int16_t>(input);
                     break;
-                case AUDIO_S32SYS:
+                case kSampleFormatS32:
                     mPendingFrame   = interleave<int32_t>(input);
                     break;
-                case AUDIO_F32SYS:
+                case kSampleFormatFLT:
                     mPendingFrame   = interleave<float>(input);
                     break;
                 default:

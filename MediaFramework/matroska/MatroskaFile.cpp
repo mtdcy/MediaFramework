@@ -33,19 +33,20 @@
 //
 
 #define LOG_TAG   "Matroska"
-#define LOG_NDEBUG 0
+//#define LOG_NDEBUG 0
 #include <MediaToolkit/Toolkit.h>
 
 #include <MediaFramework/MediaTime.h>
 
 #include "EBML.h"
-
-
+ 
 // reference:
 // https://matroska.org/technical/specs/index.html
 // https://matroska.org/files/matroska.pdf
 using namespace mtdcy;
 using namespace EBML;
+
+#define IS_ZERO(x)  ((x) < 0.0000001 || -(x) < 0.0000001)
 
 enum eTrackType {
     kTrackTypeVideo     = 0x1,
@@ -103,8 +104,10 @@ static struct {
     { "V_MPEGH/ISO/HEVC",       kVideoCodecFormatHEVC   },
     // audio
     { "A_AAC",                  kAudioCodecFormatAAC    },
+    { "A_AC3",                  kAudioCodecFormatAC3    },
     { "A_DTS",                  kAudioCodecFormatDTS    },
     { "A_MPEG/L2",              kAudioCodecFormatMP3    },
+    { "A_MPEG/L3",              kAudioCodecFormatMP3    },
     // END OF LIST
     { "",                       kCodecFormatUnknown     },
 };
@@ -120,6 +123,7 @@ static eCodecFormat GetCodecFormat(const String& codec) {
 }
 
 #include <MediaFramework/MediaPacket.h>
+#include <MediaFramework/MediaPacketizer.h>
 struct MatroskaTrack {
     MatroskaTrack() : id(0), format(kCodecFormatUnknown),
     frametime(0), timescale(1.0), next_dts(kTimeBegin) { }
@@ -141,6 +145,8 @@ struct MatroskaTrack {
     sp<Buffer>          csd;
     List<sp<MediaPacket> >  blocks;
     MediaTime               next_dts;
+    
+    sp<MediaPacketizer> packetizer;
 };
 
 struct TOCEntry {
@@ -156,9 +162,10 @@ struct MatroskaPacket : public MediaPacket {
     sp<Buffer>  buffer;
     
     MatroskaPacket(MatroskaTrack& trak,
-                   const sp<EBMLBlockElement>& block,
-                   uint64_t timecode) {
-        buffer  = block->data;
+                   const sp<Buffer>& _data,
+                   uint64_t timecode,
+                   uint32_t _flags) {
+        buffer  = _data;
         data    = (uint8_t*)buffer->data();
         size    = buffer->size();
         
@@ -175,9 +182,7 @@ struct MatroskaPacket : public MediaPacket {
 #endif
         
         format  = trak.format;
-        flags   = 0;
-        if (block->Flags & kBlockFlagKey)           flags |= kFrameFlagSync;
-        if (block->Flags & kBlockFlagDiscardable)   flags |= kFrameFlagDisposal;
+        flags   = _flags;
     }
 };
 
@@ -185,6 +190,7 @@ struct MatroskaPacket : public MediaPacket {
 #include "mpeg4/Audio.h"
 #include "mpeg4/Video.h"
 #define TIMESCALE_DEF 1000000UL
+bool decodeMPEGAudioFrameHeader(const Buffer& frame, uint32_t *sampleRate, uint32_t *numChannels);
 struct MatroskaFile : public MediaExtractor {
     int64_t                 mSegment;   // offset of SEGMENT
     int64_t                 mClusters;  // offset of CLUSTERs
@@ -229,7 +235,9 @@ struct MatroskaFile : public MediaExtractor {
             ERROR("missing SEGMENTINFO");
             return kMediaErrorBadFormat;
         }
+#if LOG_NDEBUG == 0
         PrintEBMLElements(SEGMENTINFO);
+#endif
         
         sp<EBMLIntegerElement> TIMECODESCALE = FindEBMLElement(SEGMENTINFO, ID_TIMECODESCALE);
         if (TIMECODESCALE != NULL) {
@@ -250,8 +258,11 @@ struct MatroskaFile : public MediaExtractor {
             ERROR("missing TRACKS");
             return kMediaErrorBadFormat;
         }
+#if LOG_NDEBUG == 0
         PrintEBMLElements(TRACKS);
+#endif
         
+        bool stage2 = false;
         List<sp<EBMLElement> >::const_iterator it = TRACKS->children.cbegin();
         for (; it != TRACKS->children.cend(); ++it) {
             if ((*it)->id.u64 != ID_TRACKENTRY) continue;
@@ -266,6 +277,10 @@ struct MatroskaFile : public MediaExtractor {
             
             INFO("track codec %s", CODECID->str.c_str());
             trak.format = GetCodecFormat(CODECID->str);
+            if (trak.format == kCodecFormatUnknown) {
+                ERROR("unknown codec %s", CODECID->str.c_str());
+                continue;
+            }
             
             sp<EBMLIntegerElement> DEFAULTDURATION = FindEBMLElement(TRACKENTRY, ID_DEFAULTDURATION);
             if (DEFAULTDURATION != NULL) {
@@ -275,8 +290,11 @@ struct MatroskaFile : public MediaExtractor {
             
             sp<EBMLFloatElement> TRACKTIMECODESCALE = FindEBMLElement(TRACKENTRY, ID_TRACKTIMECODESCALE);
             if (TRACKTIMECODESCALE != NULL) {
-                DEBUG("track timecodescale %.f", TRACKTIMECODESCALE->vint.flt);
+                DEBUG("track timecodescale %f", TRACKTIMECODESCALE->vint.flt);
                 trak.timescale = TRACKTIMECODESCALE->vint.flt;
+                if (IS_ZERO(trak.timescale)) {
+                    trak.timescale = 1.0f;
+                }
             }
              
             sp<EBMLIntegerElement> TRACKTYPE = FindEBMLElement(TRACKENTRY, ID_TRACKTYPE);
@@ -287,6 +305,12 @@ struct MatroskaFile : public MediaExtractor {
                 
                 trak.a.sampleRate = SAMPLINGFREQUENCY->vint.flt;
                 trak.a.channels = CHANNELS->vint.u32;
+                
+                // I hate this: for some format, the mandatory properties always missing in header,
+                // we have to decode blocks to get these properties
+                if (trak.format == kAudioCodecFormatMP3) {
+                    stage2 = true;
+                }
                 
                 if (trak.a.sampleRate == 0 && trak.format == kAudioCodecFormatAAC) {
                     // XXX: do we have to fix the sample rate here?
@@ -306,12 +330,18 @@ struct MatroskaFile : public MediaExtractor {
                 trak.csd = CODECPRIVATE->data;  // handle csd in format()
             }
             
+            if (trak.format == kAudioCodecFormatMP3) {
+                trak.packetizer = MediaPacketizer::Create(trak.format);
+            }
+            
             mTracks.push(trak);
         }
         
         // CUES
         sp<EBMLMasterElement> CUES = getSegmentElement(pipe, SEGMENT, mSegment, ID_CUES);
-        PrintEBMLElements(CUES);
+#if LOG_NDEBUG == 0
+        //PrintEBMLElements(CUES);
+#endif
         
         it = CUES->children.cbegin();
         for (; it != CUES->children.cend(); ++it) {     // CUES can be very large, use iterator
@@ -329,7 +359,7 @@ struct MatroskaFile : public MediaExtractor {
             if (CUERELATIVEPOSITION != NULL) {
                 entry.block = CUERELATIVEPOSITION->vint.u32;
             }
-#if LOG_NDEBUG == 0
+#if 0 // LOG_NDEBUG == 0
             DEBUG("[%zu]: [%zu] %" PRIu64 ", %" PRId64 ", %zu",
                   mTOC.size(), entry.track,
                   entry.time, entry.cluster, entry.block);
@@ -344,8 +374,28 @@ struct MatroskaFile : public MediaExtractor {
              mClusters,
              first.cluster + mSegment);
         pipe->seek(mClusters);
-        
         mContent    = pipe;
+        
+        // stage 2: workarounds for some codec
+        // get extra properties by decoding blocks
+        if (stage2) {
+            List<MatroskaTrack>::iterator it = mTracks.begin();
+            for (; it != mTracks.end(); ++it) {
+                MatroskaTrack& trak = *it;
+                prepareBlocks(trak);
+                if (trak.blocks.empty()) continue;
+                
+                if (trak.format == kAudioCodecFormatMP3) {
+                    uint32_t sampleRate, numChannels;
+                    sp<MatroskaPacket> packet = trak.blocks[0];
+                    if (decodeMPEGAudioFrameHeader(*packet->buffer, &sampleRate, &numChannels)) {
+                        INFO("real mpa properties: %" PRIu32 " %" PRIu32, numChannels, sampleRate);
+                        trak.a.channels     = numChannels;
+                        trak.a.sampleRate   = sampleRate;
+                    }
+                }
+            }
+        }
         
         return kMediaNoError;
     }
@@ -377,11 +427,14 @@ struct MatroskaFile : public MediaExtractor {
                 DEBUG("csd: %s", trak.csd->string(true).c_str());
                 if (trak.format == kAudioCodecFormatAAC) {
                     // AudioSpecificConfig
+                    // TODO: if csd is not exists, make one
                     BitReader br(*trak.csd);
                     MPEG4::AudioSpecificConfig asc(br);
-                    if (asc.valid)
+                    if (asc.valid) {
                         trakInfo.set<Buffer>(kKeyCodecSpecificData, *trak.csd);
-                    else
+                        trakInfo.setInt32(kKeyChannels, asc.channels);
+                        trakInfo.setInt32(kKeySampleRate, asc.samplingFrequency);
+                    } else
                         ERROR("bad AudioSpecificConfig");
                 } else if (trak.format == kVideoCodecFormatH264) {
                     BitReader br(*trak.csd);
@@ -430,11 +483,27 @@ struct MatroskaFile : public MediaExtractor {
                     if (mTracks[i].id == block->TrackNumber.u32)
                         tmp = &mTracks[i];
                 }
-                CHECK_NULL(tmp);
+                if (tmp == NULL) continue;
+                                
+                uint32_t flags = 0;
+                if (block->Flags & kBlockFlagKey)           flags |= kFrameFlagSync;
+                if (block->Flags & kBlockFlagDiscardable)   flags |= kFrameFlagDisposal;
                 
                 uint64_t timecode = (TIMECODE->vint.u64 + block->TimeCode) * mTimeScale;
-                tmp->blocks.push(new MatroskaPacket(*tmp, block, timecode));
+                List<sp<Buffer> >::const_iterator it = block->data.cbegin();
+                for (; it != block->data.cend(); ++it) {
+                    timecode += tmp->frametime;
+                    tmp->blocks.push(new MatroskaPacket(*tmp, *it, timecode, flags));
+                }
             }
+            
+#if LOG_NDEBUG == 0
+            List<MatroskaTrack>::iterator it0 = mTracks.begin();
+            for (; it0 != mTracks.end(); ++it0) {
+                MatroskaTrack& trak = *it0;
+                DEBUG("track %zu: %zu blocks", trak.id, trak.blocks.size());
+            }
+#endif
         }
         return trak.blocks.empty() ? kMediaErrorNoMoreData: kMediaNoError;
     }
@@ -456,7 +525,16 @@ struct MatroskaFile : public MediaExtractor {
         }
         
         sp<MediaPacket> packet = *trak.blocks.begin();
-        trak.blocks.pop();
+        
+        if (trak.packetizer != NULL) {
+            if (trak.packetizer->enqueue(packet) == kMediaNoError) {
+                trak.blocks.pop();
+            }
+            packet = trak.packetizer->dequeue();
+            CHECK_TRUE(packet != NULL);
+        } else {
+            trak.blocks.pop();
+        }
         
         DEBUG("[%zu] packet %zu bytes, pts %.3f, dts %.3f, flags %#x", index,
               packet->size,

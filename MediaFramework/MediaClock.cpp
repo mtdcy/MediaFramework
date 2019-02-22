@@ -32,7 +32,7 @@
 //          1. 20181126     initial version
 //
 
-#define LOG_TAG "mpx.Clock"
+#define LOG_TAG "Clock"
 //#define LOG_NDEBUG 0
 #include <MediaToolkit/Toolkit.h>
 #include "MediaClock.h"

@@ -61,12 +61,15 @@ namespace mtdcy {
             virtual status_t        flush();
 
         private:
+            status_t                openDevice(eSampleFormat format, uint32_t freq, uint32_t channels);
             static void             onSDLCallback(void *opaque, uint8_t *stream, int len);
             void                    eatFrame(uint8_t *buffer, size_t len);
 
             bool                    mInitByUs;
             sp<Message>             mFormat;
-            uint16_t                mSampleFormat;  // SDL_AudioFormat
+            eSampleFormat           mSampleFormat;
+            uint32_t                mSampleRate;
+            uint32_t                mChannels;
             Mutex                   mLock;
             Condition               mWait;
             sp<Buffer>              mPendingFrame;

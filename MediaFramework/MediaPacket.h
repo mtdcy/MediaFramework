@@ -63,8 +63,9 @@ namespace mtdcy {
         void *              opaque;     ///< opaque
         
 #ifdef __cplusplus
-        MediaPacket() : data(NULL), index(0), format(kCodecFormatUnknown),
-        flags(kFrameFlagNone), dts(kTimeInvalid), pts(kTimeInvalid) { }
+        MediaPacket() : data(NULL), size(0), index(0), format(kCodecFormatUnknown),
+        flags(kFrameFlagNone), dts(kTimeInvalid), pts(kTimeInvalid), opaque(NULL) { }
+        virtual ~MediaPacket() { }
 #endif
     };
     

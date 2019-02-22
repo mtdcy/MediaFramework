@@ -36,8 +36,6 @@
 //#define LOG_NDEBUG 0
 #include <MediaToolbox/MediaToolbox.h>
 
-#include "MediaPacket.h"
-
 #define WITH_ID3
 #ifdef WITH_ID3
 #include "tags/id3/ID3.h"
@@ -215,16 +213,6 @@ static int64_t locateFirstFrame(const Buffer& data,
     return NAME_NOT_FOUND;
 }
 
-ssize_t locateFirstFrame(const Buffer& data, size_t *frameLength) {
-    MPEGAudioFrameHeader mpa;
-    ssize_t offset = locateFirstFrame(data, &mpa, NULL, NULL);
-    
-    if (offset < 0) return NAME_NOT_FOUND;
-    
-    *frameLength    = mpa.frameLengthInBytes;
-    return offset;
-}
-
 static int64_t locateFrame(const Buffer& data, uint32_t common, 
         struct MPEGAudioFrameHeader *frameHeader,
         size_t *possible) {
@@ -244,6 +232,15 @@ static int64_t locateFrame(const Buffer& data, uint32_t common,
         return i - 3;
     }
     return NAME_NOT_FOUND;
+}
+
+bool decodeMPEGAudioFrameHeader(const Buffer& frame, uint32_t *sampleRate, uint32_t *numChannels) {
+    MPEGAudioFrameHeader mpa;
+    ssize_t offset = locateFirstFrame(frame, &mpa, NULL, NULL);
+    if (offset < 0) return false;
+    if (sampleRate) *sampleRate = mpa.sampleRate;
+    if (numChannels) *numChannels = mpa.numChannels;
+    return true;
 }
 
 struct XingHeader {
@@ -274,7 +271,7 @@ static bool parseXingHeader(const Buffer& firstFrame, XingHeader *head) {
     
     if (flags & 0x0001) {
         head->numFrames     = br.rb32();
-        DEBUG("Xing: number frames %d", mNumFrames);
+        DEBUG("Xing: number frames %d", head->numFrames);
     } else {
         head->numFrames     = 0;
         DEBUG("Xing: no number frames.");
@@ -283,7 +280,7 @@ static bool parseXingHeader(const Buffer& firstFrame, XingHeader *head) {
     // including the first frame.
     if (flags & 0x0002) {
         head->numBytes      = br.rb32();
-        DEBUG("Xing: number bytes %d", (int32_t)mNumBytes);
+        DEBUG("Xing: number bytes %d", (int32_t)head->numBytes);
     } else {
         head->numBytes      = 0;
         DEBUG("Xing: no number bytes.");
@@ -410,7 +407,7 @@ struct Mp3Packetizer : public MediaPacketizer {
 
     virtual ~Mp3Packetizer() { }
 
-    MediaError enqueue(const sp<MediaPacket>& in) {
+    virtual MediaError enqueue(const sp<MediaPacket>& in) {
         if (in == NULL) {
             DEBUG("flushing");
             mFlushing = true;
@@ -426,7 +423,7 @@ struct Mp3Packetizer : public MediaPacketizer {
 
         while (mBuffer.empty() < in->size) {
             if (mNeedMoreData) {
-                CHECK_TRUE(mBuffer.resize(mBuffer.capacity() * 2));
+                CHECK_EQ(mBuffer.resize(mBuffer.capacity() * 2), OK);
                 DEBUG("resize internal buffer => %zu", mBuffer.capacity());
             } else {
                 return kMediaErrorResourceBusy;
@@ -438,12 +435,12 @@ struct Mp3Packetizer : public MediaPacketizer {
         return kMediaNoError;
     }
 
-    sp<MediaPacket> dequeue() {
-        DEBUG("internal buffer ready bytes %zu", mInternalBuffer.ready());
+    virtual sp<MediaPacket> dequeue() {
+        DEBUG("internal buffer ready bytes %zu", mBuffer.ready());
 
         if (mBuffer.ready() <= 4) {
             if (!mFlushing) mNeedMoreData = true;
-            return false;
+            return NULL;
         }
 
         // only at the very beginning, find the common header
@@ -459,7 +456,7 @@ struct Mp3Packetizer : public MediaPacketizer {
                 size_t junk = possible ? possible : mBuffer.ready() - 3;
                 DEBUG("missing head, skip %zu junk", offset);
                 mBuffer.skip(junk);
-                return false;
+                return NULL;
             } else if (offset > 0) {
                 DEBUG("skip %zu junk", offset);
                 mBuffer.skip(offset);
@@ -477,26 +474,27 @@ struct Mp3Packetizer : public MediaPacketizer {
             if (mFlushing) {
                 DEBUG("%zu drop tailing bytes %s",
                         mpa.frameLengthInBytes,
-                        mInternalBuffer.string().c_str());
+                        mBuffer.string().c_str());
             } else {
                 size_t junk = possible ? possible : mBuffer.ready() - 3;
                 DEBUG("skip junk bytes %zu", junk);
                 mNeedMoreData = true;
                 mBuffer.skip(junk);
             }
-            return false;
+            return NULL;
         } else if (offset > 0) {
             DEBUG("skip junk bytes %zu before frame", offset);
             mBuffer.skip(offset);
         }
 
         DEBUG("current frame length %zu (%zu)",
-                mpa.frameLengthInBytes, mInternalBuffer.ready());
+                mpa.frameLengthInBytes, mBuffer.ready());
 
         sp<MediaPacket> packet = MediaPacketCreate(mpa.frameLengthInBytes);
-        mBuffer.read((char*)packet->data, packet->size);
+        mBuffer.read((char*)packet->data, mpa.frameLengthInBytes);
+        CHECK_EQ(mpa.frameLengthInBytes, packet->size);
         
-        mAnchorTime += mFrameTime;
+        mAnchorTime     += mFrameTime;
         packet->pts     = mAnchorTime;
         packet->dts     = mAnchorTime;
         packet->flags   = kFrameFlagSync;
@@ -625,7 +623,7 @@ struct Mp3File : public MediaExtractor {
             ERROR("content is too small.");
             return kMediaErrorBadFormat;
         }
-        DEBUG("first frame size %zu", frameHeader.frameLengthInBytes);
+        DEBUG("first frame size %zu", mHeader.frameLengthInBytes);
 
         // decode first frame
         const size_t offset = 4 + kSideInfoOffset[mHeader.Version == MPEG_VERSION_1 ? 0 : 1]
@@ -658,8 +656,6 @@ struct Mp3File : public MediaExtractor {
                 offset += (*it);
                 mTOC.push(offset);
             }
-        } else {
-            mNumBytes   = pipe->size();
         }
 
 #if 1
@@ -685,7 +681,7 @@ struct Mp3File : public MediaExtractor {
             DEBUG("calc duration based on bitrate.");
             mDuration   = MediaTime((8 * 1E6 * mNumBytes) / mHeader.bitRate, 1000000LL).scale(mHeader.sampleRate);
         }
-        DEBUG("mBitRate %d, mDuration %.3f(s)", mBitRate, mDuration.seconds());
+        DEBUG("mBitRate %d, mDuration %.3f(s)", mHeader.bitRate, mDuration.seconds());
 
 
         if (mTOC.size()) {
@@ -695,6 +691,8 @@ struct Mp3File : public MediaExtractor {
         } else {
             pipe->seek(mFirstFrameOffset);
         }
+        
+        mContent = pipe;
 
         DEBUG("firstFrameOffset %" PRId64, mFirstFrameOffset);
         return kMediaNoError;
@@ -765,8 +763,9 @@ struct Mp3File : public MediaExtractor {
                 if (data == NULL) {
                     DEBUG("saw content eos..");
                     sawInputEOS = true;
+                } else {
+                    mRawPacket = MediaPacketCreate(data);
                 }
-                mRawPacket = MediaPacketCreate(data);
             }
 
             if (sawInputEOS) {
@@ -807,5 +806,15 @@ namespace mtdcy {
     
     sp<MediaPacketizer> CreateMp3Packetizer() {
         return new Mp3Packetizer;
+    }
+    
+    ssize_t locateFirstFrame(const Buffer& data, size_t *frameLength) {
+        MPEGAudioFrameHeader mpa;
+        ssize_t offset = locateFirstFrame(data, &mpa, NULL, NULL);
+        
+        if (offset < 0) return NAME_NOT_FOUND;
+        
+        *frameLength    = mpa.frameLengthInBytes;
+        return offset;
     }
 };

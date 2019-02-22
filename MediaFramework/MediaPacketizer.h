@@ -40,7 +40,7 @@ namespace mtdcy {
 
     ///////////////////////////////////////////////////////////////////////////
     struct MediaPacketizer {
-        sp<MediaPacketizer> Create(eCodecFormat format);
+        static sp<MediaPacketizer> Create(eCodecFormat format);
         
         MediaPacketizer() {}
         virtual ~MediaPacketizer() {}

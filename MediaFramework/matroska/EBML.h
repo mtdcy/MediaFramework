@@ -114,6 +114,7 @@ __BEGIN_DECLS
 #define ID_DISPLAYWIDTH         0x54B0      // uint, #<=1
 #define ID_DISPLAYHEIGHT        0x54BA      // uint, #<=1
 #define ID_DISPLAYUNIT          0x54B2      // uint, #<=1
+#define ID_FLAGINTERLACED       0x9A        // uint, #<=1
 
 // the AUDIO element's children
 #define ID_SAMPLINGFREQUENCY    0xB5        // uint, #<=1, def:8k
@@ -130,8 +131,13 @@ __BEGIN_DECLS
 #define ID_SIMPLEBLOCK          0xA3        // binary, #>=0
 // BLOCKGROUP
 #define ID_BLOCK                0xA1        // binary, #=1
+#define ID_BLOCKVIRTUAL         0xA2        // binary, #<=1
+#define ID_REFERENCEPRIORITY    0xFA        // uint, #=1, def:0
 #define ID_REFERENCEBLOCK       0xFB        // int, #>=0
 #define ID_BLOCKDURATION        0x9B        // int, #<=1
+#define ID_BLOCKADDITIONS       0x75A1      // master, #<=1
+#define ID_CODECSTATE           0xA4        // binary, #<=1
+#define ID_DISCARDPADDING       0x75A2      // int, #<=1
 // CUES
 #define ID_CUEPOINT             0xBB        // master, #>=1
 // CUEPOINT
@@ -142,6 +148,13 @@ __BEGIN_DECLS
 #define ID_CUECLUSTERPOSITION   0xF1        // uint, #>=1
 #define ID_CUERELATIVEPOSITION  0xF0        // uint, #>=0
 #define ID_CUEBLOCKNUMBER       0x5378      // uint, #<=1
+#define ID_CUECODECSTATE        0xEA        // uint, #<=0, def:0
+#define ID_CUEREFERENCE         0xDB        // master, #>=0
+// CUEREFERENCE
+#define ID_CUEREFTIME           0x96        // uint, #=1
+#define ID_CUEREFCLUSTER        0x97        // uint, #=1
+#define ID_CUEREFNUMBER         0x535F      // uint, #<=1
+#define ID_CUEREFCODECSTATE     0xEB        // uint, #<=1
 // TAGS
 #define ID_TAG                  0x7373      // master, #>=1
 // TAG
@@ -192,14 +205,14 @@ namespace mtdcy {
         enum EBMLElementType {
             kEBMLElementMaster,
             kEBMLElementInteger,
-            kEBMLElementUnsignedInteger,
+            kEBMLElementSignedInteger,
             kEBMLElementString,
             kEBMLElementUTF8,
             kEBMLElementBinary,
             kEBMLElementFloat,
             kEBMLElementDate,
             // custom type
-            kEBMLElementEmpty,
+            kEBMLElementSkip,
             kEBMLElementBlock,
         };
         
@@ -209,14 +222,23 @@ namespace mtdcy {
             
             union {
                 uint8_t         u8;
-                int8_t          i8;
                 uint16_t        u16;
-                int16_t         i16;
                 uint32_t        u32;
-                int32_t         i32;
                 uint64_t        u64;
-                int32_t         i64;
                 double          flt;
+            };
+            size_t              length;
+        };
+        
+        struct EBMLSignedInteger {
+            EBMLSignedInteger() : i64(0), length(0) { }
+            EBMLSignedInteger(int64_t x);
+            
+            union {
+                int8_t          i8;
+                int16_t         i16;
+                int32_t         i32;
+                int32_t         i64;
             };
             size_t              length;
         };
@@ -238,6 +260,14 @@ namespace mtdcy {
             
             EBMLIntegerElement(const char *_name, EBMLInteger& _id) :
             EBMLElement(_name, _id, kEBMLElementInteger) { }
+            virtual status_t parse(BitReader&, size_t);
+            virtual String string() const;
+        };
+        
+        struct EBMLSignedIntegerElement : public EBMLElement {
+            EBMLSignedInteger   svint;
+            EBMLSignedIntegerElement(const char *_name, EBMLInteger& _id) :
+            EBMLElement(_name, _id, kEBMLElementSignedInteger) { }
             virtual status_t parse(BitReader&, size_t);
             virtual String string() const;
         };
@@ -287,9 +317,9 @@ namespace mtdcy {
             virtual String string() const;
         };
         
-        struct EBMLEmptyElement : public EBMLElement {
-            EBMLEmptyElement(const char *_name, EBMLInteger& _id) :
-            EBMLElement(_name, _id, kEBMLElementEmpty) { }
+        struct EBMLSkipElement : public EBMLElement {
+            EBMLSkipElement(const char *_name, EBMLInteger& _id) :
+            EBMLElement(_name, _id, kEBMLElementSkip) { }
             virtual status_t parse(BitReader&, size_t);
             virtual String string() const;
         };
@@ -305,13 +335,10 @@ namespace mtdcy {
         };
 
         struct EBMLBlockElement : public EBMLElement {
-            EBMLInteger     TrackNumber;
-            int16_t         TimeCode;
-            uint8_t         Flags;
-            // lace
-            uint8_t         FrameCount;
-            //
-            sp<Buffer>      data;
+            EBMLInteger         TrackNumber;
+            int16_t             TimeCode;
+            uint8_t             Flags;
+            List<sp<Buffer> >   data;
             
             EBMLBlockElement(const char *_name, EBMLInteger& _id) :
             EBMLElement(_name, _id, kEBMLElementBlock) { }

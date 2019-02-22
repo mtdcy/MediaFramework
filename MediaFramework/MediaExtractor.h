@@ -39,12 +39,6 @@
 #include <MediaFramework/MediaTime.h>
 #include <MediaFramework/MediaPacket.h>
 
-__BEGIN_DECLS
-
-eFileFormat     MEDIA_EXTRACTOR_GET_FORMAT(const char *url);
-
-__END_DECLS
-
 #ifdef __cplusplus
 namespace mtdcy {
     /**

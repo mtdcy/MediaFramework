@@ -32,7 +32,7 @@
 //          1. 20181126     initial version
 //
 
-#define LOG_TAG "mpx.Track"
+#define LOG_TAG "Session"
 //#define LOG_NDEBUG 0
 #include <MediaToolkit/Toolkit.h>
 
@@ -379,6 +379,8 @@ namespace mtdcy {
             CHECK_TRUE(format.contains(kKeyFormat));
 
             eCodecType type = GetCodecType(mID);
+            
+            INFO("output format %s", format.string().c_str());
 
             if (type == kCodecTypeVideo) {
                 ePixelFormat pixel = (ePixelFormat)format.findInt32(kKeyFormat);
@@ -651,8 +653,9 @@ namespace mtdcy {
                 sp<MediaFrame> next = *mOutputQueue.begin();
                 int64_t delay = next->pts.useconds() - mClock->get().useconds();
                 if (delay < 0) {
-                    WARN("renderer %zu: frame late by %.3f(s)|%.3f(s)",
-                            mID, -delay/1E6, next->pts.seconds());
+                    if (delay > REFRESH_RATE)
+                        WARN("renderer %zu: frame late by %.3f(s)|%.3f(s)",
+                                mID, -delay/1E6, next->pts.seconds());
                     delay = 0;
                 } else if (delay < REFRESH_RATE / 2) {
                     delay = 0;

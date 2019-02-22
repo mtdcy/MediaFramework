@@ -72,7 +72,7 @@ struct {
     {kCodecFormatUnknown,       0},
 };
 
-CMVideoCodecType get_cm_codec_type(eCodecFormat a) {
+static CMVideoCodecType get_cm_codec_type(eCodecFormat a) {
     for (size_t i = 0; kCodecMap[i].a != kCodecFormatUnknown; ++i) {
         if (kCodecMap[i].a == a)
             return kCodecMap[i].b;
@@ -81,7 +81,7 @@ CMVideoCodecType get_cm_codec_type(eCodecFormat a) {
     return 0;
 }
 
-eCodecFormat get_codec_format(CMVideoCodecType b) {
+static eCodecFormat get_codec_format(CMVideoCodecType b) {
     for (size_t i = 0; kCodecMap[i].a != kCodecFormatUnknown; ++i) {
         if (kCodecMap[i].b == b)
             return kCodecMap[i].a;
@@ -104,7 +104,7 @@ struct {
     {kPixelFormatUnknown,       0},
 };
 
-ePixelFormat get_pix_format(OSType b) {
+static ePixelFormat get_pix_format(OSType b) {
     for (size_t i = 0; kPixelMap[i].a != kPixelFormatUnknown; ++i) {
         if (kPixelMap[i].b == b) return kPixelMap[i].a;
     }
@@ -112,7 +112,7 @@ ePixelFormat get_pix_format(OSType b) {
     return kPixelFormatUnknown;
 }
 
-OSType get_cv_pix_format(ePixelFormat a) {
+static OSType get_cv_pix_format(ePixelFormat a) {
     for (size_t i = 0; kPixelMap[i].a != kPixelFormatUnknown; ++i) {
         if (kPixelMap[i].a == a) return kPixelMap[i].b;
     }
@@ -230,7 +230,7 @@ static void OutputCallback(void *decompressionOutputRefCon,
     vtc->mImages.sort();
 }
 
-CFDictionaryRef setupFormatDescriptionExtension(const Message& formats,
+static CFDictionaryRef setupFormatDescriptionExtension(const Message& formats,
         CMVideoCodecType cm_codec_type) {
     CFMutableDictionaryRef atoms = CFDictionaryCreateMutable(
             kCFAllocatorDefault,
@@ -295,7 +295,7 @@ CFDictionaryRef setupFormatDescriptionExtension(const Message& formats,
     return atoms;
 }
 
-CFDictionaryRef setupImageBufferAttributes(int32_t width,
+static CFDictionaryRef setupImageBufferAttributes(int32_t width,
         int32_t height,
         OSType cv_pix_fmt,
         bool opengl) {
@@ -347,7 +347,7 @@ CFDictionaryRef setupImageBufferAttributes(int32_t width,
 }
 
 // https://github.com/jyavenard/DecodeTest/blob/master/DecodeTest/VTDecoder.mm
-sp<VTContext> createSession(const Message& formats, const Message& options, MediaError *err) {
+static sp<VTContext> createSession(const Message& formats, const Message& options, MediaError *err) {
     sp<VTContext> vtc = new VTContext;
 
     eCodecFormat codec_format = (eCodecFormat)formats.findInt32(kKeyFormat);
@@ -590,7 +590,7 @@ struct VideoToolboxDecoder : public MediaDecoder {
         formats.setInt32(kKeyHeight, mVTContext->height);
         formats.setInt32(kKeyFormat, mVTContext->pixel);
         formats.setInt32(kKeyOpenGLCompatible, 1);
-        INFO(" => %s", formats.string().c_str());
+        DEBUG(" => %s", formats.string().c_str());
         return formats;
     }
 
@@ -599,7 +599,7 @@ struct VideoToolboxDecoder : public MediaDecoder {
     }
 
     virtual MediaError init(const Message& format, const Message& options) {
-        INFO("%s", format.string().c_str());
+        INFO("create VideoToolbox for %s", format.string().c_str());
 
         DEBUG("VTDecompressionSessionGetTypeID: %#x", VTDecompressionSessionGetTypeID());
 
@@ -704,7 +704,7 @@ namespace mtdcy {
     bool IsVideoToolboxSupported(eCodecFormat format) {
         CMPixelFormatType cm = get_cm_codec_type(format);
         if (cm == 0) return false;
-        else return true;
+        return VTIsHardwareDecodeSupported(cm);
     }
 
     sp<MediaDecoder> CreateVideoToolboxDecoder() {

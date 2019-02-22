@@ -33,7 +33,7 @@
 //
 
 #ifndef _MEDIA_MODULES_MPEG4_VISUAL_H
-#define _MEDIA_MODULES_MPEG4_VISUAL_h
+#define _MEDIA_MODULES_MPEG4_VISUAL_H
 
 #include <MediaToolkit/Toolkit.h>
 

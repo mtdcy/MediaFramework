@@ -32,7 +32,7 @@
 //          1. 20160701     initial version
 //
 
-#define tkLOG_TAG "Module"
+#define LOG_TAG "Module"
 #include <MediaToolkit/Toolkit.h>
 
 #include "MediaDefs.h"
@@ -72,7 +72,7 @@ namespace mtdcy {
             case kFileFormatMKV:
                 return CreateMatroskaFile();
             default:
-                break;
+                return NULL;
         }
     }
 
@@ -86,8 +86,12 @@ namespace mtdcy {
         eCodecType type = GetCodecType(format);
         
 #ifdef __APPLE__
-        if (type == kCodecTypeVideo && mode != kModeTypeSoftware && IsVideoToolboxSupported(format)) {
-            codec = CreateVideoToolboxDecoder();
+        if (type == kCodecTypeVideo && mode != kModeTypeSoftware) {
+            if (!IsVideoToolboxSupported(format)) {
+                INFO("codec %d is not supported by VideoToolbox", format);
+            } else {
+                codec = CreateVideoToolboxDecoder();
+            }
         }
         // FALL BACK TO SOFTWARE DECODER
 #endif
@@ -104,7 +108,7 @@ namespace mtdcy {
             case kAudioCodecFormatMP3:
                 return CreateMp3Packetizer();
             default:
-                INFO("no packetizer for %d", format);
+                INFO("no packetizer for codec %d", format);
                 return NULL;
         }
     }
@@ -237,6 +241,7 @@ struct DefaultMediaPacket : public MediaPacket {
 namespace mtdcy {
     sp<MediaPacket> MediaPacketCreate(size_t size) {
         sp<Buffer> buffer = new Buffer(size);
+        buffer->step(size);
         sp<DefaultMediaPacket> packet = new DefaultMediaPacket;
         packet->buffer  = buffer;
         packet->data    = (uint8_t*)buffer->data();

@@ -188,15 +188,16 @@ static Uint32 window_flags() {
     return flags;
 }
 
+extern "C" void malloc_prepare();
+extern "C" void malloc_bypass();
+extern "C" void malloc_finalize();
 int main (int argc, char **argv) {
     
     INFO("Toolkit version %#x", TOOLKIT_VERSION);
     const String url = argv[argc - 1];
     INFO("url: %s", url.c_str());
     
-#ifdef DEBUG_MALLOC
-    malloc_debug_begin(); {
-#endif
+    malloc_prepare(); {
         
         // init window
         SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
@@ -262,8 +263,6 @@ int main (int argc, char **argv) {
         
         // quit sdl
         SDL_Quit();
-#ifdef DEBUG_MALLOC
-    } malloc_debug_end();
-#endif
+    } malloc_finalize();
     return 0;
 }

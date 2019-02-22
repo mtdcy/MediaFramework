@@ -33,7 +33,7 @@
 //
 
 #define LOG_TAG   "EBML"
-#define LOG_NDEBUG 0
+//#define LOG_NDEBUG 0
 #include <MediaToolkit/Toolkit.h>
 
 #include "EBML.h"
@@ -51,13 +51,13 @@
 using namespace mtdcy;
 using namespace EBML;
 
-inline size_t EBMLCodeBytesLength(uint64_t x) {
+static inline size_t EBMLCodeBytesLength(uint64_t x) {
     size_t n = 0;
     while (x) { ++n; x >>= 8; }
     return n;
 }
 
-inline uint64_t EBMLCodeInteger(uint64_t x) {
+static inline uint64_t EBMLCodeInteger(uint64_t x) {
     size_t n = EBMLCodeBytesLength(x);
     x |= (1 << (7 * n));
     return x;
@@ -67,19 +67,19 @@ EBMLInteger::EBMLInteger(uint64_t x) : u64(x), length(EBMLCodeBytesLength(x)) { 
 
 static EBMLInteger EBMLIntegerNull(0);     // with value & length == 0
 
-bool operator==(EBMLInteger& lhs, EBMLInteger& rhs) {
+static inline bool operator==(EBMLInteger& lhs, EBMLInteger& rhs) {
     return lhs.u64 == rhs.u64 && lhs.length == rhs.length;
 }
 
 #define MASK(n) ((1ULL<<(n))-1)
-inline uint8_t EBMLGetBytesLength(uint8_t v) {
+static inline uint8_t EBMLGetBytesLength(uint8_t v) {
     return __builtin_clz((unsigned int)v) - 24 + 1;
 }
 
 // vint with leading 1-bit
-inline EBMLInteger EBMLGetCodedInteger(BitReader& br) {
+static inline EBMLInteger EBMLGetCodedInteger(BitReader& br) {
     EBMLInteger vint;
-    vint.u64    = br.r8();
+    vint.u8     = br.r8();
     vint.length = EBMLGetBytesLength(vint.u8);
     CHECK_GT(vint.length, 0);
     CHECK_LE(vint.length, 8);
@@ -95,23 +95,24 @@ inline EBMLInteger EBMLGetCodedInteger(BitReader& br) {
     return vint;
 }
 
-inline uint64_t EBMLClearLeadingBit(uint64_t x, size_t length) {
+static inline uint64_t EBMLClearLeadingBit(uint64_t x, size_t length) {
     return x & MASK(7 * length);
 }
 
 // vint without leading 1-bit removed
-inline EBMLInteger EBMLGetInteger(BitReader& br) {
+static inline EBMLInteger EBMLGetInteger(BitReader& br) {
     EBMLInteger vint = EBMLGetCodedInteger(br);
     vint.u64 = EBMLClearLeadingBit(vint.u64, vint.length);
     return vint;
 }
 
+
 // vint with or without leading 1-bit
-inline EBMLInteger EBMLGetInteger(BitReader& br, size_t n) {
+static inline EBMLInteger EBMLGetInteger(BitReader& br, size_t n) {
     CHECK_GT(n, 0);
     CHECK_LE(n, 8);
     EBMLInteger vint;
-    vint.u64 = br.r8();
+    vint.u8 = br.r8();
     vint.length = n;
     if (n > 1) {
         for (size_t i = 1; i < n; ++i) {
@@ -122,23 +123,39 @@ inline EBMLInteger EBMLGetInteger(BitReader& br, size_t n) {
 }
 
 // vint -> element length
-inline EBMLInteger EBMLGetLength(BitReader& br) {
+static inline EBMLInteger EBMLGetLength(BitReader& br) {
     return EBMLGetInteger(br);
 }
 
-inline EBMLInteger EBMLGetFloat(BitReader& br, size_t n) {
+struct Int2Float {
+    float       flt;
+    uint32_t    u32;
+};
+
+struct Int2Double {
+    double      dbl;
+    uint64_t    u64;
+};
+
+static inline EBMLInteger EBMLGetFloat(BitReader& br, size_t n) {
     EBMLInteger vint;
     if (n == 8) {
         CHECK_EQ(sizeof(double), 8);
-        vint.u64 = br.rb64();
+        Int2Double a;
+        a.u64 = br.rb64();
+        vint.flt = a.dbl;
+        //vint.u64 = br.rb64();
     } else {
         CHECK_EQ(n, 4);
-        vint.u32 = br.rb32();
+        Int2Float a;
+        a.u32 = br.rb32();
+        vint.flt = a.flt;
+        //vint.u32 = br.rb32();
     }
     return vint;
 }
 
-inline EBMLInteger EBMLGetCodedInteger(sp<Content>& pipe) {
+static inline EBMLInteger EBMLGetCodedInteger(sp<Content>& pipe) {
     if (pipe->tell() >= pipe->size()) {
         return EBMLIntegerNull;
     }
@@ -166,13 +183,35 @@ inline EBMLInteger EBMLGetCodedInteger(sp<Content>& pipe) {
     return vint;
 }
 
-inline EBMLInteger EBMLGetInteger(sp<Content>& pipe) {
+static inline EBMLInteger EBMLGetInteger(sp<Content>& pipe) {
     EBMLInteger vint = EBMLGetCodedInteger(pipe);
     vint.u64 = EBMLClearLeadingBit(vint.u64, vint.length);
     return vint;
 }
 
 #define EBMLGetLength   EBMLGetInteger
+
+uint64_t vsint_subtr[] = {
+    0x3F, 0x1FFF, 0x0FFFFF, 0x07FFFFFF,
+    0x03FFFFFFFF, 0x01FFFFFFFFFF,
+    0x00FFFFFFFFFFFF, 0x007FFFFFFFFFFFFF
+};
+
+static inline EBMLSignedInteger EBMLGetSignedInteger(BitReader& br) {
+    EBMLSignedInteger svint;
+    EBMLInteger vint    = EBMLGetInteger(br);
+    svint.i64           = vint.u64 - vsint_subtr[vint.length - 1];
+    svint.length        = vint.length;
+    return svint;
+}
+
+static inline EBMLSignedInteger EBMLGetSignedInteger(BitReader& br, size_t n) {
+    EBMLSignedInteger svint;
+    EBMLInteger vint    = EBMLGetInteger(br, n);
+    svint.i64           = vint.u64 - vsint_subtr[vint.length - 1];
+    svint.length        = vint.length;
+    return svint;
+}
 
 status_t EBMLIntegerElement::parse(BitReader& br, size_t size) {
     vint = EBMLGetInteger(br, size);
@@ -183,6 +222,17 @@ status_t EBMLIntegerElement::parse(BitReader& br, size_t size) {
 String EBMLIntegerElement::string() const {
     return String::format("%#x", vint.u64);
 
+}
+
+status_t EBMLSignedIntegerElement::parse(BitReader& br, size_t size) {
+    svint = EBMLGetSignedInteger(br, size);
+    DEBUGV("integer %#x", svint.i64);
+    return OK;
+}
+
+String EBMLSignedIntegerElement::string() const {
+    return String::format("%#x", svint.i64);
+    
 }
 
 status_t EBMLStringElement::parse(BitReader& br, size_t size) {
@@ -222,38 +272,66 @@ String EBMLFloatElement::string() const {
 
 }
 
-status_t EBMLEmptyElement::parse(BitReader& br, size_t size) {
+status_t EBMLSkipElement::parse(BitReader& br, size_t size) {
     br.skipBytes(size);
     return OK;
 }
 
-String EBMLEmptyElement::string() const { return "*"; }
+String EBMLSkipElement::string() const { return "*"; }
 
 status_t EBMLBlockElement::parse(BitReader& br, size_t size) {
-    TrackNumber = EBMLGetInteger(br);
-    TimeCode    = br.rb16();
-    Flags       = br.r8();
-#if 0
+    size_t offset = 0;
+    TrackNumber = EBMLGetInteger(br);   offset += TrackNumber.length;
+    TimeCode    = br.rb16();            offset += 2;
+    Flags       = br.r8();              offset += 1;
+    DEBUGV("[%zu] block size %zu, %#x", TrackNumber.u32, size, Flags);
     if (Flags & kBlockFlagLace) {
-        FrameCount  = br.r8();
+        size_t count = 1 + br.r8();     offset += 1;    // frame count
+        CHECK_GT(count, 1);
+        size_t frame[count - 1];
         if ((Flags & kBlockFlagLace) == kBlockFlagEBML) {
-            // TODO
+            EBMLInteger vint = EBMLGetInteger(br);      offset += vint.length;
+            frame[0] = vint.u32;
+            for (size_t i = 1; i < count - 1; ++i) {
+                EBMLSignedInteger svint = EBMLGetSignedInteger(br);     offset += svint.length;
+                frame[i] = frame[i-1] + svint.i32;
+                //DEBUG("frame %zu", frame[i]);
+            }
         } else if ((Flags & kBlockFlagLace) == kBlockFlagXiph) {
-            // TODO
+            for (size_t i = 0; i < count - 1; ++i) {
+                uint8_t u8 = br.r8();           offset += 1;
+                frame[i] = u8;
+                while (u8 == 255) {
+                    u8 = br.r8();               offset += 1;
+                    frame[i] += u8;
+                }
+            }
+        } else if ((Flags & kBlockFlagLace) == kBlockFlagFixed) {
+            CHECK_EQ((size - offset) % count, 0);
+            const size_t length = (size - offset) / count;
+            for (size_t i = 0; i < count - 1; ++i) {
+                frame[i] = length;
+            }
+        }
+        
+        for (size_t i = 0; i < count - 1; ++i) {
+            CHECK_GE(size, offset + frame[i]);
+            data.push(br.readB(frame[i]));     offset += frame[i];
         }
     }
-#endif
-    data = br.readB(size - TrackNumber.length - 3);
+    
+    CHECK_GT(size, offset);
+    data.push(br.readB(size - offset));   // last frame length is not stored
+
     return OK;
 }
 
 String EBMLBlockElement::string() const {
     return String::format("[%zu] % " PRId16 " Flags %#x",
-            (size_t)TrackNumber.i16,
-            TimeCode, Flags);
+            (size_t)TrackNumber.u64, TimeCode, Flags);
 }
 
-sp<EBMLElement> MakeEBMLElement(EBMLInteger);
+static sp<EBMLElement> MakeEBMLElement(EBMLInteger);
 
 status_t EBMLMasterElement::parse(BitReader& br, size_t size) {
     size_t remains = size;
@@ -335,7 +413,7 @@ static const struct {
     ITEM(   TITLE,                      kEBMLElementUTF8        ),
     ITEM(   MUXINGAPP,                  kEBMLElementString      ),
     ITEM(   WRITINGAPP,                 kEBMLElementUTF8        ),
-    ITEM(   DATEUTC,                    kEBMLElementInteger     ),
+    ITEM(   DATEUTC,                    kEBMLElementSignedInteger   ),
     // SEEKHEAD
     ITEM(   SEEK,                       kEBMLElementMaster      ),
     ITEM(   SEEKID,                     kEBMLElementInteger     ),
@@ -370,6 +448,7 @@ static const struct {
     ITEM(   DISPLAYWIDTH,               kEBMLElementInteger     ),
     ITEM(   DISPLAYHEIGHT,              kEBMLElementInteger     ),
     ITEM(   DISPLAYUNIT,                kEBMLElementInteger     ),
+    ITEM(   FLAGINTERLACED,             kEBMLElementInteger     ),
     // AUDIO
     ITEM(   AUDIO,                      kEBMLElementMaster      ),
     ITEM(   SAMPLINGFREQUENCY,          kEBMLElementFloat       ),
@@ -391,8 +470,13 @@ static const struct {
     ITEM(   SIMPLEBLOCK,                kEBMLElementBlock       ),  // kEBMLElementBinary
     // BLOCKGROUP
     ITEM(   BLOCK,                      kEBMLElementBlock       ),  // kEBMLElementBinary
-    ITEM(   REFERENCEBLOCK,             kEBMLElementInteger     ),
-    ITEM(   BLOCKDURATION,              kEBMLElementInteger     ),
+    ITEM(   REFERENCEBLOCK,             kEBMLElementSignedInteger   ),
+    ITEM(   REFERENCEPRIORITY,          kEBMLElementInteger     ),
+    ITEM(   BLOCKDURATION,              kEBMLElementSignedInteger   ),
+    ITEM(   BLOCKVIRTUAL,               kEBMLElementBinary      ),
+    ITEM(   BLOCKADDITIONS,             kEBMLElementMaster      ),
+    ITEM(   CODECSTATE,                 kEBMLElementBinary      ),
+    ITEM(   DISCARDPADDING,             kEBMLElementSignedInteger   ),
     // CUES
     ITEM(   CUEPOINT,                   kEBMLElementMaster      ),
     // CUEPOINT
@@ -403,6 +487,13 @@ static const struct {
     ITEM(   CUECLUSTERPOSITION,         kEBMLElementInteger     ),
     ITEM(   CUERELATIVEPOSITION,        kEBMLElementInteger     ),
     ITEM(   CUEBLOCKNUMBER,             kEBMLElementInteger     ),
+    ITEM(   CUECODECSTATE,              kEBMLElementInteger     ),
+    ITEM(   CUEREFERENCE,               kEBMLElementMaster      ),
+    // CUEREFERENCE
+    ITEM(   CUEREFTIME,                 kEBMLElementInteger     ),
+    ITEM(   CUEREFCLUSTER,              kEBMLElementInteger     ),
+    ITEM(   CUEREFNUMBER,               kEBMLElementInteger     ),
+    ITEM(   CUEREFCODECSTATE,           kEBMLElementInteger     ),
     // TAGS
     ITEM(   TAG,                        kEBMLElementMaster      ),
     ITEM(   TARGETS,                    kEBMLElementMaster      ),
@@ -448,13 +539,15 @@ static const struct {
 #define NELEM(x)    sizeof(x)/sizeof(x[0])
 
 
-sp<EBMLElement> MakeEBMLElement(EBMLInteger id) {
+static sp<EBMLElement> MakeEBMLElement(EBMLInteger id) {
     for (size_t i = 0; i < NELEM(ELEMENTS); ++i) {
         if (ELEMENTS[i].ID == id.u64) {
             //DEBUG("make element %s[%#x]", ELEMENTS[i].NAME, ELEMENTS[i].ID);
             switch (ELEMENTS[i].TYPE) {
                 case kEBMLElementInteger:
                     return new EBMLIntegerElement(ELEMENTS[i].NAME, id);
+                case kEBMLElementSignedInteger:
+                    return new EBMLSignedIntegerElement(ELEMENTS[i].NAME, id);
                 case kEBMLElementString:
                     return new EBMLStringElement(ELEMENTS[i].NAME, id);
                 case kEBMLElementUTF8:
@@ -465,8 +558,8 @@ sp<EBMLElement> MakeEBMLElement(EBMLInteger id) {
                     return new EBMLMasterElement(ELEMENTS[i].NAME, id);
                 case kEBMLElementBinary:
                     return new EBMLBinaryElement(ELEMENTS[i].NAME, id);
-                case kEBMLElementEmpty:
-                    return new EBMLEmptyElement(ELEMENTS[i].NAME, id);
+                case kEBMLElementSkip:
+                    return new EBMLSkipElement(ELEMENTS[i].NAME, id);
                 case kEBMLElementBlock:
                     return new EBMLBlockElement(ELEMENTS[i].NAME, id);
                 default:
@@ -475,8 +568,13 @@ sp<EBMLElement> MakeEBMLElement(EBMLInteger id) {
             }
         }
     }
+#if LOG_NDEBUG == 0
     FATAL("unknown element %#x", id.u64);
     return NULL;
+#else
+    ERROR("unknown element %#x", id.u64);
+    return new EBMLSkipElement("UNKNOWN", id);
+#endif
 }
 
 namespace mtdcy { namespace EBML {

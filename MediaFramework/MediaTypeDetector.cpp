@@ -53,7 +53,7 @@ namespace mtdcy {
     const static size_t kScanLength = 8 * 1024ll;
 
     // return score
-    //int scanMP3(const sp<Buffer>& data);
+    int scanMP3(const sp<Buffer>& data);
     int scanAAC(const sp<Buffer>& data);
     int scanMatroska(const sp<Buffer>& data);
     int scanMP4(const sp<Buffer>& data);
@@ -161,7 +161,7 @@ namespace mtdcy {
             { scanMP4,      kFileFormatMP4    },
             { scanMatroska, kFileFormatMKV    },
             { scanAAC,      kFileFormatAAC    },
-            //{ scanMP3,      kFileFormatMP3    },
+            { scanMP3,      kFileFormatMP3    },
             { NULL,         kFileFormatUnknown}
         };
 
@@ -180,10 +180,10 @@ namespace mtdcy {
         return format;
     }
 
-#if 0
+    ssize_t locateFirstFrame(const Buffer& data, size_t *frameLength);
     int scanMP3(const sp<Buffer>& data) {
         size_t frameLength = 0;
-        ssize_t offset = Mp3File::locateFirstFrame(*data, &frameLength);
+        ssize_t offset = locateFirstFrame(*data, &frameLength);
 
         if (offset >= 0 && frameLength > 4) {
             return 100;
@@ -191,7 +191,6 @@ namespace mtdcy {
 
         return 0;
     }
-#endif
 
     int scanMatroska(const sp<Buffer>& data) {
         // refer to:

@@ -32,8 +32,8 @@
 //          1. 20181126     initial version
 //
 
-#define LOG_TAG "mpx"
-//#define LOG_NDEBUG 0
+#define LOG_TAG "Player"
+#define LOG_NDEBUG 0
 
 #include <MediaToolkit/Toolkit.h>
 #include <MediaFramework/MediaSession.h>
@@ -45,8 +45,6 @@
 #include <SDL.h>
 
 namespace mtdcy {
-    
-    
     struct CountedStatusEvent : public StatusEvent {
         volatile int mCount;
         sp<StatusEvent> kept;
@@ -226,7 +224,7 @@ namespace mtdcy {
         //double endTimeUs = options.findDouble("EndTime");
         
         Message fileFormats = extractor->formats();
-        size_t numTracks = fileFormats.findInt32(kKeyCount);
+        size_t numTracks = fileFormats.findInt32(kKeyCount, 1);
         
         uint32_t activeTracks = 0;
         for (size_t i = 0; i < numTracks; ++i) {
@@ -246,11 +244,21 @@ namespace mtdcy {
             
             eCodecType type = GetCodecType(codec);
             if (type == kCodecTypeAudio) {
+                if (formats.findInt32(kKeySampleRate) == 0 ||
+                    formats.findInt32(kKeyChannels) == 0) {
+                    ERROR("missing mandatory format infomation, playback may be broken");
+                }
+                
                 if (mpc->mHasAudio) {
                     INFO("ignore this audio");
                     continue;
                 } else {
                     mpc->mHasAudio = true;
+                }
+            } else if (type == kCodecTypeVideo) {
+                if (formats.findInt32(kKeyWidth) == 0 ||
+                    formats.findInt32(kKeyHeight) == 0) {
+                    ERROR("missing mandatory format infomation, playback may be broken");
                 }
             }
             

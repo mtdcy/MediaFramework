@@ -60,6 +60,7 @@ enum eCodecFormat {
     kAudioCodecFormatMP3,
     kAudioCodecFormatVorbis,
     kAudioCodecFormatAAC,
+    kAudioCodecFormatAC3,
     kAudioCodecFormatWMA,
     kAudioCodecFormatAPE,
     kAudioCodecFormatDTS,
@@ -162,7 +163,7 @@ enum {
  * @see ePixelFormat
  * @see eSampleFormat
  */
-#define kKeyFormat      "format"    ///< int32_t
+#define kKeyFormat      "format"    ///< int32_t, mandatory
 #define kKeyRequestFormat   "request-format"    ///< int32_t
 
 /**
@@ -183,14 +184,14 @@ enum {
 /**
  * audio channel count and sample rate
  */
-#define kKeyChannels    "channels"      ///< int32_t
-#define kKeySampleRate  "sample-rate"   ///< int32_t
+#define kKeyChannels    "channels"      ///< int32_t, mandatory for audio
+#define kKeySampleRate  "sample-rate"   ///< int32_t, mandatory for audio
 
 /**
  * video display width and height
  */
-#define kKeyWidth       "width"     ///< int32_t
-#define kKeyHeight      "height"    ///< int32_t
+#define kKeyWidth       "width"     ///< int32_t, mandatory for video
+#define kKeyHeight      "height"    ///< int32_t, mandatory for video
 
 /**
  * comman keys

@@ -128,6 +128,9 @@ install (TARGETS ${PROJECT_NAME}
 
 # example/test code, NO build or install by default
 add_executable(mpx mpx_main.cpp)
+if (APPLE)
+    target_link_libraries(mpx "-framework MediaToolkit")
+endif()
 target_link_libraries(mpx MediaFramework)
 set_target_properties(mpx PROPERTIES
     EXCLUDE_FROM_ALL TRUE
