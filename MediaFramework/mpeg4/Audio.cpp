@@ -144,4 +144,30 @@ namespace mtdcy { namespace MPEG4 {
 
         valid = true;
     }
+    
+    ES_Descriptor MakeESDescriptor(AudioSpecificConfig& asc) {
+        ES_Descriptor esd;
+        esd.decConfigDescr.objectTypeIndication = ISO_IEC_14496_3;
+        esd.decConfigDescr.streamType = AudioStream;
+        switch (asc.audioObjectType) {
+            case AOT_AAC_MAIN:
+                esd.decConfigDescr.objectTypeIndication = ISO_IEC_13818_7_Main;
+                break;
+            case AOT_AAC_LC:
+                esd.decConfigDescr.objectTypeIndication = ISO_IEC_13818_7_LC;
+                break;
+            case AOT_AAC_SSR:
+                esd.decConfigDescr.objectTypeIndication = ISO_IEC_13818_7_SSR;
+                break;
+            case AOT_MPEG_L2:
+                esd.decConfigDescr.objectTypeIndication = ISO_IEC_11172_3;
+                break;
+            case AOT_MPEG_L3:
+                esd.decConfigDescr.objectTypeIndication = ISO_IEC_13818_3;
+                break;
+            default:
+                break;
+        }
+        return esd;
+    }
 };};

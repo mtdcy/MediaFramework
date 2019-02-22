@@ -559,10 +559,12 @@ struct LavcDecoder : public MediaDecoder {
             INFO("gop %d", avcc->gop_size);
             INFO("pix_fmt %s", av_get_pix_fmt_name(avcc->pix_fmt));
             if (avcc->hwaccel) {
-                DEBUG("%s %s %s",
+                INFO("hwaccel: %s %s %s",
                       avcc->hwaccel,
                       avcodec_get_name(avcc->hwaccel->id),
                       av_get_pix_fmt_name(avcc->hwaccel->pix_fmt));
+            } else {
+                INFO("no hwaccel");
             }
         } else if (type == kCodecTypeAudio) {
             INFO("channels %d, channel layout %d, sample rate %d",

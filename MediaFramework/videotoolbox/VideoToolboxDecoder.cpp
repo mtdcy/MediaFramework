@@ -457,7 +457,7 @@ static sp<VTContext> createSession(const Message& formats, const Message& option
     } else {
         vtc->width  = width;
         vtc->height = height;
-        vtc->pixel  = kPreferredPixelFormat;
+        vtc->pixel  = get_pix_format(cv_pix_fmt);
         return vtc;
     }
 }

@@ -42,7 +42,7 @@
 
 namespace mtdcy { namespace MPEG4 {
 
-    int32_t translateObjectTypeIndication(uint8_t objectTypeIndication) {
+    eCodecFormat translateObjectTypeIndication(uint8_t objectTypeIndication) {
 
         if (objectTypeIndication >= 0xc0 && objectTypeIndication <= 0xe0) 
             return kCodecFormatUnknown;
@@ -70,7 +70,8 @@ namespace mtdcy { namespace MPEG4 {
         }
     }
 
-    static inline size_t _GetObjectDescriptorSize(const BitReader& br) {
+    // ISO/IEC 14496-1:2010 Section 8.3.3 Page 117
+    static inline size_t GetObjectDescriptorSize(const BitReader& br) {
         bool nextBytes  = br.read(1);
         size_t size     = br.read(7);
         while (nextBytes) {
@@ -79,14 +80,43 @@ namespace mtdcy { namespace MPEG4 {
         }
         return size;
     }
-    size_t GetObjectDescriptorSize(const BitReader& br) {
-        return _GetObjectDescriptorSize(br);
+    
+    static inline size_t GetObjectDescriptorSizeLength(size_t size) {
+        size_t length = 1;
+        while (size > 127) {
+            size >>= 7;
+            ++length;
+        }
+        CHECK_LE(length, 4);    // logical check
+        return length;
+    }
+    
+    static inline size_t WriteObjectDescriptorSize(BitWriter& bw, size_t size) {
+        size_t length = GetObjectDescriptorSizeLength(size);
+        for (size_t i = 0; i < length - 1; ++i) {
+            uint8_t u8 = (size >> (7 * (length - i - 1))) & 0x7F;
+            u8 |= 0x80;
+            bw.w8(u8);
+        }
+        bw.w8(size & 0x7F);
+        return length;
+    }
+    
+    DecoderSpecificInfo::DecoderSpecificInfo() : BaseDescriptor(DecSpecificInfoTag),
+        csd(NULL)
+    {
+        valid = true;
     }
 
     DecoderSpecificInfo::DecoderSpecificInfo(const BitReader& br) :
         BaseDescriptor(DecSpecificInfoTag)
     {
-        uint32_t descrLength    = _GetObjectDescriptorSize(br);
+        if (br.r8() != DecSpecificInfoTag) {
+            ERROR("bad DecoderSpecificInfo");
+            return;
+        }
+        
+        uint32_t descrLength    = GetObjectDescriptorSize(br);
         DEBUG("Tag 0x%" PRIx8 ", Length %" PRIu32, 
                 descrTag, descrLength);
         if (descrTag != DecSpecificInfoTag) return;
@@ -95,11 +125,34 @@ namespace mtdcy { namespace MPEG4 {
         DEBUG("csd %s", csd->string(true).c_str());
         valid   = true;     // always
     }
+    
+    status_t DecoderSpecificInfo::compose(BitWriter &bw) const {
+        bw.w8(DecSpecificInfoTag);
+        WriteObjectDescriptorSize(bw, size());
+        if (csd != NULL) bw.writeB(*csd);
+        return OK;
+    }
+    
+    size_t DecoderSpecificInfo::size() const {
+        return valid ? (csd != NULL ? csd->size() : 0) : 0;
+    }
+    
+    DecoderConfigDescriptor::DecoderConfigDescriptor() : BaseDescriptor(DecoderConfigDescrTag),
+        objectTypeIndication(ISO_IEC_14496_2),  // MPEG4VIDEO
+        streamType(0), upStream(0), bufferSizeDB(0), maxBitrate(0), avgBitrate(0)
+    {
+        valid = true;
+    }
 
     DecoderConfigDescriptor::DecoderConfigDescriptor(const BitReader& br) :
         BaseDescriptor(DecoderConfigDescrTag)
     {
-        uint32_t descrLength    = _GetObjectDescriptorSize(br);
+        if (br.r8() != DecoderConfigDescrTag) {
+            ERROR("bad DecoderConfigDescriptor");
+            return;
+        }
+        
+        uint32_t descrLength    = GetObjectDescriptorSize(br);
         DEBUG("Tag 0x%" PRIx8 ", Length %" PRIu32, 
                 descrTag, descrLength);
         if (descrTag != DecoderConfigDescrTag) return;
@@ -120,9 +173,7 @@ namespace mtdcy { namespace MPEG4 {
                 bufferSizeDB, maxBitrate, avgBitrate);
 
         if (descrLength > 13) {
-            uint32_t descrTag   = br.r8();
-            // optional 
-            if (descrTag == DecSpecificInfoTag) {
+            if (br.show(8) == DecSpecificInfoTag) {
                 decSpecificInfo = DecoderSpecificInfo(br);
                 valid           = decSpecificInfo.valid;
             } else {
@@ -132,15 +183,46 @@ namespace mtdcy { namespace MPEG4 {
             valid               = true;
         }
     }
+    
+    status_t DecoderConfigDescriptor::compose(BitWriter &bw) const {
+        bw.w8(DecoderConfigDescrTag);
+        WriteObjectDescriptorSize(bw, size());
+        bw.w8(objectTypeIndication);
+        bw.write(streamType, 6);
+        bw.write(upStream, 1);
+        bw.write(0, 1);  // reserved
+        bw.wb24(bufferSizeDB);
+        bw.wb32(maxBitrate);
+        bw.wb32(avgBitrate);
+        
+        if (decSpecificInfo.valid) {
+            return decSpecificInfo.compose(bw);
+        }
+        return OK;
+    }
+    
+    size_t DecoderConfigDescriptor::size() const {
+        return 13 + (decSpecificInfo.valid
+                     ? 1 + GetObjectDescriptorSizeLength(decSpecificInfo.size()) + decSpecificInfo.size()
+                     : 0);
+    }
+    
+    // set default values, useful for create esds
+    ES_Descriptor::ES_Descriptor() : BaseDescriptor(ES_DescrTag),
+        ES_ID(0), streamDependenceFlag(0), URL_Flag(0), OCRstreamFlag(0),
+        streamPriority(0), dependsOn_ES_ID(0), URLstring(), OCR_ES_Id(0)
+    {
+        valid = true;
+    }
 
     ES_Descriptor::ES_Descriptor(const BitReader& br) :
         BaseDescriptor(ES_DescrTag)
     {
         if (br.r8() != ES_DescrTag) {
-            ERROR("bad esd data");
+            ERROR("bad ES_Descriptor");
             return;
         }
-        uint32_t descrLength    = _GetObjectDescriptorSize(br);
+        uint32_t descrLength    = GetObjectDescriptorSize(br);
         DEBUG("Tag 0x%" PRIx8 ", Length %" PRIu32, 
                 descrTag, descrLength);
 
@@ -149,6 +231,7 @@ namespace mtdcy { namespace MPEG4 {
             return;
         }
 
+        // 2 + 1 = 3
         ES_ID                   = br.rb16();
         streamDependenceFlag    = br.read(1);
         URL_Flag                = br.read(1);
@@ -174,13 +257,58 @@ namespace mtdcy { namespace MPEG4 {
                 OCR_ES_Id);
 
         // mandatory DecoderConfigDescriptor
-        uint32_t descrTag       = br.r8();
-        if (descrTag != DecoderConfigDescrTag) {
+        if (br.show(8) != DecoderConfigDescrTag) {
             ERROR("missing DecoderConfigDescriptor");
             valid               = false;
         } else {
             decConfigDescr      = DecoderConfigDescriptor(br);
             valid               = decConfigDescr.valid;
         }
+    }
+    
+    status_t ES_Descriptor::compose(BitWriter &bw) const {
+        // ES_DescrTag
+        bw.w8(ES_DescrTag);
+        WriteObjectDescriptorSize(bw, size());
+        bw.wb16(ES_ID);
+        bw.write(streamDependenceFlag, 1);
+        bw.write(URL_Flag, 1);
+        bw.write(OCRstreamFlag, 1);
+        bw.write(streamPriority, 5);
+        if (streamDependenceFlag) bw.wb16(dependsOn_ES_ID);
+        if (URL_Flag) {
+            bw.w8(URLstring.size());
+            bw.writeS(URLstring);
+        }
+        if (OCRstreamFlag) bw.wb16(OCR_ES_Id);
+        
+        if (decConfigDescr.valid) {
+            return decConfigDescr.compose(bw);
+        }
+        return OK;
+    }
+    
+    size_t ES_Descriptor::size() const {
+        return 3
+        + (streamDependenceFlag ? 2 : 0)
+        + (URL_Flag ? URLstring.size() + 1 : 0)
+        + (OCRstreamFlag ? 2 : 0)
+        + (decConfigDescr.valid
+           ? 1 + GetObjectDescriptorSizeLength(decConfigDescr.size()) + decConfigDescr.size()
+           : 0);
+    }
+    
+    sp<Buffer> MakeESDS(ES_Descriptor& esd) {
+        if (!esd.valid || !esd.decConfigDescr.valid || !esd.decConfigDescr.decSpecificInfo.valid) {
+            ERROR("bad ES_Descriptor");
+            return NULL;
+        }
+        
+        sp<Buffer> buffer = new Buffer(1 + GetObjectDescriptorSizeLength(esd.size()) + esd.size());
+        BitWriter bw(*buffer);
+        esd.compose(bw);
+        bw.write();     // write to byte boundary
+        buffer->step(bw.size());
+        return buffer;
     }
 }; };

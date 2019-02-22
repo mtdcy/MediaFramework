@@ -36,6 +36,7 @@
 #define _MEDIA_MODULES_MPEG4_AUDIO_H
 
 #include <MediaToolkit/Toolkit.h>
+#include "Systems.h"
 
 // ISO/IEC 14496-3 Audio
 namespace mtdcy { namespace MPEG4 {
@@ -81,6 +82,8 @@ namespace mtdcy { namespace MPEG4 {
         "SBR",
         "Scalable"
     };
+    
+    ES_Descriptor MakeESDescriptor(AudioSpecificConfig& asc);
 
 };};
 

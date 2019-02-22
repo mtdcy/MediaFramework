@@ -189,6 +189,7 @@ struct MatroskaPacket : public MediaPacket {
 #include <MediaFramework/MediaExtractor.h>
 #include "mpeg4/Audio.h"
 #include "mpeg4/Video.h"
+#include "mpeg4/Systems.h"
 #define TIMESCALE_DEF 1000000UL
 bool decodeMPEGAudioFrameHeader(const Buffer& frame, uint32_t *sampleRate, uint32_t *numChannels);
 struct MatroskaFile : public MediaExtractor {
@@ -258,7 +259,7 @@ struct MatroskaFile : public MediaExtractor {
             ERROR("missing TRACKS");
             return kMediaErrorBadFormat;
         }
-#if LOG_NDEBUG == 0
+#if 1//LOG_NDEBUG == 0
         PrintEBMLElements(TRACKS);
 #endif
         
@@ -316,11 +317,14 @@ struct MatroskaFile : public MediaExtractor {
                     // XXX: do we have to fix the sample rate here?
                 }
             } else if (TRACKTYPE->vint.u32 & kTrackTypeVideo) {
-                sp<EBMLIntegerElement> PIXELWIDTH = FindEBMLElementInside(TRACKENTRY, ID_VIDEO, ID_PIXELWIDTH);
-                sp<EBMLIntegerElement> PIXELHEIGHT = FindEBMLElementInside(TRACKENTRY, ID_VIDEO, ID_PIXELHEIGHT);
+                // XXX: pixel width vs display width
+                sp<EBMLIntegerElement> WIDTH = FindEBMLElementInside(TRACKENTRY, ID_VIDEO, ID_DISPLAYWIDTH);
+                if (WIDTH == NULL) WIDTH = FindEBMLElementInside(TRACKENTRY, ID_VIDEO, ID_PIXELWIDTH);
+                sp<EBMLIntegerElement> HEIGHT = FindEBMLElementInside(TRACKENTRY, ID_VIDEO, ID_DISPLAYHEIGHT);
+                if (HEIGHT == NULL) HEIGHT = FindEBMLElementInside(TRACKENTRY, ID_VIDEO, ID_PIXELHEIGHT);
                 
-                trak.v.width   = PIXELWIDTH->vint.u32;
-                trak.v.height  = PIXELHEIGHT->vint.u32;
+                trak.v.width   = WIDTH->vint.u32;
+                trak.v.height  = HEIGHT->vint.u32;
             } else {
                 ERROR("TODO: track type %#x", TRACKTYPE->vint.u32);
             }
@@ -431,7 +435,10 @@ struct MatroskaFile : public MediaExtractor {
                     BitReader br(*trak.csd);
                     MPEG4::AudioSpecificConfig asc(br);
                     if (asc.valid) {
-                        trakInfo.set<Buffer>(kKeyCodecSpecificData, *trak.csd);
+                        MPEG4::ES_Descriptor esd = MakeESDescriptor(asc);
+                        esd.decConfigDescr.decSpecificInfo.csd = trak.csd;
+                        trakInfo.set<Buffer>(kKeyESDS, *MPEG4::MakeESDS(esd));
+                        //trakInfo.set<Buffer>(kKeyCodecSpecificData, *trak.csd);
                         trakInfo.setInt32(kKeyChannels, asc.channels);
                         trakInfo.setInt32(kKeySampleRate, asc.samplingFrequency);
                     } else

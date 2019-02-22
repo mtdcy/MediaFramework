@@ -37,12 +37,10 @@
 
 
 #include <MediaToolkit/Toolkit.h>
+#include "MediaDefs.h"
 
 // ISO/IEC 14496-1 System
 namespace mtdcy { namespace MPEG4 {
-    // ISO/IEC 14496-1:2010 Section 8.3.3 Page 117
-    size_t GetObjectDescriptorSize(const BitReader& br);
-
     // ISO/IEC 14496-1:2010(E), Section 7.2.2.1, Page 31, Table 1
     // Object Description Tag
     enum {
@@ -113,7 +111,7 @@ namespace mtdcy { namespace MPEG4 {
         ISO_IEC_11172_3             = 0x6b,         // MP2 
         ISO_IEC_10918_1             = 0x6c,         // MJPEG
     };
-    int32_t translateObjectTypeIndication(uint8_t objectTypeIndication);
+    eCodecFormat translateObjectTypeIndication(uint8_t objectTypeIndication);
 
     // streamType
     // ISO/IEC 14496-1:2010(E), Section 7.2.6.6.2, Page 51, Table 6
@@ -130,12 +128,16 @@ namespace mtdcy { namespace MPEG4 {
         MPEGJStream                 = 0x9,
         InteractionStream           = 0xa,
         IPMPToolStream              = 0xb,
+        // 0x0C - 0x1F reserved for ISO use
+        // 0x20 - 0x3F user private
     };
 
     struct BaseDescriptor {
         BaseDescriptor() : valid(false) { }
         BaseDescriptor(const uint8_t tag) : valid(false), descrTag(tag) { }
         virtual ~BaseDescriptor() { }
+        virtual size_t size() const = 0;
+        virtual status_t compose(BitWriter& bw) const = 0;
         bool            valid;
         uint8_t         descrTag;
     };
@@ -147,14 +149,18 @@ namespace mtdcy { namespace MPEG4 {
     // Note: decoder usually need this information, for demuxer, there may be 
     // no need to parse this information
     struct DecoderSpecificInfo : public BaseDescriptor {
-        DecoderSpecificInfo() : BaseDescriptor(DecSpecificInfoTag) { }
+        DecoderSpecificInfo();
         DecoderSpecificInfo(const BitReader& br);
+        virtual size_t size() const;
+        virtual status_t compose(BitWriter& bw) const;
         sp<Buffer>  csd;
     };
 
     struct DecoderConfigDescriptor : public BaseDescriptor {
-        DecoderConfigDescriptor() : BaseDescriptor(DecoderConfigDescrTag) { }
+        DecoderConfigDescriptor();
         DecoderConfigDescriptor(const BitReader& br);
+        virtual size_t size() const;
+        virtual status_t compose(BitWriter& bw) const;
 
         uint8_t                 objectTypeIndication;
         uint8_t                 streamType;
@@ -168,11 +174,12 @@ namespace mtdcy { namespace MPEG4 {
 
     // ISO/IEC 14496-1:2010(E), Section 7.2.6.5, Page 47
     struct ES_Descriptor : public BaseDescriptor {
-        ES_Descriptor() : BaseDescriptor(ES_DescrTag) {}
+        ES_Descriptor();
         ES_Descriptor(const BitReader& br);
+        virtual size_t size() const;
+        virtual status_t compose(BitWriter& bw) const;
+        sp<Buffer> compose() const;
 
-        uint8_t                 tag;
-        uint8_t                 length;
         uint16_t                ES_ID;
         uint8_t                 streamDependenceFlag;
         uint8_t                 URL_Flag;
@@ -184,6 +191,10 @@ namespace mtdcy { namespace MPEG4 {
         DecoderConfigDescriptor decConfigDescr;     // mandatory
         sp<Buffer>              extraBytes;
     };
+    
+    sp<Buffer> MakeESDS(ES_Descriptor& esd);
+    
+    // ESDS
 }; };
 
 #endif // _MEDIA_MODULES_MPEG4_SYSTEMS_H

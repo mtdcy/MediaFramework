@@ -33,7 +33,7 @@
 //
 
 #define GL_SILENCE_DEPRECATION
-#define LOG_TAG "mpx.gl.main"
+#define LOG_TAG "mpx.main"
 //#define LOG_NDEBUG 0
 
 #include <MediaFramework/MediaFramework.h>
