@@ -40,30 +40,27 @@
 namespace mtdcy {
     SharedClock::ClockInt::ClockInt() :
         mMediaTime(kTimeBegin), mSystemTime(kTimeBegin),
-        mPaused(true),
-        mSpeed(1.0f)
+        mPaused(true), mTicking(false), mSpeed(1.0f)
     {
-
     }
 
     SharedClock::SharedClock() :
-        mGeneration(1), mMasterClock(0),
-        mClockInt()
+        mGeneration(1), mMasterClock(0), mClockInt()
     {
     }
 
     void SharedClock::start() {
         AutoLock _l(mLock);
         if (!mClockInt.mPaused) return;
+        mClockInt.mPaused       = false;
+        mClockInt.mSystemTime   = SystemTimeUs();
         
         if (atomic_load(&mMasterClock)) {
             // wait master clock to update
-            // BUT, we still set clock state here.
         } else {
-            mClockInt.mPaused = false;
-            mClockInt.mSystemTime = SystemTimeUs();
-            atomic_add(&mGeneration, 1);
+            mClockInt.mTicking  = true;
         }
+        atomic_add(&mGeneration, 1);
         notifyListeners_l(kClockStateTicking);
     }
     
@@ -77,6 +74,7 @@ namespace mtdcy {
     
     void SharedClock::update(const ClockInt& c) {
         AutoLock _l(mLock);
+        if (mClockInt.mPaused) return;
         mClockInt = c;
         atomic_add(&mGeneration, 1);
     }
@@ -87,7 +85,7 @@ namespace mtdcy {
     }
     
     MediaTime SharedClock::get_l() const {
-        if (mClockInt.mPaused) {
+        if (mClockInt.mPaused || !mClockInt.mTicking) {
             return mClockInt.mMediaTime;
         }
 
@@ -100,9 +98,10 @@ namespace mtdcy {
         AutoLock _l(mLock);
         if (mClockInt.mPaused) return;
         
-        mClockInt.mMediaTime = get_l();
-        mClockInt.mSystemTime = SystemTimeUs();
-        mClockInt.mPaused = true;
+        mClockInt.mMediaTime    = get_l();
+        mClockInt.mSystemTime   = SystemTimeUs();
+        mClockInt.mPaused       = true;
+        mClockInt.mTicking      = false;
         atomic_add(&mGeneration, 1);
         notifyListeners_l(kClockStatePaused);
     }
@@ -126,9 +125,10 @@ namespace mtdcy {
     void SharedClock::reset() {
         AutoLock _l(mLock);
 
-        mClockInt.mMediaTime = kTimeBegin;
-        mClockInt.mSystemTime = kTimeBegin;
-        mClockInt.mPaused = true;
+        mClockInt.mMediaTime    = kTimeBegin;
+        mClockInt.mSystemTime   = kTimeBegin;
+        mClockInt.mPaused       = true;
+        mClockInt.mTicking      = false;
         atomic_add(&mGeneration, 1);
         
         notifyListeners_l(kClockStateReset);
@@ -176,7 +176,7 @@ namespace mtdcy {
 
         AutoLock _l(mClock->mLock);
         mGeneration = gen;
-        mClockInt = mClock->mClockInt;
+        mClockInt   = mClock->mClockInt;
     }
     
     void Clock::setListener(const sp<ClockEvent> &ce) {
@@ -189,22 +189,18 @@ namespace mtdcy {
  
     void Clock::update(const MediaTime& t) {
         CHECK_EQ(mRole, (uint32_t)kClockRoleMaster);
-        mClockInt.mMediaTime = t;
-        mClockInt.mSystemTime = SystemTimeUs();
-        if (mClockInt.mPaused) {
-            mClockInt.mPaused = false;
-        }
+        mClockInt.mMediaTime    = t;
+        mClockInt.mSystemTime   = SystemTimeUs();
+        mClockInt.mTicking      = true;
         mClock->update(mClockInt);
         reload();
     }
 
     void Clock::update(const MediaTime& t, int64_t real) {
         CHECK_EQ(mRole, (uint32_t)kClockRoleMaster);
-        mClockInt.mMediaTime = t;
-        mClockInt.mSystemTime = real;
-        if (mClockInt.mPaused) {
-            mClockInt.mPaused = false;
-        }
+        mClockInt.mMediaTime    = t;
+        mClockInt.mSystemTime   = real;
+        mClockInt.mTicking      = true;
         mClock->update(mClockInt);
         reload();
     }
@@ -212,6 +208,11 @@ namespace mtdcy {
     bool Clock::isPaused() const {
         reload();
         return mClockInt.mPaused;
+    }
+    
+    bool Clock::isTicking() const {
+        reload();
+        return mClockInt.mTicking;
     }
 
     double Clock::speed() const {
@@ -221,7 +222,7 @@ namespace mtdcy {
 
     MediaTime Clock::get() const {
         reload();
-        if (mClockInt.mPaused) {
+        if (mClockInt.mPaused || !mClockInt.mTicking) {
             return mClockInt.mMediaTime;
         }
 
@@ -230,8 +231,8 @@ namespace mtdcy {
     }
     
     void Clock::set(const MediaTime& t) {
-        mClockInt.mMediaTime = t;
-        mClockInt.mSystemTime = SystemTimeUs();
+        mClockInt.mMediaTime    = t;
+        mClockInt.mSystemTime   = SystemTimeUs();
         mClock->update(mClockInt);
         reload();
     }

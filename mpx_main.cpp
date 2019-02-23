@@ -86,30 +86,30 @@ static void sendEvent(Uint32 type) {
     SDL_PushEvent(&event);
 }
 
-static sp<MediaOut> _out;
-static sp<MediaFrame> _frame;
-static Message _format;
+static sp<MediaOut> g_out;
+static sp<MediaFrame> g_frame;
+static Message g_format;
 struct MediaOutProxy : public MediaOut {
     MediaOutProxy() : MediaOut() { }
     virtual ~MediaOutProxy() { }
     virtual status_t status() const { return OK; }
     virtual String string() const { return ""; }
-    virtual Message formats() const { return _format; }
+    virtual Message formats() const { return g_format; }
     virtual status_t configure(const Message& options) { return INVALID_OPERATION; }
     virtual status_t prepare(const Message& options) {
         INFO("prepare => %s", options.string().c_str());
-        _format = options;
+        g_format = options;
         sendEvent(EVENT_PREPARE);
         return OK;
     }
     virtual status_t write(const sp<MediaFrame>& frame) {
-        _frame = frame;
+        g_frame = frame;
         sendEvent(EVENT_FRAME_READY);
         return OK;
     }
     virtual status_t flush() {
         INFO("flush");
-        _frame = NULL;
+        g_frame = NULL;
         sendEvent(EVENT_FLUSH);
         return OK;
     }
@@ -121,7 +121,7 @@ static void handleReshape() {
 
 static void handleDisplay() {
     //INFO("display");
-    if (_frame == NULL) return;
+    if (g_frame == NULL) return;
     
     //glViewport(0, 0, 800, 480);
 #ifdef TEST_SCREEN
@@ -130,7 +130,7 @@ static void handleDisplay() {
     glFlush();
 #endif
     
-    _out->write(_frame);
+    g_out->write(g_frame);
     
 #if DOUBLE_BUFFER
     SDL_GL_SwapWindow(window);
@@ -145,10 +145,10 @@ static void loop() {
                 handleDisplay();
                 break;
             case EVENT_PREPARE:
-                CHECK_TRUE(_out->prepare(_format) == OK);
+                CHECK_TRUE(g_out->prepare(g_format) == OK);
                 break;
             case EVENT_FLUSH:
-                CHECK_TRUE(_out->flush() == OK);
+                CHECK_TRUE(g_out->flush() == OK);
                 break;
             case SDL_QUIT:
                 INFO("quiting...");
@@ -158,6 +158,8 @@ static void loop() {
                     case SDLK_SPACE:
                         if (mp->state() == kStatePlaying)
                             mp->pause();
+                        else if (mp->state() == kStateFlushed)
+                            mp->prepare(kTimeBegin);
                         else
                             mp->start();
                         break;
@@ -224,7 +226,7 @@ int main (int argc, char **argv) {
         INFO("glsl version: %s", glGetString(GL_SHADING_LANGUAGE_VERSION));
         
         // setup local context
-        _out = MediaOut::Create(kCodecTypeVideo);
+        g_out = MediaOut::Create(kCodecTypeVideo);
         
         // create the mp
         Message options;
@@ -259,9 +261,9 @@ int main (int argc, char **argv) {
         window = NULL;
         
         // clear static context
-        _out.clear();
-        _frame.clear();
-        _format.clear();
+        g_out.clear();
+        g_frame.clear();
+        g_format.clear();
         
         // quit sdl
         SDL_Quit();

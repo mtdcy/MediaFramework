@@ -638,7 +638,7 @@ struct RenderSession : public Looper, public MediaSession, public FrameReadyEven
 
         // update clock
         if (mClock != NULL && mClock->role() == kClockRoleMaster
-                && mClock->isPaused()) {
+                && !mClock->isTicking()) {
             INFO("renderer %zu: update clock %.3f(s)+%.3f(s)",
                     mID, frame->pts.seconds(), realTime / 1E6);
             mClock->update(frame->pts - mLatency, realTime);

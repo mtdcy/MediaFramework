@@ -492,7 +492,6 @@ static struct StateLink {
     { kStateFlushed,        kStateReleased  },  // release
     // start
     { kStateIdle,           kStatePlaying   },  // start @ paused
-    { kStateFlushed,        kStatePlaying   },  // start @ flushed
     // prepare
     { kStateFlushed,        kStateReady     },  // prepare @ flushed
     // flush

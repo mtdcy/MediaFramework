@@ -130,6 +130,7 @@ namespace mtdcy {
                 MediaTime   mMediaTime;
                 MediaTime   mSystemTime;
                 bool        mPaused;
+                bool        mTicking;
                 double      mSpeed;
             };
             ClockInt        mClockInt;
@@ -177,6 +178,7 @@ namespace mtdcy {
 
             /** @see SharedClock::isPaused() */
             bool        isPaused() const;
+            bool        isTicking() const;
 
             /** @see SharedClock::speed() */
             double      speed() const;
