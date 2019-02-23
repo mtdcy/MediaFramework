@@ -58,13 +58,13 @@ namespace mtdcy {
      *
      * @see MediaExtractor::read
      */
-    struct PacketRequestPayload {
+    struct PacketRequest {
         eModeReadType           mode;   ///< read mode, @see eModeReadType
         MediaTime               ts;     ///< timestamp of the packet
         size_t                  number; ///< number packets to request
         sp<PacketReadyEvent>    event;  ///< event for return the packet, @see PacketReadyEvent
     };
-    typedef TypedEvent<PacketRequestPayload> PacketRequestEvent;
+    typedef TypedEvent<PacketRequest> PacketRequestEvent;
 
     /**
      * For pushing frames to target. when a frame is ready,
@@ -75,12 +75,12 @@ namespace mtdcy {
     /**
      * For pull frames from frame source
      */
-    struct FrameRequestPayload {
+    struct FrameRequest {
         MediaTime               ts;     ///< timestamp of the start frame
         size_t                  number; ///< number frames to request
         sp<FrameReadyEvent>     event;  ///< event for return the frame, @see FrameReadyEvent
     };
-    typedef TypedEvent<FrameRequestPayload>  FrameRequestEvent;
+    typedef TypedEvent<FrameRequest>  FrameRequestEvent;
 
     /**
      * For update render position to target.
@@ -92,46 +92,13 @@ namespace mtdcy {
      */
     typedef TypedEvent<MediaError> StatusEvent;
     
-    /**
-     * For client to control session
-     */
-    enum eControlEventType {
-        kControlEventPrepare,   ///< +ts && ts >= kTimeBegin
-        kControlEventFlush,     ///< -ts
+    struct MediaSession {
+        static sp<MediaSession> Create(const Message& formats, const Message& options);
+        MediaSession() { }
+        virtual ~MediaSession() { }
+        virtual void prepare(const Message& options) = 0;
+        virtual void flush() = 0;
     };
-    struct ControlEventPayload {
-        eControlEventType   type;   ///< mandatory
-        MediaTime           ts;     ///< @see eControlEventType
-        sp<StatusEvent>     event;  ///< optional
-    };
-    typedef TypedEvent<ControlEventPayload> ControlEvent;
-
-    /**
-     * create a session for packet stream.
-     * what we do:
-     * 1. request packets from source
-     * 2. decode packet to frame
-     * 3. do format convert if neccessary
-     * 4. render at time
-     * so, client don't have to care about decode, timing, thread, etc...
-     * --
-     * about formats, @see MediaExtractor
-     * about options:
-     *  "PacketRequestEvent"    - [sp<PacketRequestEvent>]  - mandatory
-     *  "RenderPositionEvent"   - [sp<RenderPositionEvent>] - optional
-     *  "Clock"                 - [sp<Clock>]               - optional
-     *  "RenderEvent"           - [sp<RenderEvent>]         - optional
-     *  "SDL_Window"            - [pointer|void *]          - optional
-     * if RenderEvent exists, external renderer will be used
-     * if RenderEvent not exists, internal renderer will be used, and
-     * SDL_Window must exists.
-     *
-     * @param formats   formats of packet stream. @see MediaExtractor
-     * @param options   option and parameter for this session, see notes before
-     * @note MediaSession takes one or two threads.
-     */
-    typedef ControlEvent MediaSession;
-    sp<MediaSession> MediaSessionCreate(const Message& formats, const Message& options);
 };
 
 #endif 

@@ -78,7 +78,7 @@ struct MediaSource : public PacketRequestEvent {
     MediaSource(const sp<Looper>& lp, const sp<MediaExtractor>& media, size_t index) :
     PacketRequestEvent(lp), mMedia(media), mIndex(index) { }
     
-    virtual void onEvent(const PacketRequestPayload& v) {
+    virtual void onEvent(const PacketRequest& v) {
         // NO lock to mMedia, as all PacketRequestEvent run in the same looper
         sp<MediaPacket> pkt = mMedia->read(mIndex, v.mode, v.ts);
         
@@ -274,7 +274,7 @@ static MediaError prepareMedia(const sp<Looper>& looper, MPContext* mpc, const M
             options.set<sp<Clock> >("Clock", new Clock(mpc->mClock));
         }
         
-        sp<MediaSession> session = MediaSessionCreate(formats, options);
+        sp<MediaSession> session = MediaSession::Create(formats, options);
         if (session == NULL) {
             ERROR("create session for %s[%zu] failed", url, i);
             continue;
@@ -380,12 +380,14 @@ struct ReadyState : public State {
         sp<PrepareStatusEvent> event = new PrepareStatusEvent(looper, mpc->mSessions.size());
         event->keep(event);
         
-        ControlEventPayload pl = { kControlEventPrepare, ts, event };
+        Message options;
+        options.set<MediaTime>("time", ts);
+        options.set<sp<StatusEvent> >("StatusEvent", event);
         
         HashTable<size_t, SessionContext>::iterator it = mpc->mSessions.begin();
         for (; it != mpc->mSessions.end(); ++it) {
             SessionContext& sc = it.value();
-            sc.mMediaSession->fire(pl);
+            sc.mMediaSession->prepare(options);
         }
         return kMediaNoError;
     }
@@ -434,13 +436,11 @@ struct FlushedState : public State {
     virtual MediaError onEnterState(const Message& payload) {
         sp<Looper> looper = Looper::getLooper();
         MPContext *mpc = static_cast<MPContext*>(looper->opaque());
-        
-        ControlEventPayload pl = { kControlEventFlush };
-        
+                
         HashTable<size_t, SessionContext>::iterator it = mpc->mSessions.begin();
         for (; it != mpc->mSessions.end(); ++it) {
             SessionContext& sc = it.value();
-            sc.mMediaSession->fire(pl);
+            sc.mMediaSession->flush();
         }
         
         mpc->mClock->reset();
