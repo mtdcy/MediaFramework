@@ -225,7 +225,6 @@ namespace mtdcy {
                 uint16_t        u16;
                 uint32_t        u32;
                 uint64_t        u64;
-                double          flt;
             };
             size_t              length;
         };
@@ -300,7 +299,7 @@ namespace mtdcy {
         };
 
         struct EBMLFloatElement : public EBMLElement {
-            EBMLInteger         vint;
+            double              flt;
             
             EBMLFloatElement(const char *_name, EBMLInteger& _id) :
             EBMLElement(_name, _id, kEBMLElementFloat) { }

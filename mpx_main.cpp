@@ -63,7 +63,7 @@ extern "C" {
 using namespace mtdcy;
 
 static SDL_Window * window = NULL;
-static sp<MediaPlayer> mp;
+static sp<IMediaPlayer> mp;
 static double position = 0;
 
 struct MPStatus : public StatusEvent {
@@ -151,14 +151,19 @@ static void loop() {
                 CHECK_TRUE(_out->flush() == OK);
                 break;
             case SDL_QUIT:
+                INFO("quiting...");
                 return;
             case SDL_KEYDOWN:
                 switch (event.key.keysym.sym) {
                     case SDLK_SPACE:
-                        mp->start();
+                        if (mp->state() == kStatePlaying)
+                            mp->pause();
+                        else
+                            mp->start();
                         break;
                     case SDLK_q:
                     case SDLK_ESCAPE:
+                        mp->flush();
                         break;
                 }
                 break;
@@ -225,7 +230,7 @@ int main (int argc, char **argv) {
         Message options;
         options.set<sp<RenderPositionEvent> >("RenderPositionEvent", new MPRenderPosition);
         options.set<sp<StatusEvent> >("StatusEvent", new MPStatus);
-        mp = MediaPlayer::Create(options);
+        mp = IMediaPlayer::Create(options);
         
         // add media to the mp
         Message media;
@@ -234,7 +239,7 @@ int main (int argc, char **argv) {
 #ifdef MAIN_THREAD_RENDER
         media.set<sp<MediaOut> >("MediaOut", new MediaOutProxy);
 #endif
-        mp->addMedia(media);
+        mp->init(media);
         
         // prepare the mp
         mp->prepare(kTimeBegin);
@@ -243,8 +248,7 @@ int main (int argc, char **argv) {
         loop();
         
         // clearup
-        mp->pause();
-        mp->flush();
+        if (mp->state() != kStateFlushed) mp->flush();
         mp->release();
         SDL_Delay(500); // 500ms
         

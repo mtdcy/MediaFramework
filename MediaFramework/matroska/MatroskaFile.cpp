@@ -249,7 +249,7 @@ struct MatroskaFile : public MediaExtractor {
         
         sp<EBMLFloatElement> DURATION = FindEBMLElement(SEGMENTINFO, ID_DURATION);
         if (DURATION != NULL) {
-            mDuration = DURATION->vint.flt * mTimeScale;
+            mDuration = DURATION->flt * mTimeScale;
         }
         DEBUG("duration %.3f(s)", mDuration / 1E9);
         
@@ -292,7 +292,7 @@ struct MatroskaFile : public MediaExtractor {
             sp<EBMLFloatElement> TRACKTIMECODESCALE = FindEBMLElement(TRACKENTRY, ID_TRACKTIMECODESCALE);
             if (TRACKTIMECODESCALE != NULL) {
                 DEBUG("track timecodescale %f", TRACKTIMECODESCALE->vint.flt);
-                trak.timescale = TRACKTIMECODESCALE->vint.flt;
+                trak.timescale = TRACKTIMECODESCALE->flt;
                 if (IS_ZERO(trak.timescale)) {
                     trak.timescale = 1.0f;
                 }
@@ -304,7 +304,7 @@ struct MatroskaFile : public MediaExtractor {
                 sp<EBMLFloatElement> SAMPLINGFREQUENCY = FindEBMLElementInside(TRACKENTRY, ID_AUDIO, ID_SAMPLINGFREQUENCY);
                 sp<EBMLIntegerElement> CHANNELS = FindEBMLElementInside(TRACKENTRY, ID_AUDIO, ID_CHANNELS);
                 
-                trak.a.sampleRate = SAMPLINGFREQUENCY->vint.flt;
+                trak.a.sampleRate = SAMPLINGFREQUENCY->flt;
                 trak.a.channels = CHANNELS->vint.u32;
                 
                 // I hate this: for some format, the mandatory properties always missing in header,

@@ -137,22 +137,19 @@ struct Int2Double {
     uint64_t    u64;
 };
 
-static inline EBMLInteger EBMLGetFloat(BitReader& br, size_t n) {
-    EBMLInteger vint;
+static inline double EBMLGetFloat(BitReader& br, size_t n) {
     if (n == 8) {
         CHECK_EQ(sizeof(double), 8);
         Int2Double a;
         a.u64 = br.rb64();
-        vint.flt = a.dbl;
-        //vint.u64 = br.rb64();
+        return a.dbl;
     } else {
         CHECK_EQ(n, 4);
         Int2Float a;
         a.u32 = br.rb32();
-        vint.flt = a.flt;
-        //vint.u32 = br.rb32();
+        return a.flt;
     }
-    return vint;
+    return 0;
 }
 
 static inline EBMLInteger EBMLGetCodedInteger(sp<Content>& pipe) {
@@ -262,14 +259,13 @@ String EBMLBinaryElement::string() const {
 }
 
 status_t EBMLFloatElement::parse(BitReader& br, size_t size) {
-    vint = EBMLGetFloat(br, size);
-    DEBUGV("float %f", vint.flt);
+    flt = EBMLGetFloat(br, size);
+    DEBUGV("float %f", flt);
     return OK;
 }
 
 String EBMLFloatElement::string() const {
-    return String(vint.flt);
-
+    return String(flt);
 }
 
 status_t EBMLSkipElement::parse(BitReader& br, size_t size) {
@@ -280,48 +276,49 @@ status_t EBMLSkipElement::parse(BitReader& br, size_t size) {
 String EBMLSkipElement::string() const { return "*"; }
 
 status_t EBMLBlockElement::parse(BitReader& br, size_t size) {
-    size_t offset = 0;
-    TrackNumber = EBMLGetInteger(br);   offset += TrackNumber.length;
-    TimeCode    = br.rb16();            offset += 2;
-    Flags       = br.r8();              offset += 1;
+    const size_t offset = br.offset();
+    TrackNumber = EBMLGetInteger(br);
+    TimeCode    = br.rb16();
+    Flags       = br.r8();
     DEBUGV("[%zu] block size %zu, %#x", TrackNumber.u32, size, Flags);
     if (Flags & kBlockFlagLace) {
-        size_t count = 1 + br.r8();     offset += 1;    // frame count
+        size_t count = 1 + br.r8();     // frame count
         CHECK_GT(count, 1);
         size_t frame[count - 1];
         if ((Flags & kBlockFlagLace) == kBlockFlagEBML) {
-            EBMLInteger vint = EBMLGetInteger(br);      offset += vint.length;
+            EBMLInteger vint = EBMLGetInteger(br);
             frame[0] = vint.u32;
             for (size_t i = 1; i < count - 1; ++i) {
-                EBMLSignedInteger svint = EBMLGetSignedInteger(br);     offset += svint.length;
+                EBMLSignedInteger svint = EBMLGetSignedInteger(br);
                 frame[i] = frame[i-1] + svint.i32;
                 //DEBUG("frame %zu", frame[i]);
             }
         } else if ((Flags & kBlockFlagLace) == kBlockFlagXiph) {
             for (size_t i = 0; i < count - 1; ++i) {
-                uint8_t u8 = br.r8();           offset += 1;
+                uint8_t u8 = br.r8();
                 frame[i] = u8;
                 while (u8 == 255) {
-                    u8 = br.r8();               offset += 1;
+                    u8 = br.r8();
                     frame[i] += u8;
                 }
             }
         } else if ((Flags & kBlockFlagLace) == kBlockFlagFixed) {
-            CHECK_EQ((size - offset) % count, 0);
-            const size_t length = (size - offset) / count;
+            const size_t total = size - (br.offset() - offset) / 8;
+            CHECK_EQ(total % count, 0);
+            const size_t length = total / count;
             for (size_t i = 0; i < count - 1; ++i) {
                 frame[i] = length;
             }
         }
         
         for (size_t i = 0; i < count - 1; ++i) {
-            CHECK_GE(size, offset + frame[i]);
-            data.push(br.readB(frame[i]));     offset += frame[i];
+            //CHECK_GE(size, (br.offset() - offset) / 8 + frame[i]);
+            data.push(br.readB(frame[i]));
         }
     }
     
-    CHECK_GT(size, offset);
-    data.push(br.readB(size - offset));   // last frame length is not stored
+    //CHECK_GT(size, (br.offset() - offset) / 8);
+    data.push(br.readB(size - (br.offset() - offset) / 8)); // last frame length is not stored
 
     return OK;
 }

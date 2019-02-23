@@ -26,10 +26,10 @@
  ******************************************************************************/
 
 
-/** 
- * File:    mpx.h 
+/**
+ * File:    mpx.h
  * Author:  mtdcy.chen
- * Changes: 
+ * Changes:
  *          1. 20181214     initial version
  *
  */
@@ -42,84 +42,76 @@
 #include <MediaFramework/MediaSession.h>
 
 namespace mtdcy {
-    struct StateMachine;
-    //
     enum eStateType {
-        kStateInvalid,
-        kStateInitial,  // mp with media
-        kStateReady,    // mp ready to play
-        kStatePlaying,  // mp is playing
-        kStateIdle,     // mp is not playing
-        kStateFlushed,  // mp
-        kStateReleased, // mp context is released
+        kStateInvalid,  ///< mp just allocated
+        kStateInitial,  ///< mp initialized with media
+        kStateReady,    ///< mp ready to play
+        kStatePlaying,  ///< mp is playing
+        kStateIdle,     ///< mp is not playing
+        kStateFlushed,  ///< mp context is reset, can be prepare again
+        kStateReleased, ///< mp context is released
         kStateMax,
     };
     
-    class MediaPlayer {
-        public:
-        virtual ~MediaPlayer();
-
-            /**
-             * create a player with options
-             * about options:
-             *  "StatusEvent"           - [sp<StatusEvent>]         - optional
-             *  "RenderPositionEvent"   - [sp<RenderPositionEvent>] - optional
-             * @param options   option and parameter for player
-             */
-            static sp<MediaPlayer> Create(const Message& options);
+    struct IMediaPlayer {
+        IMediaPlayer() { }
+        virtual ~IMediaPlayer() { }
         
-            /**
-             * 
-             */
-            eStateType state() const;
-
-            /**
-             * add a media to player.
-             * about options:
-             *  "RenderEvent"   - [sp<RenderEvent>]     - optional
-             *  "SDL_Window"    - [pointer|void *]      - optional
-             *  "StartTime"     - [double|seconds]      - optional
-             *  "EndTime"       - [double|seconds]      - optional
-             * if RenderEvent exists, external renderer will be used.
-             * if RenderEvent not exists, SDL_Window must exists for
-             * init internal renderer.
-             * @param url   url of the media
-             * @param options option and parameter for this media
-             * @return return OK on success, otherwise error code
-             */
-            status_t addMedia(const Message& media);
-            /**
-             * prepare player after add media
-             * @return return OK on success, otherwise error code
-             */
-            status_t prepare(const MediaTime& ts);
-            /**
-             * start this player.
-             * @return return OK on success, otherwise error code.
-             * @note there must be at least one media exists and start success.
-             */
-            status_t start();
-            /**
-             * pause this player.
-             * @return return OK on success, otherwise error code.
-             */
-            status_t pause();
-            /**
-             * flush this player
-             */
-            status_t flush();
-            /**
-             * release this player
-             */
-            status_t release();
-
-        private:
-            sp<StateMachine>    mSM;
+        /**
+         * create a player with options
+         * about options:
+         *  "StatusEvent"           - [sp<StatusEvent>]         - optional
+         *  "RenderPositionEvent"   - [sp<RenderPositionEvent>] - optional
+         * @param options   option and parameter for player
+         */
+        static sp<IMediaPlayer> Create(const Message& options);
         
-        private:
-            MediaPlayer();
-            DISALLOW_EVILS(MediaPlayer);
+        /**
+         *
+         */
+        virtual eStateType state() const = 0;
+        
+        /**
+         * add a media to player.
+         * about options:
+         *  "RenderEvent"   - [sp<RenderEvent>]     - optional
+         *  "SDL_Window"    - [pointer|void *]      - optional
+         *  "StartTime"     - [double|seconds]      - optional
+         *  "EndTime"       - [double|seconds]      - optional
+         * if RenderEvent exists, external renderer will be used.
+         * if RenderEvent not exists, SDL_Window must exists for
+         * init internal renderer.
+         * @param url   url of the media
+         * @param options option and parameter for this media
+         * @return return OK on success, otherwise error code
+         */
+        virtual MediaError init(const Message& media) = 0;
+        /**
+         * prepare player after add media
+         * @return return OK on success, otherwise error code
+         */
+        virtual MediaError prepare(const MediaTime& ts) = 0;
+        /**
+         * start this player.
+         * @return return OK on success, otherwise error code.
+         * @note there must be at least one media exists and start success.
+         */
+        virtual MediaError start() = 0;
+        /**
+         * pause this player.
+         * @return return OK on success, otherwise error code.
+         */
+        virtual MediaError pause() = 0;
+        /**
+         * flush this player
+         */
+        virtual MediaError flush() = 0;
+        /**
+         * release this player
+         */
+        virtual MediaError release() = 0;
     };
 }
 
 #endif // _MEDIA_PLAYER_H
+
