@@ -188,7 +188,7 @@ struct AVMediaFrame : public MediaFrame {
             }
         } else if (avcc->codec_type == AVMEDIA_TYPE_VIDEO) {
             v.format        = get_pix_format((AVPixelFormat)frame->format);
-            v.width         = frame->width;
+            v.width         = frame->linesize[0];
             v.height        = frame->height;
             v.rect.x        = 0;
             v.rect.y        = 0;
@@ -718,11 +718,16 @@ struct LavcDecoder : public MediaDecoder {
 
 #if LOG_NDEBUG == 0
         if (avcc->codec_type == AVMEDIA_TYPE_VIDEO) {
-            DEBUG("frame %s %.3f(s) => %d x %d => ",
+            CHECK_EQ(avcc->pix_fmt, internal->format);
+            DEBUG("frame %s %.3f(s) => %d x %d => {%d %d %d %d}",
                     av_get_pix_fmt_name((AVPixelFormat)internal->format),
                     out->pts.seconds(),
                     out->v.width,
-                    out->v.height);
+                    out->v.height,
+                    out->v.rect.x,
+                    out->v.rect.y,
+                    out->v.rect.w,
+                    out->v.rect.h);
         } else {
             DEBUG("frame %s %.3f(s), %d %d nb_samples %d",
                     av_get_sample_fmt_name((AVSampleFormat)internal->format),

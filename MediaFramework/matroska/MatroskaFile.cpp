@@ -523,6 +523,15 @@ struct MatroskaFile : public MediaExtractor {
         
         MatroskaTrack& trak = mTracks[index];
         
+        if (ts != kTimeInvalid) {
+            INFO("%zu: read @ %.3f(s), mode = %d", index, ts.seconds(), mode);
+            mContent->seek(mClusters);
+            for (size_t i = 0; i < mTracks.size(); ++i) {
+                MatroskaTrack& trak = mTracks[i];
+                trak.blocks.clear();
+            }
+        }
+        
         // TODO: handle seek here
         prepareBlocks(trak);
         

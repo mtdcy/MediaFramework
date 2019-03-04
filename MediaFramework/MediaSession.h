@@ -61,7 +61,6 @@ namespace mtdcy {
     struct PacketRequest {
         eModeReadType           mode;   ///< read mode, @see eModeReadType
         MediaTime               ts;     ///< timestamp of the packet
-        size_t                  number; ///< number packets to request
         sp<PacketReadyEvent>    event;  ///< event for return the packet, @see PacketReadyEvent
     };
     typedef TypedEvent<PacketRequest> PacketRequestEvent;
@@ -77,7 +76,6 @@ namespace mtdcy {
      */
     struct FrameRequest {
         MediaTime               ts;     ///< timestamp of the start frame
-        size_t                  number; ///< number frames to request
         sp<FrameReadyEvent>     event;  ///< event for return the frame, @see FrameReadyEvent
     };
     typedef TypedEvent<FrameRequest>  FrameRequestEvent;

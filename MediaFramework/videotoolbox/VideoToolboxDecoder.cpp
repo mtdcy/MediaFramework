@@ -633,7 +633,7 @@ struct VideoToolboxDecoder : public MediaDecoder {
         // it may be something wrong with the packet's pts => find out!!!
         VTDecodeFrameFlags decodeFlags = kVTDecodeFrame_EnableTemporalProcessing;
         //decodeFlags |= kVTDecodeFrame_EnableAsynchronousDecompression;
-        decodeFlags |= kVTDecodeFrame_1xRealTimePlayback;
+        //decodeFlags |= kVTDecodeFrame_1xRealTimePlayback;
         if (input->flags & kFrameFlagReference) {
             INFO("reference frame");
             decodeFlags |= kVTDecodeFrame_DoNotOutputFrame;

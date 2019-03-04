@@ -70,6 +70,7 @@ struct MPStatus : public StatusEvent {
     virtual void onEvent(const MediaError& st) {
         INFO("==> status %d", st);
     }
+    virtual String string() const { return "MPStatus"; }
 };
 
 struct MPRenderPosition : public RenderPositionEvent {
@@ -78,6 +79,7 @@ struct MPRenderPosition : public RenderPositionEvent {
         //INFO("progress %" PRId64, v);
         position = v.seconds();
     }
+    virtual String string() const { return "MPRenderPosition"; }
 };
 
 static void sendEvent(Uint32 type) {
@@ -137,7 +139,7 @@ static void handleDisplay() {
 #endif
 }
 
-static void loop() {
+static bool loop() {
     SDL_Event event;
     while (SDL_WaitEvent(&event)) {
         switch (event.type) {
@@ -152,16 +154,17 @@ static void loop() {
                 break;
             case SDL_QUIT:
                 INFO("quiting...");
-                return;
-            case SDL_KEYDOWN:
+                return false;
+            case SDL_KEYUP:
                 switch (event.key.keysym.sym) {
                     case SDLK_SPACE:
                         if (mp->state() == kStatePlaying)
                             mp->pause();
-                        else if (mp->state() == kStateFlushed)
-                            mp->prepare(kTimeBegin);
-                        else
+                        else {
+                            if (mp->state() != kStateReady)
+                                mp->prepare(kTimeBegin);
                             mp->start();
+                        }
                         break;
                     case SDLK_q:
                     case SDLK_ESCAPE:
@@ -182,7 +185,16 @@ static void loop() {
                 break;
         }
     }
+    return true;
 }
+
+struct MainRunnable : public Runnable {
+    virtual void run() {
+        if (loop()) {
+            Looper::Main()->post(new MainRunnable);
+        }
+    }
+};
 
 static Uint32 window_flags() {
     Uint32 flags = SDL_WINDOW_RESIZABLE|SDL_WINDOW_SHOWN;
@@ -220,7 +232,7 @@ int main (int argc, char **argv) {
 #else
         SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 0);
 #endif
-        SDL_GLContext glcontext = SDL_GL_CreateContext(window);
+        SDL_GLContext glc = SDL_GL_CreateContext(window);
         
         INFO("gl version: %s", glGetString(GL_VERSION));
         INFO("glsl version: %s", glGetString(GL_SHADING_LANGUAGE_VERSION));
@@ -247,16 +259,20 @@ int main (int argc, char **argv) {
         mp->prepare(kTimeBegin);
         
         // loop
-        loop();
+        //loop();
+        sp<Looper> mainLooper = Looper::Main();
+        mainLooper->post(new MainRunnable);
+        mainLooper->loop();
         
         // clearup
         if (mp->state() != kStateFlushed) mp->flush();
         mp->release();
-        SDL_Delay(500); // 500ms
-        
         mp.clear();
         
-        SDL_GL_DeleteContext(glcontext);
+        // terminate threads
+        mainLooper->terminate();
+        
+        SDL_GL_DeleteContext(glc);
         SDL_DestroyWindow(window);
         window = NULL;
         

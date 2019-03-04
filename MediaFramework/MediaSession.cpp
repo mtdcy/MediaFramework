@@ -39,8 +39,11 @@
 #include "MediaSession.h"
 #include "sdl2/SDLAudio.h"
 
+// TODO: calc count based on duration
+// max count: 1s
+// min count: 500ms
 #define MIN_COUNT (4)
-#define MAX_COUNT (8)
+#define MAX_COUNT (16)
 #define REFRESH_RATE (10000LL)    // 10ms
 
 // media session <= control session
@@ -59,45 +62,45 @@
 using namespace mtdcy;
 
 // no control session, control by FrameRequestEvent.
-struct DecodeSession : public Looper, public FrameRequestEvent, public PacketReadyEvent {
+struct DecodeSession {
     // external static context
     eCodecFormat            mID;
-    sp<PacketRequestEvent>  mSource;        // where we get packets
+    sp<Looper>              mLooper;
+    sp<PacketRequestEvent>  mPacketRequestEvent;        // where we get packets
     // internal static context
     sp<MediaDecoder>        mCodec;         // reference to codec
+    sp<PacketReadyEvent>    mPacketReadyEvent;          // when packet ready
 
     // internal mutable context
     // TODO: clock for decoder, handle late frames
+    volatile int            mGeneration;
+    bool                    mFlushed;
     List<sp<MediaPacket> >  mInputQueue;    // input packets queue
     bool                    mInputEOS;      // end of input ?
     bool                    mSignalCodecEOS;    // tell codec eos
     bool                    mOutputEOS;         // end of output ?
     MediaTime               mLastPacketTime;    // test packets in dts order?
-    List<FrameRequest>   mFrameRequests; // requests queue
+    List<FrameRequest>      mFrameRequests; // requests queue
     // statistics
     size_t                  mPacketsReceived;
     size_t                  mPacketsComsumed;
     size_t                  mFramesDecoded;
 
-    DecodeSession(const String& name, const Message& format, const Message& options) :
-        Looper(name),
-        FrameRequestEvent(sp_Retain(this)),
-        PacketReadyEvent(sp_Retain(this)),    // all event in the same looper
+    DecodeSession(const sp<Looper>& looper,
+                  const Message& format,
+                  const Message& options,
+                  const sp<PacketRequestEvent>& fre) :
         // external static context
-        mID(kCodecFormatUnknown), mSource(NULL),
+        mID(kCodecFormatUnknown),
+        mLooper(looper), mPacketRequestEvent(fre),
         // internal static context
-        mCodec(NULL),
+        mCodec(NULL), mPacketReadyEvent(NULL),
         // internal mutable context
+        mGeneration(0), mFlushed(false),
         mInputEOS(false), mSignalCodecEOS(false), mLastPacketTime(kTimeInvalid),
         // statistics
         mPacketsReceived(0), mPacketsComsumed(0), mFramesDecoded(0)
     {
-        loop();     // start looper
-
-        // setup external context
-        CHECK_TRUE(options.contains("PacketRequestEvent"));
-        mSource = options.find<sp<PacketRequestEvent> >("PacketRequestEvent");
-
         // setup decoder...
         CHECK_TRUE(format.contains(kKeyFormat));
         mID = (eCodecFormat)format.findInt32(kKeyFormat);
@@ -128,7 +131,7 @@ struct DecodeSession : public Looper, public FrameRequestEvent, public PacketRea
     }
 
     virtual ~DecodeSession() {
-        terminate();    // stop looper
+        mLooper->terminate(true );
     }
 
     void requestPacket(const MediaTime& ts = kTimeInvalid) {
@@ -150,13 +153,30 @@ struct DecodeSession : public Looper, public FrameRequestEvent, public PacketRea
             payload.ts = ts;
         }
 
-        payload.event = sp_Retain(this);
-        mSource->fire(payload);
+        payload.event = mPacketReadyEvent;
+        mPacketRequestEvent->fire(payload);
 
         // -> onPacketReady
     }
+    
+    struct OnPacketReady : public PacketReadyEvent {
+        const int mGeneration;
+        OnPacketReady(const sp<Looper>& looper, int gen) :
+        PacketReadyEvent(String::format("OnPacketReady %d", gen), looper),
+        mGeneration(gen) { }
+        virtual void onEvent(const sp<MediaPacket>& packet) {
+            sp<Looper> current = Looper::Current();
+            DecodeSession *ds = static_cast<DecodeSession*>(current->user(0));
+            ds->onPacketReady(packet, mGeneration);
+        }
+    };
 
-    void onPacketReady(const sp<MediaPacket>& pkt) {
+    void onPacketReady(const sp<MediaPacket>& pkt, int generation) {
+        if (atomic_load(&mGeneration) != generation) {
+            INFO("codec %zu: ignore outdated packets", mID);
+            return;
+        }
+        
         if (pkt == NULL) {
             INFO("codec %zu: eos detected", mID);
             mInputEOS = true;
@@ -178,14 +198,20 @@ struct DecodeSession : public Looper, public FrameRequestEvent, public PacketRea
         while (mFrameRequests.size() && mInputQueue.size()) {
             onDecode();
         }
+        
+        requestPacket();
     }
 
     void onPrepareDecoder(const MediaTime& ts) {
         INFO("codec %zu: prepare decoder", mID);
         CHECK_TRUE(ts != kTimeInvalid);
+        
+        // update generation
+        atomic_add(&mGeneration, 1);
+        mPacketReadyEvent = new OnPacketReady(mLooper, mGeneration);
 
         // TODO: prepare again without flush
-
+        mFlushed = false;
         mInputEOS = false;
         mOutputEOS = false;
         mSignalCodecEOS = false;
@@ -205,6 +231,12 @@ struct DecodeSession : public Looper, public FrameRequestEvent, public PacketRea
 
     void onFlushDecoder() {
         INFO("codec %zu: flush %zu packets", mID, mInputQueue.size());
+        
+        // update generation
+        atomic_add(&mGeneration, 1);
+        mPacketReadyEvent = NULL;
+        
+        mLooper->flush();
 
         // remove cmds
         mFrameRequests.clear();
@@ -212,25 +244,27 @@ struct DecodeSession : public Looper, public FrameRequestEvent, public PacketRea
         // flush input queue and codec
         mInputQueue.clear();
         mCodec->flush();
+        
+        mFlushed = true;
     }
 
     void onRequestFrame(const FrameRequest& request) {
         DEBUG("codec %zu: request frames", mID);
 
-        // request to flush ?
-        if (request.ts == kTimeEnd) {
-            onFlushDecoder();
+        if (request.event == NULL) {
+            // request to flush
+            if (request.ts == kTimeEnd) {
+                onFlushDecoder();
+            }
+            // request to prepare @ ts
+            else if (request.ts != kTimeInvalid) {
+                onPrepareDecoder(request.ts);
+            }
             return;
-            // NO need to queue the request
         }
-        // request to prepare @ ts
-        else if (request.ts != kTimeInvalid) {
-            onPrepareDecoder(request.ts);
-            return;
-            // NO need to queue the request
-        } else if (mOutputEOS) {
-            WARN("codec %zu: request frame at eos", mID);
-            // DO NOTHING
+        
+        if (mOutputEOS) {
+            ERROR("codec %zu: request frame at eos", mID);
             return;
         }
         CHECK_TRUE(request.event != NULL);
@@ -280,10 +314,11 @@ struct DecodeSession : public Looper, public FrameRequestEvent, public PacketRea
 
         // drain from codec
         sp<MediaFrame> frame = mCodec->read();
-        FrameRequest& request = *mFrameRequests.begin();
         if (frame == NULL && !mInputEOS) {
             WARN("codec %zu: is initializing...", mID);
         } else {
+            FrameRequest& request = *mFrameRequests.begin();
+            
             if (frame != NULL) {
                 DEBUG("codec %zu: decoded frame %.3f(s) ready", mID, frame->pts.seconds());
                 ++mFramesDecoded;
@@ -296,68 +331,64 @@ struct DecodeSession : public Looper, public FrameRequestEvent, public PacketRea
             if (mOutputEOS) {
                 mFrameRequests.clear(); // clear requests
             } else {
-                --request.number;
-                if (request.number == 0) mFrameRequests.pop();
+                mFrameRequests.pop();
             }
         }
-
-        // prepare input packet for next frame
-        if (!mInputEOS) requestPacket();
-    }
-
-    // PacketReadyEvent
-    virtual void onEvent(const sp<MediaPacket>& packet) {
-        onPacketReady(packet);
-    }
-
-    // FrameRequestEvent
-    virtual void onEvent(const FrameRequest& payload) {
-        onRequestFrame(payload);
+        
+        // request more packets
+        requestPacket();
     }
 };
 
-struct RenderSession : public Looper, public MediaSession, public FrameReadyEvent {
-    // static context
+struct RenderSession : public MediaSession {
+    // external static context
+    sp<Looper>              mLooper;
+    sp<FrameRequestEvent>   mFrameRequestEvent;
     eCodecFormat            mID;
     sp<RenderPositionEvent> mPositionEvent;
+    // internal static context
+    sp<FrameReadyEvent>     mFrameReadyEvent;
     sp<MediaOut>            mOut;
     sp<ColorConvertor>      mColorConvertor;
     sp<Clock>               mClock;
-    sp<FrameRequestEvent>   mFrameRequestEvent;
     int64_t                 mLatency;
 
     // render scope context
+    volatile int            mGeneration;
     struct PresentRunnable;
     sp<PresentRunnable>     mPresentFrame;      // for present current frame
     List<sp<MediaFrame> >   mOutputQueue;       // output frame queue
     bool                    mOutputEOS;         // output frame eos
+    bool                    mFlushed;
     MediaTime               mLastFrameTime;     // kTimeInvalid => first frame
-    size_t                  mFrameRequests;     // sent requests
     sp<StatusEvent>         mStatusEvent;
     // clock context
     MediaTime               mLastUpdateTime;    // last clock update time
     // statistics
     size_t                  mFramesRenderred;
 
-    RenderSession(eCodecFormat id, const Message& format, const Message& options) :
-        Looper(String::format("rs.%#x", id)),
-        MediaSession(), FrameReadyEvent(sp_Retain(this)),  // share the same looper
+    RenderSession(const sp<Looper>& looper,
+                  eCodecFormat id,
+                  const Message& format,
+                  const Message& options,
+                  const sp<FrameRequestEvent>& fre) :
+        MediaSession(), // share the same looper
         // external static context
-        mID(id), mPositionEvent(NULL),
+        mLooper(looper), mFrameRequestEvent(fre), mID(id),
+        mPositionEvent(NULL),
         // internal static context
-        mOut(NULL), mColorConvertor(NULL), mClock(NULL),
-        mFrameRequestEvent(NULL), mLatency(0),
+        mFrameReadyEvent(NULL),
+        mOut(NULL), mColorConvertor(NULL), mClock(NULL), mLatency(0),
         // render context
-        mPresentFrame(new PresentRunnable(this)),
-        mOutputEOS(false),
-        mLastFrameTime(kTimeInvalid), mFrameRequests(0),
+        mGeneration(0),
+        mPresentFrame(new PresentRunnable()),
+        mOutputEOS(false), mFlushed(false),
+        mLastFrameTime(kTimeInvalid),
         mStatusEvent(NULL),
         mLastUpdateTime(kTimeInvalid),
         // statistics
         mFramesRenderred(0)
     {
-        loop();
-
         // setup external context
         if (options.contains("RenderPositionEvent")) {
             mPositionEvent = options.find<sp<RenderPositionEvent> >("RenderPositionEvent");
@@ -366,10 +397,7 @@ struct RenderSession : public Looper, public MediaSession, public FrameReadyEven
         if (options.contains("Clock")) {
             mClock = options.find<sp<Clock> >("Clock");
         }
-
-        CHECK_TRUE(options.contains("FrameRequestEvent"));
-        mFrameRequestEvent = options.find<sp<FrameRequestEvent> >("FrameRequestEvent");
-
+        
         // setup out context
         CHECK_TRUE(format.contains(kKeyFormat));
 
@@ -409,43 +437,50 @@ struct RenderSession : public Looper, public MediaSession, public FrameReadyEven
         }
 
         if (mClock != NULL) {
-            mClock->setListener(new OnClockEvent(this, sp_Retain(this)));
+            mClock->setListener(new OnClockEvent(mLooper));
         }
     }
 
     virtual ~RenderSession() {
-        // are we share looper with others
-        terminate();
+        mLooper->terminate(true);
     }
 
     void requestFrame() {
         // don't request frame if eos detected.
         if (mOutputEOS) return;
 
-        size_t count = mOutputQueue.size() + mFrameRequests;
-
         // output queue: kMaxFrameNum at most
-        if (count >= MAX_COUNT) {
+        if (mOutputQueue.size() >= MAX_COUNT) {
             DEBUG("renderer %zu: output queue is full", mID);
             return;
         }
 
-        FrameRequest payload;
-        payload.ts = kTimeInvalid;
-        payload.number = count >= MIN_COUNT ? 1 : MIN_COUNT - count;
-        payload.event = sp_Retain(this);
-        mFrameRequestEvent->fire(payload);
+        FrameRequest request;
+        request.ts      = kTimeInvalid;
+        request.event   = mFrameReadyEvent;
+        mFrameRequestEvent->fire(request);
         DEBUG("renderer %zu: request more frames", mID);
-
-        mFrameRequests += payload.number;
-
         // -> onFrameReady
     }
+    
+    struct OnFrameReady : public FrameReadyEvent {
+        const int mGeneration;
+        OnFrameReady(const sp<Looper>& looper, int gen) :
+        FrameReadyEvent(String::format("OnFrameReady %d", gen), looper),
+        mGeneration(gen) { }
+        virtual void onEvent(const sp<MediaFrame>& frame) {
+            sp<Looper> current = Looper::Current();
+            RenderSession *rs = static_cast<RenderSession*>(current->user(0));
+            rs->onFrameReady(frame, mGeneration);
+        }
+    };
 
-    void onFrameReady(const sp<MediaFrame>& frame) {
+    void onFrameReady(const sp<MediaFrame>& frame, int generation) {
         DEBUG("renderer %zu: one frame ready", mID);
-
-        --mFrameRequests;
+        if (atomic_load(&mGeneration) != generation) {
+            INFO("renderer %zu: ignore outdated frames", mID);
+            return;
+        }
 
         // case 1: eos
         if (frame == NULL) {
@@ -480,6 +515,9 @@ struct RenderSession : public Looper, public MediaSession, public FrameReadyEven
         } else {
             mOutputQueue.push(frame);
         }
+        
+        // request more frames
+        requestFrame();
 
         // prepare done ?
         if (mStatusEvent != NULL && (mOutputQueue.size() >= MIN_COUNT || mOutputEOS)) {
@@ -525,45 +563,54 @@ struct RenderSession : public Looper, public MediaSession, public FrameReadyEven
     void onPrepareRenderer(const MediaTime& ts, const sp<StatusEvent>& se) {
         INFO("renderer %zu: prepare renderer...", mID);
         CHECK_TRUE(ts >= kTimeBegin);
+        
+        // update generation
+        atomic_add(&mGeneration, 1);
+        mFrameReadyEvent = new OnFrameReady(mLooper, mGeneration);
 
         // tell decoder to prepare
-        FrameRequest payload;
-        payload.ts = ts;
-        mFrameRequestEvent->fire(payload);
+        FrameRequest request;
+        request.ts = ts;
+        mFrameRequestEvent->fire(request);
 
         // reset flags
+        mFlushed = false;
         mLastUpdateTime = 0;
         mOutputEOS = false;
         mLastFrameTime = kTimeInvalid;
-        mFrameRequests = 0;
         mStatusEvent = se;
         mOutputQueue.clear();
 
-        // request MIN_COUNT frames
+        // request frames
         requestFrame();
         // -> onFrameReady
 
         // if no clock, start render directly
-        if (mClock == NULL && !exists(mPresentFrame)) {
+        if (mClock == NULL && !mLooper->exists(mPresentFrame)) {
             onStartRenderer();
         }
     }
 
     void onFlushRenderer() {
         INFO("track %zu: flush %zu frames", mID, mOutputQueue.size());
+        
+        // update generation
+        atomic_add(&mGeneration, 1);
+        mFrameReadyEvent = NULL;
 
+        mLooper->flush();
+        
         // tell decoder to flush
-        FrameRequest payload;
-        payload.ts = kTimeEnd;
-        mFrameRequestEvent->fire(payload);
+        FrameRequest request;
+        request.ts = kTimeEnd;
+        mFrameRequestEvent->fire(request);
 
         // remove present runnable
-        remove(mPresentFrame);
+        mLooper->remove(mPresentFrame);
 
         // flush output
         mOutputEOS = false;
         mOutputQueue.clear();
-        mFrameRequests = 0;
         if (mOut != NULL) mOut->flush();
 
         // reset flags
@@ -571,12 +618,17 @@ struct RenderSession : public Looper, public MediaSession, public FrameReadyEven
 
         // reset statistics
         mFramesRenderred = 0;
+        
+        mFlushed = true;
     }
 
     struct PresentRunnable : public Runnable {
-        RenderSession *mTgt;
-        PresentRunnable(RenderSession *tgt) : Runnable(), mTgt(tgt) { }
-        virtual void run() { mTgt->onRender(); }
+        PresentRunnable() : Runnable() { }
+        virtual void run() {
+            sp<Looper> current = Looper::Current();
+            RenderSession *rs = static_cast<RenderSession*>(current->user(0));
+            rs->onRender();
+        }
     };
 
     void onRender() {
@@ -595,11 +647,12 @@ struct RenderSession : public Looper, public MediaSession, public FrameReadyEven
         }
 
         if (next < 0) { // too early
-            post(mPresentFrame, -next);
+            mLooper->post(mPresentFrame, -next);
         } else {
-            requestFrame();
-            post(mPresentFrame, next);
+            mLooper->post(mPresentFrame, next);
         }
+        
+        requestFrame();
 
         // -> onRender
     }
@@ -684,22 +737,21 @@ struct RenderSession : public Looper, public MediaSession, public FrameReadyEven
 
     // using clock to control render session
     struct OnClockEvent : public ClockEvent {
-        RenderSession *mTgt;
-
-        OnClockEvent(RenderSession *tgt, const sp<Looper>& lp) :
-            ClockEvent(lp), mTgt(tgt) { }
+        OnClockEvent(const sp<Looper>& lp) : ClockEvent(lp) { }
 
         virtual void onEvent(const eClockState& cs) {
+            sp<Looper> current = Looper::Current();
+            RenderSession *rs = static_cast<RenderSession*>(current->user(0));
             INFO("clock state => %d", cs);
             switch (cs) {
                 case kClockStateTicking:
-                    mTgt->onStartRenderer();
+                    rs->onStartRenderer();
                     break;
                 case kClockStatePaused:
-                    mTgt->onPauseRenderer();
+                    rs->onPauseRenderer();
                     break;
                 case kClockStateReset:
-                    mTgt->onPauseRenderer();
+                    rs->onPauseRenderer();
                     break;
                 default:
                     break;
@@ -712,7 +764,7 @@ struct RenderSession : public Looper, public MediaSession, public FrameReadyEven
         //onPrintStat();
 
         // check
-        if (exists(mPresentFrame)) {
+        if (mLooper->exists(mPresentFrame)) {
             ERROR("renderer %zu: already started");
             return;
         }
@@ -737,7 +789,7 @@ struct RenderSession : public Looper, public MediaSession, public FrameReadyEven
 
     void onPauseRenderer() {
         INFO("renderer %zu: pause at %.3f(s)", mID, mClock->get().seconds());
-        remove(mPresentFrame);
+        mLooper->remove(mPresentFrame);
 
         if (mOut != NULL) {
             Message options;
@@ -745,36 +797,33 @@ struct RenderSession : public Looper, public MediaSession, public FrameReadyEven
             mOut->configure(options);
         }
     }
-
-    // FrameReadyEvent
-    virtual void onEvent(const sp<MediaFrame>& frame) {
-        onFrameReady(frame);
-    }
-
+    
     // MediaSession
     struct PrepareRunnable : public Runnable {
-        RenderSession *     mTgt;
         Message             mOptions;
-        PrepareRunnable(RenderSession *rs, const Message& options) : mTgt(rs), mOptions(options) { }
+        PrepareRunnable(const Message& options) : mOptions(options) { }
         virtual void run() {
-            mTgt->onPrepareRenderer(mOptions);
+            sp<Looper> current = Looper::Current();
+            RenderSession *rs = static_cast<RenderSession*>(current->user(0));
+            rs->onPrepareRenderer(mOptions);
         }
     };
 
     virtual void prepare(const Message& options) {
-        post(new PrepareRunnable(this, options));
+        mLooper->post(new PrepareRunnable(options));
     }
 
     struct FlushRunnable : public Runnable {
-        RenderSession *     mTgt;
-        FlushRunnable(RenderSession *rs) : mTgt(rs) { }
+        FlushRunnable() : Runnable() { }
         virtual void run() {
-            mTgt->onFlushRenderer();
+            sp<Looper> current = Looper::Current();
+            RenderSession *rs = static_cast<RenderSession*>(current->user(0));
+            rs->onFlushRenderer();
         }
     };
 
     virtual void flush() {
-        post(new FlushRunnable(this));
+        mLooper->post(new FlushRunnable());
     }
 };
 
@@ -809,8 +858,7 @@ struct OnFrameRequestTunnel : public FrameRequestEvent {
             return;
         }
         packetRequest.event     = new OnPacketReadyTunnel(request.event);
-        packetRequest.number    = request.number;
-        packetRequest.mode      = kModeReadNext;
+         packetRequest.mode      = kModeReadNext;
         if (request.ts != kTimeInvalid) {
             packetRequest.ts    = request.ts;
             packetRequest.mode  = kModeReadClosestSync;
@@ -820,24 +868,52 @@ struct OnFrameRequestTunnel : public FrameRequestEvent {
     }
 };
 
+struct OnFrameRequest : public FrameRequestEvent {
+    sp<DecodeSession>   mDecodeSession;
+    OnFrameRequest(const sp<Looper>& looper, const sp<DecodeSession>& ds) :
+    FrameRequestEvent(looper), mDecodeSession(ds) {
+    }
+    
+    virtual ~OnFrameRequest() {
+    }
+    
+    virtual void onEvent(const FrameRequest& request) {
+        mDecodeSession->onRequestFrame(request);
+    }
+};
+
+// PacketRequestEvent <- DecodeSession <- FrameRequestEvent <- RenderSession
 sp<MediaSession> MediaSession::Create(const Message& format, const Message& options) {
     CHECK_TRUE(format.contains(kKeyFormat));
-    eCodecFormat id = (eCodecFormat)format.findInt32(kKeyFormat);
-    eCodecType type = GetCodecType(id);
+    eCodecFormat codec = (eCodecFormat)format.findInt32(kKeyFormat);
+    eCodecType type = GetCodecType(codec);
 
-    bool clock = options.contains("Clock");
-
-    String name = String::format("ds.%#x", id);
-    sp<DecodeSession> ds = new DecodeSession(name, format, options);
-
+    CHECK_TRUE(options.contains("PacketRequestEvent"));
+    sp<PacketRequestEvent> pre = options.find<sp<PacketRequestEvent> >("PacketRequestEvent");
+    
+    sp<Looper> looper = new Looper(String::format("ds.%#x", codec));
+    sp<DecodeSession> ds = new DecodeSession(looper,
+                                             format,
+                                             options,
+                                             pre);
+    looper->bind(ds.get());
+    looper->loop();
+    
     if (ds->mCodec == NULL) {
         ERROR("failed to initial decoder");
         return NULL;
     }
-
-    Message dup = options;
-    dup.set<sp<FrameRequestEvent> >("FrameRequestEvent", ds);
-    sp<RenderSession> rs = new RenderSession(id, ds->mCodec->formats(), dup);
+    
+    sp<FrameRequestEvent> fre = new OnFrameRequest(looper, ds);
+    
+    looper = new Looper(String::format("rs.%#x", codec));
+    sp<RenderSession> rs = new RenderSession(looper,
+                                             codec,
+                                             ds->mCodec->formats(),
+                                             options,
+                                             fre);
+    looper->bind(rs.get());
+    looper->loop();
 
     // test if RenderSession is valid
     if (rs->mOut == NULL) {
