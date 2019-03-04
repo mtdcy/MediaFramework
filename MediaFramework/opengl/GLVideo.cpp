@@ -412,6 +412,36 @@ static void updateTexture(const sp<OpenGLContext>& glc, const sp<MediaFrame>& fr
         frame->planes[1].data,
         frame->planes[2].data,
     };
+    
+    // x    y
+    // 0,      1.0,
+    // 1.0,    1.0,
+    // 0,      0,
+    // 1.0,    0
+    
+#if 1
+    if (frame->v.rect.x || frame->v.rect.y
+        || (frame->v.rect.w - frame->v.rect.x) != frame->v.width
+        || (frame->v.rect.h - frame->v.rect.y) != frame->v.height) {
+        DEBUG("%d x %d => { %d %d %d %d }", frame->v.width, frame->v.height,
+             frame->v.rect.x, frame->v.rect.y,
+             frame->v.rect.w, frame->v.rect.h);
+        // texture_vertices_original
+        // XXX: we are using GL_LINEAR, sub 1 pixel to avoid green line
+        GLfloat x = (GLfloat)frame->v.rect.x / frame->v.width;
+        GLfloat w = (GLfloat)(frame->v.rect.w - 1) / frame->v.width;
+        GLfloat y = (GLfloat)frame->v.rect.y / frame->v.height;
+        GLfloat h = (GLfloat)(frame->v.rect.h - 1) / frame->v.height;
+        GLfloat texture_vertices[] = {
+            x, h,
+            w, h,
+            x, y,
+            w, y
+        };
+        glVertexAttribPointer(glc->attrs[ATTR_TEXTURE], 2, GL_FLOAT, 0, 0, texture_vertices);
+        glEnableVertexAttribArray(glc->attrs[ATTR_TEXTURE]);
+    }
+#endif
 
     GLint index[glc->config->n_textures];
     for (size_t i = 0; i < glc->config->n_textures; ++i) {
