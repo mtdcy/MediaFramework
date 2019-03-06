@@ -242,7 +242,7 @@ namespace mtdcy {
             size_t              length;
         };
 
-        struct EBMLElement {
+        struct EBMLElement : public SharedObject {
             const char *            name;
             EBMLInteger             id;
             const EBMLElementType   type;

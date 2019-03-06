@@ -49,7 +49,7 @@ namespace mtdcy {
     /**
      * base class for audio/video output device
      */
-    struct MediaOut {
+    struct MediaOut : public SharedObject {
         static sp<MediaOut> Create(eCodecType);
         
         MediaOut() { }

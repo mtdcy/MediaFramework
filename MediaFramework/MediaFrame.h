@@ -54,7 +54,7 @@ namespace mtdcy {
      * the properties inside this structure have to make sure this
      * frame can be renderred properly without additional informations.
      */
-    struct MediaFrame {
+    struct MediaFrame : public SharedObject {
         MediaTime               pts;        ///< display time in us
         MediaTime               duration;   ///< duration of this frame
         /**

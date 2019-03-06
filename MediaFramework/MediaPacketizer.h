@@ -39,7 +39,7 @@
 namespace mtdcy {
 
     ///////////////////////////////////////////////////////////////////////////
-    struct MediaPacketizer {
+    struct MediaPacketizer : public SharedObject {
         static sp<MediaPacketizer> Create(eCodecFormat format);
         
         MediaPacketizer() {}

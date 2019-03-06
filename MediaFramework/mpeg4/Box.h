@@ -52,7 +52,7 @@ namespace mtdcy { namespace MPEG4 {
     };
 
     // ISO/IEC 14496-12: Section 4.2 Object Structure, Page 11
-    struct Box {
+    struct Box : public SharedObject {
         Box(const String& _name, bool _full = false, bool _container = false) : 
             name(_name), full(_full), container(_container) { }
         virtual ~Box() { }

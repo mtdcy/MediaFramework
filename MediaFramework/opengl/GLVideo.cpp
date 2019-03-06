@@ -113,7 +113,7 @@ struct Config {
     void                    (*update)(const sp<OpenGLContext>&, const sp<MediaFrame>&);
 };
 
-struct OpenGLContext {
+struct OpenGLContext : public SharedObject {
     OpenGLContext() : config(NULL), width(0), height(0), format(kPixelFormatUnknown)
     {
         for (size_t i = 0; i < OBJ_MAX; ++i) objs[i] = 0;

@@ -53,7 +53,7 @@ namespace mtdcy {
         kStateMax,
     };
     
-    struct IMediaPlayer {
+    struct IMediaPlayer : public SharedObject {
         IMediaPlayer() { }
         virtual ~IMediaPlayer() { }
         

@@ -56,7 +56,7 @@ namespace mtdcy {
     /**
      * base class for audio/video codecs
      */
-    struct MediaDecoder {
+    struct MediaDecoder : public SharedObject {
         /**
          * allocate a codec object
          * @param format    @see eCodecFormat

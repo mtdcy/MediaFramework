@@ -50,7 +50,7 @@ namespace mtdcy {
     /**
      * media packet class for compressed audio and video packets
      */
-    struct MediaPacket {
+    struct MediaPacket : public SharedObject {
         uint8_t *           data;       ///< packet data
         size_t              size;       ///< data size in bytes
         

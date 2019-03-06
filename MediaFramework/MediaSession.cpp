@@ -62,7 +62,7 @@
 using namespace mtdcy;
 
 // no control session, control by FrameRequestEvent.
-struct DecodeSession {
+struct DecodeSession : public SharedObject {
     // external static context
     eCodecFormat            mID;
     sp<Looper>              mLooper;

@@ -198,7 +198,7 @@ struct MatroskaFile : public MediaExtractor {
     double                  mDuration;
     uint64_t                mTimeScale;
     sp<Content>             mContent;
-    List<MatroskaTrack>     mTracks;
+    Vector<MatroskaTrack>   mTracks;
     List<TOCEntry>          mTOC;
     
     MatroskaFile() : mDuration(0), mTimeScale(TIMESCALE_DEF), mContent(NULL)
@@ -383,15 +383,14 @@ struct MatroskaFile : public MediaExtractor {
         // stage 2: workarounds for some codec
         // get extra properties by decoding blocks
         if (stage2) {
-            List<MatroskaTrack>::iterator it = mTracks.begin();
-            for (; it != mTracks.end(); ++it) {
-                MatroskaTrack& trak = *it;
+            for (size_t i = 0; i < mTracks.size(); ++i) {
+                MatroskaTrack& trak = mTracks[i];
                 prepareBlocks(trak);
                 if (trak.blocks.empty()) continue;
                 
                 if (trak.format == kAudioCodecFormatMP3) {
                     uint32_t sampleRate, numChannels;
-                    sp<MatroskaPacket> packet = trak.blocks[0];
+                    sp<MatroskaPacket> packet = trak.blocks.front();
                     if (decodeMPEGAudioFrameHeader(*packet->buffer, &sampleRate, &numChannels)) {
                         INFO("real mpa properties: %" PRIu32 " %" PRIu32, numChannels, sampleRate);
                         trak.a.channels     = numChannels;

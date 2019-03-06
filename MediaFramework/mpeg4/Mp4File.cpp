@@ -93,7 +93,7 @@ struct Sample {
     uint32_t            flags;
 };
 
-struct Mp4Track {
+struct Mp4Track : public SharedObject {
     Mp4Track() : codec(kCodecFormatUnknown), trackIndex(0),
     sampleIndex(0), duration(kTimeInvalid),
     startTime(kTimeInvalid) { }

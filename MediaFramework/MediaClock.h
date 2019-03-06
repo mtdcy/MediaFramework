@@ -67,7 +67,7 @@ namespace mtdcy {
      * context.
      */
     class Clock;
-    class SharedClock {
+    class SharedClock : public SharedObject {
         public:
             SharedClock();
 
@@ -149,7 +149,7 @@ namespace mtdcy {
      * shadow of SharedClock
      * @see SharedClock
      */
-    class Clock {
+    class Clock : public SharedObject {
         public:
             /**
              * create a shadow of SharedClock

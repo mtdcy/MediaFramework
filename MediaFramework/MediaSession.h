@@ -90,7 +90,7 @@ namespace mtdcy {
      */
     typedef TypedEvent<MediaError> StatusEvent;
     
-    struct MediaSession {
+    struct MediaSession : public SharedObject {
         static sp<MediaSession> Create(const Message& formats, const Message& options);
         MediaSession() { }
         virtual ~MediaSession() { }

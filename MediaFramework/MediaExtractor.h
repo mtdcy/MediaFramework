@@ -53,7 +53,7 @@ namespace mtdcy {
     /**
      * base class for different files
      */
-    struct MediaExtractor {
+    struct MediaExtractor : public SharedObject {
         /**
          * allocate an extractor object
          * @return return reference to new extractor

@@ -296,7 +296,7 @@ static MediaError prepareMedia(const sp<Looper>& looper, MPContext* mpc, const M
     return kMediaNoError;
 }
 
-struct State {
+struct State : public SharedObject {
     const eStateType kState;
     State(eStateType state) : kState(state) { }
     virtual ~State() { }
@@ -556,6 +556,7 @@ struct AVPlayer : public IMediaPlayer {
     }
     
     virtual ~AVPlayer() {
+        INFO("release AVPlayer");
         MPContext *mpc = static_cast<MPContext*>(mLooper->user(0));
         mLooper->terminate(true);
         delete mpc;

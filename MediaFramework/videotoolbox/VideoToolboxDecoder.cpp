@@ -153,7 +153,7 @@ struct VTMediaFrame : public MediaFrame {
     }
 };
 
-struct VTContext {
+struct VTContext : public SharedObject {
     VTContext() : decompressionSession(NULL), formatDescription(NULL),
     mInputEOS(false), mLastFrameTime(kTimeBegin) { }
 

@@ -49,7 +49,7 @@ namespace mtdcy {
     /**
      * class for convert different pixel color to desired color.
      */
-    class ColorConvertor {
+    class ColorConvertor : public SharedObject {
         public:
             /**
              * create a color convertor
