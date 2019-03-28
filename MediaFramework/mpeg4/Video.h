@@ -35,10 +35,13 @@
 #ifndef _MEDIA_MODULES_MPEG4_VIDEO_H
 #define _MEDIA_MODULES_MPEG4_VIDEO_H
 
-#include <MediaToolkit/Toolkit.h>
+#include <MediaFramework/MediaDefs.h>
 
 // ISO/IEC 14496-10 Advanced Video Coding
-namespace mtdcy { namespace MPEG4 {
+
+__BEGIN_NAMESPACE_MPX
+
+namespace MPEG4 {
     // ISO/IEC 14496-10 Section 7.4.1 Table 7.1
     enum eNALUnitType {
         NALU_TYPE_SLICE         = 1,    ///< coded slice of a non-IDR pitrue
@@ -69,11 +72,11 @@ namespace mtdcy { namespace MPEG4 {
     //  b. the byte stream format, start code prefix + NAL unit -> Annex B
     //
     // NAL = HEADER + RBSP(Raw Byte Sequence Payload)
-    struct NAL {
+    struct __ABE_HIDDEN NAL {
         uint8_t     header;
         sp<Buffer>  rbsp;
     };
-    
+
     // NAL is the basic unit, the are two h264 stream format
     // a. Annexb format: SC + NALU + SC + NALU + ...
     // b. avcc format: [avcC + ] length + NALU + length + NALU
@@ -84,7 +87,7 @@ namespace mtdcy { namespace MPEG4 {
         kH264AvccFormat,
     };
     eH264StreamFormat GetH264StreamFormat(sp<Buffer>&);
-    
+
     // ISO/IEC 14496-10 Annex A
     enum eAVCProfile {
         kAVCProfileBaseline     = 0,
@@ -99,13 +102,13 @@ namespace mtdcy { namespace MPEG4 {
         kAVCProfileHigh444Intra,
         kAVCProfileCAVLC444Intra,
     };
-    
+
     // ISO/IEC 14495-15, 'avcC'
-    struct AVCDecoderConfigurationRecord {
+    struct __ABE_HIDDEN AVCDecoderConfigurationRecord {
         AVCDecoderConfigurationRecord(const BitReader& br);
         status_t compose(BitWriter& bw) const;
         size_t size() const;
-        
+
         bool        valid;
         uint8_t     AVCProfileIndication;
         uint8_t     AVCLevelIndication;
@@ -114,5 +117,8 @@ namespace mtdcy { namespace MPEG4 {
         List<sp<Buffer> >   PPSs;
     };
 
-}; }; 
+}
+
+__END_NAMESPACE_MPX
+
 #endif // _MEDIA_MODULES_MPEG4_VIDEO_H

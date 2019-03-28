@@ -34,11 +34,13 @@
 
 #define LOG_TAG "MPEG4.Video"
 #define LOG_NDEBUG 0 
-#include <MediaToolkit/Toolkit.h>
+#include "MediaDefs.h"
 
 #include "Video.h"
 
-namespace mtdcy { namespace MPEG4 {
+__BEGIN_NAMESPACE_MPX
+
+namespace MPEG4 {
 
     // AnnexB格式通常用于实时的流格式，比如说传输流，通过无线传输的广播、DVD等。
     // 在这些格式中通常会周期性的重复SPS和PPS包，经常是在每一个关键帧之前，
@@ -55,16 +57,16 @@ namespace mtdcy { namespace MPEG4 {
             }
             br.reset();
         }
-        
+
         // AnnexB format
         if (br.show(24) == 0x1 || br.show(32) == 0x1) {
             return kH264AnnexBFormat;
         }
-        
+
         // avcc format without avcC
         return kH264AvccFormat;
     }
-    
+
     //! avcC:
     //!
     //! refers to ISO/IEC 14496-15 5.2.4 Decoder configuration information
@@ -88,33 +90,33 @@ namespace mtdcy { namespace MPEG4 {
     //!     }
     //! }
     AVCDecoderConfigurationRecord::AVCDecoderConfigurationRecord(const BitReader& br) :
-    valid(false) {
-        // 1
-        if (br.r8() != 1) return;           // configurationVersion = 1
-        // 3
-        AVCProfileIndication = br.r8();
-        uint8_t profile_compatibility = br.r8();
-        AVCLevelIndication = br.r8();
-        // (6 + 2 + 3 + 5) / 8 = 2
-        if (br.read(6) != 0x3f) return;     // bit(6) reserved = ‘111111’b;
-        lengthSizeMinusOne = br.read(2);    //
-        if (br.read(3) != 0x7) return;      // bit(3) reserved = ‘111’b;
-        size_t numOfSequenceParameterSets = br.read(5);
-        // n * (2 + x)
-        for (size_t i = 0; i < numOfSequenceParameterSets; ++i) {
-            size_t sequenceParameterSetLength = br.rb16();
-            SPSs.push(br.readB(sequenceParameterSetLength));
+        valid(false) {
+            // 1
+            if (br.r8() != 1) return;           // configurationVersion = 1
+            // 3
+            AVCProfileIndication = br.r8();
+            uint8_t profile_compatibility = br.r8();
+            AVCLevelIndication = br.r8();
+            // (6 + 2 + 3 + 5) / 8 = 2
+            if (br.read(6) != 0x3f) return;     // bit(6) reserved = ‘111111’b;
+            lengthSizeMinusOne = br.read(2);    //
+            if (br.read(3) != 0x7) return;      // bit(3) reserved = ‘111’b;
+            size_t numOfSequenceParameterSets = br.read(5);
+            // n * (2 + x)
+            for (size_t i = 0; i < numOfSequenceParameterSets; ++i) {
+                size_t sequenceParameterSetLength = br.rb16();
+                SPSs.push(br.readB(sequenceParameterSetLength));
+            }
+            // 1
+            size_t numOfPictureParameterSets = br.r8();
+            // n * (2 + x)
+            for (size_t i = 0; i < numOfPictureParameterSets; ++i) {
+                size_t pictureParameterSetLength = br.rb16();
+                PPSs.push(br.readB(pictureParameterSetLength));
+            }
+            valid = true;
         }
-        // 1
-        size_t numOfPictureParameterSets = br.r8();
-        // n * (2 + x)
-        for (size_t i = 0; i < numOfPictureParameterSets; ++i) {
-            size_t pictureParameterSetLength = br.rb16();
-            PPSs.push(br.readB(pictureParameterSetLength));
-        }
-        valid = true;
-    }
-    
+
     status_t AVCDecoderConfigurationRecord::compose(BitWriter& bw) const {
         CHECK_GE(bw.size(), size());
         bw.w8(1);                           // configurationVersion
@@ -141,7 +143,7 @@ namespace mtdcy { namespace MPEG4 {
         bw.write();
         return OK;
     }
-    
+
     size_t AVCDecoderConfigurationRecord::size() const {
         size_t n = 1 + 3 + 2;
         // sps
@@ -157,5 +159,7 @@ namespace mtdcy { namespace MPEG4 {
         }
         return n;
     }
-    
-}; };
+
+}
+
+__END_NAMESPACE_MPX

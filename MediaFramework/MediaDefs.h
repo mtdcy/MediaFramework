@@ -2,40 +2,40 @@
  * Copyright (c) 2016, Chen Fang <mtdcy.chen@gmail.com>
  * All rights reserved.
  *
- * Redistribution and use in source and binary forms, with or without 
+ * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *
- * 1. Redistributions of source code must retain the above copyright notice, 
+ * 1. Redistributions of source code must retain the above copyright notice,
  *    this list of conditions and the following disclaimer.
  *
  * 2. Redistributions in binary form must reproduce the above copyright notice,
- *    this list of conditions and the following disclaimer in the documentation 
+ *    this list of conditions and the following disclaimer in the documentation
  *    and/or other materials provided with the distribution.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
- *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE 
- *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
- *  ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE 
- *  LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR 
- *  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF 
- *  SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS 
- *  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN 
- *  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) 
- *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
+ *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ *  ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ *  LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ *  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ *  SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ *  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ *  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************/
 
 
 // File:    MediaDefs.h
 // Author:  mtdcy.chen
-// Changes: 
+// Changes:
 //          1. 20160701     initial version
 //
 
 #ifndef _MEDIA_MODULES_MEDIADEFS_H
-#define _MEDIA_MODULES_MEDIADEFS_H 
+#define _MEDIA_MODULES_MEDIADEFS_H
 
-#include <MediaToolkit/Toolkit.h>
+#include <ABE/ABE.h>
 
 __BEGIN_DECLS
 
@@ -98,7 +98,7 @@ eCodecType GetCodecType(eCodecFormat format);
 
 enum ePixelFormat {
     kPixelFormatUnknown     = 0,        ///< Unknown
-    
+
     // about yuv: http://www.fourcc.org/yuv.php
     // planar yuv
     kPixelFormatYUV420P,                ///< Planar YUV 4:2:0, 12bpp, 3 planes Y/U/V
@@ -138,7 +138,7 @@ enum eModeReadType {
     kModeReadNextSync,          ///< read next sync packet, -ts/+ts
     kModeReadLastSync,          ///< read last sync packet, -ts/+ts
     kModeReadClosestSync,       ///< read closest sync packet, +ts
-                                ///< @note only for seek, as direction can NOT be predict
+    ///< @note only for seek, as direction can NOT be predict
     kModeReadIndex,             ///< read sample of index, +ts as sample index
     kModeReadPeek,              ///< peek packet, +ts
     kModeReadDefault = kModeReadNext
@@ -251,74 +251,80 @@ enum MediaError {
 __END_DECLS
 
 #ifdef __cplusplus
-namespace mtdcy {
+#define __BEGIN_NAMESPACE_MPX   __BEGIN_NAMESPACE(mpx)
+#define __END_NAMESPACE_MPX     __END_NAMESPACE(mpx)
+#define __USING_NAMESPACE_MPX   __USING_NAMESPACE(mpx)
 
-    // FIXME: use macro to replace these constants
-    namespace Media {
-        ///////////////////////////////////////////////////////////////////////////
-        // for media meta data
-        //!>> strings
-        static const char *Album                = "album";
-        static const char *Artist               = "artist";
-        static const char *Author               = "author";
-        static const char *Composer             = "composer";
-        static const char *Performer            = "performer";
-        static const char *Title                = "title";
-        static const char *Genre                = "genre";
-        static const char *Writer               = "writer";
-        static const char *Date                 = "date";
-        static const char *Year                 = "year";
-        static const char *AlbumArtist          = "album-artist";
-        static const char *Compilation          = "compilation";
-        static const char *Comment              = "comment";
-        static const char *CDTrackNum           = "cd-track-number";
-        static const char *DiskNum              = "disc-number";
-        static const char *TextLang             = "text-language";  // string
-        static const char *Location             = "location";       // string
-        static const char *Copyright            = "copyright";
-        static const char *License              = "licenses";
-        //!>> buffer
-        static const char *AlbumArt             = "pic-album-art";  //!>> buffer.
+USING_NAMESPACE_ABE
 
-        static const char *ID3v1                = "id3v1";          // Message
-        static const char *ID3v2                = "id3v2";          // Message 
-        static const char *APEv1                = "apev1";          // Message 
-        static const char *APEv2                = "apev2";          // Message 
-        static const char *VorbisComment        = "vorbis";         // Message
-        
-        ///////////////////////////////////////////////////////////////////////////
-        // For Mp3 & AAC [gapless playback]
-        static const char *EncoderDelay         = "encoder-delay";  // int32_t
-        static const char *EncoderPadding       = "encoder-padding";// int32_t 
-    };
+__BEGIN_NAMESPACE_MPX
+
+// FIXME: use macro to replace these constants
+namespace Media {
+    ///////////////////////////////////////////////////////////////////////////
+    // for media meta data
+    //!>> strings
+    static const char *Album                = "album";
+    static const char *Artist               = "artist";
+    static const char *Author               = "author";
+    static const char *Composer             = "composer";
+    static const char *Performer            = "performer";
+    static const char *Title                = "title";
+    static const char *Genre                = "genre";
+    static const char *Writer               = "writer";
+    static const char *Date                 = "date";
+    static const char *Year                 = "year";
+    static const char *AlbumArtist          = "album-artist";
+    static const char *Compilation          = "compilation";
+    static const char *Comment              = "comment";
+    static const char *CDTrackNum           = "cd-track-number";
+    static const char *DiskNum              = "disc-number";
+    static const char *TextLang             = "text-language";  // string
+    static const char *Location             = "location";       // string
+    static const char *Copyright            = "copyright";
+    static const char *License              = "licenses";
+    //!>> buffer
+    static const char *AlbumArt             = "pic-album-art";  //!>> buffer.
+
+    static const char *ID3v1                = "id3v1";          // Message
+    static const char *ID3v2                = "id3v2";          // Message
+    static const char *APEv1                = "apev1";          // Message
+    static const char *APEv2                = "apev2";          // Message
+    static const char *VorbisComment        = "vorbis";         // Message
 
     ///////////////////////////////////////////////////////////////////////////
-    namespace Tag {
-        class Parser {
-            public:
-                Parser() { }
-                virtual ~Parser() { }
-                virtual status_t    parse(const Buffer& data) = 0;
-                const Message&      values() const { return mValues; }
-
-            protected:
-                Message             mValues;
-        };
-
-        class Writter {
-            public:
-                Writter() { }
-                virtual ~Writter() { }
-                virtual status_t    synth(const Message& data) = 0;
-                //const Buffer&       values() const {  }
-
-            protected:
-                //Buffer              mBuffer;
-        };
-    };
-    
-    
-    ///////////////////////////////////////////////////////////////////////////
+    // For Mp3 & AAC [gapless playback]
+    static const char *EncoderDelay         = "encoder-delay";  // int32_t
+    static const char *EncoderPadding       = "encoder-padding";// int32_t
 };
-#endif
+
+///////////////////////////////////////////////////////////////////////////
+namespace Tag {
+    class __ABE_EXPORT Parser {
+        public:
+            __ABE_INLINE Parser() { }
+            __ABE_INLINE virtual ~Parser() { }
+            virtual status_t parse(const Buffer& data) = 0;
+            __ABE_INLINE const Message& values() const { return mValues; }
+
+        protected:
+            Message             mValues;
+    };
+
+    class __ABE_EXPORT Writter {
+        public:
+            __ABE_INLINE Writter() { }
+            __ABE_INLINE virtual ~Writter() { }
+            virtual status_t synth(const Message& data) = 0;
+            //const Buffer&       values() const {  }
+
+        protected:
+            //Buffer              mBuffer;
+    };
+};
+
+__END_NAMESPACE_MPX
+
+#endif // __cplusplus
 #endif // _MEDIA_MODULES_MEDIADEFS_H
+

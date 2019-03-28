@@ -35,7 +35,7 @@
 #define LOG_TAG "Player"
 //#define LOG_NDEBUG 0
 
-#include <MediaToolkit/Toolkit.h>
+#include <ABE/ABE.h>
 #include <MediaFramework/MediaSession.h>
 #include <MediaFramework/MediaExtractor.h>
 #include <MediaFramework/MediaDecoder.h>
@@ -44,20 +44,20 @@
 
 #include <SDL.h>
 
-using namespace mtdcy;
+__USING_NAMESPACE_MPX
 
-struct CountedStatusEvent : public StatusEvent {
+struct __ABE_HIDDEN CountedStatusEvent : public StatusEvent {
     volatile int mCount;
     sp<StatusEvent> kept;
-    
+
     // FIXME:
     void keep(const sp<StatusEvent>& self) { kept = self; }
-    
+
     CountedStatusEvent(const sp<Looper>& lp, size_t n) :
-    StatusEvent(lp), mCount(n) { }
-    
+        StatusEvent(lp), mCount(n) { }
+
     virtual ~CountedStatusEvent() { }
-    
+
     virtual void onEvent(const MediaError& st) {
         int old = atomic_sub(&mCount, 1);
         CHECK_GT(old, 0);
@@ -66,80 +66,80 @@ struct CountedStatusEvent : public StatusEvent {
             kept.clear();
         }
     }
-    
+
     virtual void onFinished(MediaError st) = 0;
 };
 
 // for MediaSession request packet, which always run in player's looper
-struct MediaSource : public PacketRequestEvent {
+struct __ABE_HIDDEN MediaSource : public PacketRequestEvent {
     sp<MediaExtractor>  mMedia;
     const size_t        mIndex;
-    
+
     MediaSource(const sp<Looper>& lp, const sp<MediaExtractor>& media, size_t index) :
-    PacketRequestEvent(lp), mMedia(media), mIndex(index) { }
-    
+        PacketRequestEvent(lp), mMedia(media), mIndex(index) { }
+
     virtual void onEvent(const PacketRequest& v) {
         // NO lock to mMedia, as all PacketRequestEvent run in the same looper
         sp<MediaPacket> pkt = mMedia->read(mIndex, v.mode, v.ts);
-        
+
         if (pkt == NULL) {
             INFO("%zu: eos", mIndex);
         }
-        
+
         sp<PacketReadyEvent> event = v.event;
         event->fire(pkt);
     }
 };
 
-struct SessionContext {
+struct __ABE_HIDDEN SessionContext {
     eCodecFormat        mCodec;
     sp<MediaSession>    mMediaSession;
     int64_t             mStartTime;
     int64_t             mEndTime;
-    
+
     SessionContext(eCodecFormat codec, const sp<MediaSession>& ms) :
-    mCodec(codec),  mMediaSession(ms) { }
-    
+        mCodec(codec),  mMediaSession(ms) { }
+
     ~SessionContext() { }
 };
 
-struct MPContext {
+struct __ABE_HIDDEN MPContext {
     // external static context
     sp<RenderPositionEvent> mRenderPositionEvent;
     int64_t mRenderPositionUpdateInterval;
     sp<StatusEvent> mStatusEvent;
-    
+
     // mutable context
     HashTable<size_t, SessionContext> mSessions;
     size_t mNextId;
     bool mHasAudio;
-    
+
     // clock
     sp<SharedClock> mClock;
-    
+
     MPContext(const Message& options) :
-    // external static context
-    mRenderPositionEvent(NULL), mRenderPositionUpdateInterval(500000LL),
-    mStatusEvent(NULL),
-    // internal static context
-    // mutable context
-    mNextId(0),mHasAudio(false),
-    // clock
-    mClock(new SharedClock)
+        // external static context
+        mRenderPositionEvent(NULL), mRenderPositionUpdateInterval(500000LL),
+        mStatusEvent(NULL),
+        // internal static context
+        // mutable context
+        mNextId(0),mHasAudio(false),
+        // clock
+        mClock(new SharedClock)
     {
         if (options.contains("RenderPositionEvent")) {
-            mRenderPositionEvent = options.find<sp<RenderPositionEvent> >("RenderPositionEvent");
+            mRenderPositionEvent = options.findObject("RenderPositionEvent");
         }
-        
+
         if (options.contains("RenderPositionUpdateInterval")) {
             mRenderPositionUpdateInterval = options.findInt64("RenderPositionUpdateInterval");
         }
-        
+
         if (options.contains("StatusEvent")) {
-            mStatusEvent = options.find<sp<StatusEvent> >("StatusEvent");
+            mStatusEvent = options.findObject("StatusEvent");
         }
     }
-    
+
     virtual ~MPContext() {
         mSessions.clear();
     }
@@ -148,32 +148,32 @@ struct MPContext {
 // update render position to client
 struct UpdateRenderPosition : public Runnable {
     UpdateRenderPosition() : Runnable() { }
-    
+
     virtual void run() {
         sp<Looper> looper = Looper::Current();
         MPContext *mpc = static_cast<MPContext*>(looper->user(0));
-        
+
         // send render position info to client
         MediaTime ts = mpc->mClock->get();
         DEBUG("current progress %.3f(s)", ts.seconds());
         mpc->mRenderPositionEvent->fire(ts);
-        
+
         if (mpc->mClock->isPaused() == false) {
             looper->post(new UpdateRenderPosition,
-                         mpc->mRenderPositionUpdateInterval);
+                    mpc->mRenderPositionUpdateInterval);
         }
     }
 };
 
 // for media session update render position
-struct OnUpdateRenderPosition : public RenderPositionEvent {
+struct __ABE_HIDDEN OnUpdateRenderPosition : public RenderPositionEvent {
     const size_t mID;
     OnUpdateRenderPosition(const sp<Looper>& lp, size_t id) : RenderPositionEvent(lp), mID(id) { }
-    
+
     virtual void onEvent(const MediaTime& ts) {
         sp<Looper> looper = Looper::Current();
         MPContext *mpc = static_cast<MPContext*>(looper->user(0));
-        
+
         if (ts == kTimeEnd) {
             INFO("eos...");
             if (mpc->mRenderPositionEvent != NULL) {
@@ -184,31 +184,31 @@ struct OnUpdateRenderPosition : public RenderPositionEvent {
 };
 
 static MediaError prepareMedia(const sp<Looper>& looper, MPContext* mpc, const Message& media) {
-    
+
     const char * url = media.findString("url");
     INFO("prepare media %s", url);
-    
+
     sp<Content> pipe = Content::Create(url);
     if (pipe == NULL) {
         ERROR("create pipe failed");
         return kMediaErrorBadFormat;
     }
-    
+
     sp<MediaExtractor> extractor = MediaExtractor::Create(MediaFormatDetect(*pipe));
-    
+
     Message options;
     if (extractor->init(pipe, options) != kMediaNoError) {
         ERROR("create extractor failed");
         return kMediaErrorBadFormat;
     }
-    
+
     eModeType mode = (eModeType)media.findInt32(kKeyMode, kModeTypeNormal);
-    
+
     sp<MediaOut> external;
     if (media.contains("MediaOut")) {
-        external = media.find<sp<MediaOut> >("MediaOut");
+        external = media.findObject("MediaOut");
     }
-    
+
 #if 0
     if (media.contains("SDL_Window")) {
         nativeWindow = media.findPointer("SDL_Window");
@@ -216,33 +216,33 @@ static MediaError prepareMedia(const sp<Looper>& looper, MPContext* mpc, const M
 #endif
     //double startTimeUs = options.findDouble("StartTime");
     //double endTimeUs = options.findDouble("EndTime");
-    
+
     Message fileFormats = extractor->formats();
     size_t numTracks = fileFormats.findInt32(kKeyCount, 1);
-    
+
     uint32_t activeTracks = 0;
     for (size_t i = 0; i < numTracks; ++i) {
         // PacketRequestEvent
         sp<MediaSource> ms = new MediaSource(looper, extractor, i);
-        
+
         String name = String::format("track-%zu", i);
         const Message& formats = fileFormats.find<Message>(name);
-        
+
         DEBUG("session %zu: %s", i, formats.string().c_str());
-        
+
         eCodecFormat codec = (eCodecFormat)formats.findInt32(kKeyFormat);
         if (codec == kCodecFormatUnknown) {
             ERROR("ignore unknown codec");
             continue;
         }
-        
+
         eCodecType type = GetCodecType(codec);
         if (type == kCodecTypeAudio) {
             if (formats.findInt32(kKeySampleRate) == 0 ||
-                formats.findInt32(kKeyChannels) == 0) {
+                    formats.findInt32(kKeyChannels) == 0) {
                 ERROR("missing mandatory format infomation, playback may be broken");
             }
-            
+
             if (mpc->mHasAudio) {
                 INFO("ignore this audio");
                 continue;
@@ -251,42 +251,42 @@ static MediaError prepareMedia(const sp<Looper>& looper, MPContext* mpc, const M
             }
         } else if (type == kCodecTypeVideo) {
             if (formats.findInt32(kKeyWidth) == 0 ||
-                formats.findInt32(kKeyHeight) == 0) {
+                    formats.findInt32(kKeyHeight) == 0) {
                 ERROR("missing mandatory format infomation, playback may be broken");
             }
         }
-        
+
         Message options;
         options.setInt32(kKeyMode, mode);
         if (type == kCodecTypeVideo) {
             if (external != NULL) {
-                options.set<sp<MediaOut> >("MediaOut", external);
+                options.setObject("MediaOut", external);
             }
         }
         options.setInt32(kKeyRequestFormat, kPixelFormatNV12);
         options.setInt32(kKeyOpenGLCompatible, true);
-        options.set<sp<PacketRequestEvent> >("PacketRequestEvent", ms);
-        
-        options.set<sp<RenderPositionEvent> >("RenderPositionEvent",
-                                              new OnUpdateRenderPosition(looper, mpc->mNextId));
-        
+        options.setObject("PacketRequestEvent", ms);
+
+        options.setObject("RenderPositionEvent",
+                new OnUpdateRenderPosition(looper, mpc->mNextId));
+
         if (kCodecTypeAudio == type || numTracks == 1) {
-            options.set<sp<Clock> >("Clock", new Clock(mpc->mClock, kClockRoleMaster));
+            options.setObject("Clock", new Clock(mpc->mClock, kClockRoleMaster));
         } else {
-            options.set<sp<Clock> >("Clock", new Clock(mpc->mClock));
+            options.setObject("Clock", new Clock(mpc->mClock));
         }
-        
+
         sp<MediaSession> session = MediaSession::Create(formats, options);
         if (session == NULL) {
             ERROR("create session for %s[%zu] failed", url, i);
             continue;
         }
-        
+
         // save this packet queue
         mpc->mSessions.insert(mpc->mNextId++, SessionContext(codec, session));
         activeTracks |= (1<<i);
     }
-    
+
     // tell extractor which tracks are enabled.
     Message config;
     config.setInt32(kKeyMask, activeTracks);
@@ -296,16 +296,16 @@ static MediaError prepareMedia(const sp<Looper>& looper, MPContext* mpc, const M
     return kMediaNoError;
 }
 
-struct State : public SharedObject {
+struct __ABE_HIDDEN State : public SharedObject {
     const eStateType kState;
     State(eStateType state) : kState(state) { }
     virtual ~State() { }
-    
+
     virtual MediaError onLeaveState() = 0;
     virtual MediaError onEnterState(const Message& payload) = 0;
 };
 
-struct InvalidState : public State {
+struct __ABE_HIDDEN InvalidState : public State {
     InvalidState() : State(kStateInvalid) { }
     virtual MediaError onLeaveState() {
         // NOTHING
@@ -317,18 +317,18 @@ struct InvalidState : public State {
     }
 };
 
-struct InitialState : public State {
+struct __ABE_HIDDEN InitialState : public State {
     InitialState() : State(kStateInitial) { }
     virtual MediaError onLeaveState() {
         // NOTHING
         return kMediaNoError;
     }
-    
+
     virtual MediaError onEnterState(const Message& media) {
         // -> init by add media
         sp<Looper> looper = Looper::Current();
         MPContext *mpc = static_cast<MPContext*>(looper->user(0));
-        
+
         if (media.contains(kKeyCount)) {
             size_t count = media.findInt32(kKeyCount);
             for (size_t i = 0; i < count; ++i) {
@@ -343,51 +343,51 @@ struct InitialState : public State {
     }
 };
 
-struct PrepareStatusEvent : public CountedStatusEvent {
+struct __ABE_HIDDEN PrepareStatusEvent : public CountedStatusEvent {
     PrepareStatusEvent(const sp<Looper>& looper, size_t n) :
-    CountedStatusEvent(looper, n) { }
-    
+        CountedStatusEvent(looper, n) { }
+
     virtual void onFinished(MediaError st) {
         MPContext *mpc = static_cast<MPContext*>(Looper::Current()->user(0));
-        
+
         INFO("prepare finished with status %d, current pos %.3f(s)",
-             st, mpc->mClock->get().seconds());
-        
+                st, mpc->mClock->get().seconds());
+
         // notify client
         if (mpc->mStatusEvent != NULL)
             mpc->mStatusEvent->fire(st);
-        
+
         // notify the render position
         if (mpc->mRenderPositionEvent != NULL)
             mpc->mRenderPositionEvent->fire(mpc->mClock->get());
     }
 };
 
-struct ReadyState : public State {
+struct __ABE_HIDDEN ReadyState : public State {
     ReadyState() : State(kStateReady) { }
     virtual MediaError onLeaveState() {
         // NOTHING
         return kMediaNoError;
     }
-    
+
     virtual MediaError onEnterState(const Message& payload) {
         // -> ready by prepare
         sp<Looper> looper = Looper::Current();
         MPContext *mpc = static_cast<MPContext*>(looper->user(0));
-        
+
         MediaTime ts = payload.find<MediaTime>("time");
-        
+
         // set clock time
         mpc->mClock->set(ts);
-        
+
         // prepare sessions
         sp<PrepareStatusEvent> event = new PrepareStatusEvent(looper, mpc->mSessions.size());
         event->keep(event);
-        
+
         Message options;
         options.set<MediaTime>("time", ts);
-        options.set<sp<StatusEvent> >("StatusEvent", event);
-        
+        options.setObject("StatusEvent", event);
+
         HashTable<size_t, SessionContext>::iterator it = mpc->mSessions.begin();
         for (; it != mpc->mSessions.end(); ++it) {
             SessionContext& sc = it.value();
@@ -397,7 +397,7 @@ struct ReadyState : public State {
     }
 };
 
-struct PlayingState : public State {
+struct __ABE_HIDDEN PlayingState : public State {
     PlayingState() : State(kStatePlaying) { }
     virtual MediaError onLeaveState() {
         // NOTHINGS
@@ -407,14 +407,14 @@ struct PlayingState : public State {
         // -> playing by start
         sp<Looper> looper = Looper::Current();
         MPContext *mpc = static_cast<MPContext*>(looper->user(0));
-        
+
         mpc->mClock->start();
         looper->post(new UpdateRenderPosition);
         return kMediaNoError;
     }
 };
 
-struct IdleState : public State {
+struct __ABE_HIDDEN IdleState : public State {
     IdleState() : State(kStateIdle) { }
     virtual MediaError onLeaveState() {
         // NOTHING
@@ -424,15 +424,15 @@ struct IdleState : public State {
         // -> paused by pause
         sp<Looper> looper = Looper::Current();
         MPContext *mpc = static_cast<MPContext*>(looper->user(0));
-        
+
         mpc->mClock->pause();
-        
+
         // we may have to suspend codec after some time
         return kMediaNoError;
     }
 };
 
-struct FlushedState : public State {
+struct __ABE_HIDDEN FlushedState : public State {
     FlushedState() : State(kStateFlushed) { }
     virtual MediaError onLeaveState() {
         return kMediaNoError;
@@ -440,25 +440,25 @@ struct FlushedState : public State {
     virtual MediaError onEnterState(const Message& payload) {
         sp<Looper> looper = Looper::Current();
         MPContext *mpc = static_cast<MPContext*>(looper->user(0));
-                
+
         HashTable<size_t, SessionContext>::iterator it = mpc->mSessions.begin();
         for (; it != mpc->mSessions.end(); ++it) {
             SessionContext& sc = it.value();
             sc.mMediaSession->flush();
         }
-        
+
         mpc->mClock->reset();
         return kMediaNoError;
     }
 };
 
-struct ReleasedState : public State {
+struct __ABE_HIDDEN ReleasedState : public State {
     ReleasedState() : State(kStateReleased) { }
-    
+
     virtual MediaError onLeaveState() {
         return kMediaNoError;
     }
-    
+
     virtual MediaError onEnterState(const Message& payload) {
         sp<Looper> looper = Looper::Current();
         MPContext *mpc = static_cast<MPContext*>(looper->user(0));
@@ -518,26 +518,26 @@ static inline MediaError checkStateTransition(eStateType from, eStateType to) {
     return kMediaErrorInvalidOperation;
 }
 
-struct AVPlayer : public IMediaPlayer {
+struct __ABE_HIDDEN AVPlayer : public IMediaPlayer {
     sp<Looper>      mLooper;
     mutable Mutex   mLock;
     eStateType      mLastState;
     eStateType      mState;
-    
+
     struct Transition : public Runnable {
         eStateType  mFrom;
         eStateType  mTo;
         Message     mOptions;
         Transition(eStateType from, eStateType to, const Message& options) :
-        mFrom(from), mTo(to), mOptions(options) { }
-        
+            mFrom(from), mTo(to), mOptions(options) { }
+
         virtual void run() {
             INFO("transition %s => %s", kNames[mFrom], kNames[mTo]);
             sStates[mFrom]->onLeaveState();
             sStates[mTo]->onEnterState(mOptions);
         }
     };
-    
+
     MediaError setState_l(eStateType state, const Message& options) {
         if (checkStateTransition(mState, state) != kMediaNoError) {
             ERROR("invalid state transition %s => %s", kNames[mState], kNames[state]);
@@ -548,30 +548,30 @@ struct AVPlayer : public IMediaPlayer {
         mState      = state;
         return kMediaNoError;
     }
-    
-    AVPlayer(const Message& options) : IMediaPlayer(), mLooper(new Looper("mp")), mState(kStateInvalid) {
+
+    AVPlayer(const Message& options) : IMediaPlayer(), mLooper(Looper::Create("mp")), mState(kStateInvalid) {
         mLooper->loop();
         MPContext *mpc = new MPContext(options);
         mLooper->bind(mpc);
     }
-    
+
     virtual ~AVPlayer() {
         INFO("release AVPlayer");
         MPContext *mpc = static_cast<MPContext*>(mLooper->user(0));
         mLooper->terminate(true);
         delete mpc;
     }
-    
+
     virtual eStateType state() const {
         AutoLock _l(mLock);
         return mState;
     }
-    
+
     virtual MediaError init(const Message& media) {
         AutoLock _l(mLock);
         return setState_l(kStateInitial, media);
     }
-    
+
     virtual MediaError prepare(const MediaTime& ts) {
         AutoLock _l(mLock);
         INFO("prepare @ %.3f(s)", ts.seconds());
@@ -579,25 +579,25 @@ struct AVPlayer : public IMediaPlayer {
         payload.set<MediaTime>("time", ts);
         return setState_l(kStateReady, payload);
     }
-    
+
     virtual MediaError start() {
         AutoLock _l(mLock);
         INFO("start");
         return setState_l(kStatePlaying, Message());
     }
-    
+
     virtual MediaError pause() {
         AutoLock _l(mLock);
         INFO("pause");
         return setState_l(kStateIdle, Message());
     }
-    
+
     virtual MediaError flush() {
         AutoLock _l(mLock);
         INFO("flush");
         return setState_l(kStateFlushed, Message());
     }
-    
+
     virtual MediaError release() {
         AutoLock _l(mLock);
         INFO("release");

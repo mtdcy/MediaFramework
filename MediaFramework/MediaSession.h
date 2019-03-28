@@ -37,7 +37,6 @@
 #ifndef _MPX_MEDIA_TRACK_H
 #define _MPX_MEDIA_TRACK_H
 
-#include <MediaToolkit/Toolkit.h>
 #include <MediaFramework/MediaDefs.h>
 #include <MediaFramework/MediaPacket.h>
 #include <MediaFramework/MediaFrame.h>
@@ -46,57 +45,56 @@
 #include <MediaFramework/ColorConvertor.h>
 #include <MediaFramework/MediaClock.h>
 
-namespace mtdcy {
-    /**
-     * For pushing packets to target. when a packet is ready,
-     * fire this event, and target will get the packet.
-     */
-    typedef TypedEvent<sp<MediaPacket> > PacketReadyEvent;
+__BEGIN_NAMESPACE_MPX
+/**
+ * For pushing packets to target. when a packet is ready,
+ * fire this event, and target will get the packet.
+ */
+typedef TypedEvent<sp<MediaPacket> > PacketReadyEvent;
 
-    /**
-     * For pull packets from packet source.
-     *
-     * @see MediaExtractor::read
-     */
-    struct PacketRequest {
-        eModeReadType           mode;   ///< read mode, @see eModeReadType
-        MediaTime               ts;     ///< timestamp of the packet
-        sp<PacketReadyEvent>    event;  ///< event for return the packet, @see PacketReadyEvent
-    };
-    typedef TypedEvent<PacketRequest> PacketRequestEvent;
-
-    /**
-     * For pushing frames to target. when a frame is ready,
-     * fire this event, and target will receive the frame.
-     */
-    typedef TypedEvent<sp<MediaFrame> >  FrameReadyEvent;
-
-    /**
-     * For pull frames from frame source
-     */
-    struct FrameRequest {
-        MediaTime               ts;     ///< timestamp of the start frame
-        sp<FrameReadyEvent>     event;  ///< event for return the frame, @see FrameReadyEvent
-    };
-    typedef TypedEvent<FrameRequest>  FrameRequestEvent;
-
-    /**
-     * For update render position to target.
-     */
-    typedef TypedEvent<MediaTime> RenderPositionEvent;
-    
-    /**
-     * For handle error status
-     */
-    typedef TypedEvent<MediaError> StatusEvent;
-    
-    struct MediaSession : public SharedObject {
-        static sp<MediaSession> Create(const Message& formats, const Message& options);
-        MediaSession() { }
-        virtual ~MediaSession() { }
-        virtual void prepare(const Message& options) = 0;
-        virtual void flush() = 0;
-    };
+/**
+ * For pull packets from packet source.
+ *
+ * @see MediaExtractor::read
+ */
+struct PacketRequest {
+    eModeReadType           mode;   ///< read mode, @see eModeReadType
+    MediaTime               ts;     ///< timestamp of the packet
+    sp<PacketReadyEvent>    event;  ///< event for return the packet, @see PacketReadyEvent
 };
+typedef TypedEvent<PacketRequest> PacketRequestEvent;
 
+/**
+ * For pushing frames to target. when a frame is ready,
+ * fire this event, and target will receive the frame.
+ */
+typedef TypedEvent<sp<MediaFrame> >  FrameReadyEvent;
+
+/**
+ * For pull frames from frame source
+ */
+struct FrameRequest {
+    MediaTime               ts;     ///< timestamp of the start frame
+    sp<FrameReadyEvent>     event;  ///< event for return the frame, @see FrameReadyEvent
+};
+typedef TypedEvent<FrameRequest>  FrameRequestEvent;
+
+/**
+ * For update render position to target.
+ */
+typedef TypedEvent<MediaTime> RenderPositionEvent;
+
+/**
+ * For handle error status
+ */
+typedef TypedEvent<MediaError> StatusEvent;
+
+struct __ABE_EXPORT MediaSession : public SharedObject {
+    static sp<MediaSession> Create(const Message& formats, const Message& options);
+    __ABE_INLINE MediaSession() { }
+    __ABE_INLINE virtual ~MediaSession() { }
+    virtual void prepare(const Message& options) = 0;
+    virtual void flush() = 0;
+};
+__END_NAMESPACE_MPX
 #endif 

@@ -2,39 +2,39 @@
  * Copyright (c) 2016, Chen Fang <mtdcy.chen@gmail.com>
  * All rights reserved.
  *
- * Redistribution and use in source and binary forms, with or without 
+ * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *
- * 1. Redistributions of source code must retain the above copyright notice, 
+ * 1. Redistributions of source code must retain the above copyright notice,
  *    this list of conditions and the following disclaimer.
  *
  * 2. Redistributions in binary form must reproduce the above copyright notice,
- *    this list of conditions and the following disclaimer in the documentation 
+ *    this list of conditions and the following disclaimer in the documentation
  *    and/or other materials provided with the distribution.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
- *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE 
- *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
- *  ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE 
- *  LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR 
- *  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF 
- *  SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS 
- *  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN 
- *  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) 
- *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
+ *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ *  ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ *  LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ *  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ *  SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ *  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ *  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************/
 
 
 // File:    Mp3File.cpp
 // Author:  mtdcy.chen
-// Changes: 
+// Changes:
 //          1. 20160701     initial version
 //
 
 #define LOG_TAG "Mp3File"
 //#define LOG_NDEBUG 0
-#include <MediaToolbox/MediaToolbox.h>
+#include "MediaDefs.h"
 
 #define WITH_ID3
 #ifdef WITH_ID3
@@ -43,7 +43,10 @@
 
 #include <stdio.h> // FIXME: sscanf
 
-using namespace mtdcy;
+#include <MediaFramework/MediaPacketizer.h>
+#include <MediaFramework/MediaExtractor.h>
+
+__BEGIN_NAMESPACE_MPX
 
 using namespace ID3;
 const static int kScanLength = 32 * 1024;
@@ -97,7 +100,7 @@ static int kSamplesPerFrameTable[4][4/*layer*/] = {
     {0, 1152, 1152, 384}, /* version 1 */
 };
 
-// parse side infomation 
+// parse side infomation
 // offset after frame header
 static size_t kSideInfoOffset[][2] = {
     {17,    32},    /* version 1: mono, stereo */
@@ -125,7 +128,7 @@ enum {
     MPEG_CHANNEL_MODE_SINGLE
 };
 
-struct MPEGAudioFrameHeader {
+struct __ABE_HIDDEN MPEGAudioFrameHeader {
     uint32_t    Version;
     uint32_t    Layer;
     uint32_t    bitRate;
@@ -178,7 +181,7 @@ static ssize_t decodeFrameHeader(uint32_t head, MPEGAudioFrameHeader *frameHeade
 // locate the first MPEG audio frame in data, and return frame length
 // and offset in bytes. NO guarantee
 const static uint32_t kHeaderMask = (0xffe00000 | (3 << 17) | (3 << 10) | (3 << 19) | (3 << 6));
-static int64_t locateFirstFrame(const Buffer& data, 
+static int64_t locateFirstFrame(const Buffer& data,
         struct MPEGAudioFrameHeader *frameHeader,
         size_t *possible/* possible head position */,
         uint32_t *_head/* found head */) {
@@ -203,7 +206,7 @@ static int64_t locateFirstFrame(const Buffer& data,
         BitReader _br(data);
         _br.skipBytes(frameLength + i - 3);
         uint32_t next = _br.rb32();
-        if ((next & kHeaderMask) == (head & kHeaderMask) 
+        if ((next & kHeaderMask) == (head & kHeaderMask)
                 && decodeFrameHeader(next, NULL) > 4) {
             if (_head) *_head = head;
             return i - 3;
@@ -213,7 +216,7 @@ static int64_t locateFirstFrame(const Buffer& data,
     return NAME_NOT_FOUND;
 }
 
-static int64_t locateFrame(const Buffer& data, uint32_t common, 
+static int64_t locateFrame(const Buffer& data, uint32_t common,
         struct MPEGAudioFrameHeader *frameHeader,
         size_t *possible) {
     BitReader br(data);
@@ -243,7 +246,7 @@ bool decodeMPEGAudioFrameHeader(const Buffer& frame, uint32_t *sampleRate, uint3
     return true;
 }
 
-struct XingHeader {
+struct __ABE_HIDDEN XingHeader {
     String          ID;
     uint32_t        numFrames;
     uint32_t        numBytes;
@@ -265,10 +268,10 @@ static bool parseXingHeader(const Buffer& firstFrame, XingHeader *head) {
     if (head->ID != "XING" && head->ID != "Info") {
         return false;
     }
-    
+
     const uint32_t flags = br.rb32();
     DEBUG("XING flags: %#x", flags);
-    
+
     if (flags & 0x0001) {
         head->numFrames     = br.rb32();
         DEBUG("Xing: number frames %d", head->numFrames);
@@ -276,7 +279,7 @@ static bool parseXingHeader(const Buffer& firstFrame, XingHeader *head) {
         head->numFrames     = 0;
         DEBUG("Xing: no number frames.");
     }
-    
+
     // including the first frame.
     if (flags & 0x0002) {
         head->numBytes      = br.rb32();
@@ -285,7 +288,7 @@ static bool parseXingHeader(const Buffer& firstFrame, XingHeader *head) {
         head->numBytes      = 0;
         DEBUG("Xing: no number bytes.");
     }
-    
+
     if (flags & 0x0004) {
         for (int i = 0; i < 100; i++) {
             //mTOC.push((mNumBytes * pos) / 256 + mFirstFrameOffset);
@@ -295,11 +298,11 @@ static bool parseXingHeader(const Buffer& firstFrame, XingHeader *head) {
     } else {
         DEBUG("Xing: no toc");
     }
-    
+
     if (flags & 0x0008) {
         head->quality   = br.rb32();
     }
-    
+
     // LAME extension
     head->encoder       = br.readS(9);
     br.skipBytes(1);                    // Info Tag revision & VBR method
@@ -307,28 +310,28 @@ static bool parseXingHeader(const Buffer& firstFrame, XingHeader *head) {
     head->lpf           = br.r8();      // low pass filter value.
     uint8_t lpf         = br.r8();     // low pass filter value. Hz = lpf * 100;
     DEBUG("lpf: %u Hz.", lpf * 100);
-    
+
     br.skipBytes(8);               // replay gain
     br.skipBytes(1);               // encode flags & ATH Type
     br.skipBytes(1);               // specified or minimal bitrate
-    
+
     // refer to ffmpeg/libavformat/mp3dec.c:mp3_parse_info_tag
     if (head->encoder.startsWith("LAME") ||
-        head->encoder.startsWith("Lavf") ||
-        head->encoder.startsWith("Lavc")) {
+            head->encoder.startsWith("Lavf") ||
+            head->encoder.startsWith("Lavc")) {
         head->delays    = br.read(12);
         head->paddings  = br.read(12);
     } else {
         head->delays    = 0;
         head->paddings  = 0;
     }
-    
+
     // 12 bytes remains.
-    
+
     return true;
 }
 
-struct VBRIHeader {
+struct __ABE_HIDDEN VBRIHeader {
     String          ID;
     uint16_t        version;
     uint16_t        delay;
@@ -341,26 +344,26 @@ struct VBRIHeader {
 // https://www.crifan.com/files/doc/docbook/mpeg_vbr/release/webhelp/vbri_header.html
 static bool parseVBRIHeader(const Buffer& firstFrame, VBRIHeader *head) {
     CHECK_NULL(head);
-    
+
     BitReader br(firstFrame);
     head->ID                = br.readS(4);  // VBRI
     if (head->ID != "VBRI") return false;
-    
+
     head->version           = br.rb16();
     head->delay             = br.rb16();
     head->quality           = br.rb16();
-    
+
     head->numBytes          = br.rb32();    // total size
     head->numFrames         = br.rb32();    // total frames
-    
+
     uint16_t numEntries     = br.rb16();
     uint16_t scaleFactor    = br.rb16();
     uint16_t entrySize      = br.rb16();
     uint16_t entryFrames    = br.rb16();
-    
+
     DEBUG("numEntries %d, entrySize %d, scaleFactor %d, entryFrames %d",
-          numEntries, entrySize, scaleFactor, entryFrames);
-    
+            numEntries, entrySize, scaleFactor, entryFrames);
+
     if (numEntries > 0) {
         for (int i = 0; i < numEntries; i++) {
             int length = 0;
@@ -379,22 +382,21 @@ static bool parseVBRIHeader(const Buffer& firstFrame, VBRIHeader *head) {
                     length = br.rb32();
                     break;
             }
-            
+
             head->toc.push(length * scaleFactor);
         }
         // end
-        
+
         DEBUG("TOC: %d %d ... %d %d",
-              head->toc[0], head->toc[1],
-              head->toc[numEntries-2],
-              head->toc[numEntries-1]);
+                head->toc[0], head->toc[1],
+                head->toc[numEntries-2],
+                head->toc[numEntries-1]);
     }
-    
+
     return true;
 }
 
-#include <MediaFramework/MediaPacketizer.h>
-struct Mp3Packetizer : public MediaPacketizer {
+struct __ABE_HIDDEN Mp3Packetizer : public MediaPacketizer {
     Buffer      mBuffer;
     uint32_t    mCommonHead;
     bool        mNeedMoreData;
@@ -413,7 +415,7 @@ struct Mp3Packetizer : public MediaPacketizer {
             mFlushing = true;
             return kMediaNoError;
         }
-        
+
         if (__builtin_expect(mCommonHead == 0, false)) {
             mAnchorTime     = in->pts;
             if (mAnchorTime == kTimeInvalid) {
@@ -463,7 +465,7 @@ struct Mp3Packetizer : public MediaPacketizer {
             }
             mCommonHead = head & kHeaderMask;
             DEBUG("common header %#x", mCommonHead);
-            
+
             mFrameTime = MediaTime(mpa.samplesPerFrame, mpa.sampleRate);
         }
 
@@ -493,7 +495,7 @@ struct Mp3Packetizer : public MediaPacketizer {
         sp<MediaPacket> packet = MediaPacketCreate(mpa.frameLengthInBytes);
         mBuffer.read((char*)packet->data, mpa.frameLengthInBytes);
         CHECK_EQ(mpa.frameLengthInBytes, packet->size);
-        
+
         mAnchorTime     += mFrameTime;
         packet->pts     = mAnchorTime;
         packet->dts     = mAnchorTime;
@@ -510,8 +512,7 @@ struct Mp3Packetizer : public MediaPacketizer {
     }
 };
 
-#include <MediaFramework/MediaExtractor.h>
-struct Mp3File : public MediaExtractor {
+struct __ABE_HIDDEN Mp3File : public MediaExtractor {
     sp<Content>             mContent;
     int64_t                 mFirstFrameOffset;
     MPEGAudioFrameHeader    mHeader;
@@ -530,15 +531,15 @@ struct Mp3File : public MediaExtractor {
     sp<MediaPacketizer>     mPacketizer;
 
     Mp3File() :
-    mContent(NULL),
-    mFirstFrameOffset(0),
-    mVBR(false),
-    mNumFrames(0),
-    mNumBytes(0),
-    mDuration(kTimeInvalid),
-    mAnchorTime(kTimeBegin),
-    mRawPacket(NULL),
-    mPacketizer(new Mp3Packetizer) { }
+        mContent(NULL),
+        mFirstFrameOffset(0),
+        mVBR(false),
+        mNumFrames(0),
+        mNumBytes(0),
+        mDuration(kTimeInvalid),
+        mAnchorTime(kTimeBegin),
+        mRawPacket(NULL),
+        mPacketizer(new Mp3Packetizer) { }
 
     // refer to:
     // 1. http://gabriel.mp3-tech.org/mp3infotag.html#versionstring
@@ -662,12 +663,12 @@ struct Mp3File : public MediaExtractor {
         // hack for truncated/incomplete files.
         if (mNumBytes > totalLength - mFirstFrameOffset) {
             WARN("Fix number of bytes, expected %" PRId64 " bytes, but we got max bytes %" PRId64,
-                 mNumBytes, totalLength - mFirstFrameOffset);
+                    mNumBytes, totalLength - mFirstFrameOffset);
             mNumBytes   = totalLength - mFirstFrameOffset;
             mNumFrames  = 0;
         }
 #endif
-        
+
         DEBUG("number bytes of data %" PRId64 " pipe length %" PRId64,
                 mNumBytes, pipe->size());
 
@@ -691,7 +692,7 @@ struct Mp3File : public MediaExtractor {
         } else {
             pipe->seek(mFirstFrameOffset);
         }
-        
+
         mContent = pipe;
 
         DEBUG("firstFrameOffset %" PRId64, mFirstFrameOffset);
@@ -704,14 +705,14 @@ struct Mp3File : public MediaExtractor {
         Message info;
         info.setInt32(kKeyFormat, kFileFormatMP3);
         info.set<MediaTime>(kKeyDuration, mDuration);
-        
+
         Message trak;
         trak.setInt32(kKeyFormat, kAudioCodecFormatMP3);
         // FIXME:
         //ast->setInt32(Media::Bitrate, mBitRate);
         trak.setInt32(kKeyChannels, mHeader.numChannels);
         trak.setInt32(kKeySampleRate, mHeader.sampleRate);
-        
+
         info.set<Message>("track-0", trak);
         return info;
     }
@@ -791,7 +792,7 @@ struct Mp3File : public MediaExtractor {
             INFO("eos...");
             return NULL;
         }
-        
+
         packet->pts += mAnchorTime;
         packet->dts += mAnchorTime;
 
@@ -799,22 +800,22 @@ struct Mp3File : public MediaExtractor {
     }
 };
 
-namespace mtdcy {
-    sp<MediaExtractor> CreateMp3File() {
-        return new Mp3File;
-    }
-    
-    sp<MediaPacketizer> CreateMp3Packetizer() {
-        return new Mp3Packetizer;
-    }
-    
-    ssize_t locateFirstFrame(const Buffer& data, size_t *frameLength) {
-        MPEGAudioFrameHeader mpa;
-        ssize_t offset = locateFirstFrame(data, &mpa, NULL, NULL);
-        
-        if (offset < 0) return NAME_NOT_FOUND;
-        
-        *frameLength    = mpa.frameLengthInBytes;
-        return offset;
-    }
-};
+__ABE_HIDDEN sp<MediaExtractor> CreateMp3File() {
+    return new Mp3File;
+}
+
+__ABE_HIDDEN sp<MediaPacketizer> CreateMp3Packetizer() {
+    return new Mp3Packetizer;
+}
+
+__ABE_HIDDEN ssize_t locateFirstFrame(const Buffer& data, size_t *frameLength) {
+    MPEGAudioFrameHeader mpa;
+    ssize_t offset = locateFirstFrame(data, &mpa, NULL, NULL);
+
+    if (offset < 0) return NAME_NOT_FOUND;
+
+    *frameLength    = mpa.frameLengthInBytes;
+    return offset;
+}
+__END_NAMESPACE_MPX
+

@@ -34,7 +34,7 @@
 
 #define LOG_TAG   "MPEG4.Box"
 //#define LOG_NDEBUG 0
-#include <MediaToolkit/Toolkit.h>
+#include "MediaDefs.h"
 #include "Box.h"
 
 //#define VERBOSE
@@ -44,7 +44,9 @@
 #define DEBUGV(fmt, ...) do {} while(0)
 #endif
 
-namespace mtdcy { namespace MPEG4 {
+__BEGIN_NAMESPACE_MPX
+
+namespace MPEG4 {
     FileTypeBox::FileTypeBox(const BitReader& br, size_t size) {
         CHECK_GE(size, 12);
         major_brand     = br.readS(4);
@@ -199,7 +201,7 @@ namespace mtdcy { namespace MPEG4 {
     // isom and quicktime using different semantics for MetaBox
     static const bool isQuickTime(const FileTypeBox& ftyp) {
         if (ftyp.major_brand == "qt  " ||
-                    ftyp.compatibles.indexOf("qt  ") >= 0) {
+                ftyp.compatibles.indexOf("qt  ") >= 0) {
             return true;
         }
         return false;
@@ -828,25 +830,25 @@ namespace mtdcy { namespace MPEG4 {
         return OK;
     }
     void ColourInformationBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
-    
+
 #if 1
     status_t siDecompressionParam::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
         Box::parse(br, sz, ftyp);
         size_t next = Box::size();
-        
+
         while (next + 8 <= sz) {
             // 8 bytes
             uint32_t boxSize        = br.rb32();
             const String boxType    = br.readS(4);
             DEBUG("box %s:  + %s %" PRIu32, name.c_str(),
-                  boxType.c_str(), boxSize);
-            
+                    boxType.c_str(), boxSize);
+
             // terminator box
             if (boxType == "" || boxSize == 8) {
                 next += 8;
                 break;
             }
-            
+
             next += boxSize;
 #if LOG_NDEBUG == 0
             CHECK_GE(boxSize, 8);
@@ -854,25 +856,25 @@ namespace mtdcy { namespace MPEG4 {
 #else
             if (next > sz) {
                 ERROR("box %s:  + skip broken box %s",
-                      name.c_str(),
-                      boxType.c_str());
+                        name.c_str(),
+                        boxType.c_str());
                 break;
             }
 #endif
             boxSize     -= 8;
-            
+
             // 'mp4a' in 'wave' has different semantics
             if (boxType == "mp4a") {
                 br.skip(boxSize * 8);
                 continue;
             }
-            
+
             const size_t offset = br.offset();
             sp<Box> box = MakeBoxByName(boxType);
             if (box == NULL) {
                 ERROR("box %s:  + skip unknown box %s %" PRIu32,
-                      name.c_str(),
-                      boxType.c_str(), boxSize);
+                        name.c_str(),
+                        boxType.c_str(), boxSize);
 #if LOG_NDEBUG == 0
                 sp<Buffer> boxData = br.readB(boxSize);
                 DEBUG("%s", boxData->string().c_str());
@@ -892,7 +894,7 @@ namespace mtdcy { namespace MPEG4 {
             }
 #endif
         }
-        
+
         // skip junk
         if (next < sz) {
             DEBUG("box %s: skip %zu bytes", name.c_str(), sz - next);
@@ -1180,7 +1182,7 @@ namespace mtdcy { namespace MPEG4 {
     RegisterBox("keyd", iTunesKeyDecBox);
 
 #define IgnoreBox(NAME, BoxType)                                        \
-    struct BoxType : public Box {                                       \
+    struct __ABE_HIDDEN BoxType : public Box {                          \
         BoxType() : Box(NAME) { }                                       \
         virtual status_t parse(const BitReader& br, size_t sz,          \
                 const FileTypeBox& ftyp) {                              \
@@ -1197,7 +1199,7 @@ namespace mtdcy { namespace MPEG4 {
     IgnoreBox("frma", SoundFormatBox);
     IgnoreBox("mebx", TimedMetadataSampleDescriptionBox);
 #undef IgnoreBox
-    
+
     ///////////////////////////////////////////////////////////////////////////
     //  |- trak *  <audio|video|hint>
     //  |   |- tkhd *
@@ -1219,43 +1221,43 @@ namespace mtdcy { namespace MPEG4 {
     //  |   |   |   |   |- stss
     bool CheckTrackBox(const sp<TrackBox>& trak) {
         if (!trak->container) return false;
-        
+
         sp<TrackHeaderBox> tkhd = FindBox(trak, "tkhd");
         if (tkhd == NULL) return false;
-        
+
         sp<MediaBox> mdia = FindBox(trak, "mdia");
         if (mdia == NULL) return false;
-        
+
         sp<MediaHeaderBox> mdhd = FindBox(mdia, "mdhd");
         if (mdhd == NULL) return false;
-        
+
         sp<MediaInformationBox> minf = FindBox(mdia, "minf");
         if (minf == NULL) return false;
-        
+
         sp<DataInformationBox> dinf = FindBox(minf, "dinf");
         if (dinf == NULL) return false;
-        
+
         sp<DataReferenceBox> dref = FindBox(dinf, "dref");
         if (dref == NULL) return false;
-        
+
         sp<SampleTableBox> stbl = FindBox(minf, "stbl");
         if (stbl == NULL) return false;
-        
+
         sp<SampleDescriptionBox> stsd = FindBox(stbl, "stsd");
         if (stsd == NULL) return false;
-        
+
         sp<TimeToSampleBox> stts    = FindBox(stbl, "stts");
         sp<SampleToChunkBox> stsc   = FindBox(stbl, "stsc");
         sp<ChunkOffsetBox> stco     = FindBox(stbl, "stco", "co64");
         sp<SampleSizeBox> stsz      = FindBox(stbl, "stsz", "stz2");
-        
+
         if (stts == NULL || stsc == NULL || stco == NULL || stsz == NULL) {
             return false;
         }
-        
+
         return true;
     }
-    
+
     // find box in current container only
     sp<Box> FindBox(const sp<ContainerBox>& root,
             const String& boxType, size_t index) {
@@ -1307,4 +1309,6 @@ namespace mtdcy { namespace MPEG4 {
     void PrintBox(const sp<Box>& root) {
         PrintBox(root, 0);
     }
-}; };
+}
+
+__END_NAMESPACE_MPX

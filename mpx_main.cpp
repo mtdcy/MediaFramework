@@ -60,7 +60,7 @@ extern "C" {
 }
 #endif
 
-using namespace mtdcy;
+__USING_NAMESPACE_MPX
 
 static SDL_Window * window = NULL;
 static sp<IMediaPlayer> mp;
@@ -242,8 +242,8 @@ int main (int argc, char **argv) {
         
         // create the mp
         Message options;
-        options.set<sp<RenderPositionEvent> >("RenderPositionEvent", new MPRenderPosition);
-        options.set<sp<StatusEvent> >("StatusEvent", new MPStatus);
+        options.setObject("RenderPositionEvent", new MPRenderPosition);
+        options.setObject("StatusEvent", new MPStatus);
         mp = IMediaPlayer::Create(options);
         
         // add media to the mp
@@ -251,7 +251,7 @@ int main (int argc, char **argv) {
         media.setString("url", url);
         media.setInt32(kKeyMode, PREFER_MODE);
 #ifdef MAIN_THREAD_RENDER
-        media.set<sp<MediaOut> >("MediaOut", new MediaOutProxy);
+        media.setObject("MediaOut", new MediaOutProxy);
 #endif
         mp->init(media);
         

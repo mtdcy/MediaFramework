@@ -35,7 +35,7 @@
 #ifndef _MEDIA_MODULES_OUT_H
 #define _MEDIA_MODULES_OUT_H
 
-#include <MediaToolkit/Toolkit.h>
+#include <MediaFramework/MediaDefs.h>
 #include <MediaFramework/MediaFrame.h>
 
 __BEGIN_DECLS
@@ -43,62 +43,60 @@ __BEGIN_DECLS
 __END_DECLS
 
 #ifdef __cplusplus
-namespace mtdcy {
+__BEGIN_NAMESPACE_MPX
 
-    
+/**
+ * base class for audio/video output device
+ */
+struct __ABE_EXPORT MediaOut : public SharedObject {
+    static sp<MediaOut> Create(eCodecType);
+
+    __ABE_INLINE MediaOut() { }
+    __ABE_INLINE virtual ~MediaOut() { }
+
     /**
-     * base class for audio/video output device
+     * get information of this output device.
+     * @return return a string of information
      */
-    struct MediaOut : public SharedObject {
-        static sp<MediaOut> Create(eCodecType);
-        
-        MediaOut() { }
-        virtual ~MediaOut() { }
-        
-        /**
-         * get information of this output device.
-         * @return return a string of information
-         */
-        virtual String          string() const = 0;
-        /**
-         * prepare a output device based on provided parameters
-         * @param options   option and parameter for creating device
-         * @return return reference to a new output device
-         */
-        virtual status_t        prepare(const Message& options) = 0;
-        /**
-         * get status of this output device.
-         * @return return OK if everything is OK, otherwise error code
-         */
-        virtual status_t        status() const = 0;
-        /**
-         * get information of this output device
-         * @return return message reference of this output device.
-         */
-        virtual Message         formats() const = 0;
-        /**
-         * configure this output device
-         * @param options   option and parameter
-         * @return return OK on success, otherwise error code.
-         */
-        virtual status_t        configure(const Message& options) = 0;
-        /**
-         * push a MediaFrame to this output device.
-         * @param input     reference of MediaFrame
-         * @return return OK on success
-         * @note push a NULL packet to notify codec of eos
-         * @note write in block way, always return OK if no error happens.
-         */
-        virtual status_t        write(const sp<MediaFrame>& input) = 0;
-        /**
-         * flush context of this output device
-         * @return return OK on success, otherwise error code
-         */
-        virtual status_t        flush() = 0;
-    };
-
-
+    virtual String          string() const = 0;
+    /**
+     * prepare a output device based on provided parameters
+     * @param options   option and parameter for creating device
+     * @return return reference to a new output device
+     */
+    virtual status_t        prepare(const Message& options) = 0;
+    /**
+     * get status of this output device.
+     * @return return OK if everything is OK, otherwise error code
+     */
+    virtual status_t        status() const = 0;
+    /**
+     * get information of this output device
+     * @return return message reference of this output device.
+     */
+    virtual Message         formats() const = 0;
+    /**
+     * configure this output device
+     * @param options   option and parameter
+     * @return return OK on success, otherwise error code.
+     */
+    virtual status_t        configure(const Message& options) = 0;
+    /**
+     * push a MediaFrame to this output device.
+     * @param input     reference of MediaFrame
+     * @return return OK on success
+     * @note push a NULL packet to notify codec of eos
+     * @note write in block way, always return OK if no error happens.
+     */
+    virtual status_t        write(const sp<MediaFrame>& input) = 0;
+    /**
+     * flush context of this output device
+     * @return return OK on success, otherwise error code
+     */
+    virtual status_t        flush() = 0;
 };
+
+__END_NAMESPACE_MPX
 #endif
 
 #endif

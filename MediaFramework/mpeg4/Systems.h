@@ -36,11 +36,13 @@
 #define _MEDIA_MODULES_MPEG4_SYSTEMS_H 
 
 
-#include <MediaToolkit/Toolkit.h>
+#include <ABE/ABE.h>
 #include "MediaDefs.h"
 
 // ISO/IEC 14496-1 System
-namespace mtdcy { namespace MPEG4 {
+__BEGIN_NAMESPACE_MPX
+
+namespace MPEG4 {
     // ISO/IEC 14496-1:2010(E), Section 7.2.2.1, Page 31, Table 1
     // Object Description Tag
     enum {
@@ -132,7 +134,7 @@ namespace mtdcy { namespace MPEG4 {
         // 0x20 - 0x3F user private
     };
 
-    struct BaseDescriptor {
+    struct __ABE_HIDDEN BaseDescriptor {
         BaseDescriptor() : valid(false) { }
         BaseDescriptor(const uint8_t tag) : valid(false), descrTag(tag) { }
         virtual ~BaseDescriptor() { }
@@ -148,7 +150,7 @@ namespace mtdcy { namespace MPEG4 {
     // DecoderConfigDescriptor.objectTypeIndication.
     // Note: decoder usually need this information, for demuxer, there may be 
     // no need to parse this information
-    struct DecoderSpecificInfo : public BaseDescriptor {
+    struct __ABE_HIDDEN DecoderSpecificInfo : public BaseDescriptor {
         DecoderSpecificInfo();
         DecoderSpecificInfo(const BitReader& br);
         virtual size_t size() const;
@@ -156,7 +158,7 @@ namespace mtdcy { namespace MPEG4 {
         sp<Buffer>  csd;
     };
 
-    struct DecoderConfigDescriptor : public BaseDescriptor {
+    struct __ABE_HIDDEN DecoderConfigDescriptor : public BaseDescriptor {
         DecoderConfigDescriptor();
         DecoderConfigDescriptor(const BitReader& br);
         virtual size_t size() const;
@@ -173,7 +175,7 @@ namespace mtdcy { namespace MPEG4 {
     };
 
     // ISO/IEC 14496-1:2010(E), Section 7.2.6.5, Page 47
-    struct ES_Descriptor : public BaseDescriptor {
+    struct __ABE_HIDDEN ES_Descriptor : public BaseDescriptor {
         ES_Descriptor();
         ES_Descriptor(const BitReader& br);
         virtual size_t size() const;
@@ -191,10 +193,12 @@ namespace mtdcy { namespace MPEG4 {
         DecoderConfigDescriptor decConfigDescr;     // mandatory
         sp<Buffer>              extraBytes;
     };
-    
-    sp<Buffer> MakeESDS(ES_Descriptor& esd);
-    
+
+    __ABE_HIDDEN sp<Buffer> MakeESDS(ES_Descriptor& esd);
+
     // ESDS
-}; };
+}
+
+__END_NAMESPACE_MPX
 
 #endif // _MEDIA_MODULES_MPEG4_SYSTEMS_H

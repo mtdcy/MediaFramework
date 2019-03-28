@@ -34,10 +34,12 @@
 
 #define LOG_TAG "MPEG4.Visual"
 #define LOG_NDEBUG 0 
-#include <MediaToolkit/Toolkit.h>
+#include "MediaDefs.h"
 
 #include "Visual.h"
 
-namespace mtdcy { namespace MPEG4 {
+__BEGIN_NAMESPACE_MPX
+namespace MPEG4 {
 
-}; };
+}
+__END_NAMESPACE_MPX

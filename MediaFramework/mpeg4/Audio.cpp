@@ -34,12 +34,14 @@
 
 #define LOG_TAG "MPEG4.Audio"
 //#define LOG_NDEBUG 0 
-#include <MediaToolkit/Toolkit.h>
+#include "MediaDefs.h"
 
 #include "Audio.h" 
 #include "MediaDefs.h"
 
-namespace mtdcy { namespace MPEG4 {
+__BEGIN_NAMESPACE_MPX
+
+namespace MPEG4 {
 
     // samplingFrequencyIndex 
     const uint32_t kM4ASamplingRate[16] = {
@@ -144,7 +146,7 @@ namespace mtdcy { namespace MPEG4 {
 
         valid = true;
     }
-    
+
     ES_Descriptor MakeESDescriptor(AudioSpecificConfig& asc) {
         ES_Descriptor esd;
         esd.decConfigDescr.objectTypeIndication = ISO_IEC_14496_3;
@@ -170,4 +172,5 @@ namespace mtdcy { namespace MPEG4 {
         }
         return esd;
     }
-};};
+}
+__END_NAMESPACE_MPX

@@ -37,7 +37,7 @@
 #ifndef _MPX_MEDIA_CLOCK_H
 #define _MPX_MEDIA_CLOCK_H
 
-#include <MediaToolkit/Toolkit.h>
+#include <MediaFramework/MediaDefs.h>
 #include <MediaFramework/MediaTime.h>
 
 __BEGIN_DECLS
@@ -55,168 +55,168 @@ enum eClockState {
 
 __END_DECLS
 
-namespace mtdcy {
-    
-    typedef TypedEvent<eClockState>  ClockEvent;
+__BEGIN_NAMESPACE_MPX
 
-    /**
-     * clock for av sync and speed control. all session share
-     * the same SharedClock, multiple slave Clocks can exists at
-     * the same time, but only one master Clock. and only the
-     * SharedClock itself or master clock can modify the clock
-     * context.
-     */
-    class Clock;
-    class SharedClock : public SharedObject {
-        public:
-            SharedClock();
+typedef TypedEvent<eClockState>  ClockEvent;
 
-            /**
-             * set clock time, without alter clock state
-             * @param   ts      media time
-             */
-            void        set(const MediaTime& ts);
-            /**
-             * start this clock.
-             */
-            void        start();
-            /**
-             * pause this clock. after paused, media time and system
-             * time won't update, get() always return the same time.
-             */
-            void        pause();
-            /**
-             * reset this clock to paused state with initial media time
-             * and system time.
-             * have to start again.
-             */
-            void        reset();
-            /**
-             * get this clock's state.
-             * @return return true if paused.
-             */
-            bool        isPaused() const;
-            /**
-             * set this clock's speed.
-             * @param   s   speed of clock in double.
-             */
-            void        setSpeed(double s);
-            /**
-             * get this clock's speed.
-             * @return clock speed in double.
-             */
-            double      speed() const;
+/**
+ * clock for av sync and speed control. all session share
+ * the same SharedClock, multiple slave Clocks can exists at
+ * the same time, but only one master Clock. and only the
+ * SharedClock itself or master clock can modify the clock
+ * context.
+ */
+class Clock;
+class __ABE_EXPORT SharedClock : public SharedObject {
+    public:
+        SharedClock();
 
-            /**
-             * get clock media time
-             * @return  media time, always valid.
-             */
-            MediaTime   get() const;
+        /**
+         * set clock time, without alter clock state
+         * @param   ts      media time
+         */
+        void        set(const MediaTime& ts);
+        /**
+         * start this clock.
+         */
+        void        start();
+        /**
+         * pause this clock. after paused, media time and system
+         * time won't update, get() always return the same time.
+         */
+        void        pause();
+        /**
+         * reset this clock to paused state with initial media time
+         * and system time.
+         * have to start again.
+         */
+        void        reset();
+        /**
+         * get this clock's state.
+         * @return return true if paused.
+         */
+        bool        isPaused() const;
+        /**
+         * set this clock's speed.
+         * @param   s   speed of clock in double.
+         */
+        void        setSpeed(double s);
+        /**
+         * get this clock's speed.
+         * @return clock speed in double.
+         */
+        double      speed() const;
 
-        private:
-            void        _regListener(const void * who, const sp<ClockEvent>& ce);
-            void        _unregListener(const void * who);
-        
-            void        notifyListeners_l(eClockState state);
+        /**
+         * get clock media time
+         * @return  media time, always valid.
+         */
+        MediaTime   get() const;
 
-        private:
-            // atomic int
-            volatile int    mGeneration;
-            volatile int    mMasterClock;
-            // clock internal context
-            mutable Mutex   mLock;
-            struct ClockInt {
-                ClockInt();
-                MediaTime   mMediaTime;
-                MediaTime   mSystemTime;
-                bool        mPaused;
-                bool        mTicking;
-                double      mSpeed;
-            };
-            ClockInt        mClockInt;
-        
-            friend class Clock;
-        
-            void            update(const ClockInt&);
-            HashTable<const void *, sp<ClockEvent> > mListeners;
+    private:
+        void        _regListener(const void * who, const sp<ClockEvent>& ce);
+        void        _unregListener(const void * who);
 
-            MediaTime       get_l() const;
-        private:
-            DISALLOW_EVILS(SharedClock);
-    };
+        void        notifyListeners_l(eClockState state);
 
-    /**
-     * shadow of SharedClock
-     * @see SharedClock
-     */
-    class Clock : public SharedObject {
-        public:
-            /**
-             * create a shadow of SharedClock
-             * @param sc    reference to SharedClock
-             * @param role  @see SharedClock::eClockRole
-             */
-            Clock(const sp<SharedClock>& sc, eClockRole role = kClockRoleSlave);
-            ~Clock();
+    private:
+        // atomic int
+        volatile int    mGeneration;
+        volatile int    mMasterClock;
+        // clock internal context
+        mutable Mutex   mLock;
+        struct ClockInt {
+            ClockInt();
+            MediaTime   mMediaTime;
+            MediaTime   mSystemTime;
+            bool        mPaused;
+            bool        mTicking;
+            double      mSpeed;
+        };
+        ClockInt        mClockInt;
 
-        public:
-            /**
-             * get role of this clock
-             * @return @see SharedClock::eClockRole
-             */
-            eClockRole role() const { return mRole; }
-        
-            /**
-             * set event to this clock
-             * @param ce    reference of ClockEvent. if ce = NULL,
-             *              clear the listener
-             */
-            void        setListener(const sp<ClockEvent>& ce);
+        friend class Clock;
 
-            /** @see SharedClock::get() */
-            MediaTime   get() const;
+        void            update(const ClockInt&);
+        HashTable<const void *, sp<ClockEvent> > mListeners;
 
-            /** @see SharedClock::isPaused() */
-            bool        isPaused() const;
-            bool        isTicking() const;
-
-            /** @see SharedClock::speed() */
-            double      speed() const;
-            /**
-             * @see SharedClock::update();
-             * @note update method is only for master clock
-             */
-            void        update(const MediaTime&);
-            void        update(const MediaTime&, int64_t);
-            /** @see SharedClock::set() */
-            void        set(const MediaTime&);
-
-        private:
-            /**
-             * shadow SharedClock internal context if generation
-             * changed. otherwise do NOTHING.
-             */
-            void        reload() const;
-
-        private:
-            // NO lock here
-            sp<SharedClock>                 mClock;
-            const eClockRole                mRole;
-            /**
-             * shadow of SharedClock::mGeneration
-             */
-            mutable int                     mGeneration;
-            /**
-             * shadow of SharedClock internal context
-             * @see SharedClock::ClockInt
-             */
-            mutable SharedClock::ClockInt   mClockInt;
-
-        private:
-            DISALLOW_EVILS(Clock);
-    };
-
-
+        MediaTime       get_l() const;
+    private:
+        DISALLOW_EVILS(SharedClock);
 };
+
+/**
+ * shadow of SharedClock
+ * @see SharedClock
+ */
+class __ABE_EXPORT Clock : public SharedObject {
+    public:
+        /**
+         * create a shadow of SharedClock
+         * @param sc    reference to SharedClock
+         * @param role  @see SharedClock::eClockRole
+         */
+        Clock(const sp<SharedClock>& sc, eClockRole role = kClockRoleSlave);
+        ~Clock();
+
+    public:
+        /**
+         * get role of this clock
+         * @return @see SharedClock::eClockRole
+         */
+        __ABE_INLINE eClockRole role() const { return mRole; }
+
+        /**
+         * set event to this clock
+         * @param ce    reference of ClockEvent. if ce = NULL,
+         *              clear the listener
+         */
+        void        setListener(const sp<ClockEvent>& ce);
+
+        /** @see SharedClock::get() */
+        MediaTime   get() const;
+
+        /** @see SharedClock::isPaused() */
+        bool        isPaused() const;
+        bool        isTicking() const;
+
+        /** @see SharedClock::speed() */
+        double      speed() const;
+        /**
+         * @see SharedClock::update();
+         * @note update method is only for master clock
+         */
+        void        update(const MediaTime&);
+        void        update(const MediaTime&, int64_t);
+        /** @see SharedClock::set() */
+        void        set(const MediaTime&);
+
+    private:
+        /**
+         * shadow SharedClock internal context if generation
+         * changed. otherwise do NOTHING.
+         */
+        void        reload() const;
+
+    private:
+        // NO lock here
+        sp<SharedClock>                 mClock;
+        const eClockRole                mRole;
+        /**
+         * shadow of SharedClock::mGeneration
+         */
+        mutable int                     mGeneration;
+        /**
+         * shadow of SharedClock internal context
+         * @see SharedClock::ClockInt
+         */
+        mutable SharedClock::ClockInt   mClockInt;
+
+    private:
+        DISALLOW_EVILS(Clock);
+};
+
+
+__END_NAMESPACE_MPX
 
 #endif

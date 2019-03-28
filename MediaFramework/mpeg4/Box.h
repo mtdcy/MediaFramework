@@ -36,13 +36,15 @@
 #define _MEDIA_MODULE_MP4_BOX_H 
 
 
-#include <MediaToolkit/Toolkit.h>
+#include <MediaFramework/MediaDefs.h>
+
+__BEGIN_NAMESPACE_MPX
 
 // ISO/IEC 14496-12 ISO base media file format
-namespace mtdcy { namespace MPEG4 {
+namespace MPEG4 {
     // http://www.ftyps.com
     // ftyp *
-    struct FileTypeBox {
+    struct __ABE_HIDDEN FileTypeBox {
         // default value.
         FileTypeBox() : major_brand("mp41"), minor_version(0), compatibles("mp41") { }
         FileTypeBox(const BitReader& br, size_t size);
@@ -52,7 +54,7 @@ namespace mtdcy { namespace MPEG4 {
     };
 
     // ISO/IEC 14496-12: Section 4.2 Object Structure, Page 11
-    struct Box : public SharedObject {
+    struct __ABE_HIDDEN Box : public SharedObject {
         Box(const String& _name, bool _full = false, bool _container = false) : 
             name(_name), full(_full), container(_container) { }
         virtual ~Box() { }
@@ -66,14 +68,14 @@ namespace mtdcy { namespace MPEG4 {
         uint32_t        flags;
     };
 
-    struct FullBox : public Box {
+    struct __ABE_HIDDEN FullBox : public Box {
         FullBox(const String& _name, bool container = false) :
             Box(_name, true, container) { }
         virtual ~FullBox() { }
         size_t size() const { return Box::size(); }
     };
 
-    struct ContainerBox : public Box {
+    struct __ABE_HIDDEN ContainerBox : public Box {
         ContainerBox(const String& _name, bool _full = false, bool _counted = false) :
             Box(_name, _full, true), counted(_counted) { }
         virtual ~ContainerBox() { }
@@ -84,13 +86,13 @@ namespace mtdcy { namespace MPEG4 {
         Vector<sp<Box> >    child;
     };
 
-    struct FullContainerBox : public ContainerBox {
+    struct __ABE_HIDDEN FullContainerBox : public ContainerBox {
         FullContainerBox(const String& _name) : 
             ContainerBox(_name, true, false) { }
         virtual ~FullContainerBox() { }
     };
 
-    struct CountedFullContainerBox : public ContainerBox {
+    struct __ABE_HIDDEN CountedFullContainerBox : public ContainerBox {
         CountedFullContainerBox(const String& _name) : 
             ContainerBox(_name, true, true) { }
         virtual ~CountedFullContainerBox() { }
@@ -153,7 +155,7 @@ namespace mtdcy { namespace MPEG4 {
     //  |- iods
     //  |- meta!
 #define BOX_TYPE(NAME, BOX, BASE) \
-    struct BOX : public BASE { BOX() : BASE(NAME) { } }; 
+    struct __ABE_HIDDEN BOX : public BASE { BOX() : BASE(NAME) { } };
 
     BOX_TYPE("moov", MovieBox,              ContainerBox);
     BOX_TYPE("trak", TrackBox,              ContainerBox);
@@ -172,13 +174,13 @@ namespace mtdcy { namespace MPEG4 {
 
     // 'meta'
     // isom and quicktime using different semantics for MetaBox
-    struct MetaBox : public ContainerBox {
+    struct __ABE_HIDDEN MetaBox : public ContainerBox {
         MetaBox() : ContainerBox("meta") { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
     };
 
-    struct MovieHeaderBox : public FullBox {
+    struct __ABE_HIDDEN MovieHeaderBox : public FullBox {
         MovieHeaderBox() : FullBox("mvhd") { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
@@ -191,11 +193,11 @@ namespace mtdcy { namespace MPEG4 {
         uint32_t    next_track_ID;
     };
 
-    struct TrackHeaderBox : public FullBox {
+    struct __ABE_HIDDEN TrackHeaderBox : public FullBox {
         TrackHeaderBox() : FullBox("tkhd") { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
-        
+
         /**
          * flag value of track
          * @see Box::flags
@@ -206,7 +208,7 @@ namespace mtdcy { namespace MPEG4 {
             Track_in_preview    = 0x000004,
             Track_size_is_aspect_ratio  = 0x000008,
         };
-        
+
         uint64_t    creation_time;      ///< create time in seconds, UTC
         uint64_t    modification_time;  ///< modification time, seconds, UTC
         uint32_t    track_ID;           ///< unique, 1-based index.
@@ -219,7 +221,7 @@ namespace mtdcy { namespace MPEG4 {
     };
 
     BOX_TYPE("tref", TrackReferenceBox,     ContainerBox);
-    struct TrackReferenceTypeBox : public Box {
+    struct __ABE_HIDDEN TrackReferenceTypeBox : public Box {
         TrackReferenceTypeBox(const String& _name) : Box(_name) { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
@@ -236,7 +238,7 @@ namespace mtdcy { namespace MPEG4 {
     BOX_TYPE("chap", TrackReferenceChapBox, TrackReferenceTypeBox);
 
 
-    struct MediaHeaderBox : public FullBox {
+    struct __ABE_HIDDEN MediaHeaderBox : public FullBox {
         MediaHeaderBox() : FullBox("mdhd") { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
@@ -247,7 +249,7 @@ namespace mtdcy { namespace MPEG4 {
         String              language;
     };
 
-    struct HandlerBox : public FullBox {
+    struct __ABE_HIDDEN HandlerBox : public FullBox {
         HandlerBox() : FullBox("hdlr") { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
@@ -255,7 +257,7 @@ namespace mtdcy { namespace MPEG4 {
         String              handler_name;
     };
 
-    struct VideoMediaHeaderBox : public FullBox {
+    struct __ABE_HIDDEN VideoMediaHeaderBox : public FullBox {
         VideoMediaHeaderBox() : FullBox("vmhd") { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
@@ -263,14 +265,14 @@ namespace mtdcy { namespace MPEG4 {
         Vector<uint16_t>    opcolor;
     };
 
-    struct SoundMediaHeaderBox : public FullBox {
+    struct __ABE_HIDDEN SoundMediaHeaderBox : public FullBox {
         SoundMediaHeaderBox() : FullBox("smhd") { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
         uint16_t            balance;
     };
 
-    struct HintMediaHeaderBox : public FullBox {
+    struct __ABE_HIDDEN HintMediaHeaderBox : public FullBox {
         HintMediaHeaderBox() : FullBox("hmhd") { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
@@ -282,14 +284,14 @@ namespace mtdcy { namespace MPEG4 {
 
     BOX_TYPE("nmhb", NullMediaHeaderBox, FullBox);
 
-    struct DataEntryUrlBox : public FullBox {
+    struct __ABE_HIDDEN DataEntryUrlBox : public FullBox {
         DataEntryUrlBox() : FullBox("url ") { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
         String          location;
     };
 
-    struct DataEntryUrnBox : public FullBox {
+    struct __ABE_HIDDEN DataEntryUrnBox : public FullBox {
         DataEntryUrnBox() : FullBox("urn ") { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
@@ -297,7 +299,7 @@ namespace mtdcy { namespace MPEG4 {
         String              location;
     };
 
-    struct TimeToSampleBox : public FullBox {
+    struct __ABE_HIDDEN TimeToSampleBox : public FullBox {
         TimeToSampleBox() : FullBox("stts") { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
@@ -308,7 +310,7 @@ namespace mtdcy { namespace MPEG4 {
         Vector<Entry>       entries;
     };
 
-    struct CompositionOffsetBox : public FullBox {
+    struct __ABE_HIDDEN CompositionOffsetBox : public FullBox {
         CompositionOffsetBox() : FullBox("ctts") { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
@@ -319,14 +321,14 @@ namespace mtdcy { namespace MPEG4 {
         Vector<Entry>       entries;
     };
 
-    struct SampleDependencyTypeBox : public FullBox {
+    struct __ABE_HIDDEN SampleDependencyTypeBox : public FullBox {
         SampleDependencyTypeBox() : FullBox("sdtp") { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
         Vector<uint8_t>     dependency;
     };
 
-    struct SampleEntry : public ContainerBox {
+    struct __ABE_HIDDEN SampleEntry : public ContainerBox {
         SampleEntry(const String& _name, const String& _type) : 
             ContainerBox(_name), type(_type) { }
         virtual ~SampleEntry() { }
@@ -362,23 +364,23 @@ namespace mtdcy { namespace MPEG4 {
         status_t _parse(const BitReader&, size_t, const FileTypeBox&);
     };
 
-    struct VisualSampleEntry : public SampleEntry {
+    struct __ABE_HIDDEN VisualSampleEntry : public SampleEntry {
         VisualSampleEntry(const String& _name) : SampleEntry(_name, "vide") { }
     };
-    struct AudioSampleEntry : public SampleEntry {
+    struct __ABE_HIDDEN AudioSampleEntry : public SampleEntry {
         AudioSampleEntry(const String& _name) : SampleEntry(_name, "soun") { }
     };
-    struct HintSampleEntry : public SampleEntry {
+    struct __ABE_HIDDEN HintSampleEntry : public SampleEntry {
         HintSampleEntry(const String& _name) : SampleEntry(_name, "hint") { }
     };
-    struct MpegSampleEntry : public SampleEntry {
+    struct __ABE_HIDDEN MpegSampleEntry : public SampleEntry {
         MpegSampleEntry() : SampleEntry("mp4s", "*") { }
     };
 
     // https://github.com/macosforge/alac
     // 'alac' box inside 'alac', so custom AudioSampleEntry implementation
 #if 1
-    struct ALACAudioSampleEntry : public AudioSampleEntry {
+    struct __ABE_HIDDEN ALACAudioSampleEntry : public AudioSampleEntry {
         ALACAudioSampleEntry() : AudioSampleEntry("alac") { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
@@ -388,14 +390,14 @@ namespace mtdcy { namespace MPEG4 {
     BOX_TYPE("alac", ALACAudioSampleEntry,          AudioSampleEntry);
 #endif
 
-    struct CommonBox : public Box {
+    struct __ABE_HIDDEN CommonBox : public Box {
         CommonBox(const String& _name, bool full = false) : 
             Box(_name, full) { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
         sp<Buffer>  data;
     };
-    struct FullCommonBox : public CommonBox {
+    struct __ABE_HIDDEN FullCommonBox : public CommonBox {
         FullCommonBox(const String& _name) : CommonBox(_name, true) { }
     };
 
@@ -429,20 +431,20 @@ namespace mtdcy { namespace MPEG4 {
     // A 'wave' chunk for 'mp4a' typically contains (in order) at least
     // a 'frma' atom, an 'mp4a' atom, an 'esds' atom, and a Terminator Atom
     // *BUT* the 'mp4a' atom inside 'wave' seems have different semantics
-    struct siDecompressionParam : public ContainerBox {
+    struct __ABE_HIDDEN siDecompressionParam : public ContainerBox {
         siDecompressionParam() : ContainerBox("wave") { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
     };
 
-    struct SamplingRateBox : public FullBox {
+    struct __ABE_HIDDEN SamplingRateBox : public FullBox {
         SamplingRateBox() : FullBox("srat") { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
         uint32_t sampling_rate;
     };
 
-    struct ColourInformationBox : public Box {
+    struct __ABE_HIDDEN ColourInformationBox : public Box {
         ColourInformationBox() : Box("colr") { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
@@ -453,7 +455,7 @@ namespace mtdcy { namespace MPEG4 {
         bool        full_range_flag;
     };
 
-    struct BitRateBox : public Box {
+    struct __ABE_HIDDEN BitRateBox : public Box {
         BitRateBox() : Box("btrt") { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
@@ -463,7 +465,7 @@ namespace mtdcy { namespace MPEG4 {
     };
 
     // unified SampleSizeBox & CompactSampleSizeBox
-    struct SampleSizeBox : public FullBox {
+    struct __ABE_HIDDEN SampleSizeBox : public FullBox {
         SampleSizeBox(const String& _name) : FullBox(_name) { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
@@ -473,7 +475,7 @@ namespace mtdcy { namespace MPEG4 {
     BOX_TYPE("stsz", PreferredSampleSizeBox, SampleSizeBox);
     BOX_TYPE("stz2", CompactSampleSizeBox, SampleSizeBox);
 
-    struct SampleToChunkBox : public FullBox {
+    struct __ABE_HIDDEN SampleToChunkBox : public FullBox {
         SampleToChunkBox() : FullBox("stsc") { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
@@ -485,7 +487,7 @@ namespace mtdcy { namespace MPEG4 {
         Vector<Entry>       entries;
     };
 
-    struct ChunkOffsetBox : public FullBox {
+    struct __ABE_HIDDEN ChunkOffsetBox : public FullBox {
         ChunkOffsetBox(const String& _name) : FullBox(_name) { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
@@ -494,14 +496,14 @@ namespace mtdcy { namespace MPEG4 {
     BOX_TYPE("stco", PreferredChunkOffsetBox, ChunkOffsetBox);
     BOX_TYPE("co64", LargeChunkOffsetBox, ChunkOffsetBox);
 
-    struct SyncSampleBox : public FullBox {
+    struct __ABE_HIDDEN SyncSampleBox : public FullBox {
         SyncSampleBox() : FullBox("stss") { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
         Vector<uint32_t>    entries;
     };
 
-    struct ShadowSyncSampleBox : public FullBox {
+    struct __ABE_HIDDEN ShadowSyncSampleBox : public FullBox {
         ShadowSyncSampleBox() : FullBox("stsh") { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
@@ -512,14 +514,14 @@ namespace mtdcy { namespace MPEG4 {
         Vector<Entry>       entries;
     };
 
-    struct DegradationPriorityBox : public FullBox {
+    struct __ABE_HIDDEN DegradationPriorityBox : public FullBox {
         DegradationPriorityBox() : FullBox("stdp") { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
         Vector<uint16_t>    entries;
     };
 
-    struct PaddingBitsBox : public FullBox {
+    struct __ABE_HIDDEN PaddingBitsBox : public FullBox {
         PaddingBitsBox() : FullBox("padb") { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
@@ -530,7 +532,7 @@ namespace mtdcy { namespace MPEG4 {
         Vector<Entry>   entries;
     };
 
-    struct FreeSpaceBox : public Box {
+    struct __ABE_HIDDEN FreeSpaceBox : public Box {
         FreeSpaceBox(const String& _name) : Box(_name) { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
@@ -538,7 +540,7 @@ namespace mtdcy { namespace MPEG4 {
     BOX_TYPE("free", FreeBox, FreeSpaceBox);
     BOX_TYPE("skip", SkipBox, FreeSpaceBox);
 
-    struct EditListBox : public FullBox {
+    struct __ABE_HIDDEN EditListBox : public FullBox {
         EditListBox() : FullBox("elst") { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
@@ -551,7 +553,7 @@ namespace mtdcy { namespace MPEG4 {
         Vector<Entry>       entries;
     };
 
-    struct NoticeBox : public FullBox {
+    struct __ABE_HIDDEN NoticeBox : public FullBox {
         NoticeBox(const String& _name) : FullBox(_name) { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
@@ -568,14 +570,14 @@ namespace mtdcy { namespace MPEG4 {
     BOX_TYPE("loci", LocationBox, NoticeBox);
     BOX_TYPE("auth", AuthorBox, NoticeBox);
 
-    struct MovieExtendsHeaderBox : public FullBox {
+    struct __ABE_HIDDEN MovieExtendsHeaderBox : public FullBox {
         MovieExtendsHeaderBox() : FullBox("mehd") { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
         uint64_t    fragment_duration;
     };
 
-    struct TrackExtendsBox : public FullBox {
+    struct __ABE_HIDDEN TrackExtendsBox : public FullBox {
         TrackExtendsBox() : FullBox("trex") { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
@@ -586,14 +588,14 @@ namespace mtdcy { namespace MPEG4 {
         uint32_t    default_sample_flags;
     };
 
-    struct MovieFragmentHeaderBox : public FullBox {
+    struct __ABE_HIDDEN MovieFragmentHeaderBox : public FullBox {
         MovieFragmentHeaderBox() : FullBox("mfhd") { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
         uint32_t    sequence_number;
     };
 
-    struct TrackFragmentHeaderBox : public FullBox {
+    struct __ABE_HIDDEN TrackFragmentHeaderBox : public FullBox {
         TrackFragmentHeaderBox() : FullBox("tfhd") { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
@@ -605,7 +607,7 @@ namespace mtdcy { namespace MPEG4 {
         uint32_t    default_sample_flags;
     };
 
-    struct PrimaryItemBox : public FullBox {
+    struct __ABE_HIDDEN PrimaryItemBox : public FullBox {
         PrimaryItemBox() : FullBox("pitm") { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
@@ -629,7 +631,7 @@ namespace mtdcy { namespace MPEG4 {
     //  |- lang
 
     // mhdr
-    struct iTunesHeaderBox : public FullBox {
+    struct __ABE_HIDDEN iTunesHeaderBox : public FullBox {
         iTunesHeaderBox() : FullBox("mhdr") { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
@@ -638,7 +640,7 @@ namespace mtdcy { namespace MPEG4 {
 
     // FIXME: keys box seems have multi semantics
 #if 0
-    struct iTunesKeysBox : public FullBox {
+    struct __ABE_HIDDEN iTunesKeysBox : public FullBox {
         iTunesKeysBox() : FullBox("keys") { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
@@ -653,7 +655,7 @@ namespace mtdcy { namespace MPEG4 {
 #endif
 
     // mdta
-    struct iTunesStringBox : public Box {
+    struct __ABE_HIDDEN iTunesStringBox : public Box {
         iTunesStringBox(const String& _name) : Box(_name) { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
@@ -665,7 +667,7 @@ namespace mtdcy { namespace MPEG4 {
 #if 0
     BOX_TYPE("ilst", iTunesItemListBox, ContainerBox);
 #else
-    struct iTunesItemListBox : public ContainerBox {
+    struct __ABE_HIDDEN iTunesItemListBox : public ContainerBox {
         iTunesItemListBox() : ContainerBox("ilst") { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
@@ -674,7 +676,7 @@ namespace mtdcy { namespace MPEG4 {
 #endif
 
     // 'data' 
-    struct iTunesDataBox : public Box {
+    struct __ABE_HIDDEN iTunesDataBox : public Box {
         iTunesDataBox() : Box("data") { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
@@ -685,7 +687,7 @@ namespace mtdcy { namespace MPEG4 {
     };
 
     // ctry
-    struct CountryListBox : public FullBox {
+    struct __ABE_HIDDEN CountryListBox : public FullBox {
         CountryListBox() : FullBox("ctry") { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
@@ -696,7 +698,7 @@ namespace mtdcy { namespace MPEG4 {
     };
 
     // lang
-    struct LanguageListBox : public FullBox {
+    struct __ABE_HIDDEN LanguageListBox : public FullBox {
         LanguageListBox() : FullBox("lang") { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
@@ -720,28 +722,28 @@ namespace mtdcy { namespace MPEG4 {
     BOX_TYPE("tmpo", iTunesBPMItemBox, ContainerBox);
     BOX_TYPE("pgap", iTunesGaplessPlaybackBox, ContainerBox);
 
-    struct iTunesInfomationBox : public FullBox {
+    struct __ABE_HIDDEN iTunesInfomationBox : public FullBox {
         iTunesInfomationBox() : FullBox("itif") { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
         uint32_t        Item_ID;
     };
 
-    struct iTunesNameBox : public Box {
+    struct __ABE_HIDDEN iTunesNameBox : public Box {
         iTunesNameBox() : Box("name") { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
         String          Name;
     };
 
-    struct iTunesMeanBox : public Box {
+    struct __ABE_HIDDEN iTunesMeanBox : public Box {
         iTunesMeanBox() : Box("mean") { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
         String          Mean;
     };
 
-    struct iTunesKeyDecBox : public Box {
+    struct __ABE_HIDDEN iTunesKeyDecBox : public Box {
         iTunesKeyDecBox() : Box("keyd") { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
@@ -753,14 +755,14 @@ namespace mtdcy { namespace MPEG4 {
 
     //BOX_TYPE("mebx", TimedMetadataSampleDescriptionBox, CountedFullContainerBox);
 
-    struct ObjectDescriptorBox : public FullBox {
+    struct __ABE_HIDDEN ObjectDescriptorBox : public FullBox {
         ObjectDescriptorBox() : FullBox("iods") { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
         sp<Buffer> iods;
     };
 
-    struct ID3v2Box : public FullBox {
+    struct __ABE_HIDDEN ID3v2Box : public FullBox {
         ID3v2Box() : FullBox("ID32") { }
         status_t parse(const BitReader&, size_t, const FileTypeBox&);
         void compose(BitWriter&, const FileTypeBox&);
@@ -768,18 +770,20 @@ namespace mtdcy { namespace MPEG4 {
         sp<Buffer>  ID3v2data;
     };
 
-    sp<Box> MakeBoxByName(const String& name);
-    
-    bool CheckTrackBox(const sp<TrackBox>& trak);
+    __ABE_HIDDEN sp<Box> MakeBoxByName(const String& name);
 
-    sp<Box> FindBox(const sp<ContainerBox>& root,
+    __ABE_HIDDEN bool CheckTrackBox(const sp<TrackBox>& trak);
+
+    __ABE_HIDDEN sp<Box> FindBox(const sp<ContainerBox>& root,
             const String& boxType, size_t index = 0);
-    sp<Box> FindBox(const sp<ContainerBox>& root, 
+    __ABE_HIDDEN sp<Box> FindBox(const sp<ContainerBox>& root,
             const String& first, const String& second);
-    sp<Box> FindBoxInside(const sp<ContainerBox>& root, 
+    __ABE_HIDDEN sp<Box> FindBoxInside(const sp<ContainerBox>& root,
             const String& sub, const String& target);
-    void PrintBox(const sp<Box>& root);
-};};
+    __ABE_HIDDEN void PrintBox(const sp<Box>& root);
+}
+
+__END_NAMESPACE_MPX
 
 #endif 
 

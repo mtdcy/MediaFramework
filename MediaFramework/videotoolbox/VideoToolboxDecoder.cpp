@@ -34,7 +34,7 @@
 
 #define LOG_TAG "videotoolbox"
 //#define LOG_NDEBUG 0
-#include <MediaToolkit/Toolkit.h>
+#include <ABE/ABE.h>
 
 #include <VideoToolbox/VideoToolbox.h>
 
@@ -58,7 +58,7 @@
 // https://www.objc.io/issues/23-video/videotoolbox/
 // http://www.enkichen.com/2018/03/24/videotoolbox/?utm_source=tuicool&utm_medium=referral
 
-using namespace mtdcy;
+__BEGIN_NAMESPACE_MPX
 
 struct {
     eCodecFormat        a;
@@ -72,7 +72,7 @@ struct {
     {kCodecFormatUnknown,       0},
 };
 
-static CMVideoCodecType get_cm_codec_type(eCodecFormat a) {
+static __ABE_INLINE CMVideoCodecType get_cm_codec_type(eCodecFormat a) {
     for (size_t i = 0; kCodecMap[i].a != kCodecFormatUnknown; ++i) {
         if (kCodecMap[i].a == a)
             return kCodecMap[i].b;
@@ -81,7 +81,7 @@ static CMVideoCodecType get_cm_codec_type(eCodecFormat a) {
     return 0;
 }
 
-static eCodecFormat get_codec_format(CMVideoCodecType b) {
+static __ABE_INLINE eCodecFormat get_codec_format(CMVideoCodecType b) {
     for (size_t i = 0; kCodecMap[i].a != kCodecFormatUnknown; ++i) {
         if (kCodecMap[i].b == b)
             return kCodecMap[i].a;
@@ -104,7 +104,7 @@ struct {
     {kPixelFormatUnknown,       0},
 };
 
-static ePixelFormat get_pix_format(OSType b) {
+static __ABE_INLINE ePixelFormat get_pix_format(OSType b) {
     for (size_t i = 0; kPixelMap[i].a != kPixelFormatUnknown; ++i) {
         if (kPixelMap[i].b == b) return kPixelMap[i].a;
     }
@@ -112,7 +112,7 @@ static ePixelFormat get_pix_format(OSType b) {
     return kPixelFormatUnknown;
 }
 
-static OSType get_cv_pix_format(ePixelFormat a) {
+static __ABE_INLINE OSType get_cv_pix_format(ePixelFormat a) {
     for (size_t i = 0; kPixelMap[i].a != kPixelFormatUnknown; ++i) {
         if (kPixelMap[i].a == a) return kPixelMap[i].b;
     }
@@ -121,8 +121,8 @@ static OSType get_cv_pix_format(ePixelFormat a) {
 }
 
 // for store unorderred image buffers and sort them
-struct VTMediaFrame : public MediaFrame {
-    VTMediaFrame(CVPixelBufferRef pixbuf, const MediaTime& _pts, const MediaTime& _duration) : MediaFrame() {
+struct __ABE_HIDDEN VTMediaFrame : public MediaFrame {
+    __ABE_INLINE VTMediaFrame(CVPixelBufferRef pixbuf, const MediaTime& _pts, const MediaTime& _duration) : MediaFrame() {
         planes[0].data  = NULL;
         pts         = _pts;
         duration    = _duration;
@@ -136,7 +136,7 @@ struct VTMediaFrame : public MediaFrame {
         opaque = CVPixelBufferRetain(pixbuf);
     }
 
-    VTMediaFrame(const VTMediaFrame& rhs) {
+    __ABE_INLINE VTMediaFrame(const VTMediaFrame& rhs) {
         planes[0].data  = NULL;
         pts         = rhs.pts;
         duration    = rhs.duration;
@@ -144,20 +144,20 @@ struct VTMediaFrame : public MediaFrame {
         opaque      = CVPixelBufferRetain((CVPixelBufferRef)rhs.opaque);
     }
 
-    virtual ~VTMediaFrame() {
+    __ABE_INLINE ~VTMediaFrame() {
         CVPixelBufferRelease((CVPixelBufferRef)opaque);
     }
 
-    bool operator<(const VTMediaFrame& rhs) const {
+    __ABE_INLINE bool operator<(const VTMediaFrame& rhs) const {
         return pts < rhs.pts;
     }
 };
 
-struct VTContext : public SharedObject {
-    VTContext() : decompressionSession(NULL), formatDescription(NULL),
+struct __ABE_HIDDEN VTContext : public SharedObject {
+    __ABE_INLINE VTContext() : decompressionSession(NULL), formatDescription(NULL),
     mInputEOS(false), mLastFrameTime(kTimeBegin) { }
 
-    ~VTContext() {
+    __ABE_INLINE ~VTContext() {
         if (decompressionSession) {
             VTDecompressionSessionInvalidate(decompressionSession);
             CFRelease(decompressionSession);
@@ -176,11 +176,11 @@ struct VTContext : public SharedObject {
     bool                            mInputEOS;
     List<VTMediaFrame>              mImages;
     List<MediaTime>                 mTimestamps;
-    
+
     MediaTime                       mLastFrameTime;
 };
 
-static void OutputCallback(void *decompressionOutputRefCon,
+static __ABE_INLINE void OutputCallback(void *decompressionOutputRefCon,
         void *sourceFrameRefCon,
         OSStatus status,
         VTDecodeInfoFlags infoFlags,
@@ -215,14 +215,14 @@ static void OutputCallback(void *decompressionOutputRefCon,
     } else {
         pts = MediaTime( presentationTimeStamp.value, presentationTimeStamp.timescale );
     }
-    
+
 #if 0
     if (pts < vtc->mLastFrameTime) {
         ERROR("unorderred frame %.3f(s) < %.3f(s)", pts.seconds(), vtc->mLastFrameTime.seconds());
     }
     vtc->mLastFrameTime = pts;
 #endif
-    
+
     MediaTime duration ( presentationDuration.value, presentationDuration.timescale );
     VTMediaFrame frame(imageBuffer, pts, duration);
 
@@ -230,7 +230,7 @@ static void OutputCallback(void *decompressionOutputRefCon,
     vtc->mImages.sort();
 }
 
-static CFDictionaryRef setupFormatDescriptionExtension(const Message& formats,
+static __ABE_INLINE CFDictionaryRef setupFormatDescriptionExtension(const Message& formats,
         CMVideoCodecType cm_codec_type) {
     CFMutableDictionaryRef atoms = CFDictionaryCreateMutable(
             kCFAllocatorDefault,
@@ -295,7 +295,7 @@ static CFDictionaryRef setupFormatDescriptionExtension(const Message& formats,
     return atoms;
 }
 
-static CFDictionaryRef setupImageBufferAttributes(int32_t width,
+static __ABE_INLINE CFDictionaryRef setupImageBufferAttributes(int32_t width,
         int32_t height,
         OSType cv_pix_fmt,
         bool opengl) {
@@ -347,7 +347,7 @@ static CFDictionaryRef setupImageBufferAttributes(int32_t width,
 }
 
 // https://github.com/jyavenard/DecodeTest/blob/master/DecodeTest/VTDecoder.mm
-static sp<VTContext> createSession(const Message& formats, const Message& options, MediaError *err) {
+static __ABE_INLINE sp<VTContext> createSession(const Message& formats, const Message& options, MediaError *err) {
     sp<VTContext> vtc = new VTContext;
 
     eCodecFormat codec_format = (eCodecFormat)formats.findInt32(kKeyFormat);
@@ -356,7 +356,7 @@ static sp<VTContext> createSession(const Message& formats, const Message& option
     int32_t requested_format = options.findInt32(kKeyRequestFormat, kPreferredPixelFormat);
     OSType cv_pix_fmt = get_cv_pix_format((ePixelFormat)requested_format);
     bool opengl = options.findInt32(kKeyOpenGLCompatible);
-    
+
     if (cv_pix_fmt == 0) {
         ERROR("request format is not supported, fall to %d", kPreferredPixelFormat);
         cv_pix_fmt = get_cv_pix_format(kPreferredPixelFormat);
@@ -462,7 +462,7 @@ static sp<VTContext> createSession(const Message& formats, const Message& option
     }
 }
 
-static CMSampleBufferRef createCMSampleBuffer(sp<VTContext>& vtc,
+static __ABE_INLINE CMSampleBufferRef createCMSampleBuffer(sp<VTContext>& vtc,
         const sp<MediaPacket>& packet) {
     DEBUG("CMBlockBufferGetTypeID: %#x", CMBlockBufferGetTypeID());
     CMBlockBufferRef  blockBuffer = NULL;
@@ -527,7 +527,7 @@ static CMSampleBufferRef createCMSampleBuffer(sp<VTContext>& vtc,
     }
 }
 
-sp<MediaFrame> readVideoToolboxFrame(CVPixelBufferRef pixbuf) {
+sp<MediaFrame> __ABE_INLINE readVideoToolboxFrame(CVPixelBufferRef pixbuf) {
     sp<MediaFrame> frame = MediaFrameCreate(get_pix_format(CVPixelBufferGetPixelFormatType(pixbuf)),
             CVPixelBufferGetWidth(pixbuf),
             CVPixelBufferGetHeight(pixbuf));
@@ -576,7 +576,7 @@ sp<MediaFrame> readVideoToolboxFrame(CVPixelBufferRef pixbuf) {
     return frame;
 }
 
-struct VideoToolboxDecoder : public MediaDecoder {
+struct __ABE_HIDDEN VideoToolboxDecoder : public MediaDecoder {
     sp<VTContext>   mVTContext;
 
     VideoToolboxDecoder() { }
@@ -680,7 +680,7 @@ struct VideoToolboxDecoder : public MediaDecoder {
         // fix the width & height
         frame.v.rect.w  = mVTContext->width;
         frame.v.rect.h  = mVTContext->height;
-        
+
 #if 0
         sp<MediaFrame> out = readVideoToolboxFrame((CVPixelBufferRef)frame.opaque);
 #else
@@ -700,15 +700,14 @@ struct VideoToolboxDecoder : public MediaDecoder {
     }
 };
 
-namespace mtdcy {
-    bool IsVideoToolboxSupported(eCodecFormat format) {
-        CMPixelFormatType cm = get_cm_codec_type(format);
-        if (cm == 0) return false;
-        return VTIsHardwareDecodeSupported(cm);
-    }
-
-    sp<MediaDecoder> CreateVideoToolboxDecoder() {
-        return new VideoToolboxDecoder();
-    }
+bool IsVideoToolboxSupported(eCodecFormat format) {
+    CMPixelFormatType cm = get_cm_codec_type(format);
+    if (cm == 0) return false;
+    return VTIsHardwareDecodeSupported(cm);
 }
 
+sp<MediaDecoder> CreateVideoToolboxDecoder() {
+    return new VideoToolboxDecoder();
+}
+
+__END_NAMESPACE_ABE

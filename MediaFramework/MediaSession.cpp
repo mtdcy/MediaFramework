@@ -34,7 +34,7 @@
 
 #define LOG_TAG "Session"
 //#define LOG_NDEBUG 0
-#include <MediaToolkit/Toolkit.h>
+#include <ABE/ABE.h>
 
 #include "MediaSession.h"
 #include "sdl2/SDLAudio.h"
@@ -59,10 +59,10 @@
 //                  <= clock event
 //                  <= looper(external)
 
-using namespace mtdcy;
+__USING_NAMESPACE_MPX
 
 // no control session, control by FrameRequestEvent.
-struct DecodeSession : public SharedObject {
+struct __ABE_HIDDEN DecodeSession : public SharedObject {
     // external static context
     eCodecFormat            mID;
     sp<Looper>              mLooper;
@@ -87,9 +87,9 @@ struct DecodeSession : public SharedObject {
     size_t                  mFramesDecoded;
 
     DecodeSession(const sp<Looper>& looper,
-                  const Message& format,
-                  const Message& options,
-                  const sp<PacketRequestEvent>& fre) :
+            const Message& format,
+            const Message& options,
+            const sp<PacketRequestEvent>& fre) :
         // external static context
         mID(kCodecFormatUnknown),
         mLooper(looper), mPacketRequestEvent(fre),
@@ -158,12 +158,12 @@ struct DecodeSession : public SharedObject {
 
         // -> onPacketReady
     }
-    
+
     struct OnPacketReady : public PacketReadyEvent {
         const int mGeneration;
         OnPacketReady(const sp<Looper>& looper, int gen) :
-        PacketReadyEvent(String::format("OnPacketReady %d", gen), looper),
-        mGeneration(gen) { }
+            PacketReadyEvent(String::format("OnPacketReady %d", gen), looper),
+            mGeneration(gen) { }
         virtual void onEvent(const sp<MediaPacket>& packet) {
             sp<Looper> current = Looper::Current();
             DecodeSession *ds = static_cast<DecodeSession*>(current->user(0));
@@ -176,7 +176,7 @@ struct DecodeSession : public SharedObject {
             INFO("codec %zu: ignore outdated packets", mID);
             return;
         }
-        
+
         if (pkt == NULL) {
             INFO("codec %zu: eos detected", mID);
             mInputEOS = true;
@@ -198,14 +198,14 @@ struct DecodeSession : public SharedObject {
         while (mFrameRequests.size() && mInputQueue.size()) {
             onDecode();
         }
-        
+
         requestPacket();
     }
 
     void onPrepareDecoder(const MediaTime& ts) {
         INFO("codec %zu: prepare decoder", mID);
         CHECK_TRUE(ts != kTimeInvalid);
-        
+
         // update generation
         atomic_add(&mGeneration, 1);
         mPacketReadyEvent = new OnPacketReady(mLooper, mGeneration);
@@ -231,11 +231,11 @@ struct DecodeSession : public SharedObject {
 
     void onFlushDecoder() {
         INFO("codec %zu: flush %zu packets", mID, mInputQueue.size());
-        
+
         // update generation
         atomic_add(&mGeneration, 1);
         mPacketReadyEvent = NULL;
-        
+
         mLooper->flush();
 
         // remove cmds
@@ -244,7 +244,7 @@ struct DecodeSession : public SharedObject {
         // flush input queue and codec
         mInputQueue.clear();
         mCodec->flush();
-        
+
         mFlushed = true;
     }
 
@@ -262,7 +262,7 @@ struct DecodeSession : public SharedObject {
             }
             return;
         }
-        
+
         if (mOutputEOS) {
             ERROR("codec %zu: request frame at eos", mID);
             return;
@@ -318,7 +318,7 @@ struct DecodeSession : public SharedObject {
             WARN("codec %zu: is initializing...", mID);
         } else {
             FrameRequest& request = *mFrameRequests.begin();
-            
+
             if (frame != NULL) {
                 DEBUG("codec %zu: decoded frame %.3f(s) ready", mID, frame->pts.seconds());
                 ++mFramesDecoded;
@@ -334,13 +334,13 @@ struct DecodeSession : public SharedObject {
                 mFrameRequests.pop();
             }
         }
-        
+
         // request more packets
         requestPacket();
     }
 };
 
-struct RenderSession : public MediaSession {
+struct __ABE_HIDDEN RenderSession : public MediaSession {
     // external static context
     sp<Looper>              mLooper;
     sp<FrameRequestEvent>   mFrameRequestEvent;
@@ -368,10 +368,10 @@ struct RenderSession : public MediaSession {
     size_t                  mFramesRenderred;
 
     RenderSession(const sp<Looper>& looper,
-                  eCodecFormat id,
-                  const Message& format,
-                  const Message& options,
-                  const sp<FrameRequestEvent>& fre) :
+            eCodecFormat id,
+            const Message& format,
+            const Message& options,
+            const sp<FrameRequestEvent>& fre) :
         MediaSession(), // share the same looper
         // external static context
         mLooper(looper), mFrameRequestEvent(fre), mID(id),
@@ -391,13 +391,13 @@ struct RenderSession : public MediaSession {
     {
         // setup external context
         if (options.contains("RenderPositionEvent")) {
-            mPositionEvent = options.find<sp<RenderPositionEvent> >("RenderPositionEvent");
+            mPositionEvent = options.findObject("RenderPositionEvent");
         }
 
         if (options.contains("Clock")) {
-            mClock = options.find<sp<Clock> >("Clock");
+            mClock = options.findObject("Clock");
         }
-        
+
         // setup out context
         CHECK_TRUE(format.contains(kKeyFormat));
 
@@ -409,7 +409,7 @@ struct RenderSession : public MediaSession {
             ePixelFormat pixel = (ePixelFormat)format.findInt32(kKeyFormat);
             ePixelFormat pixFmtAccepted;
             if (options.contains("MediaOut")) {
-                mOut = options.find<sp<MediaOut> >("MediaOut");
+                mOut = options.findObject("MediaOut");
             } else {
                 mOut = MediaOut::Create(kCodecTypeVideo);
             }
@@ -462,12 +462,12 @@ struct RenderSession : public MediaSession {
         DEBUG("renderer %zu: request more frames", mID);
         // -> onFrameReady
     }
-    
+
     struct OnFrameReady : public FrameReadyEvent {
         const int mGeneration;
         OnFrameReady(const sp<Looper>& looper, int gen) :
-        FrameReadyEvent(String::format("OnFrameReady %d", gen), looper),
-        mGeneration(gen) { }
+            FrameReadyEvent(String::format("OnFrameReady %d", gen), looper),
+            mGeneration(gen) { }
         virtual void onEvent(const sp<MediaFrame>& frame) {
             sp<Looper> current = Looper::Current();
             RenderSession *rs = static_cast<RenderSession*>(current->user(0));
@@ -515,7 +515,7 @@ struct RenderSession : public MediaSession {
         } else {
             mOutputQueue.push(frame);
         }
-        
+
         // request more frames
         requestFrame();
 
@@ -555,7 +555,7 @@ struct RenderSession : public MediaSession {
         const MediaTime& ts = options.find<MediaTime>("time");
         sp<StatusEvent> se;
         if (options.contains("StatusEvent")) {
-            se = options.find<sp<StatusEvent> >("StatusEvent");
+            se = options.findObject("StatusEvent");
         }
         onPrepareRenderer(ts, se);
     }
@@ -563,7 +563,7 @@ struct RenderSession : public MediaSession {
     void onPrepareRenderer(const MediaTime& ts, const sp<StatusEvent>& se) {
         INFO("renderer %zu: prepare renderer...", mID);
         CHECK_TRUE(ts >= kTimeBegin);
-        
+
         // update generation
         atomic_add(&mGeneration, 1);
         mFrameReadyEvent = new OnFrameReady(mLooper, mGeneration);
@@ -593,13 +593,13 @@ struct RenderSession : public MediaSession {
 
     void onFlushRenderer() {
         INFO("track %zu: flush %zu frames", mID, mOutputQueue.size());
-        
+
         // update generation
         atomic_add(&mGeneration, 1);
         mFrameReadyEvent = NULL;
 
         mLooper->flush();
-        
+
         // tell decoder to flush
         FrameRequest request;
         request.ts = kTimeEnd;
@@ -618,7 +618,7 @@ struct RenderSession : public MediaSession {
 
         // reset statistics
         mFramesRenderred = 0;
-        
+
         mFlushed = true;
     }
 
@@ -651,7 +651,7 @@ struct RenderSession : public MediaSession {
         } else {
             mLooper->post(mPresentFrame, next);
         }
-        
+
         requestFrame();
 
         // -> onRender
@@ -797,7 +797,7 @@ struct RenderSession : public MediaSession {
             mOut->configure(options);
         }
     }
-    
+
     // MediaSession
     struct PrepareRunnable : public Runnable {
         Message             mOptions;
@@ -827,7 +827,7 @@ struct RenderSession : public MediaSession {
     }
 };
 
-struct MediaFrameTunnel : public MediaFrame {
+struct __ABE_HIDDEN MediaFrameTunnel : public MediaFrame {
     sp<MediaPacket>     mPacket;
     MediaFrameTunnel(const sp<MediaPacket>& packet) : MediaFrame(), mPacket(packet) {
         pts                 = packet->pts;
@@ -838,7 +838,7 @@ struct MediaFrameTunnel : public MediaFrame {
     }
 };
 
-struct OnPacketReadyTunnel : public PacketReadyEvent {
+struct __ABE_HIDDEN OnPacketReadyTunnel : public PacketReadyEvent {
     sp<FrameReadyEvent>     mFrameReadyEvent;
     OnPacketReadyTunnel(const sp<FrameReadyEvent>& event) :
         PacketReadyEvent(), mFrameReadyEvent(event) { }
@@ -847,7 +847,7 @@ struct OnPacketReadyTunnel : public PacketReadyEvent {
     }
 };
 
-struct OnFrameRequestTunnel : public FrameRequestEvent {
+struct __ABE_HIDDEN OnFrameRequestTunnel : public FrameRequestEvent {
     sp<PacketRequestEvent>      mPacketRequestEvent;
     OnFrameRequestTunnel(const sp<PacketRequestEvent>& event) :
         FrameRequestEvent(), mPacketRequestEvent(event) { }
@@ -858,7 +858,7 @@ struct OnFrameRequestTunnel : public FrameRequestEvent {
             return;
         }
         packetRequest.event     = new OnPacketReadyTunnel(request.event);
-         packetRequest.mode      = kModeReadNext;
+        packetRequest.mode      = kModeReadNext;
         if (request.ts != kTimeInvalid) {
             packetRequest.ts    = request.ts;
             packetRequest.mode  = kModeReadClosestSync;
@@ -868,15 +868,15 @@ struct OnFrameRequestTunnel : public FrameRequestEvent {
     }
 };
 
-struct OnFrameRequest : public FrameRequestEvent {
+struct __ABE_HIDDEN OnFrameRequest : public FrameRequestEvent {
     sp<DecodeSession>   mDecodeSession;
     OnFrameRequest(const sp<Looper>& looper, const sp<DecodeSession>& ds) :
-    FrameRequestEvent(looper), mDecodeSession(ds) {
-    }
-    
+        FrameRequestEvent(looper), mDecodeSession(ds) {
+        }
+
     virtual ~OnFrameRequest() {
     }
-    
+
     virtual void onEvent(const FrameRequest& request) {
         mDecodeSession->onRequestFrame(request);
     }
@@ -889,29 +889,29 @@ sp<MediaSession> MediaSession::Create(const Message& format, const Message& opti
     eCodecType type = GetCodecType(codec);
 
     CHECK_TRUE(options.contains("PacketRequestEvent"));
-    sp<PacketRequestEvent> pre = options.find<sp<PacketRequestEvent> >("PacketRequestEvent");
-    
-    sp<Looper> looper = new Looper(String::format("ds.%#x", codec));
+    sp<PacketRequestEvent> pre = options.findObject("PacketRequestEvent");
+
+    sp<Looper> looper = Looper::Create(String::format("ds.%#x", codec));
     sp<DecodeSession> ds = new DecodeSession(looper,
-                                             format,
-                                             options,
-                                             pre);
+            format,
+            options,
+            pre);
     looper->bind(ds.get());
     looper->loop();
-    
+
     if (ds->mCodec == NULL) {
         ERROR("failed to initial decoder");
         return NULL;
     }
-    
+
     sp<FrameRequestEvent> fre = new OnFrameRequest(looper, ds);
-    
-    looper = new Looper(String::format("rs.%#x", codec));
+
+    looper = Looper::Create(String::format("rs.%#x", codec));
     sp<RenderSession> rs = new RenderSession(looper,
-                                             codec,
-                                             ds->mCodec->formats(),
-                                             options,
-                                             fre);
+            codec,
+            ds->mCodec->formats(),
+            options,
+            fre);
     looper->bind(rs.get());
     looper->loop();
 

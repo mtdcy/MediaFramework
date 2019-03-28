@@ -35,14 +35,16 @@
 #ifndef _MEDIA_MODULES_MPEG4_AUDIO_H
 #define _MEDIA_MODULES_MPEG4_AUDIO_H
 
-#include <MediaToolkit/Toolkit.h>
+#include "MediaDefs.h"
 #include "Systems.h"
 
+__BEGIN_NAMESPACE_MPX
+
 // ISO/IEC 14496-3 Audio
-namespace mtdcy { namespace MPEG4 {
+namespace MPEG4 {
 
     // ISO/IEC 14496-3:2001
-    struct AudioSpecificConfig {
+    struct __ABE_HIDDEN AudioSpecificConfig {
         AudioSpecificConfig(const BitReader& br);
         bool                    valid;
         uint8_t                 audioObjectType;
@@ -82,10 +84,11 @@ namespace mtdcy { namespace MPEG4 {
         "SBR",
         "Scalable"
     };
-    
-    ES_Descriptor MakeESDescriptor(AudioSpecificConfig& asc);
 
-};};
+    __ABE_HIDDEN ES_Descriptor MakeESDescriptor(AudioSpecificConfig& asc);
 
+}
+
+__END_NAMESPACE_MPX
 
 #endif // 

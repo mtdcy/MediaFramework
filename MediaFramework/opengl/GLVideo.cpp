@@ -39,9 +39,11 @@
 
 #define LOG_TAG "GLVideo"
 //#define LOG_NDEBUG 0
-#include <MediaToolkit/Toolkit.h>
+#include <ABE/ABE.h>
 
 #include "MediaFrame.h"
+
+#include "MediaOut.h"
 
 #define SL(x)   #x
 
@@ -67,7 +69,7 @@
 // https://learnopengl.com/
 // https://learnopengl-cn.github.io
 // https://blog.csdn.net/leixiaohua1020/article/details/40379845
-using namespace mtdcy;
+__BEGIN_NAMESPACE_MPX
 
 enum {
     ATTR_VERTEX = 0,
@@ -93,7 +95,7 @@ enum {
     OBJ_MAX
 };
 
-struct Config_Format {
+struct __ABE_HIDDEN Config_Format {
     const GLint     internalformat;
     const GLenum    format;
     const GLenum    type;
@@ -102,7 +104,7 @@ struct Config_Format {
 };
 
 struct OpenGLContext;
-struct Config {
+struct __ABE_HIDDEN Config {
     const char *            s_vsh;          // vertex sl source
     const char *            s_fsh;          // fragment sl source
     const GLenum            e_target;       // texture target
@@ -113,7 +115,7 @@ struct Config {
     void                    (*update)(const sp<OpenGLContext>&, const sp<MediaFrame>&);
 };
 
-struct OpenGLContext : public SharedObject {
+struct __ABE_HIDDEN OpenGLContext : public SharedObject {
     OpenGLContext() : config(NULL), width(0), height(0), format(kPixelFormatUnknown)
     {
         for (size_t i = 0; i < OBJ_MAX; ++i) objs[i] = 0;
@@ -130,7 +132,7 @@ struct OpenGLContext : public SharedObject {
     int32_t         width;
     int32_t         height;
     ePixelFormat    format;
-    
+
     ~OpenGLContext() {
         if (objs[OBJ_TEXTURE0]) {
             glDeleteTextures(config->n_textures, &objs[OBJ_TEXTURE0]);
@@ -412,20 +414,20 @@ static void updateTexture(const sp<OpenGLContext>& glc, const sp<MediaFrame>& fr
         frame->planes[1].data,
         frame->planes[2].data,
     };
-    
+
     // x    y
     // 0,      1.0,
     // 1.0,    1.0,
     // 0,      0,
     // 1.0,    0
-    
+
 #if 1
     if (frame->v.rect.x || frame->v.rect.y
-        || (frame->v.rect.w - frame->v.rect.x) != frame->v.width
-        || (frame->v.rect.h - frame->v.rect.y) != frame->v.height) {
+            || (frame->v.rect.w - frame->v.rect.x) != frame->v.width
+            || (frame->v.rect.h - frame->v.rect.y) != frame->v.height) {
         DEBUG("%d x %d => { %d %d %d %d }", frame->v.width, frame->v.height,
-             frame->v.rect.x, frame->v.rect.y,
-             frame->v.rect.w, frame->v.rect.h);
+                frame->v.rect.x, frame->v.rect.y,
+                frame->v.rect.w, frame->v.rect.h);
         // texture_vertices_original
         // XXX: we are using GL_LINEAR, sub 1 pixel to avoid green line
         GLfloat x = (GLfloat)frame->v.rect.x / frame->v.width;
@@ -583,10 +585,9 @@ static const Config s_config_vt_nv12 = {
 #endif
 
 ////////////////////////////////////////////////////////////////////
-#include "MediaOut.h"
-struct GLVideo : public MediaOut {
+struct __ABE_HIDDEN GLVideo : public MediaOut {
     sp<OpenGLContext> mGLContext;
-    
+
     GLVideo() : MediaOut(), mGLContext(NULL) { }
 
     virtual ~GLVideo() { }
@@ -598,7 +599,7 @@ struct GLVideo : public MediaOut {
 
         // is gl context ready for current thread
 #ifdef __APPLE__
-        CHECK_NULL(CGLGetCurrentContext());
+        if (ogl) CHECK_NULL(CGLGetCurrentContext());
 #endif
 
         int32_t width       = options.findInt32(kKeyWidth);
@@ -692,8 +693,7 @@ struct GLVideo : public MediaOut {
     }
 };
 
-namespace mtdcy {
-    sp<MediaOut> CreateGLVideo() {
-        return new GLVideo();
-    }
+sp<MediaOut> CreateGLVideo() {
+    return new GLVideo();
 }
+__END_NAMESPACE_MPX

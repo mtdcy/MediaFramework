@@ -35,7 +35,6 @@
 #ifndef _MEDIA_FRAME_H
 #define _MEDIA_FRAME_H
 
-#include <MediaToolkit/Toolkit.h>
 #include <MediaFramework/MediaTime.h>
 #include <MediaFramework/MediaDefs.h>
 
@@ -46,68 +45,68 @@ __BEGIN_DECLS
 __END_DECLS 
 
 #ifdef __cplusplus
-namespace mtdcy {
+__BEGIN_NAMESPACE_MPX
 #endif
-    
+
+/**
+ * media frame structure for decompressed audio and video frames
+ * the properties inside this structure have to make sure this
+ * frame can be renderred properly without additional informations.
+ */
+struct __ABE_EXPORT MediaFrame : public SharedObject {
+    MediaTime               pts;        ///< display time in us
+    MediaTime               duration;   ///< duration of this frame
     /**
-     * media frame structure for decompressed audio and video frames
-     * the properties inside this structure have to make sure this
-     * frame can be renderred properly without additional informations.
+     * plane data struct.
+     * for planar frame, multi planes must exist. the backend memory may be
+     * or may not be continueslly.
+     * for packed frame, only one plane exists.
      */
-    struct MediaFrame : public SharedObject {
-        MediaTime               pts;        ///< display time in us
-        MediaTime               duration;   ///< duration of this frame
-        /**
-         * plane data struct.
-         * for planar frame, multi planes must exist. the backend memory may be
-         * or may not be continueslly.
-         * for packed frame, only one plane exists.
-         */
+    struct {
+        uint8_t *           data;       ///< plane data
+        size_t              size;       ///< data size in bytes
+    } planes[MEDIA_FRAME_NB_PLANES];    ///< for packed frame, only one plane exists
+
+    union {
+        int32_t             format;     ///< sample format, @see ePixelFormat, @see eSampleFormat
         struct {
-            uint8_t *           data;       ///< plane data
-            size_t              size;       ///< data size in bytes
-        } planes[MEDIA_FRAME_NB_PLANES];    ///< for packed frame, only one plane exists
-        
-        union {
-            int32_t             format;     ///< sample format, @see ePixelFormat, @see eSampleFormat
+            eSampleFormat   format;     ///< audio sample format, @see eSampleFormat
+            int32_t         channels;   ///< channel count
+            int32_t         freq;       ///< sampling rate
+            int32_t         samples;    ///< samples per channel
+        } a;
+        struct {
+            ePixelFormat    format;     ///< video pixel format, @see ePixelFormat
+            int32_t         width;      ///< plane width
+            int32_t         height;     ///< plane height
             struct {
-                eSampleFormat   format;     ///< audio sample format, @see eSampleFormat
-                int32_t         channels;   ///< channel count
-                int32_t         freq;       ///< sampling rate
-                int32_t         samples;    ///< samples per channel
-            } a;
-            struct {
-                ePixelFormat    format;     ///< video pixel format, @see ePixelFormat
-                int32_t         width;      ///< plane width
-                int32_t         height;     ///< plane height
-                struct {
-                    int32_t     x, y, w, h;
-                } rect;                     ///< display rectangle
-            } v;
-            struct {
-                // TODO
-            } s;
-        };
-        void                    *opaque;    ///< opaque
+                int32_t     x, y, w, h;
+            } rect;                     ///< display rectangle
+        } v;
+        struct {
+            // TODO
+        } s;
+    };
+    void                    *opaque;    ///< opaque
 
 #ifdef __cplusplus
-        MediaFrame();
-        virtual ~MediaFrame() { }
+    MediaFrame();
+    __ABE_INLINE virtual ~MediaFrame() { }
 #endif
-    };
-    
-    /**
-     * create a video frame backend by Buffer
-     */
-    sp<MediaFrame>  MediaFrameCreate(ePixelFormat format, int32_t width, int32_t height);
-    
-    /**
-     * create a audio frame
-     */
-    sp<MediaFrame>  MediaFrameCreate(eSampleFormat format, bool planar, int32_t channels, int32_t freq, int32_t samples);
-  
-#ifdef __cplusplus
 };
+
+/**
+ * create a video frame backend by Buffer
+ */
+__ABE_EXPORT sp<MediaFrame>  MediaFrameCreate(ePixelFormat format, int32_t width, int32_t height);
+
+/**
+ * create a audio frame
+ */
+__ABE_EXPORT sp<MediaFrame>  MediaFrameCreate(eSampleFormat format, bool planar, int32_t channels, int32_t freq, int32_t samples);
+
+#ifdef __cplusplus
+__END_NAMESPACE_MPX
 #endif
 
 #endif // _MEDIA_FRAME_H 

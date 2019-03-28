@@ -35,6 +35,8 @@
 #ifndef __MATROSKA_EBML_H
 #define __MATROSKA_EBML_H
 
+#include <MediaFramework/MediaDefs.h>
+
 __BEGIN_DECLS
 
 #define ID_VOID                 0xEC
@@ -200,164 +202,166 @@ __BEGIN_DECLS
 
 __END_DECLS
 
-namespace mtdcy { 
-    namespace EBML {
-        enum EBMLElementType {
-            kEBMLElementMaster,
-            kEBMLElementInteger,
-            kEBMLElementSignedInteger,
-            kEBMLElementString,
-            kEBMLElementUTF8,
-            kEBMLElementBinary,
-            kEBMLElementFloat,
-            kEBMLElementDate,
-            // custom type
-            kEBMLElementSkip,
-            kEBMLElementBlock,
-        };
-        
-        struct EBMLInteger {
-            EBMLInteger() : u64(0), length(0) { }
-            EBMLInteger(uint64_t x);
-            
-            union {
-                uint8_t         u8;
-                uint16_t        u16;
-                uint32_t        u32;
-                uint64_t        u64;
-            };
-            size_t              length;
-        };
-        
-        struct EBMLSignedInteger {
-            EBMLSignedInteger() : i64(0), length(0) { }
-            EBMLSignedInteger(int64_t x);
-            
-            union {
-                int8_t          i8;
-                int16_t         i16;
-                int32_t         i32;
-                int32_t         i64;
-            };
-            size_t              length;
-        };
+__BEGIN_NAMESPACE_MPX
 
-        struct EBMLElement : public SharedObject {
-            const char *            name;
-            EBMLInteger             id;
-            const EBMLElementType   type;
-            
-            EBMLElement(const char *_name, EBMLInteger& _id, EBMLElementType _type) :
-            name(_name), id(_id), type(_type) { }
-            virtual ~EBMLElement() { }
-            virtual status_t parse(BitReader&, size_t) = 0;
-            virtual String string() const = 0;
-        };
-
-        struct EBMLIntegerElement : public EBMLElement {
-            EBMLInteger         vint;
-            
-            EBMLIntegerElement(const char *_name, EBMLInteger& _id) :
-            EBMLElement(_name, _id, kEBMLElementInteger) { }
-            virtual status_t parse(BitReader&, size_t);
-            virtual String string() const;
-        };
-        
-        struct EBMLSignedIntegerElement : public EBMLElement {
-            EBMLSignedInteger   svint;
-            EBMLSignedIntegerElement(const char *_name, EBMLInteger& _id) :
-            EBMLElement(_name, _id, kEBMLElementSignedInteger) { }
-            virtual status_t parse(BitReader&, size_t);
-            virtual String string() const;
-        };
-
-        struct EBMLStringElement : public EBMLElement {
-            String              str;
-            
-            EBMLStringElement(const char *_name, EBMLInteger& _id) :
-            EBMLElement(_name, _id, kEBMLElementString) { }
-            virtual status_t parse(BitReader&, size_t);
-            virtual String string() const;
-        };
-
-        struct EBMLUTF8Element : public EBMLElement {
-            String              utf8;
-            
-            EBMLUTF8Element(const char *_name, EBMLInteger& _id) :
-            EBMLElement(_name, _id, kEBMLElementUTF8) { }
-            virtual status_t parse(BitReader&, size_t);
-            virtual String string() const;
-        };
-
-        struct EBMLBinaryElement : public EBMLElement {
-            sp<Buffer>          data;
-            
-            EBMLBinaryElement(const char *_name, EBMLInteger& _id) :
-            EBMLElement(_name, _id, kEBMLElementBinary) { }
-            virtual status_t parse(BitReader&, size_t);
-            virtual String string() const;
-        };
-
-        struct EBMLFloatElement : public EBMLElement {
-            double              flt;
-            
-            EBMLFloatElement(const char *_name, EBMLInteger& _id) :
-            EBMLElement(_name, _id, kEBMLElementFloat) { }
-            virtual status_t parse(BitReader&, size_t);
-            virtual String string() const;
-        };
-        
-        struct EBMLMasterElement : public EBMLElement {
-            List<sp<EBMLElement> >  children;
-            
-            EBMLMasterElement(const char *_name, EBMLInteger& _id) :
-            EBMLElement(_name, _id, kEBMLElementMaster) { }
-            virtual status_t parse(BitReader&, size_t);
-            virtual String string() const;
-        };
-        
-        struct EBMLSkipElement : public EBMLElement {
-            EBMLSkipElement(const char *_name, EBMLInteger& _id) :
-            EBMLElement(_name, _id, kEBMLElementSkip) { }
-            virtual status_t parse(BitReader&, size_t);
-            virtual String string() const;
-        };
-
-        enum eBlockFlags {
-            kBlockFlagKey           = 0x80,
-            kBlockFlagLace          = 0x6,
-            kBlockFlagXiph          = 0x2,
-            kBlockFlagEBML          = 0x6,
-            kBlockFlagFixed         = 0x4,
-            kBlockFlagInvisible     = 0x8,  // duration == 0
-            kBlockFlagDiscardable   = 0x1,
-        };
-
-        struct EBMLBlockElement : public EBMLElement {
-            EBMLInteger         TrackNumber;
-            int16_t             TimeCode;
-            uint8_t             Flags;
-            List<sp<Buffer> >   data;
-            
-            EBMLBlockElement(const char *_name, EBMLInteger& _id) :
-            EBMLElement(_name, _id, kEBMLElementBlock) { }
-            virtual status_t parse(BitReader&, size_t);
-            virtual String string() const;
-        };
-        
-        sp<EBMLElement> FindEBMLElement(const sp<EBMLMasterElement>&, uint64_t id);
-
-        sp<EBMLElement> FindEBMLElementInside(const sp<EBMLMasterElement>& master, uint64_t inside, uint64_t target);
-        
-        void PrintEBMLElements(const sp<EBMLElement>& elem, size_t level = 0);
-        
-        sp<EBMLElement> EnumEBMLElement(sp<Content>& pipe);
-        
-        sp<EBMLElement> ParseMatroska(sp<Content>& pipe, int64_t *segment_offset, int64_t *clusters_offset);
-        
-        sp<EBMLElement> ReadEBMLElement(sp<Content>& pipe);
-        
+namespace EBML {
+    enum EBMLElementType {
+        kEBMLElementMaster,
+        kEBMLElementInteger,
+        kEBMLElementSignedInteger,
+        kEBMLElementString,
+        kEBMLElementUTF8,
+        kEBMLElementBinary,
+        kEBMLElementFloat,
+        kEBMLElementDate,
+        // custom type
+        kEBMLElementSkip,
+        kEBMLElementBlock,
     };
-};
 
-#endif // __MATROSKA_EBML_H 
+    struct __ABE_HIDDEN EBMLInteger {
+        EBMLInteger() : u64(0), length(0) { }
+        EBMLInteger(uint64_t x);
+
+        union {
+            uint8_t         u8;
+            uint16_t        u16;
+            uint32_t        u32;
+            uint64_t        u64;
+        };
+        size_t              length;
+    };
+
+    struct __ABE_HIDDEN EBMLSignedInteger {
+        EBMLSignedInteger() : i64(0), length(0) { }
+        EBMLSignedInteger(int64_t x);
+
+        union {
+            int8_t          i8;
+            int16_t         i16;
+            int32_t         i32;
+            int32_t         i64;
+        };
+        size_t              length;
+    };
+
+    struct __ABE_HIDDEN EBMLElement : public SharedObject {
+        const char *            name;
+        EBMLInteger             id;
+        const EBMLElementType   type;
+
+        EBMLElement(const char *_name, EBMLInteger& _id, EBMLElementType _type) :
+            name(_name), id(_id), type(_type) { }
+        virtual ~EBMLElement() { }
+        virtual status_t parse(BitReader&, size_t) = 0;
+        virtual String string() const = 0;
+    };
+
+    struct __ABE_HIDDEN EBMLIntegerElement : public EBMLElement {
+        EBMLInteger         vint;
+
+        EBMLIntegerElement(const char *_name, EBMLInteger& _id) :
+            EBMLElement(_name, _id, kEBMLElementInteger) { }
+        virtual status_t parse(BitReader&, size_t);
+        virtual String string() const;
+    };
+
+    struct __ABE_HIDDEN EBMLSignedIntegerElement : public EBMLElement {
+        EBMLSignedInteger   svint;
+        EBMLSignedIntegerElement(const char *_name, EBMLInteger& _id) :
+            EBMLElement(_name, _id, kEBMLElementSignedInteger) { }
+        virtual status_t parse(BitReader&, size_t);
+        virtual String string() const;
+    };
+
+    struct __ABE_HIDDEN EBMLStringElement : public EBMLElement {
+        String              str;
+
+        EBMLStringElement(const char *_name, EBMLInteger& _id) :
+            EBMLElement(_name, _id, kEBMLElementString) { }
+        virtual status_t parse(BitReader&, size_t);
+        virtual String string() const;
+    };
+
+    struct __ABE_HIDDEN EBMLUTF8Element : public EBMLElement {
+        String              utf8;
+
+        EBMLUTF8Element(const char *_name, EBMLInteger& _id) :
+            EBMLElement(_name, _id, kEBMLElementUTF8) { }
+        virtual status_t parse(BitReader&, size_t);
+        virtual String string() const;
+    };
+
+    struct __ABE_HIDDEN EBMLBinaryElement : public EBMLElement {
+        sp<Buffer>          data;
+
+        EBMLBinaryElement(const char *_name, EBMLInteger& _id) :
+            EBMLElement(_name, _id, kEBMLElementBinary) { }
+        virtual status_t parse(BitReader&, size_t);
+        virtual String string() const;
+    };
+
+    struct __ABE_HIDDEN EBMLFloatElement : public EBMLElement {
+        double              flt;
+
+        EBMLFloatElement(const char *_name, EBMLInteger& _id) :
+            EBMLElement(_name, _id, kEBMLElementFloat) { }
+        virtual status_t parse(BitReader&, size_t);
+        virtual String string() const;
+    };
+
+    struct __ABE_HIDDEN EBMLMasterElement : public EBMLElement {
+        List<sp<EBMLElement> >  children;
+
+        EBMLMasterElement(const char *_name, EBMLInteger& _id) :
+            EBMLElement(_name, _id, kEBMLElementMaster) { }
+        virtual status_t parse(BitReader&, size_t);
+        virtual String string() const;
+    };
+
+    struct __ABE_HIDDEN EBMLSkipElement : public EBMLElement {
+        EBMLSkipElement(const char *_name, EBMLInteger& _id) :
+            EBMLElement(_name, _id, kEBMLElementSkip) { }
+        virtual status_t parse(BitReader&, size_t);
+        virtual String string() const;
+    };
+
+    enum eBlockFlags {
+        kBlockFlagKey           = 0x80,
+        kBlockFlagLace          = 0x6,
+        kBlockFlagXiph          = 0x2,
+        kBlockFlagEBML          = 0x6,
+        kBlockFlagFixed         = 0x4,
+        kBlockFlagInvisible     = 0x8,  // duration == 0
+        kBlockFlagDiscardable   = 0x1,
+    };
+
+    struct __ABE_HIDDEN EBMLBlockElement : public EBMLElement {
+        EBMLInteger         TrackNumber;
+        int16_t             TimeCode;
+        uint8_t             Flags;
+        List<sp<Buffer> >   data;
+
+        EBMLBlockElement(const char *_name, EBMLInteger& _id) :
+            EBMLElement(_name, _id, kEBMLElementBlock) { }
+        virtual status_t parse(BitReader&, size_t);
+        virtual String string() const;
+    };
+
+    __ABE_HIDDEN sp<EBMLElement> FindEBMLElement(const sp<EBMLMasterElement>&, uint64_t id);
+
+    __ABE_HIDDEN sp<EBMLElement> FindEBMLElementInside(const sp<EBMLMasterElement>& master, uint64_t inside, uint64_t target);
+
+    __ABE_HIDDEN void PrintEBMLElements(const sp<EBMLElement>& elem, size_t level = 0);
+
+    __ABE_HIDDEN sp<EBMLElement> EnumEBMLElement(sp<Content>& pipe);
+
+    __ABE_HIDDEN sp<EBMLElement> ParseMatroska(sp<Content>& pipe, int64_t *segment_offset, int64_t *clusters_offset);
+
+    __ABE_HIDDEN sp<EBMLElement> ReadEBMLElement(sp<Content>& pipe);
+
+};
+__END_NAMESPACE_MPX
+
+#endif // __MATROSKA_EBML_H
+

@@ -44,43 +44,43 @@
 #include <MediaFramework/MediaDefs.h>
 #include <MediaFramework/MediaOut.h>
 
-namespace mtdcy {
+__BEGIN_NAMESPACE_MPX
 
-    class SDLAudio : public MediaOut {
-        public:
-            SDLAudio();
-            virtual ~SDLAudio();
+class SDLAudio : public MediaOut {
+    public:
+        SDLAudio();
+        virtual ~SDLAudio();
 
-        public:
-            virtual String          string() const;
-            virtual status_t        prepare(const Message& options);
-            virtual status_t        status() const;
-            virtual Message         formats() const;
-            virtual status_t        configure(const Message& options);
-            virtual status_t        write(const sp<MediaFrame>& input);
-            virtual status_t        flush();
+    public:
+        virtual String          string() const;
+        virtual status_t        prepare(const Message& options);
+        virtual status_t        status() const;
+        virtual Message         formats() const;
+        virtual status_t        configure(const Message& options);
+        virtual status_t        write(const sp<MediaFrame>& input);
+        virtual status_t        flush();
 
-        private:
-            status_t                openDevice(eSampleFormat format, uint32_t freq, uint32_t channels);
-            static void             onSDLCallback(void *opaque, uint8_t *stream, int len);
-            void                    eatFrame(uint8_t *buffer, size_t len);
+    private:
+        status_t                openDevice(eSampleFormat format, uint32_t freq, uint32_t channels);
+        static void             onSDLCallback(void *opaque, uint8_t *stream, int len);
+        void                    eatFrame(uint8_t *buffer, size_t len);
 
-            bool                    mInitByUs;
-            sp<Message>             mFormat;
-            eSampleFormat           mSampleFormat;
-            uint32_t                mSampleRate;
-            uint32_t                mChannels;
-            Mutex                   mLock;
-            Condition               mWait;
-            sp<Buffer>              mPendingFrame;
-            size_t                  mBytesLeft;
-            bool                    mFlushing;
-            size_t                  mSilence;
+        bool                    mInitByUs;
+        sp<Message>             mFormat;
+        eSampleFormat           mSampleFormat;
+        uint32_t                mSampleRate;
+        uint32_t                mChannels;
+        Mutex                   mLock;
+        Condition               mWait;
+        sp<Buffer>              mPendingFrame;
+        size_t                  mBytesLeft;
+        bool                    mFlushing;
+        size_t                  mSilence;
 
-        private:
-            DISALLOW_EVILS(SDLAudio);
-    };
+    private:
+        DISALLOW_EVILS(SDLAudio);
 };
 
+__END_NAMESPACE_MPX
 
 #endif

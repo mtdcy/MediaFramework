@@ -35,86 +35,87 @@
 #ifndef _MEDIA_MODULES_EXTRACTOR_H
 #define _MEDIA_MODULES_EXTRACTOR_H
 
-#include <MediaToolkit/Toolkit.h>
+#include <MediaFramework/MediaDefs.h>
 #include <MediaFramework/MediaTime.h>
 #include <MediaFramework/MediaPacket.h>
 
 #ifdef __cplusplus
-namespace mtdcy {
-    /**
-     * detect file format
-     * @param url   url to the content
-     * @param pipe  content pipe
-     * @return return file format @see eFileFormat
-     */
-    eFileFormat MediaFormatDetect(const String& url);
-    eFileFormat MediaFormatDetect(Content& pipe);
+__BEGIN_NAMESPACE_MPX
 
-    /**
-     * base class for different files
-     */
-    struct MediaExtractor : public SharedObject {
-        /**
-         * allocate an extractor object
-         * @return return reference to new extractor
-         */
-        static sp<MediaExtractor> Create(eFileFormat);
-        
-        MediaExtractor() { }
-        virtual ~MediaExtractor() { }
+/**
+ * detect file format
+ * @param url   url to the content
+ * @param pipe  content pipe
+ * @return return file format @see eFileFormat
+ */
+eFileFormat MediaFormatDetect(const String& url);
+eFileFormat MediaFormatDetect(Content& pipe);
 
-        virtual MediaError      init(sp<Content>& pipe, const Message& options) = 0;
-        /**
-         * get information of this extractor.
-         * @return return a string of information
-         */
-        virtual String          string() const { return ""; }
-        /**
-         * configure this codec
-         * @param options   option and parameter
-         * @return return OK on success, otherwise error code.
-         */
-        virtual MediaError      configure(const Message& options) { return kMediaErrorNotSupported; }
-        /**
-         * get output format information of this codec.
-         * about the output format:
-         *  kKeyFormat      - [eFileFormat]     - mandatory, file format
-         *  kKeyDuration    - [MediaTime]       - mandatory, file duration
-         *  kKeyCount       - [int32_t]         - mandatory,
-         *  "track-%zu"     - [Message]         - mandatory
-         * about the track output format:
-         *  kKeyFormat      - [eCodecFormat]    - mandatory
-         *  kKeyType        - [eCodecType]      - mandatory
-         *  kKeyDuration    - [MediaTime]       - optional, track duration
-         *  "****"          - [Buffer]          - optional, codec csd data, may have different names
-         * for audio track:
-         *  kKeySampleRate  - [int32_t]         - mandatory
-         *  kKeyChannels    - [int32_t]         - mandatory
-         * for video track:
-         *  kKeyWidth       - [int32_t]         - mandatory
-         *  kKeyHeight      - [int32_t]         - mandatory
-         * @return return a Message contains output formats
-         * @note the best practice is to build format message at runtime and
-         *       don't hold the message for whole life time. as message if
-         *       not a good structure for frequently access, and it is waste
-         *       of memory.
-         */
-        virtual Message         formats() const = 0;
-        /**
-         * read packets for each track.
-         * @param index     index of the track
-         * @param mode      read mode @see eModeReadyType
-         * @param ts        time in track's timescale
-         * @return return reference to new packet if not eos and no
-         *         error happens.
-         * @note the extractor may have to avoid seek too much, as we
-         *       are read each track seperately
-         */
-        virtual sp<MediaPacket> read(size_t index,
-                eModeReadType mode,
-                const MediaTime& ts = kTimeInvalid) = 0;
-    };
+/**
+ * base class for different files
+ */
+struct __ABE_EXPORT MediaExtractor : public SharedObject {
+    /**
+     * allocate an extractor object
+     * @return return reference to new extractor
+     */
+    static sp<MediaExtractor> Create(eFileFormat);
+
+    __ABE_INLINE MediaExtractor() { }
+    __ABE_INLINE virtual ~MediaExtractor() { }
+
+    virtual MediaError      init(sp<Content>& pipe, const Message& options) = 0;
+    /**
+     * get information of this extractor.
+     * @return return a string of information
+     */
+    virtual String          string() const { return ""; }
+    /**
+     * configure this codec
+     * @param options   option and parameter
+     * @return return OK on success, otherwise error code.
+     */
+    virtual MediaError      configure(const Message& options) { return kMediaErrorNotSupported; }
+    /**
+     * get output format information of this codec.
+     * about the output format:
+     *  kKeyFormat      - [eFileFormat]     - mandatory, file format
+     *  kKeyDuration    - [MediaTime]       - mandatory, file duration
+     *  kKeyCount       - [int32_t]         - mandatory,
+     *  "track-%zu"     - [Message]         - mandatory
+     * about the track output format:
+     *  kKeyFormat      - [eCodecFormat]    - mandatory
+     *  kKeyType        - [eCodecType]      - mandatory
+     *  kKeyDuration    - [MediaTime]       - optional, track duration
+     *  "****"          - [Buffer]          - optional, codec csd data, may have different names
+     * for audio track:
+     *  kKeySampleRate  - [int32_t]         - mandatory
+     *  kKeyChannels    - [int32_t]         - mandatory
+     * for video track:
+     *  kKeyWidth       - [int32_t]         - mandatory
+     *  kKeyHeight      - [int32_t]         - mandatory
+     * @return return a Message contains output formats
+     * @note the best practice is to build format message at runtime and
+     *       don't hold the message for whole life time. as message if
+     *       not a good structure for frequently access, and it is waste
+     *       of memory.
+     */
+    virtual Message         formats() const = 0;
+    /**
+     * read packets for each track.
+     * @param index     index of the track
+     * @param mode      read mode @see eModeReadyType
+     * @param ts        time in track's timescale
+     * @return return reference to new packet if not eos and no
+     *         error happens.
+     * @note the extractor may have to avoid seek too much, as we
+     *       are read each track seperately
+     */
+    virtual sp<MediaPacket> read(size_t index,
+            eModeReadType mode,
+            const MediaTime& ts = kTimeInvalid) = 0;
 };
+__END_NAMESPACE_MPX
 #endif
 
 #endif

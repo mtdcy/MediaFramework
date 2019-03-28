@@ -35,43 +35,42 @@
 #ifndef _MEDIA_MODULES_ID3_H
 #define _MEDIA_MODULES_ID3_H
 
-#include <MediaToolkit/Toolkit.h>
-#include <MediaFramework/MediaDefs.h> 
+#include <MediaFramework/MediaDefs.h>
 
-namespace mtdcy {
+__BEGIN_NAMESPACE_MPX
 
-    namespace ID3 {
-        class ID3v2 : public Tag::Parser {
-            public:
-                ID3v2() : Tag::Parser() { }
-                virtual ~ID3v2() { }
-                virtual status_t        parse(const Buffer& data);
+namespace ID3 {
+    class ID3v2 : public Tag::Parser {
+        public:
+            ID3v2() : Tag::Parser() { }
+            virtual ~ID3v2() { }
+            virtual status_t        parse(const Buffer& data);
 
-            public:
-                // is data contains an id3v2 ? 
-                // if yes, return id3v2 length excluding the header length
-                // else return < 0
-                // header should be at least kHeaderLength bytes
-                static const size_t     kHeaderLength;
-                static ssize_t          isID3v2(const Buffer& header);
-        };
+        public:
+            // is data contains an id3v2 ? 
+            // if yes, return id3v2 length excluding the header length
+            // else return < 0
+            // header should be at least kHeaderLength bytes
+            static const size_t     kHeaderLength;
+            static ssize_t          isID3v2(const Buffer& header);
+    };
 
-        class ID3v1 : public Tag::Parser {
-            public:
-                ID3v1() : Tag::Parser() { }
-                virtual ~ID3v1() { }
-                virtual status_t        parse(const Buffer& data);
+    class ID3v1 : public Tag::Parser {
+        public:
+            ID3v1() : Tag::Parser() { }
+            virtual ~ID3v1() { }
+            virtual status_t        parse(const Buffer& data);
 
-            public:
-                // is data contains an id3v1 ? 
-                // return true or false 
-                // data should be at least kLength and id3v1 is always
-                // kLength bytes
-                static bool             isID3v1(const Buffer& data);
-                static const size_t     kLength;
-        };
+        public:
+            // is data contains an id3v1 ? 
+            // return true or false 
+            // data should be at least kLength and id3v1 is always
+            // kLength bytes
+            static bool             isID3v1(const Buffer& data);
+            static const size_t     kLength;
     };
 };
 
+__END_NAMESPACE_MPX
 
 #endif // _MEDIA_MODULES_ID3_H

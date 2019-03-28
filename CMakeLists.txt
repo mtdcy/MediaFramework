@@ -15,9 +15,7 @@ add_definitions(-D_POSIX_C_SOURCE=200809L)
 add_definitions(-D_ISOC99_SOURCE)
 add_definitions(-D_FORTIFY_SOURCE=2)    # https://access.redhat.com/blogs/766093/posts/1976213
 add_definitions(-DHAVE_CONFIG_H)
-if (CMAKE_BUILD_TYPE MATCHES Debug)
-    add_definitions(-DDEBUG_MALLOC)
-endif()
+add_definitions(-fvisibility=hidden)
 #add_definitions(-std=c99)
 set (CMAKE_CXX_FLAGS    "${CMAKE_CXX_FLAGS} -std=c++98")
 set (CMAKE_C_FLAGS      "${CMAKE_C_FLAGS} -std=c99")
@@ -83,7 +81,7 @@ include_directories(${SDL2_INCLUDE_DIR})
 target_link_libraries(${PROJECT_NAME} ${SDL2_LIBRARY})
 
 if (APPLE)
-    target_link_libraries(${PROJECT_NAME} "-framework MediaToolkit")
+    target_link_libraries(${PROJECT_NAME} "-framework ABE")
 
     # FFmpeg.framework, FIXME
     target_link_libraries(${PROJECT_NAME} "-framework FFmpeg")
@@ -129,7 +127,7 @@ install (TARGETS ${PROJECT_NAME}
 # example/test code, NO build or install by default
 add_executable(mpx mpx_main.cpp)
 if (APPLE)
-    target_link_libraries(mpx "-framework MediaToolkit")
+    target_link_libraries(mpx "-framework ABE")
 endif()
 target_link_libraries(mpx MediaFramework)
 set_target_properties(mpx PROPERTIES

@@ -35,7 +35,7 @@
 #ifndef _MEDIA_MODULES_PCM_CONVERT_H
 #define _MEDIA_MODULES_PCM_CONVERT_H 
 
-#include <MediaToolkit/tkTypes.h>
+#include <ABE/ABE.h>
 
 typedef size_t (*pcm_convert_t)(void *input, size_t size /*bytes*/, void *output);
 
