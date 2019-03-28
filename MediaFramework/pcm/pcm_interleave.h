@@ -40,14 +40,12 @@
 /** NOT support in-place processing */
 typedef size_t (*pcm_interleave_t)(void **input, size_t linesize/*bytes*/, int nlines, void *output);
 
-#ifdef __cplusplus 
-extern "C" {
-#endif 
+__BEGIN_DECLS
 
 #define PCM_INTERLEAVE_FUNC_NAME(name) pcm_interleave_##name
 
 #define PCM_INTERLEAVE_FUNC(name) \
-size_t PCM_INTERLEAVE_FUNC_NAME(name)(void **input, size_t linesize, int nlines, void *output)
+__ABE_HIDDEN size_t PCM_INTERLEAVE_FUNC_NAME(name)(void **input, size_t linesize, int nlines, void *output)
 
 PCM_INTERLEAVE_FUNC(u8);
 PCM_INTERLEAVE_FUNC(s16);
@@ -59,7 +57,7 @@ PCM_INTERLEAVE_FUNC(dbl);
 #define PCM_INTERLEAVE2_FUNC_NAME(from, to) pcm_interleave_##from##_to_##to
 
 #define PCM_INTERLEAVE2_FUNC(from, to) \
-size_t PCM_INTERLEAVE2_FUNC_NAME(from, to)(void **input, size_t linesize, int nlines, void *output)
+__ABE_HIDDEN size_t PCM_INTERLEAVE2_FUNC_NAME(from, to)(void **input, size_t linesize, int nlines, void *output)
 
 PCM_INTERLEAVE2_FUNC(u8, s16);
 PCM_INTERLEAVE2_FUNC(s24, s16);
@@ -73,7 +71,6 @@ PCM_INTERLEAVE2_FUNC(s24, s32);
 PCM_INTERLEAVE2_FUNC(flt, s32);
 PCM_INTERLEAVE2_FUNC(dbl, s32);
 
-#ifdef __cplusplus 
-};
-#endif
+__END_DECLS
+
 #endif // _MEDIA_MODULES_PCM_INTERLEAVE_H

@@ -693,7 +693,7 @@ struct __ABE_HIDDEN GLVideo : public MediaOut {
     }
 };
 
-sp<MediaOut> CreateGLVideo() {
+__ABE_HIDDEN sp<MediaOut> CreateGLVideo() {
     return new GLVideo();
 }
 __END_NAMESPACE_MPX

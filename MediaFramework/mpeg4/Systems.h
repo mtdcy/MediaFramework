@@ -113,7 +113,7 @@ namespace MPEG4 {
         ISO_IEC_11172_3             = 0x6b,         // MP2 
         ISO_IEC_10918_1             = 0x6c,         // MJPEG
     };
-    eCodecFormat translateObjectTypeIndication(uint8_t objectTypeIndication);
+    __ABE_HIDDEN eCodecFormat translateObjectTypeIndication(uint8_t objectTypeIndication);
 
     // streamType
     // ISO/IEC 14496-1:2010(E), Section 7.2.6.6.2, Page 51, Table 6

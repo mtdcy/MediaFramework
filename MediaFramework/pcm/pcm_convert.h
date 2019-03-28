@@ -39,14 +39,12 @@
 
 typedef size_t (*pcm_convert_t)(void *input, size_t size /*bytes*/, void *output);
 
-#ifdef __cplusplus 
-extern "C" {
-#endif 
+__BEGIN_DECLS
 
 #define PCM_CONVERT_FUNC_NAME(from, to) pcm_##from##_to_##to
 
 #define PCM_CONVERT_FUNC(from, to) \
-size_t PCM_CONVERT_FUNC_NAME(from, to)(void *input, size_t size, void *output)
+__ABE_HIDDEN size_t PCM_CONVERT_FUNC_NAME(from, to)(void *input, size_t size, void *output)
 
 PCM_CONVERT_FUNC(u8, s16);
 PCM_CONVERT_FUNC(s16, s16);
@@ -62,8 +60,6 @@ PCM_CONVERT_FUNC(s32, s32);
 PCM_CONVERT_FUNC(flt, s32);
 PCM_CONVERT_FUNC(dbl, s32);
 
-#ifdef __cplusplus 
-};
-#endif
+__END_DECLS
 
 #endif  // _MEDIA_MODULES_PCM_CONVERT_H

@@ -527,7 +527,7 @@ static __ABE_INLINE CMSampleBufferRef createCMSampleBuffer(sp<VTContext>& vtc,
     }
 }
 
-sp<MediaFrame> __ABE_INLINE readVideoToolboxFrame(CVPixelBufferRef pixbuf) {
+__ABE_HIDDEN sp<MediaFrame> readVideoToolboxFrame(CVPixelBufferRef pixbuf) {
     sp<MediaFrame> frame = MediaFrameCreate(get_pix_format(CVPixelBufferGetPixelFormatType(pixbuf)),
             CVPixelBufferGetWidth(pixbuf),
             CVPixelBufferGetHeight(pixbuf));

@@ -748,7 +748,7 @@ struct __ABE_HIDDEN LavcDecoder : public MediaDecoder {
     }
 };
 
-sp<MediaDecoder> CreateLavcDecoder(eModeType mode) {
+__ABE_HIDDEN sp<MediaDecoder> CreateLavcDecoder(eModeType mode) {
     return new LavcDecoder(mode);
 }
 __END_NAMESPACE_MPX

@@ -42,10 +42,7 @@
 
 #include <ABE/ABE.h>
 
-
-#ifdef __cplusplus 
-extern "C" {
-#endif 
+__BEGIN_DECLS
 
 // these code are borrowed from android
 // system/media/audio_utils/include/audio_utils/primitives.h
@@ -53,7 +50,7 @@ extern "C" {
 /**
  * Clamp (aka hard limit or clip) a signed 32-bit sample to 16-bit range.
  */
-static inline int16_t clamp16(int32_t sample)
+static __ABE_INLINE int16_t clamp16(int32_t sample)
 {
     if ((sample>>15) ^ (sample>>31))
         sample = 0x7FFF ^ (sample>>31);
@@ -61,7 +58,7 @@ static inline int16_t clamp16(int32_t sample)
 }
 
 
-static inline int32_t clamp32(int64_t v) {
+static __ABE_INLINE int32_t clamp32(int64_t v) {
     if ((v>>31) ^ (v>>63))
         v = 0x7fffffff ^ (v>>63);
     return v;
@@ -79,7 +76,7 @@ static inline int32_t clamp32(int64_t v) {
  *
  * Rounding of 0.5 lsb is to even (default for IEEE 754).
  */
-static inline int16_t clamp16_from_float(float f)
+static __ABE_INLINE int16_t clamp16_from_float(float f)
 {
     /* Offset is used to resize the valid range of [-1.0, 1.0) into the 16 lsbs of the
      * floating point significand. The normal shift is 3<<22, but the -15 offset
@@ -113,7 +110,7 @@ static inline int16_t clamp16_from_float(float f)
  * including -Inf and +Inf. NaN values are considered undefined, and behavior may change
  * depending on hardware and future implementation of this function.
  */
-static inline int32_t clamp32_from_float(float f)
+static __ABE_INLINE int32_t clamp32_from_float(float f)
 {
     static const float scale = (float)(1UL << 31);
     static const float limpos = 1.;
@@ -131,8 +128,6 @@ static inline int32_t clamp32_from_float(float f)
     return f > 0 ? f + 0.5 : f - 0.5;
 }
 
-#ifdef __cplusplus
-};
-#endif
+__END_DECLS
 
 #endif // PCM_PRIMITIVES_H
