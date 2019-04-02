@@ -644,6 +644,10 @@ struct __ABE_HIDDEN LavcDecoder : public MediaDecoder {
         releaseContext(mContext);
         mContext = NULL;
     }
+    
+    virtual String string() const {
+        return "LavcDecoder";
+    }
 
     virtual MediaError init(const Message& formats, const Message& options) {
         mContext = initContext(mMode, formats, options);

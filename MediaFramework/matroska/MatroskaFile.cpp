@@ -205,6 +205,8 @@ struct __ABE_HIDDEN MatroskaFile : public MediaExtractor {
     List<TOCEntry>          mTOC;
 
     MatroskaFile() : MediaExtractor(), mDuration(0), mTimeScale(TIMESCALE_DEF), mContent(NULL) { }
+    
+    virtual String string() const { return "MatroskaFile"; }
 
     virtual MediaError init(sp<Content>& pipe, const Message& options) {
         pipe->seek(0);

@@ -409,6 +409,8 @@ struct __ABE_HIDDEN Mp3Packetizer : public MediaPacketizer {
     mCommonHead(0), mNeedMoreData(true), mFlushing(false) { }
 
     virtual ~Mp3Packetizer() { }
+    
+    virtual String string() const { return "Mp3Packetizer"; }
 
     virtual MediaError enqueue(const sp<MediaPacket>& in) {
         if (in == NULL) {
@@ -545,6 +547,8 @@ struct __ABE_HIDDEN Mp3File : public MediaExtractor {
         mAnchorTime(kTimeBegin),
         mRawPacket(NULL),
         mPacketizer(new Mp3Packetizer) { }
+    
+    virtual String string() const { return "Mp3File"; }
 
     // refer to:
     // 1. http://gabriel.mp3-tech.org/mp3infotag.html#versionstring

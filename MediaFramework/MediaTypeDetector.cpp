@@ -41,7 +41,7 @@
 
 #include "MediaExtractor.h"
 #include <MediaFramework/MediaDefs.h>
-//#include <MediaFramework/mp3/id3/ID3.h>
+#include <MediaFramework/tags/id3/ID3.h>
 
 #define MAX(a, b) (a > b ? a : b)
 #define MIN(a, b) (a > b ? b : a)
@@ -73,17 +73,16 @@ eFileFormat MediaFormatDetect(Content& pipe) {
         return kFileFormatUnknown;
     }
 
-#if 0
-    // skip id3v2 
+    // skip id3v2
     if (!header->compare("ID3")) {
-        ssize_t id3Len = ID3::ID3v2::isID3v2(header);
+        ssize_t id3Len = ID3::ID3v2::isID3v2(*header);
         if (id3Len < 0) {
             ERROR("invalid id3v2 header.");
         } else {
             INFO("id3 len = %lu", id3Len);
 
             if (pipe.size() < 10 + id3Len + 32) {
-                return Media::File::Unknown;
+                return kFileFormatUnknown;
             }
 
             pipe.skip(10 + id3Len - kCommonHeadLength);
@@ -91,11 +90,10 @@ eFileFormat MediaFormatDetect(Content& pipe) {
             header = pipe.read(kCommonHeadLength);
             if (header == 0) {
                 ERROR("not enough data after skip id3v2");
-                return Media::File::Unknown;
+                return kFileFormatUnknown;
             }
         }
     }
-#endif
 
     const int64_t startPos = pipe.tell() - kCommonHeadLength;
     DEBUG("startPos = %" PRId64, startPos);

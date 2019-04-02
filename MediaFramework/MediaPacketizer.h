@@ -46,6 +46,9 @@ struct __ABE_EXPORT MediaPacketizer : public SharedObject {
 
     __ABE_INLINE MediaPacketizer() {}
     __ABE_INLINE virtual ~MediaPacketizer() {}
+    
+    virtual String          string() const = 0;
+    
     /**
      * queue a packet into packetizer
      * @param   in      reference of input packet

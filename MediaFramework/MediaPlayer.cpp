@@ -93,11 +93,11 @@ struct __ABE_HIDDEN MediaSource : public PacketRequestEvent {
 
 struct __ABE_HIDDEN SessionContext {
     eCodecFormat        mCodec;
-    sp<MediaSession>    mMediaSession;
+    sp<IMediaSession>   mMediaSession;
     int64_t             mStartTime;
     int64_t             mEndTime;
 
-    SessionContext(eCodecFormat codec, const sp<MediaSession>& ms) :
+    SessionContext(eCodecFormat codec, const sp<IMediaSession>& ms) :
         mCodec(codec),  mMediaSession(ms) { }
 
     ~SessionContext() { }
@@ -197,7 +197,7 @@ static MediaError prepareMedia(const sp<Looper>& looper, MPContext* mpc, const M
     sp<MediaExtractor> extractor = MediaExtractor::Create(MediaFormatDetect(*pipe));
 
     Message options;
-    if (extractor->init(pipe, options) != kMediaNoError) {
+    if (extractor == NULL || extractor->init(pipe, options) != kMediaNoError) {
         ERROR("create extractor failed");
         return kMediaErrorBadFormat;
     }
@@ -276,7 +276,7 @@ static MediaError prepareMedia(const sp<Looper>& looper, MPContext* mpc, const M
             options.setObject("Clock", new Clock(mpc->mClock));
         }
 
-        sp<MediaSession> session = MediaSession::Create(formats, options);
+        sp<IMediaSession> session = IMediaSession::Create(formats, options);
         if (session == NULL) {
             ERROR("create session for %s[%zu] failed", url, i);
             continue;

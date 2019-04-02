@@ -78,15 +78,12 @@ struct __ABE_EXPORT IMediaPlayer : public SharedObject {
     /**
      * add a media to player.
      * about options:
-     *  "RenderEvent"   - [sp<RenderEvent>]     - optional
-     *  "SDL_Window"    - [pointer|void *]      - optional
-     *  "StartTime"     - [double|seconds]      - optional
-     *  "EndTime"       - [double|seconds]      - optional
-     * if RenderEvent exists, external renderer will be used.
-     * if RenderEvent not exists, SDL_Window must exists for
-     * init internal renderer.
-     * @param url   url of the media
-     * @param options option and parameter for this media
+     *  "url"                   - [String]                  - mandatory, url of the media
+     *  "MediaOut"              - [sp<MediaOut>]            - optional
+     *  "StartTime"             - [double|seconds]          - optional
+     *  "EndTime"               - [double|seconds]          - optional
+     * if MediaOut exists, external renderer will be used.
+     * @param media option and parameter for this media
      * @return return OK on success, otherwise error code
      */
     virtual MediaError init(const Message& media) = 0;

@@ -45,6 +45,12 @@
 #define MAX_COUNT (16)
 #define REFRESH_RATE (10000LL)    // 10ms
 
+enum {
+    INDEX0,
+    INDEX1,
+    N_INDEX
+};
+
 // media session <= control session
 //  packet ready event
 //          v
@@ -60,38 +66,35 @@
 
 __USING_NAMESPACE_MPX
 
-// no control session, control by FrameRequestEvent.
-struct __ABE_HIDDEN DecodeSession : public SharedObject {
+struct __ABE_HIDDEN Decoder : public SharedObject {
     // external static context
     eCodecFormat            mID;
-    sp<Looper>              mLooper;
     sp<PacketRequestEvent>  mPacketRequestEvent;        // where we get packets
     // internal static context
-    sp<MediaDecoder>        mCodec;         // reference to codec
+    sp<MediaDecoder>        mCodec;                     // reference to codec
     sp<PacketReadyEvent>    mPacketReadyEvent;          // when packet ready
 
     // internal mutable context
     // TODO: clock for decoder, handle late frames
     volatile int            mGeneration;
     bool                    mFlushed;
-    List<sp<MediaPacket> >  mInputQueue;    // input packets queue
-    bool                    mInputEOS;      // end of input ?
+    List<sp<MediaPacket> >  mInputQueue;        // input packets queue
+    bool                    mInputEOS;          // end of input ?
     bool                    mSignalCodecEOS;    // tell codec eos
     bool                    mOutputEOS;         // end of output ?
     MediaTime               mLastPacketTime;    // test packets in dts order?
-    List<FrameRequest>      mFrameRequests; // requests queue
+    List<FrameRequest>      mFrameRequests;     // requests queue
     // statistics
     size_t                  mPacketsReceived;
     size_t                  mPacketsComsumed;
     size_t                  mFramesDecoded;
 
-    DecodeSession(const sp<Looper>& looper,
-            const Message& format,
-            const Message& options,
-            const sp<PacketRequestEvent>& fre) :
+    bool valid() const { return mCodec != NULL; }
+
+    Decoder(const Message& format, const Message& options) :
         // external static context
         mID(kCodecFormatUnknown),
-        mLooper(looper), mPacketRequestEvent(fre),
+        mPacketRequestEvent(NULL),
         // internal static context
         mCodec(NULL), mPacketReadyEvent(NULL),
         // internal mutable context
@@ -100,6 +103,9 @@ struct __ABE_HIDDEN DecodeSession : public SharedObject {
         // statistics
         mPacketsReceived(0), mPacketsComsumed(0), mFramesDecoded(0)
     {
+        CHECK_TRUE(options.contains("PacketRequestEvent"));
+        mPacketRequestEvent = options.findObject("PacketRequestEvent");
+
         // setup decoder...
         CHECK_TRUE(format.contains(kKeyFormat));
         mID = (eCodecFormat)format.findInt32(kKeyFormat);
@@ -129,8 +135,7 @@ struct __ABE_HIDDEN DecodeSession : public SharedObject {
         }
     }
 
-    virtual ~DecodeSession() {
-        mLooper->terminate(true );
+    virtual ~Decoder() {
     }
 
     void requestPacket(const MediaTime& ts = kTimeInvalid) {
@@ -160,13 +165,10 @@ struct __ABE_HIDDEN DecodeSession : public SharedObject {
 
     struct OnPacketReady : public PacketReadyEvent {
         const int mGeneration;
-        OnPacketReady(const sp<Looper>& looper, int gen) :
-            PacketReadyEvent(String::format("OnPacketReady %d", gen), looper),
-            mGeneration(gen) { }
+        OnPacketReady(int gen) : PacketReadyEvent(String::format("OnPacketReady %d", gen), Looper::Current()), mGeneration(gen) { }
         virtual void onEvent(const sp<MediaPacket>& packet) {
-            sp<Looper> current = Looper::Current();
-            DecodeSession *ds = static_cast<DecodeSession*>(current->user(0));
-            ds->onPacketReady(packet, mGeneration);
+            sp<Decoder> decoder = Looper::Current()->user(INDEX0);
+            decoder->onPacketReady(packet, mGeneration);
         }
     };
 
@@ -207,7 +209,7 @@ struct __ABE_HIDDEN DecodeSession : public SharedObject {
 
         // update generation
         atomic_add(&mGeneration, 1);
-        mPacketReadyEvent = new OnPacketReady(mLooper, mGeneration);
+        mPacketReadyEvent = new OnPacketReady(mGeneration);
 
         // TODO: prepare again without flush
         mFlushed = false;
@@ -234,8 +236,6 @@ struct __ABE_HIDDEN DecodeSession : public SharedObject {
         // update generation
         atomic_add(&mGeneration, 1);
         mPacketReadyEvent = NULL;
-
-        mLooper->flush();
 
         // remove cmds
         mFrameRequests.clear();
@@ -339,9 +339,8 @@ struct __ABE_HIDDEN DecodeSession : public SharedObject {
     }
 };
 
-struct __ABE_HIDDEN RenderSession : public MediaSession {
+struct __ABE_HIDDEN Renderer : public SharedObject {
     // external static context
-    sp<Looper>              mLooper;
     sp<FrameRequestEvent>   mFrameRequestEvent;
     eCodecFormat            mID;
     sp<RenderPositionEvent> mPositionEvent;
@@ -366,14 +365,15 @@ struct __ABE_HIDDEN RenderSession : public MediaSession {
     // statistics
     size_t                  mFramesRenderred;
 
-    RenderSession(const sp<Looper>& looper,
-            eCodecFormat id,
+    bool valid() const { return mOut != NULL; }
+
+    Renderer(eCodecFormat id,
             const Message& format,
             const Message& options,
             const sp<FrameRequestEvent>& fre) :
-        MediaSession(), // share the same looper
+        SharedObject(),
         // external static context
-        mLooper(looper), mFrameRequestEvent(fre), mID(id),
+        mFrameRequestEvent(fre), mID(id),
         mPositionEvent(NULL),
         // internal static context
         mFrameReadyEvent(NULL),
@@ -403,45 +403,31 @@ struct __ABE_HIDDEN RenderSession : public MediaSession {
         eCodecType type = GetCodecType(mID);
 
         INFO("output format %s", format.string().c_str());
+        if (options.contains("MediaOut")) {
+            mOut = options.findObject("MediaOut");
+        } else {
+            mOut = MediaOut::Create(type);
+        }
+        
+        if (mOut->prepare(format) != kMediaNoError) {
+            ERROR("track %zu: create out failed", mID);
+            return;
+        }
 
         if (type == kCodecTypeVideo) {
             ePixelFormat pixel = (ePixelFormat)format.findInt32(kKeyFormat);
-            ePixelFormat pixFmtAccepted;
-            if (options.contains("MediaOut")) {
-                mOut = options.findObject("MediaOut");
-            } else {
-                mOut = MediaOut::Create(kCodecTypeVideo);
-            }
-
-            if (mOut->prepare(format) != kMediaNoError) {
-                ERROR("track %zu: create out failed", mID);
-                return;
-            }
-
-            pixFmtAccepted = (ePixelFormat)mOut->formats().findInt32(kKeyFormat);// color convert
-            if (pixFmtAccepted != pixel) {
-                mColorConvertor = new ColorConvertor(pixFmtAccepted);
+            ePixelFormat accpeted = (ePixelFormat)mOut->formats().findInt32(kKeyFormat);// color convert
+            if (accpeted != pixel) {
+                mColorConvertor = new ColorConvertor(accpeted);
             }
         } else if (type == kCodecTypeAudio) {
-            mOut = MediaOut::Create(kCodecTypeAudio);
-
-            if (mOut->prepare(format) != kMediaNoError) {
-                ERROR("track %zu: create out failed", mID);
-                return;
-            }
-
             mLatency = mOut->formats().findInt32(kKeyLatency);
         } else {
             FATAL("FIXME");
         }
-
-        if (mClock != NULL) {
-            mClock->setListener(new OnClockEvent(mLooper));
-        }
     }
 
-    virtual ~RenderSession() {
-        mLooper->terminate(true);
+    virtual ~Renderer() {
     }
 
     void requestFrame() {
@@ -464,13 +450,10 @@ struct __ABE_HIDDEN RenderSession : public MediaSession {
 
     struct OnFrameReady : public FrameReadyEvent {
         const int mGeneration;
-        OnFrameReady(const sp<Looper>& looper, int gen) :
-            FrameReadyEvent(String::format("OnFrameReady %d", gen), looper),
-            mGeneration(gen) { }
+        OnFrameReady(int gen) : FrameReadyEvent(String::format("OnFrameReady %d", gen), Looper::Current()), mGeneration(gen) { }
         virtual void onEvent(const sp<MediaFrame>& frame) {
-            sp<Looper> current = Looper::Current();
-            RenderSession *rs = static_cast<RenderSession*>(current->user(0));
-            rs->onFrameReady(frame, mGeneration);
+            sp<Renderer> renderer = Looper::Current()->user(INDEX1);
+            renderer->onFrameReady(frame, mGeneration);
         }
     };
 
@@ -565,7 +548,7 @@ struct __ABE_HIDDEN RenderSession : public MediaSession {
 
         // update generation
         atomic_add(&mGeneration, 1);
-        mFrameReadyEvent = new OnFrameReady(mLooper, mGeneration);
+        mFrameReadyEvent = new OnFrameReady(mGeneration);
 
         // tell decoder to prepare
         FrameRequest request;
@@ -585,7 +568,7 @@ struct __ABE_HIDDEN RenderSession : public MediaSession {
         // -> onFrameReady
 
         // if no clock, start render directly
-        if (mClock == NULL && !mLooper->exists(mPresentFrame)) {
+        if (mClock == NULL && !Looper::Current()->exists(mPresentFrame)) {
             onStartRenderer();
         }
     }
@@ -597,7 +580,7 @@ struct __ABE_HIDDEN RenderSession : public MediaSession {
         atomic_add(&mGeneration, 1);
         mFrameReadyEvent = NULL;
 
-        mLooper->flush();
+        Looper::Current()->flush();
 
         // tell decoder to flush
         FrameRequest request;
@@ -605,7 +588,7 @@ struct __ABE_HIDDEN RenderSession : public MediaSession {
         mFrameRequestEvent->fire(request);
 
         // remove present runnable
-        mLooper->remove(mPresentFrame);
+        Looper::Current()->remove(mPresentFrame);
 
         // flush output
         mOutputEOS = false;
@@ -624,9 +607,8 @@ struct __ABE_HIDDEN RenderSession : public MediaSession {
     struct PresentRunnable : public Runnable {
         PresentRunnable() : Runnable() { }
         virtual void run() {
-            sp<Looper> current = Looper::Current();
-            RenderSession *rs = static_cast<RenderSession*>(current->user(0));
-            rs->onRender();
+            sp<Renderer> renderer = Looper::Current()->user(INDEX1);
+            renderer->onRender();
         }
     };
 
@@ -646,9 +628,9 @@ struct __ABE_HIDDEN RenderSession : public MediaSession {
         }
 
         if (next < 0) { // too early
-            mLooper->post(mPresentFrame, -next);
+            Looper::Current()->post(mPresentFrame, -next);
         } else {
-            mLooper->post(mPresentFrame, next);
+            Looper::Current()->post(mPresentFrame, next);
         }
 
         requestFrame();
@@ -664,7 +646,7 @@ struct __ABE_HIDDEN RenderSession : public MediaSession {
 
         sp<MediaFrame> frame = *mOutputQueue.begin();
         CHECK_TRUE(frame != NULL);
-        
+
         if (mClock != NULL) {
             // check render time
             if (mClock->role() == kClockRoleSlave) {
@@ -673,13 +655,13 @@ struct __ABE_HIDDEN RenderSession : public MediaSession {
                 if (late > REFRESH_RATE) {
                     // render late: drop current frame
                     WARN("renderer %zu: render late by %.3f(s)|%.3f(s), drop frame... [%zu]",
-                         mID, late/1E6, frame->pts.seconds(), mOutputQueue.size());
+                            mID, late/1E6, frame->pts.seconds(), mOutputQueue.size());
                     mOutputQueue.pop();
                     return 0;
                 } else if (late < -REFRESH_RATE/2) {
                     // FIXME: sometimes render too early for unknown reason
                     DEBUG("renderer %zu: overrun by %.3f(s)|%.3f(s)...",
-                         mID, -late/1E6, frame->pts.seconds());
+                            mID, -late/1E6, frame->pts.seconds());
                     return -late;
                 }
             }
@@ -690,13 +672,13 @@ struct __ABE_HIDDEN RenderSession : public MediaSession {
         CHECK_TRUE(rt == kMediaNoError); // always eat frame
         mOutputQueue.pop();
         ++mFramesRenderred;
-        
+
         // setup clock to tick if we are master clock
         // FIXME: if current frame is too big, update clock after write will cause clock advance too far
         if (mClock != NULL && mClock->role() == kClockRoleMaster && !mClock->isTicking()) {
             const int64_t realTime = SystemTimeUs();
             INFO("renderer %zu: update clock %.3f(s)+%.3f(s)",
-                 mID, frame->pts.seconds(), realTime / 1E6);
+                    mID, frame->pts.seconds(), realTime / 1E6);
             mClock->update(frame->pts - mLatency, realTime);
         }
 
@@ -714,7 +696,7 @@ struct __ABE_HIDDEN RenderSession : public MediaSession {
                 // if no clock exists, render next immediately
                 return 0;
             }
-        
+
             sp<MediaFrame> next = mOutputQueue.front();
             MediaTime delay = next->pts - mClock->get();
             if (delay < kTimeBegin) return 0;
@@ -723,7 +705,7 @@ struct __ABE_HIDDEN RenderSession : public MediaSession {
             INFO("renderer %zu: eos...", mID);
             // tell out device about eos
             mOut->write(NULL);
-            
+
             if (mPositionEvent != NULL) {
                 mPositionEvent->fire(kTimeEnd);
             }
@@ -732,36 +714,12 @@ struct __ABE_HIDDEN RenderSession : public MediaSession {
         return REFRESH_RATE;
     }
 
-    // using clock to control render session
-    struct OnClockEvent : public ClockEvent {
-        OnClockEvent(const sp<Looper>& lp) : ClockEvent(lp) { }
-
-        virtual void onEvent(const eClockState& cs) {
-            sp<Looper> current = Looper::Current();
-            RenderSession *rs = static_cast<RenderSession*>(current->user(0));
-            INFO("clock state => %d", cs);
-            switch (cs) {
-                case kClockStateTicking:
-                    rs->onStartRenderer();
-                    break;
-                case kClockStatePaused:
-                    rs->onPauseRenderer();
-                    break;
-                case kClockStateReset:
-                    rs->onPauseRenderer();
-                    break;
-                default:
-                    break;
-            }
-        }
-    };
-
     void onStartRenderer() {
         INFO("renderer %zu: start", mID);
         //onPrintStat();
 
         // check
-        if (mLooper->exists(mPresentFrame)) {
+        if (Looper::Current()->exists(mPresentFrame)) {
             ERROR("renderer %zu: already started");
             return;
         }
@@ -786,7 +744,7 @@ struct __ABE_HIDDEN RenderSession : public MediaSession {
 
     void onPauseRenderer() {
         INFO("renderer %zu: pause at %.3f(s)", mID, mClock->get().seconds());
-        mLooper->remove(mPresentFrame);
+        Looper::Current()->remove(mPresentFrame);
 
         if (mOut != NULL) {
             Message options;
@@ -794,33 +752,32 @@ struct __ABE_HIDDEN RenderSession : public MediaSession {
             mOut->configure(options);
         }
     }
+};
 
-    // MediaSession
-    struct PrepareRunnable : public Runnable {
-        Message             mOptions;
-        PrepareRunnable(const Message& options) : mOptions(options) { }
-        virtual void run() {
-            sp<Looper> current = Looper::Current();
-            RenderSession *rs = static_cast<RenderSession*>(current->user(0));
-            rs->onPrepareRenderer(mOptions);
-        }
-    };
-
-    virtual void prepare(const Message& options) {
-        mLooper->post(new PrepareRunnable(options));
+struct PrepareRunnable : public Runnable {
+    Message             mOptions;
+    PrepareRunnable(const Message& options) : mOptions(options) { }
+    virtual void run() {
+        sp<Renderer> renderer = Looper::Current()->user(INDEX1);
+        renderer->onPrepareRenderer(mOptions);
     }
+};
 
-    struct FlushRunnable : public Runnable {
-        FlushRunnable() : Runnable() { }
-        virtual void run() {
-            sp<Looper> current = Looper::Current();
-            RenderSession *rs = static_cast<RenderSession*>(current->user(0));
-            rs->onFlushRenderer();
-        }
-    };
+struct FlushRunnable : public Runnable {
+    FlushRunnable() : Runnable() { }
+    virtual void run() {
+        sp<Renderer> renderer = Looper::Current()->user(INDEX1);
+        renderer->onFlushRenderer();
+    }
+};
 
-    virtual void flush() {
-        mLooper->post(new FlushRunnable());
+// request frame from decoder
+struct __ABE_HIDDEN OnFrameRequest : public FrameRequestEvent {
+    OnFrameRequest(const sp<Looper>& looper) : FrameRequestEvent(looper) { }
+    
+    virtual void onEvent(const FrameRequest& request) {
+        sp<Decoder> decoder = Looper::Current()->user(INDEX0);
+        decoder->onRequestFrame(request);
     }
 };
 
@@ -865,59 +822,98 @@ struct __ABE_HIDDEN OnFrameRequestTunnel : public FrameRequestEvent {
     }
 };
 
-struct __ABE_HIDDEN OnFrameRequest : public FrameRequestEvent {
-    sp<DecodeSession>   mDecodeSession;
-    OnFrameRequest(const sp<Looper>& looper, const sp<DecodeSession>& ds) :
-        FrameRequestEvent(looper), mDecodeSession(ds) {
+// using clock to control render session, start|pause|...
+struct __ABE_HIDDEN OnClockEvent : public ClockEvent {
+    OnClockEvent(const sp<Looper>& lp) : ClockEvent(lp) { }
+
+    virtual void onEvent(const eClockState& cs) {
+        sp<Renderer> renderer = Looper::Current()->user(INDEX1);
+        INFO("clock state => %d", cs);
+        switch (cs) {
+            case kClockStateTicking:
+                renderer->onStartRenderer();
+                break;
+            case kClockStatePaused:
+                renderer->onPauseRenderer();
+                break;
+            case kClockStateReset:
+                renderer->onPauseRenderer();
+                break;
+            default:
+                break;
+        }
+    }
+};
+
+struct __ABE_HIDDEN AVSession : public IMediaSession {
+    Vector<sp<Looper> >     mLoopers;
+
+    bool valid() const { return mLoopers.size(); }
+
+    AVSession(const Message& format, const Message& options) : IMediaSession() {
+        CHECK_TRUE(format.contains(kKeyFormat));
+        eCodecFormat codec = (eCodecFormat)format.findInt32(kKeyFormat);
+        eCodecType type = GetCodecType(codec);
+
+        sp<Decoder> decoder = new Decoder(format, options);
+        if (decoder->valid() == false) return;
+
+        mLoopers.push(Looper::Create(String::format("d.%#x", codec)));
+
+        sp<FrameRequestEvent> fre = new OnFrameRequest(mLoopers[INDEX0]);
+
+        sp<Renderer> renderer = new Renderer(codec, decoder->mCodec->formats(), options, fre);
+        if (renderer->valid() == false) {
+            mLoopers.clear();
+            return;
         }
 
-    virtual ~OnFrameRequest() {
+        mLoopers[INDEX0]->bind(INDEX0, decoder->RetainObject());
+        if (type == kCodecTypeVideo) {
+            mLoopers[INDEX0]->bind(INDEX1, NULL);
+
+            mLoopers.push(Looper::Create(String::format("r.%#x", codec)));
+
+            mLoopers[INDEX1]->bind(INDEX0, NULL);
+            mLoopers[INDEX1]->bind(INDEX1, renderer->RetainObject());
+        } else {
+            mLoopers[INDEX0]->bind(INDEX1, renderer->RetainObject());
+        }
+
+        if (renderer->mClock != NULL)
+            renderer->mClock->setListener(new OnClockEvent(mLoopers.back()));
+
+        for (size_t i = 0; i < mLoopers.size(); ++i) {
+            mLoopers[i]->loop();
+            mLoopers[i]->profile();
+        }
     }
 
-    virtual void onEvent(const FrameRequest& request) {
-        mDecodeSession->onRequestFrame(request);
+    virtual ~AVSession() {
+        INFO("release av session");
+        for (size_t i = 0; i < mLoopers.size(); ++i) {
+            mLoopers[i]->terminate(true);
+            for (size_t j = INDEX0; j < N_INDEX; ++j) {
+                if (mLoopers[i]->user(j) != NULL) {
+                    static_cast<SharedObject *>(mLoopers[i]->user(j))->ReleaseObject();
+                }
+            }
+        }
+    }
+
+    virtual void prepare(const Message& options) {
+        mLoopers.back()->post(new PrepareRunnable(options));
+    }
+
+    virtual void flush() {
+        mLoopers.back()->post(new FlushRunnable);
     }
 };
 
 // PacketRequestEvent <- DecodeSession <- FrameRequestEvent <- RenderSession
-sp<MediaSession> MediaSession::Create(const Message& format, const Message& options) {
-    CHECK_TRUE(format.contains(kKeyFormat));
-    eCodecFormat codec = (eCodecFormat)format.findInt32(kKeyFormat);
-    eCodecType type = GetCodecType(codec);
-
-    CHECK_TRUE(options.contains("PacketRequestEvent"));
-    sp<PacketRequestEvent> pre = options.findObject("PacketRequestEvent");
-
-    sp<Looper> looper = Looper::Create(String::format("ds.%#x", codec));
-    sp<DecodeSession> ds = new DecodeSession(looper,
-            format,
-            options,
-            pre);
-    looper->bind(ds.get());
-    looper->loop();
-
-    if (ds->mCodec == NULL) {
-        ERROR("failed to initial decoder");
-        return NULL;
-    }
-
-    sp<FrameRequestEvent> fre = new OnFrameRequest(looper, ds);
-
-    looper = Looper::Create(String::format("rs.%#x", codec));
-    sp<RenderSession> rs = new RenderSession(looper,
-            codec,
-            ds->mCodec->formats(),
-            options,
-            fre);
-    looper->bind(rs.get());
-    looper->loop();
-
-    // test if RenderSession is valid
-    if (rs->mOut == NULL) {
-        ERROR("failed to initial render");
-        return NULL;
-    }
-
-    return rs;
+sp<IMediaSession> IMediaSession::Create(const Message& format, const Message& options) {
+    sp<AVSession> av = new AVSession(format, options);
+    if (av->valid())    return av;
+    else                return NULL;
 }
 

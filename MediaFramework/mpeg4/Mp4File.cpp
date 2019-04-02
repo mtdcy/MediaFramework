@@ -402,6 +402,8 @@ struct __ABE_HIDDEN Mp4File : public MediaExtractor {
     Mp4File() : MediaExtractor(), mContent(NULL) { }
 
     virtual ~Mp4File() { }
+    
+    virtual String string() const { return "Mp4File"; }
 
     virtual Message formats() const {
         Message info;

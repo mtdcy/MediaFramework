@@ -69,7 +69,7 @@ struct __ABE_EXPORT MediaExtractor : public SharedObject {
      * get information of this extractor.
      * @return return a string of information
      */
-    virtual String          string() const { return ""; }
+    virtual String          string() const = 0;
     /**
      * configure this codec
      * @param options   option and parameter

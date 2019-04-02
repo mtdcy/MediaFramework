@@ -71,7 +71,7 @@ struct __ABE_EXPORT MediaDecoder : public SharedObject {
      * get information of this codec.
      * @return return a string of information
      */
-    virtual String          string() const { return ""; }
+    virtual String          string() const = 0;
     /**
      * get output format information of this codec.
      * about the output format:
