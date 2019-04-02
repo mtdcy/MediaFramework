@@ -39,10 +39,11 @@
 
 #define LOG_TAG "SDLAudio"
 //#define LOG_NDEBUG 0
-#include "SDLAudio.h"
+#include "MediaOut.h"
 
 #include <SDL.h>
 
+__BEGIN_NAMESPACE_MPX
 
 struct {
     eSampleFormat   a;
@@ -55,7 +56,7 @@ struct {
     {kSampleFormatUnknown,  0}
 };
 
-static eSampleFormat get_sample_format(SDL_AudioFormat b) {
+static __ABE_INLINE eSampleFormat get_sample_format(SDL_AudioFormat b) {
     for (size_t i = 0; kSampleMap[i].a != kSampleFormatUnknown; ++i) {
         if (kSampleMap[i].b == b) return kSampleMap[i].a;
     }
@@ -63,7 +64,7 @@ static eSampleFormat get_sample_format(SDL_AudioFormat b) {
     return kSampleFormatUnknown;
 };
 
-static SDL_AudioFormat get_sdl_sample_format(eSampleFormat a) {
+static __ABE_INLINE SDL_AudioFormat get_sdl_sample_format(eSampleFormat a) {
     for (size_t i = 0; kSampleMap[i].a != kSampleFormatUnknown; ++i) {
         if (kSampleMap[i].a == a) return kSampleMap[i].b;
     }
@@ -71,31 +72,36 @@ static SDL_AudioFormat get_sdl_sample_format(eSampleFormat a) {
     return 0;
 }
 
-__BEGIN_NAMESPACE_MPX
+struct __ABE_HIDDEN SDLAudioContext : public SharedObject {
+    bool                    mInitByUs;
+    sp<Message>             mFormat;
+    eSampleFormat           mSampleFormat;
+    uint32_t                mSampleRate;
+    uint32_t                mChannels;
+    mutable Mutex           mLock;
+    Condition               mWait;
+    sp<Buffer>              mPendingFrame;
+    size_t                  mBytesLeft;
+    bool                    mFlushing;
+    size_t                  mSilence;
 
-SDLAudio::SDLAudio() :
-    MediaOut(),
-    mInitByUs(false), 
-    mPendingFrame(0), mFlushing(false), mSilence(0)
-{ }
+    SDLAudioContext() : SharedObject(),
+    mInitByUs(false),
+    mPendingFrame(0), mFlushing(false), mSilence(0) { }
+};
 
-status_t SDLAudio::prepare(const Message& options) {
+static void SDLAudioCallback(void *opaque, uint8_t *stream, int len);
+static __ABE_INLINE sp<SDLAudioContext> openDevice(eSampleFormat format, uint32_t freq, uint32_t channels) {
+    INFO("open device: %d %d %d", format, freq, channels);
+    sp<SDLAudioContext> sdl = new SDLAudioContext;
+
     if (SDL_WasInit(SDL_INIT_AUDIO) == SDL_INIT_AUDIO) {
         INFO("sdl audio has been initialized");
     } else {
-        mInitByUs = true;
+        sdl->mInitByUs = true;
         SDL_InitSubSystem(SDL_INIT_AUDIO);
     }
 
-    eSampleFormat format = (eSampleFormat)options.findInt32(kKeyFormat);
-    uint32_t freq = options.findInt32(kKeySampleRate);
-    uint32_t chan = options.findInt32(kKeyChannels);
-
-    return openDevice(format, freq, chan);
-}
-
-status_t SDLAudio::openDevice(eSampleFormat format, uint32_t freq, uint32_t channels) {
-    INFO("open device: %d %d %d", format, freq, channels);
     SDL_AudioSpec wanted_spec, spec;
 
     // sdl only support s16.
@@ -104,81 +110,79 @@ status_t SDLAudio::openDevice(eSampleFormat format, uint32_t freq, uint32_t chan
     wanted_spec.format      = get_sdl_sample_format((eSampleFormat)format);
     wanted_spec.silence     = 0;
     wanted_spec.samples     = 2048;
-    wanted_spec.callback    = onSDLCallback;
-    wanted_spec.userdata    = this;
+    wanted_spec.callback    = SDLAudioCallback;
+    wanted_spec.userdata    = sdl.get();
 
     if (SDL_OpenAudio(&wanted_spec, &spec) < 0) {
         ERROR("SDL_OpenAudio failed. %s", SDL_GetError());
-        return BAD_VALUE;
+        return NULL;
     }
 
-    mSampleFormat   = get_sample_format(spec.format);
-    mSampleRate     = spec.freq;
-    mChannels       = spec.channels;
+    sdl->mSampleFormat   = get_sample_format(spec.format);
+    sdl->mSampleRate     = spec.freq;
+    sdl->mChannels       = spec.channels;
 
     INFO("SDL audio init done.");
-    return OK;
+    return sdl;
 }
 
-SDLAudio::~SDLAudio() {
+static __ABE_INLINE void closeDevice(sp<SDLAudioContext>& sdl) {
     INFO("SDL audio release.");
     {
-        AutoLock _l(mLock);
-        mFlushing = true;
-        mWait.signal();
+        AutoLock _l(sdl->mLock);
+        sdl->mFlushing = true;
+        sdl->mWait.signal();
     }
     SDL_CloseAudio();
 
-    if (mInitByUs) {
+    if (sdl->mInitByUs) {
         SDL_QuitSubSystem(SDL_INIT_AUDIO);
     }
 }
 
-status_t SDLAudio::status() const {
-    return mFormat != NULL ? OK : NO_INIT;
-}
+static void SDLAudioCallback(void *opaque, uint8_t *buffer, int len) {
+    sp<SDLAudioContext> sdl = static_cast<SDLAudioContext*>(opaque);
 
-Message SDLAudio::formats() const {
-    Message info;
-    info.setInt32(kKeyFormat, mSampleFormat);
-    info.setInt32(kKeySampleRate, mSampleRate);
-    info.setInt32(kKeyChannels, mChannels);
-    return info;
-}
+    DEBUG("eatFrame %p %d", buffer, len);
 
-status_t SDLAudio::configure(const Message& options) {
-    if (options.contains(kKeyPause)) {
-        bool pause = options.findInt32(kKeyPause);
+    AutoLock _l(sdl->mLock);
+    if (sdl->mSilence) {
+        memset(buffer, 0, len);
+        --sdl->mSilence;
+        return;
+    }
 
-        AutoLock _l(mLock);
-        if (SDL_GetAudioStatus() == SDL_AUDIO_PLAYING && pause) {
-            mFlushing = true;
-            mWait.signal();
+    while (len > 0 && !sdl->mFlushing) {
+        if (sdl->mPendingFrame == NULL || sdl->mPendingFrame->ready() == 0) {
+            DEBUG("wait for input");
+            sdl->mWait.signal();
+            sdl->mWait.wait(sdl->mLock);
+            continue;
         }
-        return OK;
+
+        size_t copyBytes = len;
+        if (sdl->mPendingFrame->ready() < copyBytes) {
+            copyBytes = sdl->mPendingFrame->ready();
+        }
+        memcpy(buffer, sdl->mPendingFrame->data(), copyBytes);
+        sdl->mPendingFrame->skip(copyBytes);
+        DEBUG("mPendingFrame %s", mPendingFrame->string().c_str());
+
+        len     -= copyBytes;
+        buffer  += copyBytes;
     }
 
-    return INVALID_OPERATION;
-}
-
-String SDLAudio::string() const {
-    return mFormat != NULL ? mFormat->string() : "SDLAudio";
-}
-
-status_t SDLAudio::flush() {
-    AutoLock _l(mLock);
-    INFO("flushing in state %d...", SDL_GetAudioStatus());
-
-    if (SDL_GetAudioStatus() == SDL_AUDIO_PLAYING) {
-        mFlushing = true;
-        mWait.signal();
-        mWait.wait(mLock);
+    if (sdl->mFlushing) {
+        INFO("flush complete");
+        memset(buffer, 0, len);
+        sdl->mFlushing = false;
+        SDL_PauseAudio(1);
+        INFO("SDL_PauseAudio 1");
+        sdl->mWait.signal();
     }
-    return OK;
 }
 
-template <class TYPE>
-sp<Buffer> interleave(const sp<MediaFrame>& frame) {
+template <class TYPE> __ABE_INLINE sp<Buffer> interleave(const sp<MediaFrame>& frame) {
     TYPE * p[MEDIA_FRAME_NB_PLANES];
     for (size_t i = 0; i < frame->a.channels; ++i)
         p[i] = (TYPE*)frame->planes[i].data;
@@ -196,100 +200,116 @@ sp<Buffer> interleave(const sp<MediaFrame>& frame) {
     return out;
 }
 
-status_t SDLAudio::write(const sp<MediaFrame>& input) {
-    DEBUG("write");
-    if (input == NULL) return flush();
+struct __ABE_HIDDEN SDLAudio : public MediaOut {
+    sp<SDLAudioContext>     mSDL;
 
-    if (input->a.format != mSampleFormat ||
-            input->a.channels != mChannels ||
-            input->a.freq != mSampleRate) {
-        SDL_CloseAudio();
-        openDevice(input->a.format, input->a.freq, input->a.channels);
+    __ABE_INLINE SDLAudio() : MediaOut(), mSDL(NULL) { }
+    __ABE_INLINE virtual ~SDLAudio() {
+        if (mSDL != NULL) closeDevice(mSDL);
+        mSDL.clear();
     }
 
-    AutoLock _l(mLock);
+    virtual String string() const { return "SDLAudio"; }
 
-    //DEBUG("write %s", input->string().c_str());
-    if (SDL_GetAudioStatus() != SDL_AUDIO_PLAYING) {
-        INFO("SDL_PauseAudio 0");
-        SDL_PauseAudio(0);
-        //mSilence = 1;
+    virtual MediaError prepare(const Message& options) {
+        eSampleFormat format = (eSampleFormat)options.findInt32(kKeyFormat);
+        uint32_t freq = options.findInt32(kKeySampleRate);
+        uint32_t chan = options.findInt32(kKeyChannels);
+        mSDL = openDevice(format, freq, chan);
+        return mSDL != NULL ? kMediaNoError : kMediaErrorBadFormat;
     }
 
-    if (input->planes[1].data != NULL) {
-        switch (mSampleFormat) {
-            case kSampleFormatS16:
-                mPendingFrame   = interleave<int16_t>(input);
-                break;
-            case kSampleFormatS32:
-                mPendingFrame   = interleave<int32_t>(input);
-                break;
-            case kSampleFormatFLT:
-                mPendingFrame   = interleave<float>(input);
-                break;
-            default:
-                FATAL("FIXME");
-                break;
-        }
-    } else {
-        //INFO("frame %zu %d %d %d", input->planes[0].size, input->a.channels, input->a.freq, input->a.samples);
-        mPendingFrame   = new Buffer((const char *)input->planes[0].data,
-                input->planes[0].size);
+    virtual MediaError status() const {
+        return mSDL != NULL ? kMediaNoError : kMediaErrorNotInitialied;
     }
-
-    mWait.signal();
-    while (mPendingFrame->ready() > 0) {
-        DEBUG("wait for eat frame");
-        mWait.wait(mLock);
+    virtual Message formats() const {
+        Message info;
+        info.setInt32(kKeyFormat, mSDL->mSampleFormat);
+        info.setInt32(kKeySampleRate, mSDL->mSampleRate);
+        info.setInt32(kKeyChannels, mSDL->mChannels);
+        return info;
     }
-    mPendingFrame.clear();
+    virtual MediaError configure(const Message& options) {
+        if (options.contains(kKeyPause)) {
+            bool pause = options.findInt32(kKeyPause);
 
-    return OK;
-}
-
-void SDLAudio::onSDLCallback(void *opaque, uint8_t *stream, int len) {
-    SDLAudio *sdl = static_cast<SDLAudio*>(opaque);
-    sdl->eatFrame(stream, len);
-}
-
-void SDLAudio::eatFrame(uint8_t *buffer, size_t len) {
-    DEBUG("eatFrame %p %d", buffer, len);
-
-    AutoLock _l(mLock);
-    if (mSilence) {
-        memset(buffer, 0, len);
-        --mSilence;
-        return;
-    }
-
-
-    while (len > 0 && !mFlushing) {
-        if (mPendingFrame == NULL || mPendingFrame->ready() == 0) {
-            DEBUG("wait for input");
-            mWait.signal();
-            mWait.wait(mLock);
-            continue;
+            AutoLock _l(mSDL->mLock);
+            if (SDL_GetAudioStatus() == SDL_AUDIO_PLAYING && pause) {
+                mSDL->mFlushing = true;
+                mSDL->mWait.signal();
+            }
+            return kMediaNoError;
         }
 
-        size_t copyBytes = len;
-        if (mPendingFrame->ready() < copyBytes) {
-            copyBytes = mPendingFrame->ready();
+        return kMediaErrorInvalidOperation;
+    }
+
+    virtual MediaError write(const sp<MediaFrame>& input) {
+        DEBUG("write");
+        if (input == NULL) return flush();
+
+        if (input->a.format != mSDL->mSampleFormat ||
+                input->a.channels != mSDL->mChannels ||
+                input->a.freq != mSDL->mSampleRate) {
+            closeDevice(mSDL);
+            mSDL = openDevice(input->a.format, input->a.freq, input->a.channels);
         }
-        memcpy(buffer, mPendingFrame->data(), copyBytes);
-        mPendingFrame->skip(copyBytes);
-        DEBUG("mPendingFrame %s", mPendingFrame->string().c_str());
 
-        len     -= copyBytes;
-        buffer  += copyBytes;
+        AutoLock _l(mSDL->mLock);
+
+        //DEBUG("write %s", input->string().c_str());
+        if (SDL_GetAudioStatus() != SDL_AUDIO_PLAYING) {
+            INFO("SDL_PauseAudio 0");
+            SDL_PauseAudio(0);
+            //mSilence = 1;
+        }
+
+        if (input->planes[1].data != NULL) {
+            switch (mSDL->mSampleFormat) {
+                case kSampleFormatS16:
+                    mSDL->mPendingFrame   = interleave<int16_t>(input);
+                    break;
+                case kSampleFormatS32:
+                    mSDL->mPendingFrame   = interleave<int32_t>(input);
+                    break;
+                case kSampleFormatFLT:
+                    mSDL->mPendingFrame   = interleave<float>(input);
+                    break;
+                default:
+                    FATAL("FIXME");
+                    break;
+            }
+        } else {
+            //INFO("frame %zu %d %d %d", input->planes[0].size, input->a.channels, input->a.freq, input->a.samples);
+            mSDL->mPendingFrame   = new Buffer((const char *)input->planes[0].data,
+                    input->planes[0].size);
+        }
+
+        mSDL->mWait.signal();
+        while (mSDL->mPendingFrame->ready() > 0) {
+            DEBUG("wait for eat frame");
+            mSDL->mWait.wait(mSDL->mLock);
+        }
+        mSDL->mPendingFrame.clear();
+
+        return kMediaNoError;
     }
 
-    if (mFlushing) {
-        INFO("flush complete");
-        memset(buffer, 0, len);
-        mFlushing = false;
-        SDL_PauseAudio(1);
-        INFO("SDL_PauseAudio 1");
-        mWait.signal();
+    virtual MediaError flush() {
+        AutoLock _l(mSDL->mLock);
+        INFO("flushing in state %d...", SDL_GetAudioStatus());
+
+        if (SDL_GetAudioStatus() == SDL_AUDIO_PLAYING) {
+            mSDL->mFlushing = true;
+            mSDL->mWait.signal();
+            mSDL->mWait.wait(mSDL->mLock);
+        }
+        return kMediaNoError;
     }
+
+};
+
+__ABE_HIDDEN sp<MediaOut> CreateSDLAudio() {
+    return new SDLAudio;
 }
 __END_NAMESPACE_MPX

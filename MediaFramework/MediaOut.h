@@ -51,7 +51,7 @@ __BEGIN_NAMESPACE_MPX
 struct __ABE_EXPORT MediaOut : public SharedObject {
     static sp<MediaOut> Create(eCodecType);
 
-    __ABE_INLINE MediaOut() { }
+    __ABE_INLINE MediaOut() : SharedObject() { }
     __ABE_INLINE virtual ~MediaOut() { }
 
     /**
@@ -64,12 +64,12 @@ struct __ABE_EXPORT MediaOut : public SharedObject {
      * @param options   option and parameter for creating device
      * @return return reference to a new output device
      */
-    virtual status_t        prepare(const Message& options) = 0;
+    virtual MediaError      prepare(const Message& options) = 0;
     /**
      * get status of this output device.
      * @return return OK if everything is OK, otherwise error code
      */
-    virtual status_t        status() const = 0;
+    virtual MediaError      status() const = 0;
     /**
      * get information of this output device
      * @return return message reference of this output device.
@@ -80,7 +80,7 @@ struct __ABE_EXPORT MediaOut : public SharedObject {
      * @param options   option and parameter
      * @return return OK on success, otherwise error code.
      */
-    virtual status_t        configure(const Message& options) = 0;
+    virtual MediaError      configure(const Message& options) = 0;
     /**
      * push a MediaFrame to this output device.
      * @param input     reference of MediaFrame
@@ -88,12 +88,12 @@ struct __ABE_EXPORT MediaOut : public SharedObject {
      * @note push a NULL packet to notify codec of eos
      * @note write in block way, always return OK if no error happens.
      */
-    virtual status_t        write(const sp<MediaFrame>& input) = 0;
+    virtual MediaError      write(const sp<MediaFrame>& input) = 0;
     /**
      * flush context of this output device
      * @return return OK on success, otherwise error code
      */
-    virtual status_t        flush() = 0;
+    virtual MediaError      flush() = 0;
 };
 
 __END_NAMESPACE_MPX

@@ -58,6 +58,10 @@ struct __ABE_EXPORT MediaPacketizer : public SharedObject {
      * @return return reference to new packet, or NULL if no packet ready
      */
     virtual sp<MediaPacket> dequeue() = 0;
+    
+    /**
+     * flush packetizer content and reset its state
+     */
     virtual void            flush() = 0;
 };
 

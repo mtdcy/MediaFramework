@@ -740,7 +740,7 @@ static status_t ID3v2_2(const Buffer& data,
         } else if (id == "APIC") {
             ID3v2PictureText picture = ID3v22Picture(id, frameData, frameLength);
             // XXX: set the right tag.
-            values.set<Buffer>(Media::AlbumArt, *picture.pic);
+            values.setObject(Media::AlbumArt, picture.pic);
         } else {
             DEBUG("been skipped frame [%s] length %d.",
                   id.c_str(), frameLength);
@@ -881,7 +881,7 @@ static status_t ID3v2_3(const Buffer& data,
         } else if (id == "APIC") {
             ID3v2PictureText picture = ID3v2Picture(id, frameData, frameLength);
             // XXX: set the right tag.
-            values.set<Buffer>(Media::AlbumArt, *picture.pic);
+            values.setObject(Media::AlbumArt, picture.pic);
         } else {
             DEBUG("been skipped frame [%s] length %d.",
                   id.c_str(),
@@ -1052,7 +1052,7 @@ static status_t ID3v2_4(const Buffer& data,
         } else if (id == "APIC") {
             ID3v2PictureText picture = ID3v2Picture(id, frameData, frameLength);
             // XXX: set the right tag.
-            values.set<Buffer>(Media::AlbumArt, *picture.pic);
+            values.setObject(Media::AlbumArt, picture.pic);
         } else {
             DEBUG("been skipped frame [%s] length %d.",
                   id.c_str(),

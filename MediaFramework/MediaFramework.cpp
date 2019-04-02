@@ -39,7 +39,7 @@
 #include "MediaDecoder.h"
 #include "MediaExtractor.h"
 #include "MediaPacketizer.h"
-#include "sdl2/SDLAudio.h"
+#include "MediaOut.h"
 
 __BEGIN_DECLS
 
@@ -63,6 +63,7 @@ __BEGIN_NAMESPACE_MPX
 sp<MediaExtractor> CreateMp3File();
 sp<MediaExtractor> CreateMp4File();
 sp<MediaExtractor> CreateMatroskaFile();
+
 sp<MediaExtractor> MediaExtractor::Create(eFileFormat format) {
     switch (format) {
         case kFileFormatMP3:
@@ -81,6 +82,7 @@ sp<MediaDecoder> CreateVideoToolboxDecoder();
 bool IsVideoToolboxSupported(eCodecFormat format);
 #endif
 sp<MediaDecoder> CreateLavcDecoder(eModeType mode);
+
 sp<MediaDecoder> MediaDecoder::Create(eCodecFormat format, eModeType mode) {
     sp<MediaDecoder> codec;
     eCodecType type = GetCodecType(format);
@@ -103,6 +105,7 @@ sp<MediaDecoder> MediaDecoder::Create(eCodecFormat format, eModeType mode) {
 }
 
 sp<MediaPacketizer> CreateMp3Packetizer();
+
 sp<MediaPacketizer> MediaPacketizer::Create(eCodecFormat format) {
     switch (format) {
         case kAudioCodecFormatMP3:
@@ -114,10 +117,12 @@ sp<MediaPacketizer> MediaPacketizer::Create(eCodecFormat format) {
 }
 
 sp<MediaOut> CreateGLVideo();
+sp<MediaOut> CreateSDLAudio();
+
 sp<MediaOut> MediaOut::Create(eCodecType type) {
     switch (type) {
         case kCodecTypeAudio:
-            return new SDLAudio;
+            return CreateSDLAudio();
         case kCodecTypeVideo:
             return CreateGLVideo();
         default:
@@ -126,25 +131,55 @@ sp<MediaOut> MediaOut::Create(eCodecType type) {
 }
 
 struct __ABE_HIDDEN PixelFormatDesc {
+    ePixelFormat    format;
     const char *    desc;
     const size_t    n_planes;
     const float     n_size[MEDIA_FRAME_NB_PLANES];
 };
 
+static __ABE_INLINE size_t GetPixelSpaceSize(const PixelFormatDesc * desc, int32_t width, int32_t height) {
+    size_t total = 0;
+    for (size_t i = 0; i < desc->n_planes; ++i) {
+        total += desc->n_size[i] * width * height;
+    }
+    return total;
+}
+
 static __ABE_HIDDEN PixelFormatDesc s_yuv[] = {
     {   // kPixelFormatUnknown
+        .format     = kPixelFormatUnknown,
         .desc       = "unknown",
         .n_planes   = 0,
     },
     {   // kPixelFormatYUV420P
+        .format     = kPixelFormatYUV420P,
         .desc       = "planar yuv 4:2:0, 3 planes Y/U/V",
         .n_planes   = 3,
         .n_size     = { 1, 0.25, 0.25 },
     },  // kPixelFormatYUV422P
     {
+        .format     = kPixelFormatYUV422P,
         .desc       = "planar yuv 4:2:2, 3 planes Y/U/V",
         .n_planes   = 3,
         .n_size     = { 1, 0.5, 0.5 },
+    },
+    {   // kPixelFormatYUV444P
+        .format     = kPixelFormatYUV444P,
+        .desc       = "planar yuv 4:4:4, 3 planes Y/U/V",
+        .n_planes   = 3,
+        .n_size     = { 1, 1, 1 },
+    },
+    {   // kPixelFormatNV12
+        .format     = kPixelFormatNV12,
+        .desc       = "packed yuv 4:2:0, 2 planes Y/(UV)",
+        .n_planes   = 2,
+        .n_size     = { 1, 0.5 }
+    },
+    {   // kPixelFormatNV21
+        .format     = kPixelFormatNV21,
+        .desc       = "packed yuv 4:2:0, 2 planes Y/(VU)",
+        .n_planes   = 2,
+        .n_size     = { 1, 0.5 }
     }
 };
 
@@ -152,6 +187,10 @@ struct __ABE_HIDDEN SampleFormatDesc {
     const char *    desc;
     const size_t    n_size;     // sample size in bytes
 };
+
+static __ABE_INLINE size_t GetSampleSpaceSize(const SampleFormatDesc * desc, int32_t channels, int32_t samples) {
+    return desc->n_size * channels * samples;
+}
 
 static __ABE_HIDDEN SampleFormatDesc s_samples[] = {
     {   // kSampleFormatUnknown
@@ -178,6 +217,7 @@ static __ABE_HIDDEN SampleFormatDesc s_samples[] = {
         .n_size     = sizeof(float),
     },
 };
+#define NELEM(x)    (sizeof(x) / sizeof(x[0]))
 
 MediaFrame::MediaFrame() : pts(kTimeInvalid), duration(kTimeInvalid) {
     for (size_t i = 0; i < MEDIA_FRAME_NB_PLANES; ++i) {
@@ -189,21 +229,27 @@ MediaFrame::MediaFrame() : pts(kTimeInvalid), duration(kTimeInvalid) {
 }
 
 struct __ABE_HIDDEN DefaultMediaFrame : public MediaFrame {
-    DefaultMediaFrame() : MediaFrame() { }
-    virtual ~DefaultMediaFrame() { }
-    sp<Buffer> buffer[MEDIA_FRAME_NB_PLANES];
+    // one continues buffer for all planes
+    sp<Buffer> buffer;
+    
+    __ABE_INLINE DefaultMediaFrame(size_t n) : MediaFrame(), buffer(new Buffer(n)) { }
 };
 
 sp<MediaFrame> MediaFrameCreate(ePixelFormat format, int32_t w, int32_t h) {
-    sp<DefaultMediaFrame> frame = new DefaultMediaFrame;
+    sp<DefaultMediaFrame> frame;
     const size_t size = w * h;
 
     if (format > kPixelFormatUnknown && format < kPixelFormatYUYV422) {
+        CHECK_LT(format, NELEM(s_yuv));
         const PixelFormatDesc *desc = &s_yuv[format];
+        CHECK_TRUE(format == desc->format);
+        frame = new DefaultMediaFrame(GetPixelSpaceSize(desc, w, h));
+        
+        uint8_t * next = (uint8_t*)frame->buffer->data();
         for (size_t i = 0; i < desc->n_planes; ++i) {
             frame->planes[i].size   = size * desc->n_size[i];
-            frame->buffer[i] = new Buffer(frame->planes[i].size);
-            frame->planes[i].data = (uint8_t*)frame->buffer[i]->data();
+            frame->planes[i].data   = next;
+            next += frame->planes[i].size;
         }
     } else {
         FATAL("FIXME");
@@ -219,18 +265,19 @@ sp<MediaFrame> MediaFrameCreate(ePixelFormat format, int32_t w, int32_t h) {
 }
 
 sp<MediaFrame> MediaFrameCreate(eSampleFormat format, bool planar, int32_t channels, int32_t freq, int32_t samples) {
-    sp<DefaultMediaFrame> frame = new DefaultMediaFrame;
     const SampleFormatDesc *desc = &s_samples[format];
+    sp<DefaultMediaFrame> frame = new DefaultMediaFrame(GetSampleSpaceSize(desc, channels, samples));
+    
     if (planar) {
+        uint8_t * next = (uint8_t*)frame->buffer->data();
         for (size_t i = 0; i < channels; ++i) {
             frame->planes[i].size   = desc->n_size * samples;
-            frame->buffer[i]        = new Buffer(frame->planes[i].size);
-            frame->planes[i].data   = (uint8_t*)frame->buffer[i]->data();
+            frame->planes[i].data   = next;
+            next += frame->planes[i].size;
         }
     } else {
-        frame->planes[0].size       = desc->n_size * samples * channels;
-        frame->buffer[0]            = new Buffer(frame->planes[0].size);
-        frame->planes[0].data       = (uint8_t*)frame->buffer[0]->data();
+        frame->planes[0].size       = frame->buffer->size();
+        frame->planes[0].data       = (uint8_t*)frame->buffer->data();
     }
     frame->a.format     = format;
     frame->a.channels   = channels;
@@ -240,9 +287,9 @@ sp<MediaFrame> MediaFrameCreate(eSampleFormat format, bool planar, int32_t chann
 }
 
 struct __ABE_HIDDEN DefaultMediaPacket : public MediaPacket {
-    DefaultMediaPacket() : MediaPacket() { }
-    virtual ~DefaultMediaPacket() { }
     sp<Buffer> buffer;
+
+    __ABE_INLINE DefaultMediaPacket() : MediaPacket() { }
 };
 
 sp<MediaPacket> MediaPacketCreate(size_t size) {

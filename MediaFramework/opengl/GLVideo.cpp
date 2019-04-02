@@ -116,22 +116,22 @@ struct __ABE_HIDDEN Config {
 };
 
 struct __ABE_HIDDEN OpenGLContext : public SharedObject {
-    OpenGLContext() : config(NULL), width(0), height(0), format(kPixelFormatUnknown)
-    {
-        for (size_t i = 0; i < OBJ_MAX; ++i) objs[i] = 0;
-        for (size_t i = 0; i < ATTR_MAX; ++i) attrs[i] = -1;
-        for (size_t i = 0; i < UNIFORM_MAX; ++i) uniforms[i] = -1;
-    }
-
     // gl context
     const Config *  config;
     GLuint          objs[OBJ_MAX];
     GLint           attrs[ATTR_MAX];
     GLint           uniforms[UNIFORM_MAX];
-
+    
     int32_t         width;
     int32_t         height;
     ePixelFormat    format;
+    
+    OpenGLContext() : SharedObject(), config(NULL), width(0), height(0), format(kPixelFormatUnknown)
+    {
+        for (size_t i = 0; i < OBJ_MAX; ++i) objs[i] = 0;
+        for (size_t i = 0; i < ATTR_MAX; ++i) attrs[i] = -1;
+        for (size_t i = 0; i < UNIFORM_MAX; ++i) uniforms[i] = -1;
+    }
 
     ~OpenGLContext() {
         if (objs[OBJ_TEXTURE0]) {
@@ -294,7 +294,7 @@ static GLuint initShader(GLenum type, const char *sl) {
     return sh;
 }
 
-static GLuint initProgram(GLuint vsh, GLuint fsh) {
+static __ABE_INLINE GLuint initProgram(GLuint vsh, GLuint fsh) {
     CHECK_NE(vsh, 0);
     CHECK_NE(fsh, 0);
     GLuint program = glCreateProgram();
@@ -324,7 +324,7 @@ static GLuint initProgram(GLuint vsh, GLuint fsh) {
     return program;
 }
 
-static size_t initTextures(size_t n, GLenum target, GLuint *textures) {
+static __ABE_INLINE size_t initTextures(size_t n, GLenum target, GLuint *textures) {
     glGenTextures(n, textures);
     for (size_t i = 0; i < n; ++i) {
         glBindTexture(target, textures[i]);
@@ -592,7 +592,7 @@ struct __ABE_HIDDEN GLVideo : public MediaOut {
 
     virtual ~GLVideo() { }
 
-    virtual status_t prepare(const Message& options) {
+    virtual MediaError prepare(const Message& options) {
         INFO("gl video => %s", options.string().c_str());
 
         bool ogl = options.findInt32(kKeyOpenGLCompatible, 0);
@@ -646,15 +646,15 @@ struct __ABE_HIDDEN GLVideo : public MediaOut {
 #endif
         mGLContext->width   = width;
         mGLContext->height  = height;
-        return OK;
+        return kMediaNoError;
     }
 
     virtual String string() const {
         return "";
     }
 
-    virtual status_t status() const {
-        return mGLContext != NULL ? OK : BAD_VALUE;
+    virtual MediaError status() const {
+        return mGLContext != NULL ? kMediaNoError : kMediaErrorNotInitialied;
     }
 
     virtual Message formats() const {
@@ -665,15 +665,14 @@ struct __ABE_HIDDEN GLVideo : public MediaOut {
         return fmt;
     }
 
-    virtual status_t configure(const Message &options) {
-        return INVALID_OPERATION;
+    virtual MediaError configure(const Message &options) {
+        return kMediaErrorInvalidOperation;
     }
 
-
-    virtual status_t write(const sp<MediaFrame> &input) {
+    virtual MediaError write(const sp<MediaFrame> &input) {
         if (input == NULL) {
             INFO("eos...");
-            return OK;
+            return kMediaNoError;
         }
 
         sp<MediaFrame> frame = input;
@@ -685,11 +684,11 @@ struct __ABE_HIDDEN GLVideo : public MediaOut {
 
         mGLContext->config->update(mGLContext, frame);
 
-        return OK;
+        return kMediaNoError;
     }
 
-    virtual status_t flush() {
-        return OK;
+    virtual MediaError flush() {
+        return kMediaNoError;
     }
 };
 

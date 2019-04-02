@@ -40,59 +40,59 @@
 __BEGIN_NAMESPACE_MPX
 __BEGIN_NAMESPACE(MPEG4)
 
-    // ISO/IEC 14496-12 ISO base media file format
-    // http://www.ftyps.com
-    // ftyp *
-    struct __ABE_HIDDEN FileTypeBox {
-        // default value.
-        __ABE_INLINE FileTypeBox() : major_brand("mp41"), minor_version(0), compatibles("mp41") { }
-        FileTypeBox(const BitReader& br, size_t size);
-        String          major_brand;
-        uint32_t        minor_version;
-        String          compatibles;
-    };
+// ISO/IEC 14496-12 ISO base media file format
+// http://www.ftyps.com
+// ftyp *
+struct __ABE_HIDDEN FileTypeBox {
+    String          major_brand;
+    uint32_t        minor_version;
+    String          compatibles;
+    
+    // default value.
+    __ABE_INLINE FileTypeBox() : major_brand("mp41"), minor_version(0), compatibles("mp41") { }
+    FileTypeBox(const BitReader& br, size_t size);
+};
 
 // ISO/IEC 14496-12: Section 4.2 Object Structure, Page 11
 struct __ABE_HIDDEN Box : public SharedObject {
-    __ABE_INLINE Box(const String& _name, bool _full = false, bool _container = false) :
-        name(_name), full(_full), container(_container) { }
-    __ABE_INLINE virtual ~Box() { }
-    virtual status_t parse(const BitReader&, size_t, const FileTypeBox&);
-    virtual void compose(BitWriter&, const FileTypeBox&);
-    size_t size() const { return full ? 4 : 0; }
     const String    name;
     bool            full;
     bool            container;
     uint8_t         version;
     uint32_t        flags;
+    
+    __ABE_INLINE Box(const String& _name, bool _full = false, bool _container = false) : name(_name), full(_full), container(_container) { }
+    __ABE_INLINE virtual ~Box() { }
+    virtual status_t parse(const BitReader&, size_t, const FileTypeBox&);
+    virtual void compose(BitWriter&, const FileTypeBox&);
+    size_t size() const { return full ? 4 : 0; }
 };
 
 struct __ABE_HIDDEN FullBox : public Box {
-    __ABE_INLINE FullBox(const String& _name, bool container = false) :
-        Box(_name, true, container) { }
+    __ABE_INLINE FullBox(const String& _name, bool container = false) : Box(_name, true, container) { }
     __ABE_INLINE virtual ~FullBox() { }
     size_t size() const { return Box::size(); }
 };
 
 struct __ABE_HIDDEN ContainerBox : public Box {
-    __ABE_INLINE ContainerBox(const String& _name, bool _full = false, bool _counted = false) :
-        Box(_name, _full, true), counted(_counted) { }
+    bool                counted;
+    Vector<sp<Box> >    child;
+    
+    __ABE_INLINE ContainerBox(const String& _name, bool _full = false, bool _counted = false) : Box(_name, _full, true), counted(_counted) { }
     __ABE_INLINE virtual ~ContainerBox() { }
     virtual status_t parse(const BitReader&, size_t, const FileTypeBox&);
     virtual status_t _parse(const BitReader&, size_t, const FileTypeBox&);
     virtual void compose(BitWriter&, const FileTypeBox&);
-    bool                counted;
-    Vector<sp<Box> >    child;
 };
 
 struct __ABE_HIDDEN FullContainerBox : public ContainerBox {
     __ABE_INLINE FullContainerBox(const String& _name) : ContainerBox(_name, true, false) { }
-    virtual ~FullContainerBox() { }
+    __ABE_INLINE virtual ~FullContainerBox() { }
 };
 
 struct __ABE_HIDDEN CountedFullContainerBox : public ContainerBox {
     __ABE_INLINE CountedFullContainerBox(const String& _name) : ContainerBox(_name, true, true) { }
-    virtual ~CountedFullContainerBox() { }
+    __ABE_INLINE virtual ~CountedFullContainerBox() { }
 };
 
 // moov *
@@ -151,8 +151,7 @@ struct __ABE_HIDDEN CountedFullContainerBox : public ContainerBox {
 //  |   |- albm
 //  |- iods
 //  |- meta!
-#define BOX_TYPE(NAME, BOX, BASE) \
-    struct __ABE_HIDDEN BOX : public BASE { __ABE_INLINE BOX() : BASE(NAME) { } };
+#define BOX_TYPE(NAME, BOX, BASE)  struct __ABE_HIDDEN BOX : public BASE { __ABE_INLINE BOX() : BASE(NAME) { } };
 
 BOX_TYPE("moov", MovieBox,              ContainerBox);
 BOX_TYPE("trak", TrackBox,              ContainerBox);
@@ -178,9 +177,6 @@ struct __ABE_HIDDEN MetaBox : public ContainerBox {
 };
 
 struct __ABE_HIDDEN MovieHeaderBox : public FullBox {
-    __ABE_INLINE MovieHeaderBox() : FullBox("mvhd") { }
-    status_t parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
     uint64_t    creation_time;
     uint64_t    modification_time;
     uint32_t    timescale;
@@ -188,13 +184,13 @@ struct __ABE_HIDDEN MovieHeaderBox : public FullBox {
     uint32_t    rate;
     uint16_t    volume;
     uint32_t    next_track_ID;
+    
+    __ABE_INLINE MovieHeaderBox() : FullBox("mvhd") { }
+    status_t parse(const BitReader&, size_t, const FileTypeBox&);
+    void compose(BitWriter&, const FileTypeBox&);
 };
 
 struct __ABE_HIDDEN TrackHeaderBox : public FullBox {
-    __ABE_INLINE TrackHeaderBox() : FullBox("tkhd") { }
-    status_t parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
-
     /**
      * flag value of track
      * @see Box::flags
@@ -205,7 +201,7 @@ struct __ABE_HIDDEN TrackHeaderBox : public FullBox {
         Track_in_preview    = 0x000004,
         Track_size_is_aspect_ratio  = 0x000008,
     };
-
+    
     uint64_t    creation_time;      ///< create time in seconds, UTC
     uint64_t    modification_time;  ///< modification time, seconds, UTC
     uint32_t    track_ID;           ///< unique, 1-based index.
@@ -215,14 +211,20 @@ struct __ABE_HIDDEN TrackHeaderBox : public FullBox {
     uint16_t    volume;
     uint32_t    width;
     uint32_t    height;
+    
+    __ABE_INLINE TrackHeaderBox() : FullBox("tkhd") { }
+    status_t parse(const BitReader&, size_t, const FileTypeBox&);
+    void compose(BitWriter&, const FileTypeBox&);
+
 };
 
 BOX_TYPE("tref", TrackReferenceBox,     ContainerBox);
 struct __ABE_HIDDEN TrackReferenceTypeBox : public Box {
+    Vector<uint32_t>    track_IDs;
+
     __ABE_INLINE TrackReferenceTypeBox(const String& _name) : Box(_name) { }
     status_t parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
-    Vector<uint32_t>    track_IDs;
 };
 // ISO/IEC 14496-12: Section 8.6 Track Reference Box, Page 26
 BOX_TYPE("hint", TrackReferenceHintBox, TrackReferenceTypeBox);
@@ -235,101 +237,106 @@ BOX_TYPE("sync", TrackReferenceSyncBox, TrackReferenceTypeBox);
 BOX_TYPE("chap", TrackReferenceChapBox, TrackReferenceTypeBox);
 
 struct __ABE_HIDDEN MediaHeaderBox : public FullBox {
-    __ABE_INLINE MediaHeaderBox() : FullBox("mdhd") { }
-    status_t parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
     uint64_t            creation_time;
     uint64_t            modification_time;
     uint32_t            timescale;
     uint64_t            duration;
     String              language;
+    
+    __ABE_INLINE MediaHeaderBox() : FullBox("mdhd") { }
+    status_t parse(const BitReader&, size_t, const FileTypeBox&);
+    void compose(BitWriter&, const FileTypeBox&);
 };
 
 struct __ABE_HIDDEN HandlerBox : public FullBox {
+    String              handler_type;
+    String              handler_name;
+    
     __ABE_INLINE HandlerBox() : FullBox("hdlr") { }
     status_t parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
-    String              handler_type;
-    String              handler_name;
 };
 
 struct __ABE_HIDDEN VideoMediaHeaderBox : public FullBox {
+    uint16_t            graphicsmode;
+    Vector<uint16_t>    opcolor;
+    
     __ABE_INLINE VideoMediaHeaderBox() : FullBox("vmhd") { }
     status_t parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
-    uint16_t            graphicsmode;
-    Vector<uint16_t>    opcolor;
 };
 
 struct __ABE_HIDDEN SoundMediaHeaderBox : public FullBox {
+    uint16_t            balance;
+
     __ABE_INLINE SoundMediaHeaderBox() : FullBox("smhd") { }
     status_t parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
-    uint16_t            balance;
 };
 
 struct __ABE_HIDDEN HintMediaHeaderBox : public FullBox {
-    __ABE_INLINE HintMediaHeaderBox() : FullBox("hmhd") { }
-    status_t parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
     uint16_t            maxPDUsize;
     uint16_t            avgPDUsize;
     uint32_t            maxbitrate;
     uint32_t            avgbitrate;
+    
+    __ABE_INLINE HintMediaHeaderBox() : FullBox("hmhd") { }
+    status_t parse(const BitReader&, size_t, const FileTypeBox&);
+    void compose(BitWriter&, const FileTypeBox&);
 };
 
 BOX_TYPE("nmhb", NullMediaHeaderBox, FullBox);
 
 struct __ABE_HIDDEN DataEntryUrlBox : public FullBox {
+    String              location;
+
     __ABE_INLINE DataEntryUrlBox() : FullBox("url ") { }
     status_t parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
-    String          location;
 };
 
 struct __ABE_HIDDEN DataEntryUrnBox : public FullBox {
+    String              urn_name;
+    String              location;
+    
     __ABE_INLINE DataEntryUrnBox() : FullBox("urn ") { }
     status_t parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
-    String              urn_name;
-    String              location;
 };
 
 struct __ABE_HIDDEN TimeToSampleBox : public FullBox {
-    __ABE_INLINE TimeToSampleBox() : FullBox("stts") { }
-    status_t parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
     struct Entry {
         uint32_t        sample_count;
         uint32_t        sample_delta;
     };
     Vector<Entry>       entries;
+    
+    __ABE_INLINE TimeToSampleBox() : FullBox("stts") { }
+    status_t parse(const BitReader&, size_t, const FileTypeBox&);
+    void compose(BitWriter&, const FileTypeBox&);
 };
 
 struct __ABE_HIDDEN CompositionOffsetBox : public FullBox {
-    __ABE_INLINE CompositionOffsetBox() : FullBox("ctts") { }
-    status_t parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
     struct Entry {
         uint32_t        sample_count;
         uint32_t        sample_offset;  // int32_t in version 1
     };
     Vector<Entry>       entries;
+    
+    __ABE_INLINE CompositionOffsetBox() : FullBox("ctts") { }
+    status_t parse(const BitReader&, size_t, const FileTypeBox&);
+    void compose(BitWriter&, const FileTypeBox&);
 };
 
 struct __ABE_HIDDEN SampleDependencyTypeBox : public FullBox {
+    Vector<uint8_t>     dependency;
+
     __ABE_INLINE SampleDependencyTypeBox() : FullBox("sdtp") { }
     status_t parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
-    Vector<uint8_t>     dependency;
 };
 
 struct __ABE_HIDDEN SampleEntry : public ContainerBox {
-    __ABE_INLINE SampleEntry(const String& _name, const String& _type) :
-        ContainerBox(_name), type(_type) { }
-    virtual ~SampleEntry() { }
-    status_t parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
     String              type;
     uint16_t            data_reference_index;
     union {
@@ -357,7 +364,12 @@ struct __ABE_HIDDEN SampleEntry : public ContainerBox {
     };
     // non-trivial
     String              compressorname;     // visual only
+    
+    __ABE_INLINE SampleEntry(const String& _name, const String& _type) : ContainerBox(_name), type(_type) { }
+    __ABE_INLINE virtual ~SampleEntry() { }
+    status_t parse(const BitReader&, size_t, const FileTypeBox&);
     status_t _parse(const BitReader&, size_t, const FileTypeBox&);
+    void compose(BitWriter&, const FileTypeBox&);
 };
 
 struct __ABE_HIDDEN VisualSampleEntry : public SampleEntry {
@@ -377,21 +389,24 @@ struct __ABE_HIDDEN MpegSampleEntry : public SampleEntry {
 // 'alac' box inside 'alac', so custom AudioSampleEntry implementation
 #if 1
 struct __ABE_HIDDEN ALACAudioSampleEntry : public AudioSampleEntry {
+    sp<Buffer> extra;
+
     __ABE_INLINE ALACAudioSampleEntry() : AudioSampleEntry("alac") { }
     status_t parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
-    sp<Buffer> extra;
 };
 #else
 BOX_TYPE("alac", ALACAudioSampleEntry,          AudioSampleEntry);
 #endif
 
 struct __ABE_HIDDEN CommonBox : public Box {
+    sp<Buffer>  data;
+
     __ABE_INLINE CommonBox(const String& _name, bool full = false) : Box(_name, full) { }
     status_t parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
-    sp<Buffer>  data;
 };
+
 struct __ABE_HIDDEN FullCommonBox : public CommonBox {
     __ABE_INLINE FullCommonBox(const String& _name) : CommonBox(_name, true) { }
 };
@@ -433,98 +448,108 @@ struct __ABE_HIDDEN siDecompressionParam : public ContainerBox {
 };
 
 struct __ABE_HIDDEN SamplingRateBox : public FullBox {
+    uint32_t    sampling_rate;
+
     __ABE_INLINE SamplingRateBox() : FullBox("srat") { }
     status_t parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
-    uint32_t sampling_rate;
 };
 
 struct __ABE_HIDDEN ColourInformationBox : public Box {
-    __ABE_INLINE ColourInformationBox() : Box("colr") { }
-    status_t parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
     String      colour_type;
     uint16_t    colour_primaries;
     uint16_t    transfer_characteristics;
     uint16_t    matrix_coefficients;
     bool        full_range_flag;
+    
+    __ABE_INLINE ColourInformationBox() : Box("colr") { }
+    status_t parse(const BitReader&, size_t, const FileTypeBox&);
+    void compose(BitWriter&, const FileTypeBox&);
 };
 
 struct __ABE_HIDDEN BitRateBox : public Box {
-    __ABE_INLINE BitRateBox() : Box("btrt") { }
-    status_t parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
     uint32_t        bufferSizeDB;
     uint32_t        maxBitrate;
     uint32_t        avgBitrate;
+    
+    __ABE_INLINE BitRateBox() : Box("btrt") { }
+    status_t parse(const BitReader&, size_t, const FileTypeBox&);
+    void compose(BitWriter&, const FileTypeBox&);
 };
 
 // unified SampleSizeBox & CompactSampleSizeBox
 struct __ABE_HIDDEN SampleSizeBox : public FullBox {
+    uint32_t            sample_size;
+    Vector<uint64_t>    entries;
+    
     __ABE_INLINE SampleSizeBox(const String& _name) : FullBox(_name) { }
     status_t parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
-    uint32_t            sample_size;
-    Vector<uint64_t>    entries;
 };
 BOX_TYPE("stsz", PreferredSampleSizeBox, SampleSizeBox);
 BOX_TYPE("stz2", CompactSampleSizeBox, SampleSizeBox);
 
 struct __ABE_HIDDEN SampleToChunkBox : public FullBox {
-    __ABE_INLINE SampleToChunkBox() : FullBox("stsc") { }
-    status_t parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
     struct Entry {
         uint32_t        first_chunk;
         uint32_t        samples_per_chunk;
         uint32_t        sample_description_index;
     };
     Vector<Entry>       entries;
+    
+    __ABE_INLINE SampleToChunkBox() : FullBox("stsc") { }
+    status_t parse(const BitReader&, size_t, const FileTypeBox&);
+    void compose(BitWriter&, const FileTypeBox&);
 };
 
 struct __ABE_HIDDEN ChunkOffsetBox : public FullBox {
+    Vector<uint64_t>    entries;
+
     __ABE_INLINE ChunkOffsetBox(const String& _name) : FullBox(_name) { }
     status_t parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
-    Vector<uint64_t>    entries;
 };
 BOX_TYPE("stco", PreferredChunkOffsetBox, ChunkOffsetBox);
 BOX_TYPE("co64", LargeChunkOffsetBox, ChunkOffsetBox);
 
 struct __ABE_HIDDEN SyncSampleBox : public FullBox {
+    Vector<uint32_t>    entries;
+
     __ABE_INLINE SyncSampleBox() : FullBox("stss") { }
     status_t parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
-    Vector<uint32_t>    entries;
 };
 
 struct __ABE_HIDDEN ShadowSyncSampleBox : public FullBox {
-    __ABE_INLINE ShadowSyncSampleBox() : FullBox("stsh") { }
-    status_t parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
     struct Entry {
         uint32_t        shadowed_sample_number;
         uint32_t        sync_sample_number;
     };
     Vector<Entry>       entries;
+    
+    __ABE_INLINE ShadowSyncSampleBox() : FullBox("stsh") { }
+    status_t parse(const BitReader&, size_t, const FileTypeBox&);
+    void compose(BitWriter&, const FileTypeBox&);
 };
 
 struct __ABE_HIDDEN DegradationPriorityBox : public FullBox {
+    Vector<uint16_t>    entries;
+
     __ABE_INLINE DegradationPriorityBox() : FullBox("stdp") { }
     status_t parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
-    Vector<uint16_t>    entries;
 };
 
 struct __ABE_HIDDEN PaddingBitsBox : public FullBox {
-    __ABE_INLINE PaddingBitsBox() : FullBox("padb") { }
-    status_t parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
     struct Entry {
         uint8_t     pad1;
         uint8_t     pad2;
     };
     Vector<Entry>   entries;
+    
+    __ABE_INLINE PaddingBitsBox() : FullBox("padb") { }
+    status_t parse(const BitReader&, size_t, const FileTypeBox&);
+    void compose(BitWriter&, const FileTypeBox&);
 };
 
 struct __ABE_HIDDEN FreeSpaceBox : public Box {
@@ -536,9 +561,6 @@ BOX_TYPE("free", FreeBox, FreeSpaceBox);
 BOX_TYPE("skip", SkipBox, FreeSpaceBox);
 
 struct __ABE_HIDDEN EditListBox : public FullBox {
-    __ABE_INLINE EditListBox() : FullBox("elst") { }
-    status_t parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
     struct Entry {
         uint64_t        segment_duration;
         int64_t         media_time;
@@ -546,14 +568,19 @@ struct __ABE_HIDDEN EditListBox : public FullBox {
         uint16_t        media_rate_fraction;
     };
     Vector<Entry>       entries;
+    
+    __ABE_INLINE EditListBox() : FullBox("elst") { }
+    status_t parse(const BitReader&, size_t, const FileTypeBox&);
+    void compose(BitWriter&, const FileTypeBox&);
 };
 
 struct __ABE_HIDDEN NoticeBox : public FullBox {
+    String              language;
+    String              value;
+    
     __ABE_INLINE NoticeBox(const String& _name) : FullBox(_name) { }
     status_t parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
-    String              language;
-    String              value;
 };
 BOX_TYPE("cprt", CopyrightBox, NoticeBox);
 BOX_TYPE("titl", TitleBox, NoticeBox);
@@ -566,47 +593,52 @@ BOX_TYPE("loci", LocationBox, NoticeBox);
 BOX_TYPE("auth", AuthorBox, NoticeBox);
 
 struct __ABE_HIDDEN MovieExtendsHeaderBox : public FullBox {
+    uint64_t    fragment_duration;
+
     __ABE_INLINE MovieExtendsHeaderBox() : FullBox("mehd") { }
     status_t parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
-    uint64_t    fragment_duration;
 };
 
 struct __ABE_HIDDEN TrackExtendsBox : public FullBox {
-    __ABE_INLINE TrackExtendsBox() : FullBox("trex") { }
-    status_t parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
     uint32_t    track_ID;
     uint32_t    default_sample_description_index;
     uint32_t    default_sample_duration;
     uint32_t    default_sample_size;
     uint32_t    default_sample_flags;
+    
+    __ABE_INLINE TrackExtendsBox() : FullBox("trex") { }
+    status_t parse(const BitReader&, size_t, const FileTypeBox&);
+    void compose(BitWriter&, const FileTypeBox&);
 };
 
 struct __ABE_HIDDEN MovieFragmentHeaderBox : public FullBox {
+    uint32_t    sequence_number;
+
     __ABE_INLINE MovieFragmentHeaderBox() : FullBox("mfhd") { }
     status_t parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
-    uint32_t    sequence_number;
 };
 
 struct __ABE_HIDDEN TrackFragmentHeaderBox : public FullBox {
-    __ABE_INLINE TrackFragmentHeaderBox() : FullBox("tfhd") { }
-    status_t parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
     uint32_t    track_ID;
     uint64_t    base_data_offset;
     uint32_t    sample_description_index;
     uint32_t    default_sample_duration;
     uint32_t    default_sample_size;
     uint32_t    default_sample_flags;
+    
+    __ABE_INLINE TrackFragmentHeaderBox() : FullBox("tfhd") { }
+    status_t parse(const BitReader&, size_t, const FileTypeBox&);
+    void compose(BitWriter&, const FileTypeBox&);
 };
 
 struct __ABE_HIDDEN PrimaryItemBox : public FullBox {
+    uint16_t        item_ID;
+
     __ABE_INLINE PrimaryItemBox() : FullBox("pitm") { }
     status_t parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
-    uint16_t        item_ID;
 };
 
 // iTunes MetaData
@@ -627,23 +659,25 @@ struct __ABE_HIDDEN PrimaryItemBox : public FullBox {
 
 // mhdr
 struct __ABE_HIDDEN iTunesHeaderBox : public FullBox {
+    uint32_t        nextItemID;
+
     __ABE_INLINE iTunesHeaderBox() : FullBox("mhdr") { }
     status_t parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
-    uint32_t        nextItemID;
 };
 
 // FIXME: keys box seems have multi semantics
 #if 0
 struct __ABE_HIDDEN iTunesKeysBox : public FullBox {
-    __ABE_INLINE iTunesKeysBox() : FullBox("keys") { }
-    status_t parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
     struct Entry {
         String      Key_namespace;
         sp<Buffer>  Key_value;
     };
     Vector<Entry>   table;
+    
+    __ABE_INLINE iTunesKeysBox() : FullBox("keys") { }
+    status_t parse(const BitReader&, size_t, const FileTypeBox&);
+    void compose(BitWriter&, const FileTypeBox&);
 };
 #else
 BOX_TYPE("keys", iTunesItemKeysBox, CountedFullContainerBox);
@@ -651,10 +685,11 @@ BOX_TYPE("keys", iTunesItemKeysBox, CountedFullContainerBox);
 
 // mdta
 struct __ABE_HIDDEN iTunesStringBox : public Box {
+    String      value;
+
     __ABE_INLINE iTunesStringBox(const String& _name) : Box(_name) { }
     status_t parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
-    String      value;
 };
 BOX_TYPE("mdta", iTunesMediaDataBox, iTunesStringBox);
 
@@ -663,44 +698,48 @@ BOX_TYPE("mdta", iTunesMediaDataBox, iTunesStringBox);
 BOX_TYPE("ilst", iTunesItemListBox, ContainerBox);
 #else
 struct __ABE_HIDDEN iTunesItemListBox : public ContainerBox {
+    Vector<uint32_t>        key_index;
+
     __ABE_INLINE iTunesItemListBox() : ContainerBox("ilst") { }
     status_t parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
-    Vector<uint32_t>        key_index;
 };
 #endif
 
 // 'data'
 struct __ABE_HIDDEN iTunesDataBox : public Box {
-    __ABE_INLINE iTunesDataBox() : Box("data") { }
-    status_t parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
     uint32_t        Type_indicator;
     uint16_t        Country_indicator;      // ISO 3166
     uint16_t        Language_indicator;     // index or ISO 639-2/T
     sp<Buffer>      Value;
+    
+    __ABE_INLINE iTunesDataBox() : Box("data") { }
+    status_t parse(const BitReader&, size_t, const FileTypeBox&);
+    void compose(BitWriter&, const FileTypeBox&);
 };
 
 // ctry
 struct __ABE_HIDDEN CountryListBox : public FullBox {
-    __ABE_INLINE CountryListBox() : FullBox("ctry") { }
-    status_t parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
     struct Entry {
         Vector<uint16_t>    Countries;
     };
     Vector<Entry>   entries;
+    
+    __ABE_INLINE CountryListBox() : FullBox("ctry") { }
+    status_t parse(const BitReader&, size_t, const FileTypeBox&);
+    void compose(BitWriter&, const FileTypeBox&);
 };
 
 // lang
 struct __ABE_HIDDEN LanguageListBox : public FullBox {
-    __ABE_INLINE LanguageListBox() : FullBox("lang") { }
-    status_t parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
     struct Entry {
         Vector<uint16_t>    Languages;
     };
     Vector<Entry>           entries;
+    
+    __ABE_INLINE LanguageListBox() : FullBox("lang") { }
+    status_t parse(const BitReader&, size_t, const FileTypeBox&);
+    void compose(BitWriter&, const FileTypeBox&);
 };
 
 BOX_TYPE("\xa9nam", iTunesTitleItemBox, ContainerBox);
@@ -718,32 +757,36 @@ BOX_TYPE("tmpo", iTunesBPMItemBox, ContainerBox);
 BOX_TYPE("pgap", iTunesGaplessPlaybackBox, ContainerBox);
 
 struct __ABE_HIDDEN iTunesInfomationBox : public FullBox {
+    uint32_t        Item_ID;
+
     __ABE_INLINE iTunesInfomationBox() : FullBox("itif") { }
     status_t parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
-    uint32_t        Item_ID;
 };
 
 struct __ABE_HIDDEN iTunesNameBox : public Box {
+    String          Name;
+
     __ABE_INLINE iTunesNameBox() : Box("name") { }
     status_t parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
-    String          Name;
 };
 
 struct __ABE_HIDDEN iTunesMeanBox : public Box {
+    String          Mean;
+
     __ABE_INLINE iTunesMeanBox() : Box("mean") { }
     status_t parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
-    String          Mean;
 };
 
 struct __ABE_HIDDEN iTunesKeyDecBox : public Box {
+    String          Key_namespace;
+    sp<Buffer>      Key_value;
+    
     __ABE_INLINE iTunesKeyDecBox() : Box("keyd") { }
     status_t parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
-    String          Key_namespace;
-    sp<Buffer>      Key_value;
 };
 
 BOX_TYPE("----", iTunesCustomBox, ContainerBox);
@@ -751,18 +794,20 @@ BOX_TYPE("----", iTunesCustomBox, ContainerBox);
 //BOX_TYPE("mebx", TimedMetadataSampleDescriptionBox, CountedFullContainerBox);
 
 struct __ABE_HIDDEN ObjectDescriptorBox : public FullBox {
+    sp<Buffer> iods;
+
     __ABE_INLINE ObjectDescriptorBox() : FullBox("iods") { }
     status_t parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
-    sp<Buffer> iods;
 };
 
 struct __ABE_HIDDEN ID3v2Box : public FullBox {
+    String      language;
+    sp<Buffer>  ID3v2data;
+    
     __ABE_INLINE ID3v2Box() : FullBox("ID32") { }
     status_t parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
-    String      language;
-    sp<Buffer>  ID3v2data;
 };
 
 __ABE_HIDDEN sp<Box> MakeBoxByName(const String& name);

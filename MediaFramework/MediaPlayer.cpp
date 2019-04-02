@@ -550,6 +550,7 @@ struct __ABE_HIDDEN AVPlayer : public IMediaPlayer {
     }
 
     AVPlayer(const Message& options) : IMediaPlayer(), mLooper(Looper::Create("mp")), mState(kStateInvalid) {
+        mLooper->profile();
         mLooper->loop();
         MPContext *mpc = new MPContext(options);
         mLooper->bind(mpc);

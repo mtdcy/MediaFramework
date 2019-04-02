@@ -44,10 +44,6 @@
 #endif
 #include <SDL.h>
 
-#define EVENT_PREPARE       (SDL_USEREVENT + 1)
-#define EVENT_FRAME_READY   (SDL_USEREVENT + 2)
-#define EVENT_FLUSH         (SDL_USEREVENT + 3)
-
 #define DOUBLE_BUFFER 1
 //#define TEST_SCREEN
 #define MAIN_THREAD_RENDER
@@ -82,117 +78,97 @@ struct MPRenderPosition : public RenderPositionEvent {
     virtual String string() const { return "MPRenderPosition"; }
 };
 
-static void sendEvent(Uint32 type) {
-    SDL_Event event;
-    event.type = type;
-    SDL_PushEvent(&event);
-}
-
 static sp<MediaOut> g_out;
-static sp<MediaFrame> g_frame;
 static Message g_format;
-struct MediaOutProxy : public MediaOut {
-    MediaOutProxy() : MediaOut() { }
-    virtual ~MediaOutProxy() { }
-    virtual status_t status() const { return OK; }
-    virtual String string() const { return ""; }
-    virtual Message formats() const { return g_format; }
-    virtual status_t configure(const Message& options) { return INVALID_OPERATION; }
-    virtual status_t prepare(const Message& options) {
-        INFO("prepare => %s", options.string().c_str());
-        g_format = options;
-        sendEvent(EVENT_PREPARE);
-        return OK;
-    }
-    virtual status_t write(const sp<MediaFrame>& frame) {
-        g_frame = frame;
-        sendEvent(EVENT_FRAME_READY);
-        return OK;
-    }
-    virtual status_t flush() {
-        INFO("flush");
-        g_frame = NULL;
-        sendEvent(EVENT_FLUSH);
-        return OK;
+struct PrepareRunnable : public Runnable {
+    virtual void run() {
+        CHECK_TRUE(g_out->prepare(g_format) == kMediaNoError);
+        // have to make MediaOut accept this format
     }
 };
 
-static void handleReshape() {
-    sendEvent(EVENT_FRAME_READY);
-}
-
-static void handleDisplay() {
-    //INFO("display");
-    if (g_frame == NULL) return;
-    
-    //glViewport(0, 0, 800, 480);
-#ifdef TEST_SCREEN
-    glClearColor(0, 1.0, 0, 1.0);
-    glClear(GL_COLOR_BUFFER_BIT);
-    glFlush();
-#endif
-    
-    g_out->write(g_frame);
-    
-#if DOUBLE_BUFFER
-    SDL_GL_SwapWindow(window);
-#endif
-}
-
-static bool loop() {
-    SDL_Event event;
-    while (SDL_WaitEvent(&event)) {
-        switch (event.type) {
-            case EVENT_FRAME_READY:
-                handleDisplay();
-                break;
-            case EVENT_PREPARE:
-                CHECK_TRUE(g_out->prepare(g_format) == OK);
-                break;
-            case EVENT_FLUSH:
-                CHECK_TRUE(g_out->flush() == OK);
-                break;
-            case SDL_QUIT:
-                INFO("quiting...");
-                return false;
-            case SDL_KEYUP:
-                switch (event.key.keysym.sym) {
-                    case SDLK_SPACE:
-                        if (mp->state() == kStatePlaying)
-                            mp->pause();
-                        else {
-                            if (mp->state() != kStateReady)
-                                mp->prepare(kTimeBegin);
-                            mp->start();
-                        }
-                        break;
-                    case SDLK_q:
-                    case SDLK_ESCAPE:
-                        mp->flush();
-                        break;
-                }
-                break;
-            case SDL_WINDOWEVENT:
-                switch (event.window.type) {
-                    case SDL_WINDOWEVENT_RESIZED:
-                    case SDL_WINDOWEVENT_EXPOSED:
-                        handleReshape();
-                } break;
-            case SDL_MOUSEBUTTONDOWN:
-            case SDL_MOUSEMOTION:
-            case SDL_MOUSEBUTTONUP:
-            default:
-                break;
-        }
-    }
-    return true;
-}
-
-struct MainRunnable : public Runnable {
+struct DisplayRunnable : public Runnable {
+    sp<MediaFrame>  frame;
+    DisplayRunnable(const sp<MediaFrame>& _frame) : frame(_frame) { }
     virtual void run() {
-        if (loop()) {
-            Looper::Main()->post(new MainRunnable);
+        //glViewport(0, 0, 800, 480);
+#ifdef TEST_SCREEN
+        glClearColor(0, 1.0, 0, 1.0);
+        glClear(GL_COLOR_BUFFER_BIT);
+        glFlush();
+#endif
+        if (frame == NULL) return;
+
+        g_out->write(frame);
+        
+#if DOUBLE_BUFFER
+        SDL_GL_SwapWindow(window);
+#endif
+    }
+};
+
+struct FlushRunnable : public Runnable {
+    virtual void run() {
+        g_out->flush();
+    }
+};
+
+struct MediaOutProxy : public MediaOut {
+    MediaOutProxy() : MediaOut() { }
+    virtual ~MediaOutProxy() { }
+    virtual MediaError status() const                       { return kMediaNoError; }
+    virtual String string() const                           { return ""; }
+    virtual Message formats() const                         { return g_format; }
+    virtual MediaError configure(const Message& options)    { return kMediaErrorInvalidOperation; }
+    virtual MediaError prepare(const Message& options)      { g_format = options; Looper::Main()->post(new PrepareRunnable); return kMediaNoError; }
+    virtual MediaError write(const sp<MediaFrame>& frame)   { Looper::Main()->post(new DisplayRunnable(frame)); return kMediaNoError; }
+    virtual MediaError flush()                              { Looper::Main()->post(new FlushRunnable); return kMediaNoError; }
+};
+
+struct SDLRunnable : public Runnable {
+    virtual void run() {
+        SDL_Event event;
+        while (SDL_PollEvent(&event)) {
+            switch (event.type) {
+                case SDL_QUIT:
+                    INFO("quiting...");
+                    Looper::Main()->terminate();
+                    return;
+                case SDL_KEYUP:
+                    INFO("sdl keyup %s", SDL_GetKeyName(event.key.keysym.sym));
+                    switch (event.key.keysym.sym) {
+                        case SDLK_SPACE:
+                            if (mp->state() == kStatePlaying)
+                                mp->pause();
+                            else {
+                                if (mp->state() != kStateReady)
+                                    mp->prepare(kTimeBegin);
+                                mp->start();
+                            }
+                            break;
+                        case SDLK_q:
+                        case SDLK_ESCAPE:
+                            mp->flush();
+                            break;
+                    }
+                    break;
+                case SDL_WINDOWEVENT:
+#if 0
+                    switch (event.window.type) {
+                        case SDL_WINDOWEVENT_RESIZED:
+                        case SDL_WINDOWEVENT_EXPOSED:
+                            handleReshape();
+                    } break;
+#endif
+                case SDL_MOUSEBUTTONDOWN:
+                case SDL_MOUSEMOTION:
+                case SDL_MOUSEBUTTONUP:
+                default:
+                    break;
+            }
         }
+        
+        Looper::Main()->post(new SDLRunnable, 200 * 1000LL);
     }
 };
 
@@ -261,7 +237,8 @@ int main (int argc, char **argv) {
         // loop
         //loop();
         sp<Looper> mainLooper = Looper::Main();
-        mainLooper->post(new MainRunnable);
+        mainLooper->profile();
+        mainLooper->post(new SDLRunnable);
         mainLooper->loop();
         
         // clearup
@@ -278,7 +255,6 @@ int main (int argc, char **argv) {
         
         // clear static context
         g_out.clear();
-        g_frame.clear();
         g_format.clear();
         
         // quit sdl

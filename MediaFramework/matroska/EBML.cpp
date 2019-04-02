@@ -107,7 +107,6 @@ static __ABE_INLINE EBMLInteger EBMLGetInteger(BitReader& br) {
     return vint;
 }
 
-
 // vint with or without leading 1-bit
 static __ABE_INLINE EBMLInteger EBMLGetInteger(BitReader& br, size_t n) {
     CHECK_GT(n, 0);
@@ -329,7 +328,7 @@ String EBMLBlockElement::string() const {
             (size_t)TrackNumber.u64, TimeCode, Flags);
 }
 
-static sp<EBMLElement> MakeEBMLElement(EBMLInteger);
+static __ABE_INLINE sp<EBMLElement> MakeEBMLElement(EBMLInteger);
 
 status_t EBMLMasterElement::parse(BitReader& br, size_t size) {
     size_t remains = size;
@@ -370,7 +369,6 @@ status_t EBMLMasterElement::parse(BitReader& br, size_t size) {
 
 String EBMLMasterElement::string() const {
     return String::format("%zu children", children.size());
-
 }
 
 #define ITEM(X, T)  { .NAME = #X, .ID = ID_##X, .TYPE = T   }
@@ -536,8 +534,7 @@ static const struct {
 };
 #define NELEM(x)    sizeof(x)/sizeof(x[0])
 
-
-static sp<EBMLElement> MakeEBMLElement(EBMLInteger id) {
+static __ABE_INLINE sp<EBMLElement> MakeEBMLElement(EBMLInteger id) {
     for (size_t i = 0; i < NELEM(ELEMENTS); ++i) {
         if (ELEMENTS[i].ID == id.u64) {
             //DEBUG("make element %s[%#x]", ELEMENTS[i].NAME, ELEMENTS[i].ID);

@@ -37,7 +37,6 @@
 #include <ABE/ABE.h>
 
 #include "MediaSession.h"
-#include "sdl2/SDLAudio.h"
 
 // TODO: calc count based on duration
 // max count: 1s
@@ -414,7 +413,7 @@ struct __ABE_HIDDEN RenderSession : public MediaSession {
                 mOut = MediaOut::Create(kCodecTypeVideo);
             }
 
-            if (mOut->prepare(format) != OK) {
+            if (mOut->prepare(format) != kMediaNoError) {
                 ERROR("track %zu: create out failed", mID);
                 return;
             }
@@ -424,9 +423,9 @@ struct __ABE_HIDDEN RenderSession : public MediaSession {
                 mColorConvertor = new ColorConvertor(pixFmtAccepted);
             }
         } else if (type == kCodecTypeAudio) {
-            mOut = new SDLAudio();
+            mOut = MediaOut::Create(kCodecTypeAudio);
 
-            if (mOut->prepare(format) != OK) {
+            if (mOut->prepare(format) != kMediaNoError) {
                 ERROR("track %zu: create out failed", mID);
                 return;
             }
@@ -657,43 +656,47 @@ struct __ABE_HIDDEN RenderSession : public MediaSession {
         // -> onRender
     }
 
-    int64_t renderCurrent() {
+    // render current frame
+    // return negtive value if render current frame too early
+    // return postive value for next frame render time
+    __ABE_INLINE int64_t renderCurrent() {
         DEBUG("renderer %zu: render with %zu frame ready", mID, mOutputQueue.size());
 
         sp<MediaFrame> frame = *mOutputQueue.begin();
         CHECK_TRUE(frame != NULL);
-
-        // render too early ?
-        if (mClock != NULL && mClock->role() == kClockRoleSlave) {
-            int64_t delay = frame->pts.useconds() - mClock->get().useconds();
-            if (delay < -REFRESH_RATE) {
-                WARN("renderer %zu: render late by %.3f(s)|%.3f(s), drop frame...",
-                        mID, -delay/1E6, frame->pts.seconds());
-                mOutputQueue.pop();
-                return -delay;
-            } else if (delay > REFRESH_RATE / 2) {
-                // FIXME: sometimes render too early for unknown reason
-                INFO("renderer %zu: overrun by %.3f(s)|%.3f(s)...",
-                        mID, delay/1E6, frame->pts.seconds());
-                return -delay;
+        
+        if (mClock != NULL) {
+            // check render time
+            if (mClock->role() == kClockRoleSlave) {
+                // render too early or late ?
+                int64_t late = mClock->get().useconds() - frame->pts.useconds();
+                if (late > REFRESH_RATE) {
+                    // render late: drop current frame
+                    WARN("renderer %zu: render late by %.3f(s)|%.3f(s), drop frame... [%zu]",
+                         mID, late/1E6, frame->pts.seconds(), mOutputQueue.size());
+                    mOutputQueue.pop();
+                    return 0;
+                } else if (late < -REFRESH_RATE/2) {
+                    // FIXME: sometimes render too early for unknown reason
+                    DEBUG("renderer %zu: overrun by %.3f(s)|%.3f(s)...",
+                         mID, -late/1E6, frame->pts.seconds());
+                    return -late;
+                }
             }
         }
 
         DEBUG("renderer %zu: render frame %.3f(s)", mID, frame->pts.seconds());
-        status_t rt = mOut->write(frame);
-
-        CHECK_TRUE(rt == OK); // always eat frame
+        MediaError rt = mOut->write(frame);
+        CHECK_TRUE(rt == kMediaNoError); // always eat frame
         mOutputQueue.pop();
-
         ++mFramesRenderred;
-
-        int64_t realTime = SystemTimeUs();
-
-        // update clock
-        if (mClock != NULL && mClock->role() == kClockRoleMaster
-                && !mClock->isTicking()) {
+        
+        // setup clock to tick if we are master clock
+        // FIXME: if current frame is too big, update clock after write will cause clock advance too far
+        if (mClock != NULL && mClock->role() == kClockRoleMaster && !mClock->isTicking()) {
+            const int64_t realTime = SystemTimeUs();
             INFO("renderer %zu: update clock %.3f(s)+%.3f(s)",
-                    mID, frame->pts.seconds(), realTime / 1E6);
+                 mID, frame->pts.seconds(), realTime / 1E6);
             mClock->update(frame->pts - mLatency, realTime);
         }
 
@@ -706,32 +709,26 @@ struct __ABE_HIDDEN RenderSession : public MediaSession {
         }
 
         // next frame render time.
-        if (mClock != NULL && mOutputQueue.size()) {
-            sp<MediaFrame> next = *mOutputQueue.begin();
-            int64_t delay = next->pts.useconds() - mClock->get().useconds();
-            if (delay < 0) {
-                if (delay > REFRESH_RATE)
-                    WARN("renderer %zu: frame late by %.3f(s)|%.3f(s)",
-                            mID, -delay/1E6, next->pts.seconds());
-                delay = 0;
-            } else if (delay < REFRESH_RATE / 2) {
-                delay = 0;
-            } else {
-                DEBUG("renderer %zu: render next frame %.3f(s)|%.3f(s) later",
-                        mID, delay/1E6, next->pts.seconds());
+        if (mOutputQueue.size()) {
+            if (mClock == NULL) {
+                // if no clock exists, render next immediately
+                return 0;
             }
-            return delay;
+        
+            sp<MediaFrame> next = mOutputQueue.front();
+            MediaTime delay = next->pts - mClock->get();
+            if (delay < kTimeBegin) return 0;
+            else                    return delay.useconds();
         } else if (mOutputEOS) {
             INFO("renderer %zu: eos...", mID);
             // tell out device about eos
             mOut->write(NULL);
-
+            
             if (mPositionEvent != NULL) {
                 mPositionEvent->fire(kTimeEnd);
             }
-        } else if (mClock != NULL) {
-            WARN("renderer %zu: codec slightly underrun...", mID);
         }
+        INFO("refresh rate");
         return REFRESH_RATE;
     }
 

@@ -426,7 +426,7 @@ struct __ABE_HIDDEN Mp4File : public MediaExtractor {
             }
 
             if (trak.esds != NULL) {
-                trakInfo.set<Buffer>(trak.esds->name, *trak.esds->data);
+                trakInfo.setObject(trak.esds->name, trak.esds->data);
             }
 
 #if 0

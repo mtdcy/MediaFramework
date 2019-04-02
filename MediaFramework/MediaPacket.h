@@ -55,6 +55,7 @@ struct __ABE_EXPORT MediaPacket : public SharedObject {
     MediaTime           dts;        ///< packet decoding time
     MediaTime           pts;        ///< packet presentation time
 
+    sp<Message>         properties; ///< extra properties of current frame
     void *              opaque;     ///< opaque
 
 #ifdef __cplusplus

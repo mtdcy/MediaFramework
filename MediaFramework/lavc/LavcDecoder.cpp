@@ -93,6 +93,11 @@ static AVCodecID get_av_codec_id(eCodecFormat a) {
     return AV_CODEC_ID_NONE;
 }
 
+#ifdef __APPLE__
+#define HWACCEL_PIX_FMT     AV_PIX_FMT_VIDEOTOOLBOX
+#else
+#define HWACCEL_PIX_FMT     AV_PIX_FMT_NONE     // TODO
+#endif
 struct {
     ePixelFormat    a;
     AVPixelFormat   b;
@@ -103,7 +108,9 @@ struct {
     {kPixelFormatRGB565,        AV_PIX_FMT_RGB565},
     {kPixelFormatRGB888,        AV_PIX_FMT_RGB24},
     // Hardware accel
+#ifdef __APPLE__
     {kPixelFormatNV12,          AV_PIX_FMT_VIDEOTOOLBOX},
+#endif
     // END OF LIST
     {kPixelFormatUnknown,       AV_PIX_FMT_NONE}
 };
@@ -113,7 +120,7 @@ static ePixelFormat get_pix_format(AVPixelFormat b) {
         if (kPixelMap[i].b == b)
             return kPixelMap[i].a;
     }
-    FATAL("fix the map <= %s", av_get_pix_fmt_name(b));
+    ERROR("fix the map <= %s", av_get_pix_fmt_name(b));
     return kPixelFormatUnknown;
 }
 
@@ -264,7 +271,6 @@ static status_t setupHwAccelContext(AVCodecContext *avcc) {
 
     INFO("supported hwaccel: ");
     AVBufferRef *hw_device_ctx = NULL;
-    AVBufferRef *hw_frame_ctx = NULL;
     for (int i = 0; ; ++i) {
         const AVCodecHWConfig *hwc = avcodec_get_hw_config(avcc->codec, i);
         if (hwc == NULL) break;
@@ -331,41 +337,39 @@ static status_t setupExtraData(AVCodecContext *avcc, const Message& formats) {
     // different extra data for  different decoder
     switch (avcc->codec->id) {
         case AV_CODEC_ID_AAC:
-            if (formats.contains("esds")) {
-                const Buffer& esds = formats.find<Buffer>("esds");
-                parseESDS(avcc, esds);
+            if (formats.contains(kKeyESDS)) {
+                sp<Buffer> esds = formats.findObject(kKeyESDS);
+                parseESDS(avcc, *esds);
                 // aac sbr have real sample rate in AudioSpecificConfig
                 // but, DON'T fix avcc->sample_rate here
-            } else if (formats.contains("csd")) {
-                const Buffer& csd = formats.find<Buffer>("csd");
-                parseAudioSpecificConfig(avcc, csd);
+            } else if (formats.contains(kKeyCodecSpecificData)) {
+                sp<Buffer> csd = formats.findObject(kKeyCodecSpecificData);
+                parseAudioSpecificConfig(avcc, *csd);
             } else {
                 ERROR("missing esds|csd for aac");
                 return UNKNOWN_ERROR;
             }
             break;
         case AV_CODEC_ID_H264:
-            if (formats.contains("avcC")) {
-                const Buffer& avcC = formats.find<Buffer>("avcC");
+            if (formats.contains(kKeyavcC)) {
+                sp<Buffer> avcC = formats.findObject(kKeyavcC);
                 // h264 decoder
-                avcc->extradata_size = avcC.size();
+                avcc->extradata_size = avcC->size();
                 avcc->extradata = (uint8_t*)av_mallocz(avcc->extradata_size +
                         AV_INPUT_BUFFER_PADDING_SIZE);
-                memcpy(avcc->extradata, avcC.data(),
-                        avcc->extradata_size);
+                memcpy(avcc->extradata, avcC->data(), avcc->extradata_size);
             } else {
                 ERROR("missing avcC for h264");
                 return UNKNOWN_ERROR;
             }
             break;
         case AV_CODEC_ID_HEVC:
-            if (formats.contains("hvcC")) {
-                const Buffer& hvcC = formats.find<Buffer>("hvcC");
-                avcc->extradata_size = hvcC.size();
+            if (formats.contains(kKeyhvcC)) {
+                sp<Buffer> hvcC = formats.findObject(kKeyhvcC);
+                avcc->extradata_size = hvcC->size();
                 avcc->extradata = (uint8_t*)av_mallocz(avcc->extradata_size +
                         AV_INPUT_BUFFER_PADDING_SIZE);
-                memcpy(avcc->extradata, hvcC.data(),
-                        avcc->extradata_size);
+                memcpy(avcc->extradata, hvcC->data(), avcc->extradata_size);
             } else {
                 ERROR("missing hvcC for hevc");
                 return UNKNOWN_ERROR;
@@ -414,6 +418,209 @@ void av_log_callback(void *avcl, int level, const char *fmt, va_list vl) {
     INFO("%s", line);
 }
 
+static __ABE_INLINE void releaseContext(AVCodecContext * avcc) {
+    if (avcc) {
+#if 0 // no need to free hwaccel_context manually
+        if (avcc->hwaccel_context) {
+#ifdef __APPLE__
+            av_videotoolbox_default_free(avcc);
+#else
+            FATAL("FIXME: free hwaccel context");
+#endif
+        }
+#endif
+        avcodec_free_context(&avcc);
+    }
+}
+
+static __ABE_INLINE MediaError openAudio(AVCodecContext * avcc, const Message& formats, const Message& options) {
+    AVSampleFormat best_match   = AV_SAMPLE_FMT_S16;
+    AVSampleFormat sample_fmt   = get_av_sample_format((eSampleFormat)options.findInt32(kKeyRequestFormat, kSampleFormatS16));
+    
+    if (avcc->codec->sample_fmts) {
+        best_match   = avcc->codec->sample_fmts[0];
+        for (size_t i = 0; avcc->codec->sample_fmts[i] != AV_SAMPLE_FMT_NONE; ++i) {
+            if (avcc->codec->sample_fmts[i] == sample_fmt) {
+                best_match = avcc->codec->sample_fmts[i];
+                break;
+            }
+        }
+    }
+    
+    avcc->channels              = formats.findInt32(kKeyChannels);
+    avcc->sample_rate           = formats.findInt32(kKeySampleRate);
+    avcc->request_channel_layout = AV_CH_LAYOUT_STEREO;
+    avcc->request_sample_fmt    = best_match;
+    
+    int ret = avcodec_open2(avcc, NULL, NULL);
+    
+    if (ret < 0) {
+        char err_str[64];
+        ERROR("%s: avcodec_open2 failed, error %s", avcodec_get_name(avcc->codec_id),
+              av_make_error_string(err_str, 64, ret));
+        return kMediaErrorUnknown;
+    }
+    
+    INFO("codec %s open success with %d threads, type %d",
+         avcc->codec->name,
+         avcc->thread_count,
+         avcc->active_thread_type);
+    
+    INFO("sample_fmt %s", av_get_sample_fmt_name(avcc->sample_fmt));
+    INFO("channels %d, channel layout %d", avcc->channels, avcc->channel_layout);
+    INFO("sample_rate %d", avcc->sample_rate);
+    
+    return kMediaNoError;
+}
+
+MediaError openVideo(AVCodecContext * avcc, eModeType mode, const Message& formats, const Message& options) {
+    bool hwaccel = mode != kModeTypeSoftware;
+    
+    // find best pixel format
+    AVPixelFormat best_match = AV_PIX_FMT_YUV420P;
+    AVPixelFormat pix_fmt   = get_av_pix_format((ePixelFormat)options.findInt32(kKeyRequestFormat, kPixelFormatYUV420P));
+    if (avcc->codec->pix_fmts) {
+        best_match = avcc->codec->pix_fmts[0];
+        for (size_t i = 0; avcc->codec->pix_fmts[i] != AV_PIX_FMT_NONE; ++i) {
+            if (avcc->codec->pix_fmts[i] == pix_fmt) {
+                best_match = pix_fmt;
+                break;
+            }
+        }
+    } else {
+        struct {
+            AVCodecID       codec;
+            AVPixelFormat   pixel;
+        } kMap[] = {
+            {AV_CODEC_ID_H264,      AV_PIX_FMT_YUV420P  },
+            {AV_CODEC_ID_NONE,      AV_PIX_FMT_NONE     },
+        };
+        for (size_t i = 0; kMap[i].codec != AV_CODEC_ID_NONE; ++i) {
+            if (kMap[i].codec == avcc->codec->id) {
+                best_match = kMap[i].pixel;
+                break;
+            }
+        }
+    }
+    
+    // setup context
+    avcc->width                 = formats.findInt32(kKeyWidth);
+    avcc->height                = formats.findInt32(kKeyHeight);
+    avcc->coded_width           = avcc->width;
+    avcc->coded_height          = avcc->height;
+    avcc->pix_fmt               = best_match;
+    
+    if (hwaccel) setupHwAccelContext(avcc);
+    
+    int ret = avcodec_open2(avcc, NULL, NULL);
+    
+    if (ret < 0) {
+        char err_str[64];
+        ERROR("%s: avcodec_open2 failed, error %s", avcodec_get_name(avcc->codec_id),
+              av_make_error_string(err_str, 64, ret));
+        return kMediaErrorUnknown;
+    }
+    
+    INFO("codec %s open success with %d threads, type %d",
+         avcc->codec->name,
+         avcc->thread_count,
+         avcc->active_thread_type);
+    
+    INFO("w %d h %d, codec w %d h %d", avcc->width, avcc->height,
+         avcc->coded_width, avcc->coded_height);
+    INFO("pix_fmt %s", av_get_pix_fmt_name(avcc->pix_fmt));
+#if 0
+    // XXX: avcc->hwaccel is init after avcodec_open by libavcodec
+    // FIXME: how to known wether hw init successful or not
+    if (avcc->hwaccel) {
+        INFO("hwaccel: %s %s %s",
+             avcc->hwaccel,
+             avcodec_get_name(avcc->hwaccel->id),
+             av_get_pix_fmt_name(avcc->hwaccel->pix_fmt));
+    } else {
+        if (hwaccel) {
+            WARN("initial hwaccel failed");
+        } else {
+            INFO("no hwaccel");
+        }
+    }
+#endif
+    // FIXME:
+    if (get_pix_format(avcc->hw_device_ctx ? HWACCEL_PIX_FMT : avcc->pix_fmt) == kPixelFormatUnknown) {
+        ERROR("pixel format %s is not supported", av_get_pix_fmt_name(avcc->pix_fmt));
+        return kMediaErrorNotSupported;
+    }
+    
+    return kMediaNoError;
+}
+
+static AVCodecContext * initContext(eModeType mode, const Message& formats, const Message& options) {
+    CHECK_TRUE(formats.contains(kKeyFormat));
+    
+#if LOG_NDEBUG == 0
+    av_log_set_level(AV_LOG_VERBOSE);
+    av_log_set_callback(av_log_callback);
+#endif
+    
+    eCodecFormat codec = (eCodecFormat)formats.findInt32(kKeyFormat);
+    eCodecType type = GetCodecType(codec);
+    AVCodecID id = get_av_codec_id(codec);
+    
+    INFO("[%#x] -> [%s]", codec, avcodec_get_name(id));
+    
+    AVCodec *avc = avcodec_find_decoder(id);
+    if (id == AV_CODEC_ID_AAC) {
+        avc = avcodec_find_decoder_by_name("aac_fixed");
+    }
+    if (!avc) {
+        ERROR("can't find codec for %s", avcodec_get_name(id));
+        return NULL;
+    }
+    
+    AVCodecContext *avcc = avcodec_alloc_context3(avc);
+    if (!avcc) {
+        ERROR("[OOM] alloc context failed");
+        return NULL;
+    }
+    
+    setupExtraData(avcc, formats);
+    
+    // setup ffmpeg common context
+    avcc->workaround_bugs       = FF_BUG_AUTODETECT;
+    avcc->lowres                = 0;
+    avcc->idct_algo             = FF_IDCT_AUTO;
+    avcc->skip_frame            = AVDISCARD_DEFAULT;
+    avcc->skip_idct             = AVDISCARD_DEFAULT;
+    avcc->skip_loop_filter      = AVDISCARD_DEFAULT;
+    avcc->error_concealment     = 3;
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(57,106,102)
+    avcc->refcounted_frames     = 1;
+#endif
+    if (mode != kModeTypePreview) {
+        avcc->thread_count      = GetCpuCount() + 1;
+        avcc->thread_type       = FF_THREAD_FRAME | FF_THREAD_SLICE;
+    } else {
+        avcc->thread_count      = 1;
+    }
+    
+    MediaError st = kMediaNoError;
+    if (type == kCodecTypeAudio) {
+        st = openAudio(avcc, formats, options);
+    } else if (type == kCodecTypeVideo) {
+        st = openVideo(avcc, mode, formats, options);
+    } else {
+        ERROR("unknown codec type %#x", type);
+        st = kMediaErrorNotSupported;
+    }
+    
+    if (st != kMediaNoError) {
+        releaseContext(avcc);
+        return NULL;
+    }
+    
+    return avcc;
+}
+
 #ifdef __APPLE__
 sp<MediaFrame> readVideoToolboxFrame(CVPixelBufferRef);
 #endif
@@ -434,141 +641,14 @@ struct __ABE_HIDDEN LavcDecoder : public MediaDecoder {
     mOutputCount(0) { }
 
     virtual ~LavcDecoder() {
-        AVCodecContext *avcc = mContext;
-        if (avcc) {
-#if 0 // no need to free hwaccel_context manually
-            if (avcc->hwaccel_context) {
-#ifdef __APPLE__
-                av_videotoolbox_default_free(avcc);
-#else
-                FATAL("FIXME: free hwaccel context");
-#endif
-            }
-#endif
-            avcodec_free_context(&avcc);
-        }
+        releaseContext(mContext);
+        mContext = NULL;
     }
 
     virtual MediaError init(const Message& formats, const Message& options) {
-        CHECK_TRUE(formats.contains(kKeyFormat));
-
-#if LOG_NDEBUG == 0
-        av_log_set_callback(av_log_callback);
-#endif
-
-        eCodecFormat codec = (eCodecFormat)formats.findInt32(kKeyFormat);
-        eCodecType type = GetCodecType(codec);
-
-        bool hwaccel = mMode != kModeTypeSoftware;
-
-        AVCodecID id = get_av_codec_id(codec);
-
-        INFO("[%#x] -> [%s]", codec, avcodec_get_name(id));
-
-        AVCodec *avc = avcodec_find_decoder(id);
-#if 0
-        if (id == AV_CODEC_ID_AAC) {
-            avc = avcodec_find_decoder_by_name("aac_fixed");
-        }
-#endif
-        if (!avc) {
-            ERROR("can't find codec for %s", avcodec_get_name(id));
-            return kMediaErrorNotSupported;
-        }
-
-        AVCodecContext *avcc = avcodec_alloc_context3(avc);
-        if (!avcc) {
-            ERROR("[OOM] alloc context failed");
-            return kMediaErrorUnknown;
-        }
-
-        if (type == kCodecTypeAudio) {
-            avcc->channels              = formats.findInt32(kKeyChannels);
-            avcc->sample_rate           = formats.findInt32(kKeySampleRate);
-            //avcc->bit_rate              = formats.findInt32(Media::Bitrate);
-            avcc->request_channel_layout = AV_CH_LAYOUT_STEREO;
-        } else if (type == kCodecTypeVideo) {
-            avcc->width                 = formats.findInt32(kKeyWidth);
-            avcc->height                = formats.findInt32(kKeyHeight);
-            // FIXME: set right pixel format
-            avcc->pix_fmt               = AV_PIX_FMT_YUV420P;
-        } else {
-            ERROR("unknown codec type %#x", type);
-            avcodec_free_context(&avcc);
-            return kMediaErrorNotSupported;
-        }
-
-        // FIXME:
-        //int32_t timescale = formats.findInt32(Media::Timescale, 1000000LL);
-        //avcc->pkt_timebase.num = 1;
-        //avcc->pkt_timebase.den = timescale;
-
-        // after all other parameters.
-        // information in csd may override others.
-        setupExtraData(avcc, formats);
-
-        // setup ffmpeg context
-        avcc->workaround_bugs       = FF_BUG_AUTODETECT;
-        avcc->lowres                = 0;
-        avcc->idct_algo             = FF_IDCT_AUTO;
-        avcc->skip_frame            = AVDISCARD_DEFAULT;
-        avcc->skip_idct             = AVDISCARD_DEFAULT;
-        avcc->skip_loop_filter      = AVDISCARD_DEFAULT;
-        avcc->error_concealment     = 3;
-#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(57,106,102)
-        avcc->refcounted_frames     = 1;
-#endif
-        if (mMode != kModeTypePreview) {
-            avcc->thread_count      = GetCpuCount() + 1;
-            avcc->thread_type       = FF_THREAD_FRAME | FF_THREAD_SLICE;
-        } else {
-            avcc->thread_count      = 1;
-        }
-
-        if (type == kCodecTypeAudio) {
-            avcc->request_sample_fmt    = AV_SAMPLE_FMT_S16;
-        } else if (type == kCodecTypeVideo) {
-            if (hwaccel) {
-                setupHwAccelContext(avcc);
-            }
-        }
-
-        int ret = avcodec_open2(avcc, NULL, NULL);
-
-        if (ret < 0) {
-            char err_str[64];
-            ERROR("%s: avcodec_open2 failed, error %s", avcodec_get_name(avcc->codec_id),
-                    av_make_error_string(err_str, 64, ret));
-            avcodec_free_context(&avcc);
-            return kMediaErrorUnknown;
-        }
-
-        INFO("codec %s open success with %d threads, type %d",
-                avcc->codec->name,
-                avcc->thread_count,
-                avcc->active_thread_type);
-#if 1 // LOG_NDEBUG == 0
-        if (type == kCodecTypeVideo) {
-            INFO("w %d h %d, codec w %d h %d", avcc->width, avcc->height,
-                    avcc->coded_width, avcc->coded_height);
-            INFO("gop %d", avcc->gop_size);
-            INFO("pix_fmt %s", av_get_pix_fmt_name(avcc->pix_fmt));
-            if (avcc->hwaccel) {
-                INFO("hwaccel: %s %s %s",
-                        avcc->hwaccel,
-                        avcodec_get_name(avcc->hwaccel->id),
-                        av_get_pix_fmt_name(avcc->hwaccel->pix_fmt));
-            } else {
-                INFO("no hwaccel");
-            }
-        } else if (type == kCodecTypeAudio) {
-            INFO("channels %d, channel layout %d, sample rate %d",
-                    avcc->channels, avcc->channel_layout, avcc->sample_rate);
-        }
-#endif
-
-        mContext = avcc;
-        return kMediaNoError;
+        mContext = initContext(mMode, formats, options);
+        if (mContext)   return kMediaNoError;
+        else            return kMediaErrorNotSupported;
     }
 
     virtual Message formats() const {
@@ -594,7 +674,7 @@ struct __ABE_HIDDEN LavcDecoder : public MediaDecoder {
                 }
             }
         } else if (avcc->codec_type == AVMEDIA_TYPE_VIDEO) {
-            formats.setInt32(kKeyFormat, get_pix_format(avcc->pix_fmt));
+            formats.setInt32(kKeyFormat, get_pix_format(avcc->hw_device_ctx ? HWACCEL_PIX_FMT : avcc->pix_fmt));
             formats.setInt32(kKeyWidth, avcc->width);
             formats.setInt32(kKeyHeight, avcc->height);
         } else {

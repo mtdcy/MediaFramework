@@ -403,8 +403,9 @@ struct __ABE_HIDDEN Mp3Packetizer : public MediaPacketizer {
     bool        mFlushing;
     MediaTime   mAnchorTime;
     MediaTime   mFrameTime;
+    sp<Message> mProperties;
 
-    Mp3Packetizer() : mBuffer(4096, eBufferFlags(BUFFER_DEFAULT | BUFFER_RING)),
+    Mp3Packetizer() : MediaPacketizer(), mBuffer(4096, kBufferTypeRing),
     mCommonHead(0), mNeedMoreData(true), mFlushing(false) { }
 
     virtual ~Mp3Packetizer() { }
@@ -467,6 +468,9 @@ struct __ABE_HIDDEN Mp3Packetizer : public MediaPacketizer {
             DEBUG("common header %#x", mCommonHead);
 
             mFrameTime = MediaTime(mpa.samplesPerFrame, mpa.sampleRate);
+            mProperties = new Message;
+            mProperties->setInt32(kKeyChannels, mpa.numChannels);
+            mProperties->setInt32(kKeySampleRate, mpa.sampleRate);
         }
 
         size_t possible = 0;
@@ -496,15 +500,16 @@ struct __ABE_HIDDEN Mp3Packetizer : public MediaPacketizer {
         mBuffer.read((char*)packet->data, mpa.frameLengthInBytes);
         CHECK_EQ(mpa.frameLengthInBytes, packet->size);
 
-        mAnchorTime     += mFrameTime;
-        packet->pts     = mAnchorTime;
-        packet->dts     = mAnchorTime;
-        packet->flags   = kFrameFlagSync;
-        packet->format  = kAudioCodecFormatMP3;
+        mAnchorTime         += mFrameTime;
+        packet->pts         = mAnchorTime;
+        packet->dts         = mAnchorTime;
+        packet->flags       = kFrameFlagSync;
+        packet->format      = kAudioCodecFormatMP3;
+        packet->properties  = mProperties;
 
         return packet;
     }
-
+    
     virtual void flush() {
         mBuffer.reset();
         mCommonHead = 0;
@@ -817,5 +822,14 @@ __ABE_HIDDEN ssize_t locateFirstFrame(const Buffer& data, size_t *frameLength) {
     *frameLength    = mpa.frameLengthInBytes;
     return offset;
 }
+
+__ABE_HIDDEN ssize_t decodeMPEG4AudioHeader(uint32_t head, uint32_t * sampleRate, uint32_t * numChannels) {
+    MPEGAudioFrameHeader frameHeader;
+    ssize_t frameLengthInBytes = decodeFrameHeader(head, &frameHeader);
+    if (sampleRate)     *sampleRate = frameHeader.sampleRate;
+    if (numChannels)    *numChannels = frameHeader.numChannels;
+    return frameLengthInBytes;
+}
+
 __END_NAMESPACE_MPX
 

@@ -77,7 +77,6 @@ static __ABE_INLINE CMVideoCodecType get_cm_codec_type(eCodecFormat a) {
         if (kCodecMap[i].a == a)
             return kCodecMap[i].b;
     }
-    FATAL("FIXME");
     return 0;
 }
 
@@ -240,45 +239,33 @@ static __ABE_INLINE CFDictionaryRef setupFormatDescriptionExtension(const Messag
 
     switch (cm_codec_type) {
         case kCMVideoCodecType_H264:
-            if (formats.contains("avcC")) {
-                const Buffer& avcC = formats.find<Buffer>("avcC");
-                CFDataRef data = CFDataCreate(kCFAllocatorDefault,
-                        (const UInt8*)avcC.data(),
-                        avcC.size());
-                CFDictionarySetValue(atoms,
-                        CFSTR("avcC"),
-                        data);
+            if (formats.contains(kKeyavcC)) {
+                sp<Buffer> avcC = formats.findObject(kKeyavcC);
+                CFDataRef data = CFDataCreate(kCFAllocatorDefault, (const UInt8*)avcC->data(), avcC->size());
+                CFDictionarySetValue(atoms, CFSTR("avcC"), data);
                 CFRelease(data);
             } else {
                 ERROR("missing avcC");
             }
             break;
         case kCMVideoCodecType_HEVC:
-            if (formats.contains("hvcC")) {
-                const Buffer& hvcC = formats.find<Buffer>("hvcC");
-                CFDataRef data = CFDataCreate(kCFAllocatorDefault,
-                        (const UInt8*)hvcC.data(),
-                        hvcC.size());
-                CFDictionarySetValue(atoms,
-                        CFSTR("hvcC"),
-                        data);
+            if (formats.contains(kKeyhvcC)) {
+                sp<Buffer> hvcC = formats.findObject(kKeyhvcC);
+                CFDataRef data = CFDataCreate(kCFAllocatorDefault, (const UInt8*)hvcC->data(), hvcC->size());
+                CFDictionarySetValue(atoms, CFSTR("hvcC"), data);
                 CFRelease(data);
             } else {
                 ERROR("missing hvcC");
             }
             break;
         case kCMVideoCodecType_MPEG4Video:
-            if (formats.contains("esds")) {
-                const Buffer& esds = formats.find<Buffer>("esds");
-                BitReader br(esds);
+            if (formats.contains(kKeyESDS)) {
+                sp<Buffer> esds = formats.findObject(kKeyESDS);
+                BitReader br(*esds);
                 MPEG4::ES_Descriptor esd(br);
                 if (esd.valid) {
-                    CFDataRef data = CFDataCreate(kCFAllocatorDefault,
-                            (const UInt8*)esds.data(),
-                            esds.size());
-                    CFDictionarySetValue(atoms,
-                            CFSTR("esds"),
-                            data);
+                    CFDataRef data = CFDataCreate(kCFAllocatorDefault, (const UInt8*)esds->data(), esds->size());
+                    CFDictionarySetValue(atoms, CFSTR("esds"), data);
                     CFRelease(data);
                 } else {
                     ERROR("bad esds");
@@ -528,9 +515,7 @@ static __ABE_INLINE CMSampleBufferRef createCMSampleBuffer(sp<VTContext>& vtc,
 }
 
 __ABE_HIDDEN sp<MediaFrame> readVideoToolboxFrame(CVPixelBufferRef pixbuf) {
-    sp<MediaFrame> frame = MediaFrameCreate(get_pix_format(CVPixelBufferGetPixelFormatType(pixbuf)),
-            CVPixelBufferGetWidth(pixbuf),
-            CVPixelBufferGetHeight(pixbuf));
+    sp<MediaFrame> frame;
 
     CVReturn err = CVPixelBufferLockBaseAddress(pixbuf, kCVPixelBufferLock_ReadOnly);
     if (err != kCVReturnSuccess) {
@@ -541,13 +526,19 @@ __ABE_HIDDEN sp<MediaFrame> readVideoToolboxFrame(CVPixelBufferRef pixbuf) {
     size_t left, right, top, bottom;
     CVPixelBufferGetExtendedPixels(pixbuf, &left, &right, &top, &bottom);
     DEBUGV("paddings %zu %zu %zu %zu", left, right, top, bottom);
+    DEBUGV("CVPixelBufferGetBytesPerRow %zu", CVPixelBufferGetBytesPerRow(pixbuf));
 
     if (CVPixelBufferIsPlanar(pixbuf)) {
+        frame = MediaFrameCreate(get_pix_format(CVPixelBufferGetPixelFormatType(pixbuf)),
+                CVPixelBufferGetBytesPerRowOfPlane(pixbuf, 0),
+                CVPixelBufferGetHeight(pixbuf));
+        DEBUGV("CVPixelBufferGetWidth %zu", CVPixelBufferGetWidth(pixbuf));
+        DEBUGV("CVPixelBufferGetHeight %zu", CVPixelBufferGetHeight(pixbuf));
+
         // as we have to copy the data, copy to continueslly space
         DEBUGV("CVPixelBufferGetDataSize %zu", CVPixelBufferGetDataSize(pixbuf));
         DEBUGV("CVPixelBufferGetPlaneCount %zu", CVPixelBufferGetPlaneCount(pixbuf));
 
-        sp<Buffer> data = new Buffer(CVPixelBufferGetDataSize(pixbuf));
         size_t planes = CVPixelBufferGetPlaneCount(pixbuf);
         for (size_t i = 0; i < planes; i++) {
             DEBUGV("CVPixelBufferGetBaseAddressOfPlane %p", CVPixelBufferGetBaseAddressOfPlane(pixbuf, i));
@@ -558,18 +549,27 @@ __ABE_HIDDEN sp<MediaFrame> readVideoToolboxFrame(CVPixelBufferRef pixbuf) {
             CHECK_LE(CVPixelBufferGetBytesPerRowOfPlane(pixbuf, i) *
                     CVPixelBufferGetHeightOfPlane(pixbuf, i),
                     frame->planes[i].size);
+            frame->planes[i].size = CVPixelBufferGetBytesPerRowOfPlane(pixbuf, i) * CVPixelBufferGetHeightOfPlane(pixbuf, i);
             memcpy(frame->planes[i].data,
                     CVPixelBufferGetBaseAddressOfPlane(pixbuf, i),
-                    CVPixelBufferGetBytesPerRowOfPlane(pixbuf, i) *
-                    CVPixelBufferGetHeightOfPlane(pixbuf, i));
+                    frame->planes[i].size);
         }
     } else {
         // FIXME: is this right
-        CHECK_LE(CVPixelBufferGetBytesPerRow(pixbuf), frame->planes[0].size);
+        frame = MediaFrameCreate(get_pix_format(CVPixelBufferGetPixelFormatType(pixbuf)),
+                CVPixelBufferGetBytesPerRow(pixbuf),
+                CVPixelBufferGetHeight(pixbuf));
+        CHECK_LE(CVPixelBufferGetBytesPerRow(pixbuf) * CVPixelBufferGetHeight(pixbuf), frame->planes[0].size);
+        frame->planes[0].size = CVPixelBufferGetBytesPerRow(pixbuf) * CVPixelBufferGetHeight(pixbuf);
         memcpy(frame->planes[0].data,
                 CVPixelBufferGetBaseAddress(pixbuf),
-                CVPixelBufferGetBytesPerRow(pixbuf));
+                frame->planes[0].size);
     }
+
+    frame->v.rect.x     = 0;
+    frame->v.rect.y     = 0;
+    frame->v.rect.w     = CVPixelBufferGetWidth(pixbuf);
+    frame->v.rect.h     = CVPixelBufferGetHeight(pixbuf);
 
     CVPixelBufferUnlockBaseAddress(pixbuf, kCVPixelBufferLock_ReadOnly);
 
@@ -700,13 +700,15 @@ struct __ABE_HIDDEN VideoToolboxDecoder : public MediaDecoder {
     }
 };
 
-bool IsVideoToolboxSupported(eCodecFormat format) {
+// FIXME: VTIsHardwareDecodeSupported is not working as expected
+__ABE_HIDDEN bool IsVideoToolboxSupported(eCodecFormat format) {
     CMPixelFormatType cm = get_cm_codec_type(format);
     if (cm == 0) return false;
-    return VTIsHardwareDecodeSupported(cm);
+    return true;
+    //return VTIsHardwareDecodeSupported(cm);
 }
 
-sp<MediaDecoder> CreateVideoToolboxDecoder() {
+__ABE_HIDDEN sp<MediaDecoder> CreateVideoToolboxDecoder() {
     return new VideoToolboxDecoder();
 }
 
