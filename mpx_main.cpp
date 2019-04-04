@@ -191,6 +191,7 @@ int main (int argc, char **argv) {
     INFO("url: %s", url.c_str());
     
     malloc_prepare(); {
+        sp<Looper> mainLooper = Looper::Main();
         
         // init window
         SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
@@ -235,8 +236,6 @@ int main (int argc, char **argv) {
         mp->prepare(kTimeBegin);
         
         // loop
-        //loop();
-        sp<Looper> mainLooper = Looper::Main();
         mainLooper->profile();
         mainLooper->post(new SDLRunnable);
         mainLooper->loop();

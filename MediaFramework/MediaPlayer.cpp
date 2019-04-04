@@ -103,7 +103,7 @@ struct __ABE_HIDDEN SessionContext {
     ~SessionContext() { }
 };
 
-struct __ABE_HIDDEN MPContext {
+struct __ABE_HIDDEN MPContext : public SharedObject {
     // external static context
     sp<RenderPositionEvent> mRenderPositionEvent;
     int64_t mRenderPositionUpdateInterval;
@@ -117,7 +117,7 @@ struct __ABE_HIDDEN MPContext {
     // clock
     sp<SharedClock> mClock;
 
-    MPContext(const Message& options) :
+    MPContext(const Message& options) : SharedObject(),
         // external static context
         mRenderPositionEvent(NULL), mRenderPositionUpdateInterval(500000LL),
         mStatusEvent(NULL),
@@ -150,8 +150,7 @@ struct UpdateRenderPosition : public Runnable {
     UpdateRenderPosition() : Runnable() { }
 
     virtual void run() {
-        sp<Looper> looper = Looper::Current();
-        MPContext *mpc = static_cast<MPContext*>(looper->user(0));
+        sp<MPContext> mpc = Looper::Current()->user(0);
 
         // send render position info to client
         MediaTime ts = mpc->mClock->get();
@@ -159,7 +158,7 @@ struct UpdateRenderPosition : public Runnable {
         mpc->mRenderPositionEvent->fire(ts);
 
         if (mpc->mClock->isPaused() == false) {
-            looper->post(new UpdateRenderPosition,
+            Looper::Current()->post(new UpdateRenderPosition,
                     mpc->mRenderPositionUpdateInterval);
         }
     }
@@ -171,8 +170,7 @@ struct __ABE_HIDDEN OnUpdateRenderPosition : public RenderPositionEvent {
     OnUpdateRenderPosition(const sp<Looper>& lp, size_t id) : RenderPositionEvent(lp), mID(id) { }
 
     virtual void onEvent(const MediaTime& ts) {
-        sp<Looper> looper = Looper::Current();
-        MPContext *mpc = static_cast<MPContext*>(looper->user(0));
+        sp<MPContext> mpc = Looper::Current()->user(0);
 
         if (ts == kTimeEnd) {
             INFO("eos...");
@@ -183,7 +181,7 @@ struct __ABE_HIDDEN OnUpdateRenderPosition : public RenderPositionEvent {
     }
 };
 
-static MediaError prepareMedia(const sp<Looper>& looper, MPContext* mpc, const Message& media) {
+static MediaError prepareMedia(sp<MPContext>& mpc, const Message& media) {
 
     const char * url = media.findString("url");
     INFO("prepare media %s", url);
@@ -223,7 +221,7 @@ static MediaError prepareMedia(const sp<Looper>& looper, MPContext* mpc, const M
     uint32_t activeTracks = 0;
     for (size_t i = 0; i < numTracks; ++i) {
         // PacketRequestEvent
-        sp<MediaSource> ms = new MediaSource(looper, extractor, i);
+        sp<MediaSource> ms = new MediaSource(Looper::Current(), extractor, i);
 
         String name = String::format("track-%zu", i);
         const Message& formats = fileFormats.find<Message>(name);
@@ -268,7 +266,7 @@ static MediaError prepareMedia(const sp<Looper>& looper, MPContext* mpc, const M
         options.setObject("PacketRequestEvent", ms);
 
         options.setObject("RenderPositionEvent",
-                new OnUpdateRenderPosition(looper, mpc->mNextId));
+                          new OnUpdateRenderPosition(Looper::Current(), mpc->mNextId));
 
         if (kCodecTypeAudio == type || numTracks == 1) {
             options.setObject("Clock", new Clock(mpc->mClock, kClockRoleMaster));
@@ -326,18 +324,17 @@ struct __ABE_HIDDEN InitialState : public State {
 
     virtual MediaError onEnterState(const Message& media) {
         // -> init by add media
-        sp<Looper> looper = Looper::Current();
-        MPContext *mpc = static_cast<MPContext*>(looper->user(0));
+        sp<MPContext> mpc = Looper::Current()->user(0);
 
         if (media.contains(kKeyCount)) {
             size_t count = media.findInt32(kKeyCount);
             for (size_t i = 0; i < count; ++i) {
                 String name = String::format("media-%zu", i);
                 const Message& _media = media.find<Message>(name);
-                prepareMedia(looper, mpc, _media);
+                prepareMedia(mpc, _media);
             }
         } else {
-            prepareMedia(looper, mpc, media);
+            prepareMedia(mpc, media);
         }
         return kMediaNoError;
     }
@@ -348,7 +345,7 @@ struct __ABE_HIDDEN PrepareStatusEvent : public CountedStatusEvent {
         CountedStatusEvent(looper, n) { }
 
     virtual void onFinished(MediaError st) {
-        MPContext *mpc = static_cast<MPContext*>(Looper::Current()->user(0));
+        sp<MPContext> mpc = Looper::Current()->user(0);
 
         INFO("prepare finished with status %d, current pos %.3f(s)",
                 st, mpc->mClock->get().seconds());
@@ -372,8 +369,7 @@ struct __ABE_HIDDEN ReadyState : public State {
 
     virtual MediaError onEnterState(const Message& payload) {
         // -> ready by prepare
-        sp<Looper> looper = Looper::Current();
-        MPContext *mpc = static_cast<MPContext*>(looper->user(0));
+        sp<MPContext> mpc = Looper::Current()->user(0);
 
         MediaTime ts = payload.find<MediaTime>("time");
 
@@ -381,7 +377,7 @@ struct __ABE_HIDDEN ReadyState : public State {
         mpc->mClock->set(ts);
 
         // prepare sessions
-        sp<PrepareStatusEvent> event = new PrepareStatusEvent(looper, mpc->mSessions.size());
+        sp<PrepareStatusEvent> event = new PrepareStatusEvent(Looper::Current(), mpc->mSessions.size());
         event->keep(event);
 
         Message options;
@@ -405,11 +401,10 @@ struct __ABE_HIDDEN PlayingState : public State {
     }
     virtual MediaError onEnterState(const Message& payload) {
         // -> playing by start
-        sp<Looper> looper = Looper::Current();
-        MPContext *mpc = static_cast<MPContext*>(looper->user(0));
+        sp<MPContext> mpc = Looper::Current()->user(0);
 
         mpc->mClock->start();
-        looper->post(new UpdateRenderPosition);
+        Looper::Current()->post(new UpdateRenderPosition);
         return kMediaNoError;
     }
 };
@@ -422,8 +417,7 @@ struct __ABE_HIDDEN IdleState : public State {
     }
     virtual MediaError onEnterState(const Message& payload) {
         // -> paused by pause
-        sp<Looper> looper = Looper::Current();
-        MPContext *mpc = static_cast<MPContext*>(looper->user(0));
+        sp<MPContext> mpc = Looper::Current()->user(0);
 
         mpc->mClock->pause();
 
@@ -438,8 +432,7 @@ struct __ABE_HIDDEN FlushedState : public State {
         return kMediaNoError;
     }
     virtual MediaError onEnterState(const Message& payload) {
-        sp<Looper> looper = Looper::Current();
-        MPContext *mpc = static_cast<MPContext*>(looper->user(0));
+        sp<MPContext> mpc = Looper::Current()->user(0);
 
         HashTable<size_t, SessionContext>::iterator it = mpc->mSessions.begin();
         for (; it != mpc->mSessions.end(); ++it) {
@@ -460,8 +453,7 @@ struct __ABE_HIDDEN ReleasedState : public State {
     }
 
     virtual MediaError onEnterState(const Message& payload) {
-        sp<Looper> looper = Looper::Current();
-        MPContext *mpc = static_cast<MPContext*>(looper->user(0));
+        sp<MPContext> mpc = Looper::Current()->user(0);
         mpc->mSessions.clear();
         return kMediaNoError;
     }
@@ -524,15 +516,15 @@ struct __ABE_HIDDEN AVPlayer : public IMediaPlayer {
     eStateType      mLastState;
     eStateType      mState;
 
-    struct Transition : public Runnable {
+    struct Transition : public SyncRunnable {
         eStateType  mFrom;
         eStateType  mTo;
         Message     mOptions;
         Transition(eStateType from, eStateType to, const Message& options) :
             mFrom(from), mTo(to), mOptions(options) { }
 
-        virtual void run() {
-            INFO("transition %s => %s", kNames[mFrom], kNames[mTo]);
+        virtual void sync() {
+            DEBUG("transition %s => %s", kNames[mFrom], kNames[mTo]);
             sStates[mFrom]->onLeaveState();
             sStates[mTo]->onEnterState(mOptions);
         }
@@ -543,24 +535,28 @@ struct __ABE_HIDDEN AVPlayer : public IMediaPlayer {
             ERROR("invalid state transition %s => %s", kNames[mState], kNames[state]);
             return kMediaErrorInvalidOperation;
         }
-        mLooper->post(new Transition(mState, state, options));
+        INFO("transition %s => %s", kNames[mState], kNames[state]);
+        sp<SyncRunnable> sync = new Transition(mState, state, options);
+        mLooper->post(sync);
+        if (sync->wait(1000000000LL) == false) {    // wait 1s at most
+            ERROR("state transition %s => %s timeout", kNames[mState], kNames[state]);
+        }
         mLastState  = mState;
         mState      = state;
         return kMediaNoError;
     }
 
-    AVPlayer(const Message& options) : IMediaPlayer(), mLooper(Looper::Create("mp")), mState(kStateInvalid) {
+    AVPlayer(const Message& options) : IMediaPlayer(), mLooper(Looper::Create("avplayer")), mState(kStateInvalid) {
         mLooper->profile();
         mLooper->loop();
-        MPContext *mpc = new MPContext(options);
-        mLooper->bind(mpc);
+        sp<MPContext> mpc = new MPContext(options);
+        mLooper->bind(mpc->RetainObject());
     }
 
     virtual ~AVPlayer() {
-        INFO("release AVPlayer");
-        MPContext *mpc = static_cast<MPContext*>(mLooper->user(0));
+        static_cast<MPContext *>(mLooper->user(0))->ReleaseObject();
         mLooper->terminate(true);
-        delete mpc;
+        INFO("destroy AVPlayer");
     }
 
     virtual eStateType state() const {

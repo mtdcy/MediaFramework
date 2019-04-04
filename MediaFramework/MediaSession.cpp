@@ -754,23 +754,6 @@ struct __ABE_HIDDEN Renderer : public SharedObject {
     }
 };
 
-struct PrepareRunnable : public Runnable {
-    Message             mOptions;
-    PrepareRunnable(const Message& options) : mOptions(options) { }
-    virtual void run() {
-        sp<Renderer> renderer = Looper::Current()->user(INDEX1);
-        renderer->onPrepareRenderer(mOptions);
-    }
-};
-
-struct FlushRunnable : public Runnable {
-    FlushRunnable() : Runnable() { }
-    virtual void run() {
-        sp<Renderer> renderer = Looper::Current()->user(INDEX1);
-        renderer->onFlushRenderer();
-    }
-};
-
 // request frame from decoder
 struct __ABE_HIDDEN OnFrameRequest : public FrameRequestEvent {
     OnFrameRequest(const sp<Looper>& looper) : FrameRequestEvent(looper) { }
@@ -819,6 +802,23 @@ struct __ABE_HIDDEN OnFrameRequestTunnel : public FrameRequestEvent {
         }
         // request packet
         mPacketRequestEvent->fire(packetRequest);
+    }
+};
+
+struct PrepareRunnable : public Runnable {
+    Message             mOptions;
+    PrepareRunnable(const Message& options) : mOptions(options) { }
+    virtual void run() {
+        sp<Renderer> renderer = Looper::Current()->user(INDEX1);
+        renderer->onPrepareRenderer(mOptions);
+    }
+};
+
+struct FlushRunnable : public Runnable {
+    FlushRunnable() : Runnable() { }
+    virtual void run() {
+        sp<Renderer> renderer = Looper::Current()->user(INDEX1);
+        renderer->onFlushRenderer();
     }
 };
 
@@ -890,7 +890,6 @@ struct __ABE_HIDDEN AVSession : public IMediaSession {
     }
 
     virtual ~AVSession() {
-        INFO("release av session");
         for (size_t i = 0; i < mLoopers.size(); ++i) {
             mLoopers[i]->terminate(true);
             for (size_t j = INDEX0; j < N_INDEX; ++j) {
@@ -899,6 +898,7 @@ struct __ABE_HIDDEN AVSession : public IMediaSession {
                 }
             }
         }
+        INFO("destroy av session");
     }
 
     virtual void prepare(const Message& options) {
