@@ -95,6 +95,7 @@ struct __ABE_EXPORT IMediaSession : public SharedObject {
     __ABE_INLINE virtual ~IMediaSession() { }
     virtual void prepare(const Message& options) = 0;
     virtual void flush() = 0;
+    virtual void release() = 0;
 };
 __END_NAMESPACE_MPX
 #endif 

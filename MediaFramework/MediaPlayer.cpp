@@ -91,7 +91,7 @@ struct __ABE_HIDDEN MediaSource : public PacketRequestEvent {
     }
 };
 
-struct __ABE_HIDDEN SessionContext {
+struct __ABE_HIDDEN SessionContext : public SharedObject {
     eCodecFormat        mCodec;
     sp<IMediaSession>   mMediaSession;
     int64_t             mStartTime;
@@ -100,7 +100,10 @@ struct __ABE_HIDDEN SessionContext {
     SessionContext(eCodecFormat codec, const sp<IMediaSession>& ms) :
         mCodec(codec),  mMediaSession(ms) { }
 
-    ~SessionContext() { }
+    ~SessionContext() {
+        if (mMediaSession != NULL) mMediaSession->release();
+        mMediaSession.clear();
+    }
 };
 
 struct __ABE_HIDDEN MPContext : public SharedObject {
@@ -110,7 +113,7 @@ struct __ABE_HIDDEN MPContext : public SharedObject {
     sp<StatusEvent> mStatusEvent;
 
     // mutable context
-    HashTable<size_t, SessionContext> mSessions;
+    HashTable<size_t, sp<SessionContext> > mSessions;
     size_t mNextId;
     bool mHasAudio;
 
@@ -281,7 +284,8 @@ static MediaError prepareMedia(sp<MPContext>& mpc, const Message& media) {
         }
 
         // save this packet queue
-        mpc->mSessions.insert(mpc->mNextId++, SessionContext(codec, session));
+        mpc->mSessions.insert(mpc->mNextId++,
+                              new SessionContext(codec, session));
         activeTracks |= (1<<i);
     }
 
@@ -384,10 +388,10 @@ struct __ABE_HIDDEN ReadyState : public State {
         options.set<MediaTime>("time", ts);
         options.setObject("StatusEvent", event);
 
-        HashTable<size_t, SessionContext>::iterator it = mpc->mSessions.begin();
+        HashTable<size_t, sp<SessionContext> >::iterator it = mpc->mSessions.begin();
         for (; it != mpc->mSessions.end(); ++it) {
-            SessionContext& sc = it.value();
-            sc.mMediaSession->prepare(options);
+            sp<SessionContext>& sc = it.value();
+            sc->mMediaSession->prepare(options);
         }
         return kMediaNoError;
     }
@@ -434,10 +438,10 @@ struct __ABE_HIDDEN FlushedState : public State {
     virtual MediaError onEnterState(const Message& payload) {
         sp<MPContext> mpc = Looper::Current()->user(0);
 
-        HashTable<size_t, SessionContext>::iterator it = mpc->mSessions.begin();
+        HashTable<size_t, sp<SessionContext> >::iterator it = mpc->mSessions.begin();
         for (; it != mpc->mSessions.end(); ++it) {
-            SessionContext& sc = it.value();
-            sc.mMediaSession->flush();
+            sp<SessionContext>& sc = it.value();
+            sc->mMediaSession->flush();
         }
 
         mpc->mClock->reset();
@@ -511,8 +515,9 @@ static inline MediaError checkStateTransition(eStateType from, eStateType to) {
 }
 
 struct __ABE_HIDDEN AVPlayer : public IMediaPlayer {
-    sp<Looper>      mLooper;
+    sp<MPContext>   mMPContext;
     mutable Mutex   mLock;
+    sp<Looper>      mLooper;
     eStateType      mLastState;
     eStateType      mState;
 
@@ -546,17 +551,13 @@ struct __ABE_HIDDEN AVPlayer : public IMediaPlayer {
         return kMediaNoError;
     }
 
-    AVPlayer(const Message& options) : IMediaPlayer(), mLooper(Looper::Create("avplayer")), mState(kStateInvalid) {
-        mLooper->profile();
-        mLooper->loop();
-        sp<MPContext> mpc = new MPContext(options);
-        mLooper->bind(mpc->RetainObject());
+    AVPlayer(const Message& options) : IMediaPlayer(), mMPContext(new MPContext(options)),
+    mLooper(NULL), mState(kStateInvalid) {
     }
 
     virtual ~AVPlayer() {
-        static_cast<MPContext *>(mLooper->user(0))->ReleaseObject();
-        mLooper->terminate(true);
-        INFO("destroy AVPlayer");
+        CHECK_TRUE(mLooper == NULL); // make sure context released
+        mMPContext.clear();
     }
 
     virtual eStateType state() const {
@@ -566,6 +567,10 @@ struct __ABE_HIDDEN AVPlayer : public IMediaPlayer {
 
     virtual MediaError init(const Message& media) {
         AutoLock _l(mLock);
+        mLooper = Looper::Create("avplayer");
+        mLooper->bind(mMPContext.get());
+        mLooper->profile();
+        mLooper->loop();
         return setState_l(kStateInitial, media);
     }
 
@@ -598,8 +603,10 @@ struct __ABE_HIDDEN AVPlayer : public IMediaPlayer {
     virtual MediaError release() {
         AutoLock _l(mLock);
         INFO("release");
-        return setState_l(kStateReleased, Message());
-        // FIXME: release should work as blocked
+        MediaError st = setState_l(kStateReleased, Message());
+        mLooper->terminate(true);
+        mLooper.clear();
+        return st;
     }
 };
 
