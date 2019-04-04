@@ -40,6 +40,7 @@
 #include "MediaExtractor.h"
 #include "MediaPacketizer.h"
 #include "MediaOut.h"
+#include <libyuv.h>
 
 __BEGIN_DECLS
 
@@ -309,8 +310,6 @@ sp<MediaPacket> MediaPacketCreate(sp<Buffer>& data) {
     packet->size    = data->size();
     return packet;
 }
-
-#include <libyuv.h>
 
 ColorConvertor::ColorConvertor(ePixelFormat pixel) :
     mFormat(pixel)

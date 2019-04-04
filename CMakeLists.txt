@@ -94,6 +94,39 @@ if (APPLE)
     target_link_libraries(${PROJECT_NAME} "-framework CoreVideo")
     target_link_libraries(${PROJECT_NAME} "-framework VideoToolbox")
     target_link_libraries(${PROJECT_NAME} "-framework OpenGL")
+else()
+    find_library (ABE 
+        NAMES libABE.a libABE.so libABE.dylib libABE.dll
+        PATHS ${CMAKE_INSTALL_PREFIX}
+        )
+    find_path (ABE_HEADER
+        NAMES ABE/ABE.h
+        PATHS ${CMAKE_INSTALL_PREFIX}
+        )
+    message("ABE: ${ABE}")
+    message("ABE_HEADER: ${ABE_HEADER}")
+    target_link_libraries(${PROJECT_NAME} ${ABE})
+    include_directories(${ABE_HEADER})
+
+    find_library (FFMPEG
+        NAMES libFFmpeg.a libFFmpeg.so libFFmpeg.dylib libFFmpeg.dll
+        PATHS ${CMAKE_INSTALL_PREFIX}
+        )
+    find_path (FFMPEG_HEADER
+        NAMES FFmpeg/FFmpeg.h
+        PATHS ${CMAKE_INSTALL_PREFIX}
+        )
+    message("FFMPEG: ${FFMPEG}")
+    message("FFMPEG_HEADER: ${FFMPEG_HEADER}")
+    target_link_libraries(${PROJECT_NAME} ${FFMPEG})
+    # ffmpeg header in bad structure
+    include_directories(${FFMPEG_HEADER}/FFmpeg)
+
+    if (WIN32)
+        target_link_libraries (${PROJECT_NAME} -lopengl32 -lglew32)
+    else()
+        # TODO
+    endif()
 endif()
 
 # link static
@@ -125,6 +158,7 @@ install (TARGETS ${PROJECT_NAME}
     )
 
 # example/test code, NO build or install by default
+project (mpx)
 add_executable(mpx mpx_main.cpp)
 if (APPLE)
     target_link_libraries(mpx "-framework ABE")
@@ -133,3 +167,4 @@ target_link_libraries(mpx MediaFramework)
 set_target_properties(mpx PROPERTIES
     EXCLUDE_FROM_ALL TRUE
     EXCLUDE_FROM_DEFAULT_BUILD TRUE)
+install (TARGETS mpx RUNTIME DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)

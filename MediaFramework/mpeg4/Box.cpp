@@ -80,10 +80,10 @@ status_t ContainerBox::parse(const BitReader& br, size_t sz, const FileTypeBox& 
     return _parse(br, sz - Box::size(), ftyp);
 }
 status_t ContainerBox::_parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
-    uint32_t count = UINT32_MAX;
+    // FIXME: count is not used
     size_t next = 0;
     if (counted) {
-        count = br.rb32();      next += 4;
+        uint32_t count = br.rb32();     next += 4;
         DEBUG("box %s: count = %" PRIu32, name.c_str(), count);
     }
 

@@ -57,14 +57,21 @@
 #include <CoreVideo/CoreVideo.h>
 #include <OpenGL/OpenGL.h>
 #else
+#if defined(__MINGW32__)
+#include <GL/glew.h>   // glCreateShader ...
+#endif
 #include <GL/gl.h>
 #endif
 
+#if 1
+#define CHECK_GL_ERROR() 
+#else
 #define CHECK_GL_ERROR() do {   \
     GLenum err = glGetError();      \
     if (err != GL_NO_ERROR)         \
     ERROR("error %d", err);         \
 } while(0)
+#endif
 
 // https://learnopengl.com/
 // https://learnopengl-cn.github.io
@@ -273,7 +280,7 @@ static GLuint initShader(GLenum type, const char *sl) {
     CHECK_NULL(sl);
     GLuint sh = glCreateShader(type);
     if (sh == 0) {
-        ERROR("create shader of %d failed.", type);
+        //ERROR("create shader of %d failed.", type);
         return 0;
     }
 
@@ -287,7 +294,7 @@ static GLuint initShader(GLenum type, const char *sl) {
         glGetShaderiv(sh, GL_INFO_LOG_LENGTH, &len);
         GLchar log[len];
         glGetShaderInfoLog(sh, len, NULL, log);
-        ERROR("compile shader failed. %s", log);
+        //ERROR("compile shader failed. %s", log);
         glDeleteShader(sh);
         return 0;
     }
@@ -299,7 +306,7 @@ static __ABE_INLINE GLuint initProgram(GLuint vsh, GLuint fsh) {
     CHECK_NE(fsh, 0);
     GLuint program = glCreateProgram();
     if (program == 0) {
-        ERROR("create program failed.");
+        //ERROR("create program failed.");
         return 0;
     }
 
@@ -315,7 +322,7 @@ static __ABE_INLINE GLuint initProgram(GLuint vsh, GLuint fsh) {
         glGetProgramiv(program, GL_INFO_LOG_LENGTH, &len);
         GLchar log[len];
         glGetProgramInfoLog(program, len, NULL, log);
-        ERROR("program link failed. %s", log);
+        //ERROR("program link failed. %s", log);
 
         glDeleteProgram(program);
         return 0;

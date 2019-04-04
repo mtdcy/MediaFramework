@@ -32,12 +32,13 @@
 //          1. 20160701     initial version
 //
 
+#include <FFmpeg.h>
+
 #define LOG_TAG "Lavc.Decoder"
 //#define LOG_NDEBUG 0
 #include "MediaDefs.h"
 
 #include <MediaFramework/MediaDecoder.h>
-#include <FFmpeg/FFmpeg.h>
 
 #include <mpeg4/Systems.h>
 #include <mpeg4/Audio.h>

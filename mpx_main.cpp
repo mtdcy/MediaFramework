@@ -40,6 +40,9 @@
 #ifdef __APPLE__
 #include <OpenGL/gl.h>
 #else
+#if defined(__MINGW32__)
+#include <GL/glew.h>   // GL_SHADING_LANGUAGE_VERSION
+#endif
 #include <GL/gl.h>
 #endif
 #include <SDL.h>
@@ -184,12 +187,25 @@ static Uint32 window_flags() {
 extern "C" void malloc_prepare();
 extern "C" void malloc_bypass();
 extern "C" void malloc_finalize();
-int main (int argc, char **argv) {
-    
-    INFO("Toolkit version %#x", TOOLKIT_VERSION);
+#if defined(_WIN32) || defined(__MINGW32)
+#include <windows.h>
+int APIENTRY WinMain(HINSTANCE hInstance,
+        HINSTANCE hPrevInstance,
+        LPSTR     lpCmdLine,
+        int       nCmdShow)
+#else
+int main (int argc, char **argv) 
+#endif
+{
+#if defined(_WIN32) || defined(__MINGW32)
+    INFO("%s | %d", lpCmdLine, nCmdShow);
+    const String url = lpCmdLine;
+#else
     const String url = argv[argc - 1];
+#endif
     INFO("url: %s", url.c_str());
     
+    INFO("Toolkit version %#x", TOOLKIT_VERSION);
     malloc_prepare(); {
         sp<Looper> mainLooper = Looper::Main();
         
