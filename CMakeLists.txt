@@ -64,13 +64,11 @@ set (SOURCE_FILES
 
 file (GLOB PUBLIC_HEADERS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "MediaFramework/*.h")
 
-add_library (${PROJECT_NAME} SHARED ${SOURCE_FILES} ${PUBLIC_HEADERS})
-
 if (APPLE)
-    target_sources (${PROJECT_NAME} PUBLIC 
-        ${CMAKE_CURRENT_SOURCE_DIR}/MediaFramework/videotoolbox/VideoToolboxDecoder.cpp
-        )
+    list (APPEND SOURCE_FILES MediaFramework/videotoolbox/VideoToolboxDecoder.cpp)
 endif()
+
+add_library (${PROJECT_NAME} SHARED ${SOURCE_FILES} ${PUBLIC_HEADERS})
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/MediaFramework)
