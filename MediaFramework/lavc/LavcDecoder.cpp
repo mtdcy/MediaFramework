@@ -169,7 +169,7 @@ static AVSampleFormat get_av_sample_format(eSampleFormat a) {
 }
 
 // map AVFrame to MediaFrame, so we don't have to realloc memory again
-struct __ABE_HIDDEN AVMediaFrame : public MediaFrame {
+struct AVMediaFrame : public MediaFrame {
     AVMediaFrame(AVCodecContext *avcc, AVFrame *frame) : MediaFrame() {
         opaque = av_frame_alloc();
         av_frame_ref((AVFrame*)opaque, frame);
@@ -626,7 +626,7 @@ static AVCodecContext * initContext(eModeType mode, const Message& formats, cons
 sp<MediaFrame> readVideoToolboxFrame(CVPixelBufferRef);
 #endif
 
-struct __ABE_HIDDEN LavcDecoder : public MediaDecoder {
+struct LavcDecoder : public MediaDecoder {
     eModeType               mMode;
     AVCodecContext *        mContext;
     List<MediaTime>         mTimestamps;
@@ -833,7 +833,7 @@ struct __ABE_HIDDEN LavcDecoder : public MediaDecoder {
     }
 };
 
-__ABE_HIDDEN sp<MediaDecoder> CreateLavcDecoder(eModeType mode) {
+sp<MediaDecoder> CreateLavcDecoder(eModeType mode) {
     return new LavcDecoder(mode);
 }
 __END_NAMESPACE_MPX

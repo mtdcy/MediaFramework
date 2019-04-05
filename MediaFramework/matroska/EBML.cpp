@@ -127,12 +127,12 @@ static __ABE_INLINE EBMLInteger EBMLGetLength(BitReader& br) {
     return EBMLGetInteger(br);
 }
 
-struct __ABE_HIDDEN Int2Float {
+struct Int2Float {
     float       flt;
     uint32_t    u32;
 };
 
-struct __ABE_HIDDEN Int2Double {
+struct Int2Double {
     double      dbl;
     uint64_t    u64;
 };

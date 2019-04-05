@@ -128,7 +128,7 @@ enum {
     MPEG_CHANNEL_MODE_SINGLE
 };
 
-struct __ABE_HIDDEN MPEGAudioFrameHeader {
+struct MPEGAudioFrameHeader {
     uint32_t    Version;
     uint32_t    Layer;
     uint32_t    bitRate;
@@ -246,7 +246,7 @@ bool decodeMPEGAudioFrameHeader(const Buffer& frame, uint32_t *sampleRate, uint3
     return true;
 }
 
-struct __ABE_HIDDEN XingHeader {
+struct XingHeader {
     String          ID;
     uint32_t        numFrames;
     uint32_t        numBytes;
@@ -331,7 +331,7 @@ static bool parseXingHeader(const Buffer& firstFrame, XingHeader *head) {
     return true;
 }
 
-struct __ABE_HIDDEN VBRIHeader {
+struct VBRIHeader {
     String          ID;
     uint16_t        version;
     uint16_t        delay;
@@ -396,7 +396,7 @@ static bool parseVBRIHeader(const Buffer& firstFrame, VBRIHeader *head) {
     return true;
 }
 
-struct __ABE_HIDDEN Mp3Packetizer : public MediaPacketizer {
+struct Mp3Packetizer : public MediaPacketizer {
     Buffer      mBuffer;
     uint32_t    mCommonHead;
     bool        mNeedMoreData;
@@ -519,7 +519,7 @@ struct __ABE_HIDDEN Mp3Packetizer : public MediaPacketizer {
     }
 };
 
-struct __ABE_HIDDEN Mp3File : public MediaExtractor {
+struct Mp3File : public MediaExtractor {
     sp<Content>             mContent;
     int64_t                 mFirstFrameOffset;
     MPEGAudioFrameHeader    mHeader;
@@ -809,15 +809,15 @@ struct __ABE_HIDDEN Mp3File : public MediaExtractor {
     }
 };
 
-__ABE_HIDDEN sp<MediaExtractor> CreateMp3File() {
+sp<MediaExtractor> CreateMp3File() {
     return new Mp3File;
 }
 
-__ABE_HIDDEN sp<MediaPacketizer> CreateMp3Packetizer() {
+sp<MediaPacketizer> CreateMp3Packetizer() {
     return new Mp3Packetizer;
 }
 
-__ABE_HIDDEN ssize_t locateFirstFrame(const Buffer& data, size_t *frameLength) {
+ssize_t locateFirstFrame(const Buffer& data, size_t *frameLength) {
     MPEGAudioFrameHeader mpa;
     ssize_t offset = locateFirstFrame(data, &mpa, NULL, NULL);
 
@@ -827,7 +827,7 @@ __ABE_HIDDEN ssize_t locateFirstFrame(const Buffer& data, size_t *frameLength) {
     return offset;
 }
 
-__ABE_HIDDEN ssize_t decodeMPEG4AudioHeader(uint32_t head, uint32_t * sampleRate, uint32_t * numChannels) {
+ssize_t decodeMPEG4AudioHeader(uint32_t head, uint32_t * sampleRate, uint32_t * numChannels) {
     MPEGAudioFrameHeader frameHeader;
     ssize_t frameLengthInBytes = decodeFrameHeader(head, &frameHeader);
     if (sampleRate)     *sampleRate = frameHeader.sampleRate;

@@ -297,7 +297,7 @@ static __ABE_INLINE uint32_t ID3v2Size(const char *size, size_t bytes) {
 // ID3v2 version              $04 00
 // ID3v2 flags                %abcd0000
 // ID3v2 size             4 * %0xxxxxxx
-struct __ABE_HIDDEN ID3v2Header {
+struct ID3v2Header {
     uint8_t     major;
     uint8_t     revision;
     uint8_t     flags;
@@ -570,7 +570,7 @@ static __ABE_INLINE String ID3v2Text(const String& id, const char* data, int len
     return s;
 }
 
-struct __ABE_HIDDEN ID3v2CommentText {
+struct ID3v2CommentText {
     String  lang;
     String  desc;
     String  text;
@@ -610,7 +610,7 @@ static __ABE_INLINE ID3v2CommentText ID3v2Comment(const String& id, const char* 
     return comment;
 }
 
-struct __ABE_HIDDEN ID3v2PictureText {
+struct ID3v2PictureText {
     String      mime;
     int         type;
     String      desc;

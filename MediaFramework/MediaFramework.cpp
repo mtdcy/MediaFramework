@@ -131,7 +131,7 @@ sp<MediaOut> MediaOut::Create(eCodecType type) {
     }
 }
 
-struct __ABE_HIDDEN PixelFormatDesc {
+struct PixelFormatDesc {
     ePixelFormat    format;
     const char *    desc;
     const size_t    n_planes;
@@ -146,7 +146,7 @@ static __ABE_INLINE size_t GetPixelSpaceSize(const PixelFormatDesc * desc, int32
     return total;
 }
 
-static __ABE_HIDDEN PixelFormatDesc s_yuv[] = {
+static PixelFormatDesc s_yuv[] = {
     {   // kPixelFormatUnknown
         .format     = kPixelFormatUnknown,
         .desc       = "unknown",
@@ -184,7 +184,7 @@ static __ABE_HIDDEN PixelFormatDesc s_yuv[] = {
     }
 };
 
-struct __ABE_HIDDEN SampleFormatDesc {
+struct SampleFormatDesc {
     const char *    desc;
     const size_t    n_size;     // sample size in bytes
 };
@@ -193,7 +193,7 @@ static __ABE_INLINE size_t GetSampleSpaceSize(const SampleFormatDesc * desc, int
     return desc->n_size * channels * samples;
 }
 
-static __ABE_HIDDEN SampleFormatDesc s_samples[] = {
+static SampleFormatDesc s_samples[] = {
     {   // kSampleFormatUnknown
         .desc       = "unknown",
     },
@@ -229,7 +229,7 @@ MediaFrame::MediaFrame() : pts(kTimeInvalid), duration(kTimeInvalid) {
     opaque = NULL;
 }
 
-struct __ABE_HIDDEN DefaultMediaFrame : public MediaFrame {
+struct DefaultMediaFrame : public MediaFrame {
     // one continues buffer for all planes
     sp<Buffer> buffer;
     
@@ -287,7 +287,7 @@ sp<MediaFrame> MediaFrameCreate(eSampleFormat format, bool planar, int32_t chann
     return frame;
 }
 
-struct __ABE_HIDDEN DefaultMediaPacket : public MediaPacket {
+struct DefaultMediaPacket : public MediaPacket {
     sp<Buffer> buffer;
 
     __ABE_INLINE DefaultMediaPacket() : MediaPacket() { }

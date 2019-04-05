@@ -72,7 +72,7 @@ namespace MPEG4 {
     //  b. the byte stream format, start code prefix + NAL unit -> Annex B
     //
     // NAL = HEADER + RBSP(Raw Byte Sequence Payload)
-    struct __ABE_HIDDEN NAL {
+    struct NAL {
         uint8_t     header;
         sp<Buffer>  rbsp;
     };
@@ -104,7 +104,7 @@ namespace MPEG4 {
     };
 
     // ISO/IEC 14495-15, 'avcC'
-    struct __ABE_HIDDEN AVCDecoderConfigurationRecord {
+    struct AVCDecoderConfigurationRecord {
         AVCDecoderConfigurationRecord(const BitReader& br);
         status_t compose(BitWriter& bw) const;
         size_t size() const;

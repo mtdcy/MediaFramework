@@ -91,7 +91,7 @@ static status_t prepareMetaData(const sp<Box>& meta, const sp<Message>& target) 
 
 }
 
-struct __ABE_HIDDEN Sample {
+struct Sample {
     uint64_t            offset;
     size_t              size;   // in bytes
     int64_t             dts;
@@ -99,7 +99,7 @@ struct __ABE_HIDDEN Sample {
     uint32_t            flags;
 };
 
-struct __ABE_HIDDEN Mp4Track : public SharedObject {
+struct Mp4Track : public SharedObject {
     Mp4Track() : codec(kCodecFormatUnknown), trackIndex(0),
     sampleIndex(0), duration(kTimeInvalid),
     startTime(kTimeInvalid) { }
@@ -382,7 +382,7 @@ static size_t findSampleIndex(Mp4Track& track,
     return result;
 }
 
-struct __ABE_HIDDEN Mp4Packet : public MediaPacket {
+struct Mp4Packet : public MediaPacket {
     sp<Buffer> buffer;
     Mp4Packet(const sp<Buffer>& _buffer) : MediaPacket(), buffer(_buffer) {
         data    = (uint8_t*)buffer->data();
@@ -390,7 +390,7 @@ struct __ABE_HIDDEN Mp4Packet : public MediaPacket {
     }
 };
 
-struct __ABE_HIDDEN Mp4File : public MediaExtractor {
+struct Mp4File : public MediaExtractor {
     sp<Content>             mContent;
     Vector<Mp4Track>        mTracks;
     MediaTime               mDuration;
@@ -725,7 +725,7 @@ struct __ABE_HIDDEN Mp4File : public MediaExtractor {
     }
 };
 
-__ABE_HIDDEN sp<MediaExtractor> CreateMp4File() {
+sp<MediaExtractor> CreateMp4File() {
     return new Mp4File;
 }
 __END_NAMESPACE_MPX

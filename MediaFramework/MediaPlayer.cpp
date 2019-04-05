@@ -46,7 +46,7 @@
 
 __USING_NAMESPACE_MPX
 
-struct __ABE_HIDDEN CountedStatusEvent : public StatusEvent {
+struct CountedStatusEvent : public StatusEvent {
     volatile int mCount;
     sp<StatusEvent> kept;
 
@@ -71,7 +71,7 @@ struct __ABE_HIDDEN CountedStatusEvent : public StatusEvent {
 };
 
 // for MediaSession request packet, which always run in player's looper
-struct __ABE_HIDDEN MediaSource : public PacketRequestEvent {
+struct MediaSource : public PacketRequestEvent {
     sp<MediaExtractor>  mMedia;
     const size_t        mIndex;
 
@@ -91,7 +91,7 @@ struct __ABE_HIDDEN MediaSource : public PacketRequestEvent {
     }
 };
 
-struct __ABE_HIDDEN SessionContext : public SharedObject {
+struct SessionContext : public SharedObject {
     eCodecFormat        mCodec;
     sp<IMediaSession>   mMediaSession;
     int64_t             mStartTime;
@@ -106,7 +106,7 @@ struct __ABE_HIDDEN SessionContext : public SharedObject {
     }
 };
 
-struct __ABE_HIDDEN MPContext : public SharedObject {
+struct MPContext : public SharedObject {
     // external static context
     sp<RenderPositionEvent> mRenderPositionEvent;
     int64_t mRenderPositionUpdateInterval;
@@ -168,7 +168,7 @@ struct UpdateRenderPosition : public Runnable {
 };
 
 // for media session update render position
-struct __ABE_HIDDEN OnUpdateRenderPosition : public RenderPositionEvent {
+struct OnUpdateRenderPosition : public RenderPositionEvent {
     const size_t mID;
     OnUpdateRenderPosition(const sp<Looper>& lp, size_t id) : RenderPositionEvent(lp), mID(id) { }
 
@@ -298,7 +298,7 @@ static MediaError prepareMedia(sp<MPContext>& mpc, const Message& media) {
     return kMediaNoError;
 }
 
-struct __ABE_HIDDEN State : public SharedObject {
+struct State : public SharedObject {
     const eStateType kState;
     State(eStateType state) : kState(state) { }
     virtual ~State() { }
@@ -307,7 +307,7 @@ struct __ABE_HIDDEN State : public SharedObject {
     virtual MediaError onEnterState(const Message& payload) = 0;
 };
 
-struct __ABE_HIDDEN InvalidState : public State {
+struct InvalidState : public State {
     InvalidState() : State(kStateInvalid) { }
     virtual MediaError onLeaveState() {
         // NOTHING
@@ -319,7 +319,7 @@ struct __ABE_HIDDEN InvalidState : public State {
     }
 };
 
-struct __ABE_HIDDEN InitialState : public State {
+struct InitialState : public State {
     InitialState() : State(kStateInitial) { }
     virtual MediaError onLeaveState() {
         // NOTHING
@@ -344,7 +344,7 @@ struct __ABE_HIDDEN InitialState : public State {
     }
 };
 
-struct __ABE_HIDDEN PrepareStatusEvent : public CountedStatusEvent {
+struct PrepareStatusEvent : public CountedStatusEvent {
     PrepareStatusEvent(const sp<Looper>& looper, size_t n) :
         CountedStatusEvent(looper, n) { }
 
@@ -364,7 +364,7 @@ struct __ABE_HIDDEN PrepareStatusEvent : public CountedStatusEvent {
     }
 };
 
-struct __ABE_HIDDEN ReadyState : public State {
+struct ReadyState : public State {
     ReadyState() : State(kStateReady) { }
     virtual MediaError onLeaveState() {
         // NOTHING
@@ -397,7 +397,7 @@ struct __ABE_HIDDEN ReadyState : public State {
     }
 };
 
-struct __ABE_HIDDEN PlayingState : public State {
+struct PlayingState : public State {
     PlayingState() : State(kStatePlaying) { }
     virtual MediaError onLeaveState() {
         // NOTHINGS
@@ -413,7 +413,7 @@ struct __ABE_HIDDEN PlayingState : public State {
     }
 };
 
-struct __ABE_HIDDEN IdleState : public State {
+struct IdleState : public State {
     IdleState() : State(kStateIdle) { }
     virtual MediaError onLeaveState() {
         // NOTHING
@@ -430,7 +430,7 @@ struct __ABE_HIDDEN IdleState : public State {
     }
 };
 
-struct __ABE_HIDDEN FlushedState : public State {
+struct FlushedState : public State {
     FlushedState() : State(kStateFlushed) { }
     virtual MediaError onLeaveState() {
         return kMediaNoError;
@@ -449,7 +449,7 @@ struct __ABE_HIDDEN FlushedState : public State {
     }
 };
 
-struct __ABE_HIDDEN ReleasedState : public State {
+struct ReleasedState : public State {
     ReleasedState() : State(kStateReleased) { }
 
     virtual MediaError onLeaveState() {
@@ -514,7 +514,7 @@ static inline MediaError checkStateTransition(eStateType from, eStateType to) {
     return kMediaErrorInvalidOperation;
 }
 
-struct __ABE_HIDDEN AVPlayer : public IMediaPlayer {
+struct AVPlayer : public IMediaPlayer {
     sp<MPContext>   mMPContext;
     mutable Mutex   mLock;
     sp<Looper>      mLooper;

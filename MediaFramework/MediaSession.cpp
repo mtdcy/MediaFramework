@@ -66,7 +66,7 @@ enum {
 
 __USING_NAMESPACE_MPX
 
-struct __ABE_HIDDEN Decoder : public SharedObject {
+struct Decoder : public SharedObject {
     // external static context
     eCodecFormat            mID;
     sp<PacketRequestEvent>  mPacketRequestEvent;        // where we get packets
@@ -339,7 +339,7 @@ struct __ABE_HIDDEN Decoder : public SharedObject {
     }
 };
 
-struct __ABE_HIDDEN Renderer : public SharedObject {
+struct Renderer : public SharedObject {
     // external static context
     sp<FrameRequestEvent>   mFrameRequestEvent;
     eCodecFormat            mID;
@@ -755,7 +755,7 @@ struct __ABE_HIDDEN Renderer : public SharedObject {
 };
 
 // request frame from decoder
-struct __ABE_HIDDEN OnFrameRequest : public FrameRequestEvent {
+struct OnFrameRequest : public FrameRequestEvent {
     OnFrameRequest(const sp<Looper>& looper) : FrameRequestEvent(looper) { }
     
     virtual void onEvent(const FrameRequest& request) {
@@ -764,7 +764,7 @@ struct __ABE_HIDDEN OnFrameRequest : public FrameRequestEvent {
     }
 };
 
-struct __ABE_HIDDEN MediaFrameTunnel : public MediaFrame {
+struct MediaFrameTunnel : public MediaFrame {
     sp<MediaPacket>     mPacket;
     MediaFrameTunnel(const sp<MediaPacket>& packet) : MediaFrame(), mPacket(packet) {
         pts                 = packet->pts;
@@ -775,7 +775,7 @@ struct __ABE_HIDDEN MediaFrameTunnel : public MediaFrame {
     }
 };
 
-struct __ABE_HIDDEN OnPacketReadyTunnel : public PacketReadyEvent {
+struct OnPacketReadyTunnel : public PacketReadyEvent {
     sp<FrameReadyEvent>     mFrameReadyEvent;
     OnPacketReadyTunnel(const sp<FrameReadyEvent>& event) :
         PacketReadyEvent(), mFrameReadyEvent(event) { }
@@ -784,7 +784,7 @@ struct __ABE_HIDDEN OnPacketReadyTunnel : public PacketReadyEvent {
     }
 };
 
-struct __ABE_HIDDEN OnFrameRequestTunnel : public FrameRequestEvent {
+struct OnFrameRequestTunnel : public FrameRequestEvent {
     sp<PacketRequestEvent>      mPacketRequestEvent;
     OnFrameRequestTunnel(const sp<PacketRequestEvent>& event) :
         FrameRequestEvent(), mPacketRequestEvent(event) { }
@@ -823,7 +823,7 @@ struct FlushRunnable : public Runnable {
 };
 
 // using clock to control render session, start|pause|...
-struct __ABE_HIDDEN OnClockEvent : public ClockEvent {
+struct OnClockEvent : public ClockEvent {
     OnClockEvent(const sp<Looper>& lp) : ClockEvent(lp) { }
 
     virtual void onEvent(const eClockState& cs) {
@@ -845,7 +845,7 @@ struct __ABE_HIDDEN OnClockEvent : public ClockEvent {
     }
 };
 
-struct __ABE_HIDDEN AVSession : public IMediaSession {
+struct AVSession : public IMediaSession {
     Vector<sp<Looper> >     mLoopers;
 
     bool valid() const { return mLoopers.size(); }

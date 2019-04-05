@@ -44,7 +44,7 @@ __BEGIN_DECLS
 #define PCM_CONVERT_FUNC_NAME(from, to) pcm_##from##_to_##to
 
 #define PCM_CONVERT_FUNC(from, to) \
-__ABE_HIDDEN size_t PCM_CONVERT_FUNC_NAME(from, to)(void *input, size_t size, void *output)
+size_t PCM_CONVERT_FUNC_NAME(from, to)(void *input, size_t size, void *output)
 
 PCM_CONVERT_FUNC(u8, s16);
 PCM_CONVERT_FUNC(s16, s16);

@@ -44,7 +44,7 @@ __BEGIN_NAMESPACE_MPX
 namespace MPEG4 {
 
     // ISO/IEC 14496-3:2001
-    struct __ABE_HIDDEN AudioSpecificConfig {
+    struct AudioSpecificConfig {
         AudioSpecificConfig(const BitReader& br);
         bool                    valid;
         uint8_t                 audioObjectType;
@@ -85,7 +85,7 @@ namespace MPEG4 {
         "Scalable"
     };
 
-    __ABE_HIDDEN ES_Descriptor MakeESDescriptor(AudioSpecificConfig& asc);
+    ES_Descriptor MakeESDescriptor(AudioSpecificConfig& asc);
 
 }
 

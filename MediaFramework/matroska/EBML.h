@@ -219,7 +219,7 @@ enum EBMLElementType {
     kEBMLElementBlock,
 };
 
-struct __ABE_HIDDEN EBMLInteger {
+struct EBMLInteger {
     EBMLInteger() : u64(0), length(0) { }
     EBMLInteger(uint64_t x);
 
@@ -232,7 +232,7 @@ struct __ABE_HIDDEN EBMLInteger {
     size_t              length;
 };
 
-struct __ABE_HIDDEN EBMLSignedInteger {
+struct EBMLSignedInteger {
     EBMLSignedInteger() : i64(0), length(0) { }
     EBMLSignedInteger(int64_t x);
 
@@ -245,7 +245,7 @@ struct __ABE_HIDDEN EBMLSignedInteger {
     size_t              length;
 };
 
-struct __ABE_HIDDEN EBMLElement : public SharedObject {
+struct EBMLElement : public SharedObject {
     const char *            name;
     EBMLInteger             id;
     const EBMLElementType   type;
@@ -256,7 +256,7 @@ struct __ABE_HIDDEN EBMLElement : public SharedObject {
     virtual String string() const = 0;
 };
 
-struct __ABE_HIDDEN EBMLIntegerElement : public EBMLElement {
+struct EBMLIntegerElement : public EBMLElement {
     EBMLInteger         vint;
 
     __ABE_INLINE EBMLIntegerElement(const char *_name, EBMLInteger& _id) : EBMLElement(_name, _id, kEBMLElementInteger) { }
@@ -264,7 +264,7 @@ struct __ABE_HIDDEN EBMLIntegerElement : public EBMLElement {
     virtual String string() const;
 };
 
-struct __ABE_HIDDEN EBMLSignedIntegerElement : public EBMLElement {
+struct EBMLSignedIntegerElement : public EBMLElement {
     EBMLSignedInteger   svint;
     
     __ABE_INLINE EBMLSignedIntegerElement(const char *_name, EBMLInteger& _id) : EBMLElement(_name, _id, kEBMLElementSignedInteger) { }
@@ -272,7 +272,7 @@ struct __ABE_HIDDEN EBMLSignedIntegerElement : public EBMLElement {
     virtual String string() const;
 };
 
-struct __ABE_HIDDEN EBMLStringElement : public EBMLElement {
+struct EBMLStringElement : public EBMLElement {
     String              str;
 
     __ABE_INLINE EBMLStringElement(const char *_name, EBMLInteger& _id) : EBMLElement(_name, _id, kEBMLElementString) { }
@@ -280,7 +280,7 @@ struct __ABE_HIDDEN EBMLStringElement : public EBMLElement {
     virtual String string() const;
 };
 
-struct __ABE_HIDDEN EBMLUTF8Element : public EBMLElement {
+struct EBMLUTF8Element : public EBMLElement {
     String              utf8;
 
     __ABE_INLINE EBMLUTF8Element(const char *_name, EBMLInteger& _id) : EBMLElement(_name, _id, kEBMLElementUTF8) { }
@@ -288,7 +288,7 @@ struct __ABE_HIDDEN EBMLUTF8Element : public EBMLElement {
     virtual String string() const;
 };
 
-struct __ABE_HIDDEN EBMLBinaryElement : public EBMLElement {
+struct EBMLBinaryElement : public EBMLElement {
     sp<Buffer>          data;
 
     __ABE_INLINE EBMLBinaryElement(const char *_name, EBMLInteger& _id) : EBMLElement(_name, _id, kEBMLElementBinary) { }
@@ -296,7 +296,7 @@ struct __ABE_HIDDEN EBMLBinaryElement : public EBMLElement {
     virtual String string() const;
 };
 
-struct __ABE_HIDDEN EBMLFloatElement : public EBMLElement {
+struct EBMLFloatElement : public EBMLElement {
     double              flt;
 
     __ABE_INLINE EBMLFloatElement(const char *_name, EBMLInteger& _id) : EBMLElement(_name, _id, kEBMLElementFloat) { }
@@ -304,7 +304,7 @@ struct __ABE_HIDDEN EBMLFloatElement : public EBMLElement {
     virtual String string() const;
 };
 
-struct __ABE_HIDDEN EBMLMasterElement : public EBMLElement {
+struct EBMLMasterElement : public EBMLElement {
     List<sp<EBMLElement> >  children;
 
     __ABE_INLINE EBMLMasterElement(const char *_name, EBMLInteger& _id) : EBMLElement(_name, _id, kEBMLElementMaster) { }
@@ -312,7 +312,7 @@ struct __ABE_HIDDEN EBMLMasterElement : public EBMLElement {
     virtual String string() const;
 };
 
-struct __ABE_HIDDEN EBMLSkipElement : public EBMLElement {
+struct EBMLSkipElement : public EBMLElement {
     __ABE_INLINE EBMLSkipElement(const char *_name, EBMLInteger& _id) : EBMLElement(_name, _id, kEBMLElementSkip) { }
     virtual status_t parse(BitReader&, size_t);
     virtual String string() const;
@@ -328,7 +328,7 @@ enum eBlockFlags {
     kBlockFlagDiscardable   = 0x1,
 };
 
-struct __ABE_HIDDEN EBMLBlockElement : public EBMLElement {
+struct EBMLBlockElement : public EBMLElement {
     EBMLInteger         TrackNumber;
     int16_t             TimeCode;
     uint8_t             Flags;
@@ -339,17 +339,17 @@ struct __ABE_HIDDEN EBMLBlockElement : public EBMLElement {
     virtual String string() const;
 };
 
-__ABE_HIDDEN sp<EBMLElement> FindEBMLElement(const sp<EBMLMasterElement>&, uint64_t id);
+sp<EBMLElement> FindEBMLElement(const sp<EBMLMasterElement>&, uint64_t id);
 
-__ABE_HIDDEN sp<EBMLElement> FindEBMLElementInside(const sp<EBMLMasterElement>& master, uint64_t inside, uint64_t target);
+sp<EBMLElement> FindEBMLElementInside(const sp<EBMLMasterElement>& master, uint64_t inside, uint64_t target);
 
-__ABE_HIDDEN void PrintEBMLElements(const sp<EBMLElement>& elem, size_t level = 0);
+void PrintEBMLElements(const sp<EBMLElement>& elem, size_t level = 0);
 
-__ABE_HIDDEN sp<EBMLElement> EnumEBMLElement(sp<Content>& pipe);
+sp<EBMLElement> EnumEBMLElement(sp<Content>& pipe);
 
-__ABE_HIDDEN sp<EBMLElement> ParseMatroska(sp<Content>& pipe, int64_t *segment_offset, int64_t *clusters_offset);
+sp<EBMLElement> ParseMatroska(sp<Content>& pipe, int64_t *segment_offset, int64_t *clusters_offset);
 
-__ABE_HIDDEN sp<EBMLElement> ReadEBMLElement(sp<Content>& pipe);
+sp<EBMLElement> ReadEBMLElement(sp<Content>& pipe);
 
 __END_NAMESPACE(EBML)
 __END_NAMESPACE_MPX

@@ -102,7 +102,7 @@ enum {
     OBJ_MAX
 };
 
-struct __ABE_HIDDEN Config_Format {
+struct Config_Format {
     const GLint     internalformat;
     const GLenum    format;
     const GLenum    type;
@@ -111,7 +111,7 @@ struct __ABE_HIDDEN Config_Format {
 };
 
 struct OpenGLContext;
-struct __ABE_HIDDEN Config {
+struct Config {
     const char *            s_vsh;          // vertex sl source
     const char *            s_fsh;          // fragment sl source
     const GLenum            e_target;       // texture target
@@ -122,7 +122,7 @@ struct __ABE_HIDDEN Config {
     void                    (*update)(const sp<OpenGLContext>&, const sp<MediaFrame>&);
 };
 
-struct __ABE_HIDDEN OpenGLContext : public SharedObject {
+struct OpenGLContext : public SharedObject {
     // gl context
     const Config *  config;
     GLuint          objs[OBJ_MAX];
@@ -592,7 +592,7 @@ static const Config s_config_vt_nv12 = {
 #endif
 
 ////////////////////////////////////////////////////////////////////
-struct __ABE_HIDDEN GLVideo : public MediaOut {
+struct GLVideo : public MediaOut {
     sp<OpenGLContext> mGLContext;
 
     GLVideo() : MediaOut(), mGLContext(NULL) { }
@@ -699,7 +699,7 @@ struct __ABE_HIDDEN GLVideo : public MediaOut {
     }
 };
 
-__ABE_HIDDEN sp<MediaOut> CreateGLVideo() {
+sp<MediaOut> CreateGLVideo() {
     return new GLVideo();
 }
 __END_NAMESPACE_MPX

@@ -1182,7 +1182,7 @@ RegisterBox("----", iTunesCustomBox);
 RegisterBox("keyd", iTunesKeyDecBox);
 
 #define IgnoreBox(NAME, BoxType)                                            \
-    struct __ABE_HIDDEN BoxType : public Box {                              \
+    struct BoxType : public Box {                              \
         __ABE_INLINE BoxType() : Box(NAME) { }                              \
         __ABE_INLINE virtual status_t parse(const BitReader& br, size_t sz, \
                 const FileTypeBox& ftyp) {                                  \

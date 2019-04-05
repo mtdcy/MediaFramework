@@ -120,7 +120,7 @@ static __ABE_INLINE OSType get_cv_pix_format(ePixelFormat a) {
 }
 
 // for store unorderred image buffers and sort them
-struct __ABE_HIDDEN VTMediaFrame : public MediaFrame {
+struct VTMediaFrame : public MediaFrame {
     __ABE_INLINE VTMediaFrame(CVPixelBufferRef pixbuf, const MediaTime& _pts, const MediaTime& _duration) : MediaFrame() {
         planes[0].data  = NULL;
         pts         = _pts;
@@ -152,7 +152,7 @@ struct __ABE_HIDDEN VTMediaFrame : public MediaFrame {
     }
 };
 
-struct __ABE_HIDDEN VTContext : public SharedObject {
+struct VTContext : public SharedObject {
     __ABE_INLINE VTContext() : decompressionSession(NULL), formatDescription(NULL),
     mInputEOS(false), mLastFrameTime(kTimeBegin) { }
 
@@ -514,7 +514,7 @@ static __ABE_INLINE CMSampleBufferRef createCMSampleBuffer(sp<VTContext>& vtc,
     }
 }
 
-__ABE_HIDDEN sp<MediaFrame> readVideoToolboxFrame(CVPixelBufferRef pixbuf) {
+sp<MediaFrame> readVideoToolboxFrame(CVPixelBufferRef pixbuf) {
     sp<MediaFrame> frame;
 
     CVReturn err = CVPixelBufferLockBaseAddress(pixbuf, kCVPixelBufferLock_ReadOnly);
@@ -576,7 +576,7 @@ __ABE_HIDDEN sp<MediaFrame> readVideoToolboxFrame(CVPixelBufferRef pixbuf) {
     return frame;
 }
 
-struct __ABE_HIDDEN VideoToolboxDecoder : public MediaDecoder {
+struct VideoToolboxDecoder : public MediaDecoder {
     sp<VTContext>   mVTContext;
 
     VideoToolboxDecoder() { }
@@ -701,14 +701,14 @@ struct __ABE_HIDDEN VideoToolboxDecoder : public MediaDecoder {
 };
 
 // FIXME: VTIsHardwareDecodeSupported is not working as expected
-__ABE_HIDDEN bool IsVideoToolboxSupported(eCodecFormat format) {
+bool IsVideoToolboxSupported(eCodecFormat format) {
     CMPixelFormatType cm = get_cm_codec_type(format);
     if (cm == 0) return false;
     return true;
     //return VTIsHardwareDecodeSupported(cm);
 }
 
-__ABE_HIDDEN sp<MediaDecoder> CreateVideoToolboxDecoder() {
+sp<MediaDecoder> CreateVideoToolboxDecoder() {
     return new VideoToolboxDecoder();
 }
 

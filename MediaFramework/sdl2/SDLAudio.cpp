@@ -72,7 +72,7 @@ static __ABE_INLINE SDL_AudioFormat get_sdl_sample_format(eSampleFormat a) {
     return 0;
 }
 
-struct __ABE_HIDDEN SDLAudioContext : public SharedObject {
+struct SDLAudioContext : public SharedObject {
     bool                    mInitByUs;
     sp<Message>             mFormat;
     eSampleFormat           mSampleFormat;
@@ -200,7 +200,7 @@ template <class TYPE> __ABE_INLINE sp<Buffer> interleave(const sp<MediaFrame>& f
     return out;
 }
 
-struct __ABE_HIDDEN SDLAudio : public MediaOut {
+struct SDLAudio : public MediaOut {
     sp<SDLAudioContext>     mSDL;
 
     __ABE_INLINE SDLAudio() : MediaOut(), mSDL(NULL) { }
@@ -309,7 +309,7 @@ struct __ABE_HIDDEN SDLAudio : public MediaOut {
 
 };
 
-__ABE_HIDDEN sp<MediaOut> CreateSDLAudio() {
+sp<MediaOut> CreateSDLAudio() {
     return new SDLAudio;
 }
 __END_NAMESPACE_MPX

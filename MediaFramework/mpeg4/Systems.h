@@ -113,7 +113,7 @@ namespace MPEG4 {
         ISO_IEC_11172_3             = 0x6b,         // MP2 
         ISO_IEC_10918_1             = 0x6c,         // MJPEG
     };
-    __ABE_HIDDEN eCodecFormat translateObjectTypeIndication(uint8_t objectTypeIndication);
+    eCodecFormat translateObjectTypeIndication(uint8_t objectTypeIndication);
 
     // streamType
     // ISO/IEC 14496-1:2010(E), Section 7.2.6.6.2, Page 51, Table 6
@@ -134,7 +134,7 @@ namespace MPEG4 {
         // 0x20 - 0x3F user private
     };
 
-    struct __ABE_HIDDEN BaseDescriptor {
+    struct BaseDescriptor {
         BaseDescriptor() : valid(false) { }
         BaseDescriptor(const uint8_t tag) : valid(false), descrTag(tag) { }
         virtual ~BaseDescriptor() { }
@@ -150,7 +150,7 @@ namespace MPEG4 {
     // DecoderConfigDescriptor.objectTypeIndication.
     // Note: decoder usually need this information, for demuxer, there may be 
     // no need to parse this information
-    struct __ABE_HIDDEN DecoderSpecificInfo : public BaseDescriptor {
+    struct DecoderSpecificInfo : public BaseDescriptor {
         DecoderSpecificInfo();
         DecoderSpecificInfo(const BitReader& br);
         virtual size_t size() const;
@@ -158,7 +158,7 @@ namespace MPEG4 {
         sp<Buffer>  csd;
     };
 
-    struct __ABE_HIDDEN DecoderConfigDescriptor : public BaseDescriptor {
+    struct DecoderConfigDescriptor : public BaseDescriptor {
         DecoderConfigDescriptor();
         DecoderConfigDescriptor(const BitReader& br);
         virtual size_t size() const;
@@ -175,7 +175,7 @@ namespace MPEG4 {
     };
 
     // ISO/IEC 14496-1:2010(E), Section 7.2.6.5, Page 47
-    struct __ABE_HIDDEN ES_Descriptor : public BaseDescriptor {
+    struct ES_Descriptor : public BaseDescriptor {
         ES_Descriptor();
         ES_Descriptor(const BitReader& br);
         virtual size_t size() const;
@@ -194,7 +194,7 @@ namespace MPEG4 {
         sp<Buffer>              extraBytes;
     };
 
-    __ABE_HIDDEN sp<Buffer> MakeESDS(ES_Descriptor& esd);
+    sp<Buffer> MakeESDS(ES_Descriptor& esd);
 
     // ESDS
 }

@@ -43,7 +43,7 @@ __BEGIN_NAMESPACE(MPEG4)
 // ISO/IEC 14496-12 ISO base media file format
 // http://www.ftyps.com
 // ftyp *
-struct __ABE_HIDDEN FileTypeBox {
+struct FileTypeBox {
     String          major_brand;
     uint32_t        minor_version;
     String          compatibles;
@@ -54,7 +54,7 @@ struct __ABE_HIDDEN FileTypeBox {
 };
 
 // ISO/IEC 14496-12: Section 4.2 Object Structure, Page 11
-struct __ABE_HIDDEN Box : public SharedObject {
+struct Box : public SharedObject {
     const String    name;
     bool            full;
     bool            container;
@@ -68,13 +68,13 @@ struct __ABE_HIDDEN Box : public SharedObject {
     size_t size() const { return full ? 4 : 0; }
 };
 
-struct __ABE_HIDDEN FullBox : public Box {
+struct FullBox : public Box {
     __ABE_INLINE FullBox(const String& _name, bool container = false) : Box(_name, true, container) { }
     __ABE_INLINE virtual ~FullBox() { }
     size_t size() const { return Box::size(); }
 };
 
-struct __ABE_HIDDEN ContainerBox : public Box {
+struct ContainerBox : public Box {
     bool                counted;
     Vector<sp<Box> >    child;
     
@@ -85,12 +85,12 @@ struct __ABE_HIDDEN ContainerBox : public Box {
     virtual void compose(BitWriter&, const FileTypeBox&);
 };
 
-struct __ABE_HIDDEN FullContainerBox : public ContainerBox {
+struct FullContainerBox : public ContainerBox {
     __ABE_INLINE FullContainerBox(const String& _name) : ContainerBox(_name, true, false) { }
     __ABE_INLINE virtual ~FullContainerBox() { }
 };
 
-struct __ABE_HIDDEN CountedFullContainerBox : public ContainerBox {
+struct CountedFullContainerBox : public ContainerBox {
     __ABE_INLINE CountedFullContainerBox(const String& _name) : ContainerBox(_name, true, true) { }
     __ABE_INLINE virtual ~CountedFullContainerBox() { }
 };
@@ -151,7 +151,7 @@ struct __ABE_HIDDEN CountedFullContainerBox : public ContainerBox {
 //  |   |- albm
 //  |- iods
 //  |- meta!
-#define BOX_TYPE(NAME, BOX, BASE)  struct __ABE_HIDDEN BOX : public BASE { __ABE_INLINE BOX() : BASE(NAME) { } };
+#define BOX_TYPE(NAME, BOX, BASE)  struct BOX : public BASE { __ABE_INLINE BOX() : BASE(NAME) { } };
 
 BOX_TYPE("moov", MovieBox,              ContainerBox);
 BOX_TYPE("trak", TrackBox,              ContainerBox);
@@ -170,13 +170,13 @@ BOX_TYPE("stsd", SampleDescriptionBox,  CountedFullContainerBox);
 
 // 'meta'
 // isom and quicktime using different semantics for MetaBox
-struct __ABE_HIDDEN MetaBox : public ContainerBox {
+struct MetaBox : public ContainerBox {
     __ABE_INLINE MetaBox() : ContainerBox("meta") { }
     status_t parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
 
-struct __ABE_HIDDEN MovieHeaderBox : public FullBox {
+struct MovieHeaderBox : public FullBox {
     uint64_t    creation_time;
     uint64_t    modification_time;
     uint32_t    timescale;
@@ -190,7 +190,7 @@ struct __ABE_HIDDEN MovieHeaderBox : public FullBox {
     void compose(BitWriter&, const FileTypeBox&);
 };
 
-struct __ABE_HIDDEN TrackHeaderBox : public FullBox {
+struct TrackHeaderBox : public FullBox {
     /**
      * flag value of track
      * @see Box::flags
@@ -219,7 +219,7 @@ struct __ABE_HIDDEN TrackHeaderBox : public FullBox {
 };
 
 BOX_TYPE("tref", TrackReferenceBox,     ContainerBox);
-struct __ABE_HIDDEN TrackReferenceTypeBox : public Box {
+struct TrackReferenceTypeBox : public Box {
     Vector<uint32_t>    track_IDs;
 
     __ABE_INLINE TrackReferenceTypeBox(const String& _name) : Box(_name) { }
@@ -236,7 +236,7 @@ BOX_TYPE("mpod", TrackReferenceMpodBox, TrackReferenceTypeBox);
 BOX_TYPE("sync", TrackReferenceSyncBox, TrackReferenceTypeBox);
 BOX_TYPE("chap", TrackReferenceChapBox, TrackReferenceTypeBox);
 
-struct __ABE_HIDDEN MediaHeaderBox : public FullBox {
+struct MediaHeaderBox : public FullBox {
     uint64_t            creation_time;
     uint64_t            modification_time;
     uint32_t            timescale;
@@ -248,7 +248,7 @@ struct __ABE_HIDDEN MediaHeaderBox : public FullBox {
     void compose(BitWriter&, const FileTypeBox&);
 };
 
-struct __ABE_HIDDEN HandlerBox : public FullBox {
+struct HandlerBox : public FullBox {
     String              handler_type;
     String              handler_name;
     
@@ -257,7 +257,7 @@ struct __ABE_HIDDEN HandlerBox : public FullBox {
     void compose(BitWriter&, const FileTypeBox&);
 };
 
-struct __ABE_HIDDEN VideoMediaHeaderBox : public FullBox {
+struct VideoMediaHeaderBox : public FullBox {
     uint16_t            graphicsmode;
     Vector<uint16_t>    opcolor;
     
@@ -266,7 +266,7 @@ struct __ABE_HIDDEN VideoMediaHeaderBox : public FullBox {
     void compose(BitWriter&, const FileTypeBox&);
 };
 
-struct __ABE_HIDDEN SoundMediaHeaderBox : public FullBox {
+struct SoundMediaHeaderBox : public FullBox {
     uint16_t            balance;
 
     __ABE_INLINE SoundMediaHeaderBox() : FullBox("smhd") { }
@@ -274,7 +274,7 @@ struct __ABE_HIDDEN SoundMediaHeaderBox : public FullBox {
     void compose(BitWriter&, const FileTypeBox&);
 };
 
-struct __ABE_HIDDEN HintMediaHeaderBox : public FullBox {
+struct HintMediaHeaderBox : public FullBox {
     uint16_t            maxPDUsize;
     uint16_t            avgPDUsize;
     uint32_t            maxbitrate;
@@ -287,7 +287,7 @@ struct __ABE_HIDDEN HintMediaHeaderBox : public FullBox {
 
 BOX_TYPE("nmhb", NullMediaHeaderBox, FullBox);
 
-struct __ABE_HIDDEN DataEntryUrlBox : public FullBox {
+struct DataEntryUrlBox : public FullBox {
     String              location;
 
     __ABE_INLINE DataEntryUrlBox() : FullBox("url ") { }
@@ -295,7 +295,7 @@ struct __ABE_HIDDEN DataEntryUrlBox : public FullBox {
     void compose(BitWriter&, const FileTypeBox&);
 };
 
-struct __ABE_HIDDEN DataEntryUrnBox : public FullBox {
+struct DataEntryUrnBox : public FullBox {
     String              urn_name;
     String              location;
     
@@ -304,7 +304,7 @@ struct __ABE_HIDDEN DataEntryUrnBox : public FullBox {
     void compose(BitWriter&, const FileTypeBox&);
 };
 
-struct __ABE_HIDDEN TimeToSampleBox : public FullBox {
+struct TimeToSampleBox : public FullBox {
     struct Entry {
         uint32_t        sample_count;
         uint32_t        sample_delta;
@@ -316,7 +316,7 @@ struct __ABE_HIDDEN TimeToSampleBox : public FullBox {
     void compose(BitWriter&, const FileTypeBox&);
 };
 
-struct __ABE_HIDDEN CompositionOffsetBox : public FullBox {
+struct CompositionOffsetBox : public FullBox {
     struct Entry {
         uint32_t        sample_count;
         uint32_t        sample_offset;  // int32_t in version 1
@@ -328,7 +328,7 @@ struct __ABE_HIDDEN CompositionOffsetBox : public FullBox {
     void compose(BitWriter&, const FileTypeBox&);
 };
 
-struct __ABE_HIDDEN SampleDependencyTypeBox : public FullBox {
+struct SampleDependencyTypeBox : public FullBox {
     Vector<uint8_t>     dependency;
 
     __ABE_INLINE SampleDependencyTypeBox() : FullBox("sdtp") { }
@@ -336,7 +336,7 @@ struct __ABE_HIDDEN SampleDependencyTypeBox : public FullBox {
     void compose(BitWriter&, const FileTypeBox&);
 };
 
-struct __ABE_HIDDEN SampleEntry : public ContainerBox {
+struct SampleEntry : public ContainerBox {
     String              type;
     uint16_t            data_reference_index;
     union {
@@ -372,23 +372,23 @@ struct __ABE_HIDDEN SampleEntry : public ContainerBox {
     void compose(BitWriter&, const FileTypeBox&);
 };
 
-struct __ABE_HIDDEN VisualSampleEntry : public SampleEntry {
+struct VisualSampleEntry : public SampleEntry {
     __ABE_INLINE VisualSampleEntry(const String& _name) : SampleEntry(_name, "vide") { }
 };
-struct __ABE_HIDDEN AudioSampleEntry : public SampleEntry {
+struct AudioSampleEntry : public SampleEntry {
     __ABE_INLINE AudioSampleEntry(const String& _name) : SampleEntry(_name, "soun") { }
 };
-struct __ABE_HIDDEN HintSampleEntry : public SampleEntry {
+struct HintSampleEntry : public SampleEntry {
     __ABE_INLINE HintSampleEntry(const String& _name) : SampleEntry(_name, "hint") { }
 };
-struct __ABE_HIDDEN MpegSampleEntry : public SampleEntry {
+struct MpegSampleEntry : public SampleEntry {
     __ABE_INLINE MpegSampleEntry() : SampleEntry("mp4s", "*") { }
 };
 
 // https://github.com/macosforge/alac
 // 'alac' box inside 'alac', so custom AudioSampleEntry implementation
 #if 1
-struct __ABE_HIDDEN ALACAudioSampleEntry : public AudioSampleEntry {
+struct ALACAudioSampleEntry : public AudioSampleEntry {
     sp<Buffer> extra;
 
     __ABE_INLINE ALACAudioSampleEntry() : AudioSampleEntry("alac") { }
@@ -399,7 +399,7 @@ struct __ABE_HIDDEN ALACAudioSampleEntry : public AudioSampleEntry {
 BOX_TYPE("alac", ALACAudioSampleEntry,          AudioSampleEntry);
 #endif
 
-struct __ABE_HIDDEN CommonBox : public Box {
+struct CommonBox : public Box {
     sp<Buffer>  data;
 
     __ABE_INLINE CommonBox(const String& _name, bool full = false) : Box(_name, full) { }
@@ -407,7 +407,7 @@ struct __ABE_HIDDEN CommonBox : public Box {
     void compose(BitWriter&, const FileTypeBox&);
 };
 
-struct __ABE_HIDDEN FullCommonBox : public CommonBox {
+struct FullCommonBox : public CommonBox {
     __ABE_INLINE FullCommonBox(const String& _name) : CommonBox(_name, true) { }
 };
 
@@ -441,13 +441,13 @@ BOX_TYPE("damr", AMRSpecificBox,                CommonBox);
 // A 'wave' chunk for 'mp4a' typically contains (in order) at least
 // a 'frma' atom, an 'mp4a' atom, an 'esds' atom, and a Terminator Atom
 // *BUT* the 'mp4a' atom inside 'wave' seems have different semantics
-struct __ABE_HIDDEN siDecompressionParam : public ContainerBox {
+struct siDecompressionParam : public ContainerBox {
     __ABE_INLINE siDecompressionParam() : ContainerBox("wave") { }
     status_t parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
 
-struct __ABE_HIDDEN SamplingRateBox : public FullBox {
+struct SamplingRateBox : public FullBox {
     uint32_t    sampling_rate;
 
     __ABE_INLINE SamplingRateBox() : FullBox("srat") { }
@@ -455,7 +455,7 @@ struct __ABE_HIDDEN SamplingRateBox : public FullBox {
     void compose(BitWriter&, const FileTypeBox&);
 };
 
-struct __ABE_HIDDEN ColourInformationBox : public Box {
+struct ColourInformationBox : public Box {
     String      colour_type;
     uint16_t    colour_primaries;
     uint16_t    transfer_characteristics;
@@ -467,7 +467,7 @@ struct __ABE_HIDDEN ColourInformationBox : public Box {
     void compose(BitWriter&, const FileTypeBox&);
 };
 
-struct __ABE_HIDDEN BitRateBox : public Box {
+struct BitRateBox : public Box {
     uint32_t        bufferSizeDB;
     uint32_t        maxBitrate;
     uint32_t        avgBitrate;
@@ -478,7 +478,7 @@ struct __ABE_HIDDEN BitRateBox : public Box {
 };
 
 // unified SampleSizeBox & CompactSampleSizeBox
-struct __ABE_HIDDEN SampleSizeBox : public FullBox {
+struct SampleSizeBox : public FullBox {
     uint32_t            sample_size;
     Vector<uint64_t>    entries;
     
@@ -489,7 +489,7 @@ struct __ABE_HIDDEN SampleSizeBox : public FullBox {
 BOX_TYPE("stsz", PreferredSampleSizeBox, SampleSizeBox);
 BOX_TYPE("stz2", CompactSampleSizeBox, SampleSizeBox);
 
-struct __ABE_HIDDEN SampleToChunkBox : public FullBox {
+struct SampleToChunkBox : public FullBox {
     struct Entry {
         uint32_t        first_chunk;
         uint32_t        samples_per_chunk;
@@ -502,7 +502,7 @@ struct __ABE_HIDDEN SampleToChunkBox : public FullBox {
     void compose(BitWriter&, const FileTypeBox&);
 };
 
-struct __ABE_HIDDEN ChunkOffsetBox : public FullBox {
+struct ChunkOffsetBox : public FullBox {
     Vector<uint64_t>    entries;
 
     __ABE_INLINE ChunkOffsetBox(const String& _name) : FullBox(_name) { }
@@ -512,7 +512,7 @@ struct __ABE_HIDDEN ChunkOffsetBox : public FullBox {
 BOX_TYPE("stco", PreferredChunkOffsetBox, ChunkOffsetBox);
 BOX_TYPE("co64", LargeChunkOffsetBox, ChunkOffsetBox);
 
-struct __ABE_HIDDEN SyncSampleBox : public FullBox {
+struct SyncSampleBox : public FullBox {
     Vector<uint32_t>    entries;
 
     __ABE_INLINE SyncSampleBox() : FullBox("stss") { }
@@ -520,7 +520,7 @@ struct __ABE_HIDDEN SyncSampleBox : public FullBox {
     void compose(BitWriter&, const FileTypeBox&);
 };
 
-struct __ABE_HIDDEN ShadowSyncSampleBox : public FullBox {
+struct ShadowSyncSampleBox : public FullBox {
     struct Entry {
         uint32_t        shadowed_sample_number;
         uint32_t        sync_sample_number;
@@ -532,7 +532,7 @@ struct __ABE_HIDDEN ShadowSyncSampleBox : public FullBox {
     void compose(BitWriter&, const FileTypeBox&);
 };
 
-struct __ABE_HIDDEN DegradationPriorityBox : public FullBox {
+struct DegradationPriorityBox : public FullBox {
     Vector<uint16_t>    entries;
 
     __ABE_INLINE DegradationPriorityBox() : FullBox("stdp") { }
@@ -540,7 +540,7 @@ struct __ABE_HIDDEN DegradationPriorityBox : public FullBox {
     void compose(BitWriter&, const FileTypeBox&);
 };
 
-struct __ABE_HIDDEN PaddingBitsBox : public FullBox {
+struct PaddingBitsBox : public FullBox {
     struct Entry {
         uint8_t     pad1;
         uint8_t     pad2;
@@ -552,7 +552,7 @@ struct __ABE_HIDDEN PaddingBitsBox : public FullBox {
     void compose(BitWriter&, const FileTypeBox&);
 };
 
-struct __ABE_HIDDEN FreeSpaceBox : public Box {
+struct FreeSpaceBox : public Box {
     __ABE_INLINE FreeSpaceBox(const String& _name) : Box(_name) { }
     status_t parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
@@ -560,7 +560,7 @@ struct __ABE_HIDDEN FreeSpaceBox : public Box {
 BOX_TYPE("free", FreeBox, FreeSpaceBox);
 BOX_TYPE("skip", SkipBox, FreeSpaceBox);
 
-struct __ABE_HIDDEN EditListBox : public FullBox {
+struct EditListBox : public FullBox {
     struct Entry {
         uint64_t        segment_duration;
         int64_t         media_time;
@@ -574,7 +574,7 @@ struct __ABE_HIDDEN EditListBox : public FullBox {
     void compose(BitWriter&, const FileTypeBox&);
 };
 
-struct __ABE_HIDDEN NoticeBox : public FullBox {
+struct NoticeBox : public FullBox {
     String              language;
     String              value;
     
@@ -592,7 +592,7 @@ BOX_TYPE("yrrc", YearBox, NoticeBox);
 BOX_TYPE("loci", LocationBox, NoticeBox);
 BOX_TYPE("auth", AuthorBox, NoticeBox);
 
-struct __ABE_HIDDEN MovieExtendsHeaderBox : public FullBox {
+struct MovieExtendsHeaderBox : public FullBox {
     uint64_t    fragment_duration;
 
     __ABE_INLINE MovieExtendsHeaderBox() : FullBox("mehd") { }
@@ -600,7 +600,7 @@ struct __ABE_HIDDEN MovieExtendsHeaderBox : public FullBox {
     void compose(BitWriter&, const FileTypeBox&);
 };
 
-struct __ABE_HIDDEN TrackExtendsBox : public FullBox {
+struct TrackExtendsBox : public FullBox {
     uint32_t    track_ID;
     uint32_t    default_sample_description_index;
     uint32_t    default_sample_duration;
@@ -612,7 +612,7 @@ struct __ABE_HIDDEN TrackExtendsBox : public FullBox {
     void compose(BitWriter&, const FileTypeBox&);
 };
 
-struct __ABE_HIDDEN MovieFragmentHeaderBox : public FullBox {
+struct MovieFragmentHeaderBox : public FullBox {
     uint32_t    sequence_number;
 
     __ABE_INLINE MovieFragmentHeaderBox() : FullBox("mfhd") { }
@@ -620,7 +620,7 @@ struct __ABE_HIDDEN MovieFragmentHeaderBox : public FullBox {
     void compose(BitWriter&, const FileTypeBox&);
 };
 
-struct __ABE_HIDDEN TrackFragmentHeaderBox : public FullBox {
+struct TrackFragmentHeaderBox : public FullBox {
     uint32_t    track_ID;
     uint64_t    base_data_offset;
     uint32_t    sample_description_index;
@@ -633,7 +633,7 @@ struct __ABE_HIDDEN TrackFragmentHeaderBox : public FullBox {
     void compose(BitWriter&, const FileTypeBox&);
 };
 
-struct __ABE_HIDDEN PrimaryItemBox : public FullBox {
+struct PrimaryItemBox : public FullBox {
     uint16_t        item_ID;
 
     __ABE_INLINE PrimaryItemBox() : FullBox("pitm") { }
@@ -658,7 +658,7 @@ struct __ABE_HIDDEN PrimaryItemBox : public FullBox {
 //  |- lang
 
 // mhdr
-struct __ABE_HIDDEN iTunesHeaderBox : public FullBox {
+struct iTunesHeaderBox : public FullBox {
     uint32_t        nextItemID;
 
     __ABE_INLINE iTunesHeaderBox() : FullBox("mhdr") { }
@@ -668,7 +668,7 @@ struct __ABE_HIDDEN iTunesHeaderBox : public FullBox {
 
 // FIXME: keys box seems have multi semantics
 #if 0
-struct __ABE_HIDDEN iTunesKeysBox : public FullBox {
+struct iTunesKeysBox : public FullBox {
     struct Entry {
         String      Key_namespace;
         sp<Buffer>  Key_value;
@@ -684,7 +684,7 @@ BOX_TYPE("keys", iTunesItemKeysBox, CountedFullContainerBox);
 #endif
 
 // mdta
-struct __ABE_HIDDEN iTunesStringBox : public Box {
+struct iTunesStringBox : public Box {
     String      value;
 
     __ABE_INLINE iTunesStringBox(const String& _name) : Box(_name) { }
@@ -697,7 +697,7 @@ BOX_TYPE("mdta", iTunesMediaDataBox, iTunesStringBox);
 #if 0
 BOX_TYPE("ilst", iTunesItemListBox, ContainerBox);
 #else
-struct __ABE_HIDDEN iTunesItemListBox : public ContainerBox {
+struct iTunesItemListBox : public ContainerBox {
     Vector<uint32_t>        key_index;
 
     __ABE_INLINE iTunesItemListBox() : ContainerBox("ilst") { }
@@ -707,7 +707,7 @@ struct __ABE_HIDDEN iTunesItemListBox : public ContainerBox {
 #endif
 
 // 'data'
-struct __ABE_HIDDEN iTunesDataBox : public Box {
+struct iTunesDataBox : public Box {
     uint32_t        Type_indicator;
     uint16_t        Country_indicator;      // ISO 3166
     uint16_t        Language_indicator;     // index or ISO 639-2/T
@@ -719,7 +719,7 @@ struct __ABE_HIDDEN iTunesDataBox : public Box {
 };
 
 // ctry
-struct __ABE_HIDDEN CountryListBox : public FullBox {
+struct CountryListBox : public FullBox {
     struct Entry {
         Vector<uint16_t>    Countries;
     };
@@ -731,7 +731,7 @@ struct __ABE_HIDDEN CountryListBox : public FullBox {
 };
 
 // lang
-struct __ABE_HIDDEN LanguageListBox : public FullBox {
+struct LanguageListBox : public FullBox {
     struct Entry {
         Vector<uint16_t>    Languages;
     };
@@ -756,7 +756,7 @@ BOX_TYPE("cpil", iTunesCompilationItemBox, ContainerBox);
 BOX_TYPE("tmpo", iTunesBPMItemBox, ContainerBox);
 BOX_TYPE("pgap", iTunesGaplessPlaybackBox, ContainerBox);
 
-struct __ABE_HIDDEN iTunesInfomationBox : public FullBox {
+struct iTunesInfomationBox : public FullBox {
     uint32_t        Item_ID;
 
     __ABE_INLINE iTunesInfomationBox() : FullBox("itif") { }
@@ -764,7 +764,7 @@ struct __ABE_HIDDEN iTunesInfomationBox : public FullBox {
     void compose(BitWriter&, const FileTypeBox&);
 };
 
-struct __ABE_HIDDEN iTunesNameBox : public Box {
+struct iTunesNameBox : public Box {
     String          Name;
 
     __ABE_INLINE iTunesNameBox() : Box("name") { }
@@ -772,7 +772,7 @@ struct __ABE_HIDDEN iTunesNameBox : public Box {
     void compose(BitWriter&, const FileTypeBox&);
 };
 
-struct __ABE_HIDDEN iTunesMeanBox : public Box {
+struct iTunesMeanBox : public Box {
     String          Mean;
 
     __ABE_INLINE iTunesMeanBox() : Box("mean") { }
@@ -780,7 +780,7 @@ struct __ABE_HIDDEN iTunesMeanBox : public Box {
     void compose(BitWriter&, const FileTypeBox&);
 };
 
-struct __ABE_HIDDEN iTunesKeyDecBox : public Box {
+struct iTunesKeyDecBox : public Box {
     String          Key_namespace;
     sp<Buffer>      Key_value;
     
@@ -793,7 +793,7 @@ BOX_TYPE("----", iTunesCustomBox, ContainerBox);
 
 //BOX_TYPE("mebx", TimedMetadataSampleDescriptionBox, CountedFullContainerBox);
 
-struct __ABE_HIDDEN ObjectDescriptorBox : public FullBox {
+struct ObjectDescriptorBox : public FullBox {
     sp<Buffer> iods;
 
     __ABE_INLINE ObjectDescriptorBox() : FullBox("iods") { }
@@ -801,7 +801,7 @@ struct __ABE_HIDDEN ObjectDescriptorBox : public FullBox {
     void compose(BitWriter&, const FileTypeBox&);
 };
 
-struct __ABE_HIDDEN ID3v2Box : public FullBox {
+struct ID3v2Box : public FullBox {
     String      language;
     sp<Buffer>  ID3v2data;
     
@@ -810,17 +810,17 @@ struct __ABE_HIDDEN ID3v2Box : public FullBox {
     void compose(BitWriter&, const FileTypeBox&);
 };
 
-__ABE_HIDDEN sp<Box> MakeBoxByName(const String& name);
+sp<Box> MakeBoxByName(const String& name);
 
-__ABE_HIDDEN bool CheckTrackBox(const sp<TrackBox>& trak);
+bool CheckTrackBox(const sp<TrackBox>& trak);
 
-__ABE_HIDDEN sp<Box> FindBox(const sp<ContainerBox>& root,
+sp<Box> FindBox(const sp<ContainerBox>& root,
         const String& boxType, size_t index = 0);
-__ABE_HIDDEN sp<Box> FindBox(const sp<ContainerBox>& root,
+sp<Box> FindBox(const sp<ContainerBox>& root,
         const String& first, const String& second);
-__ABE_HIDDEN sp<Box> FindBoxInside(const sp<ContainerBox>& root,
+sp<Box> FindBoxInside(const sp<ContainerBox>& root,
         const String& sub, const String& target);
-__ABE_HIDDEN void PrintBox(const sp<Box>& root);
+void PrintBox(const sp<Box>& root);
 
 __END_NAMESPACE(MPEG4)
 __END_NAMESPACE_MPX

@@ -130,7 +130,7 @@ static __ABE_INLINE eCodecFormat GetCodecFormat(const String& codec) {
     return kCodecFormatUnknown;
 }
 
-struct __ABE_HIDDEN MatroskaTrack {
+struct MatroskaTrack {
     MatroskaTrack() : id(0), format(kCodecFormatUnknown),
     frametime(0), timescale(1.0), next_dts(kTimeBegin) { }
 
@@ -156,7 +156,7 @@ struct __ABE_HIDDEN MatroskaTrack {
     sp<MediaPacket>         packet;     // first packet
 };
 
-struct __ABE_HIDDEN TOCEntry {
+struct TOCEntry {
     TOCEntry() : time(0), track(0), cluster(0), block(0) { }
     uint64_t    time;
     size_t      track;
@@ -165,7 +165,7 @@ struct __ABE_HIDDEN TOCEntry {
 };
 
 // Frames using references should be stored in "coding order".
-struct __ABE_HIDDEN MatroskaPacket : public MediaPacket {
+struct MatroskaPacket : public MediaPacket {
     sp<Buffer>  buffer;
 
     MatroskaPacket(MatroskaTrack& trak,
@@ -195,7 +195,7 @@ struct __ABE_HIDDEN MatroskaPacket : public MediaPacket {
 
 #define TIMESCALE_DEF 1000000UL
 bool decodeMPEGAudioFrameHeader(const Buffer& frame, uint32_t *sampleRate, uint32_t *numChannels);
-struct __ABE_HIDDEN MatroskaFile : public MediaExtractor {
+struct MatroskaFile : public MediaExtractor {
     int64_t                 mSegment;   // offset of SEGMENT
     int64_t                 mClusters;  // offset of CLUSTERs
     double                  mDuration;
@@ -594,7 +594,7 @@ struct __ABE_HIDDEN MatroskaFile : public MediaExtractor {
     }
 };
 
-__ABE_HIDDEN sp<MediaExtractor> CreateMatroskaFile() {
+sp<MediaExtractor> CreateMatroskaFile() {
     return new MatroskaFile;
 }
 
