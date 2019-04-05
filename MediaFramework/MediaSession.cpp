@@ -888,8 +888,18 @@ struct __ABE_HIDDEN AVSession : public IMediaSession {
             mLoopers[i]->profile();
         }
     }
+    
+    virtual ~AVSession() { CHECK_TRUE(mLoopers.empty()); }
 
-    virtual ~AVSession() {
+    virtual void prepare(const Message& options) {
+        mLoopers.back()->post(new PrepareRunnable(options));
+    }
+
+    virtual void flush() {
+        mLoopers.back()->post(new FlushRunnable);
+    }
+    
+    virtual void release() {
         for (size_t i = 0; i < mLoopers.size(); ++i) {
             mLoopers[i]->terminate(true);
             for (size_t j = INDEX0; j < N_INDEX; ++j) {
@@ -898,15 +908,8 @@ struct __ABE_HIDDEN AVSession : public IMediaSession {
                 }
             }
         }
-        INFO("destroy av session");
-    }
-
-    virtual void prepare(const Message& options) {
-        mLoopers.back()->post(new PrepareRunnable(options));
-    }
-
-    virtual void flush() {
-        mLoopers.back()->post(new FlushRunnable);
+        mLoopers.clear();
+        INFO("release av session");
     }
 };
 
