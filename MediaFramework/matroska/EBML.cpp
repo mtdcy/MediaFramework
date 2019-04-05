@@ -52,13 +52,13 @@
 __BEGIN_NAMESPACE_MPX
 __BEGIN_NAMESPACE(EBML)
 
-static __ABE_INLINE size_t EBMLCodeBytesLength(uint64_t x) {
+static FORCE_INLINE size_t EBMLCodeBytesLength(uint64_t x) {
     size_t n = 0;
     while (x) { ++n; x >>= 8; }
     return n;
 }
 
-static __ABE_INLINE uint64_t EBMLCodeInteger(uint64_t x) {
+static FORCE_INLINE uint64_t EBMLCodeInteger(uint64_t x) {
     size_t n = EBMLCodeBytesLength(x);
     x |= (1 << (7 * n));
     return x;
@@ -68,17 +68,17 @@ EBMLInteger::EBMLInteger(uint64_t x) : u64(x), length(EBMLCodeBytesLength(x)) { 
 
 static EBMLInteger EBMLIntegerNull(0);     // with value & length == 0
 
-static __ABE_INLINE bool operator==(EBMLInteger& lhs, EBMLInteger& rhs) {
+static FORCE_INLINE bool operator==(EBMLInteger& lhs, EBMLInteger& rhs) {
     return lhs.u64 == rhs.u64 && lhs.length == rhs.length;
 }
 
 #define MASK(n) ((1ULL<<(n))-1)
-static __ABE_INLINE uint8_t EBMLGetBytesLength(uint8_t v) {
+static FORCE_INLINE uint8_t EBMLGetBytesLength(uint8_t v) {
     return __builtin_clz((unsigned int)v) - 24 + 1;
 }
 
 // vint with leading 1-bit
-static __ABE_INLINE EBMLInteger EBMLGetCodedInteger(BitReader& br) {
+static FORCE_INLINE EBMLInteger EBMLGetCodedInteger(BitReader& br) {
     EBMLInteger vint;
     vint.u8     = br.r8();
     vint.length = EBMLGetBytesLength(vint.u8);
@@ -96,19 +96,19 @@ static __ABE_INLINE EBMLInteger EBMLGetCodedInteger(BitReader& br) {
     return vint;
 }
 
-static __ABE_INLINE uint64_t EBMLClearLeadingBit(uint64_t x, size_t length) {
+static FORCE_INLINE uint64_t EBMLClearLeadingBit(uint64_t x, size_t length) {
     return x & MASK(7 * length);
 }
 
 // vint without leading 1-bit removed
-static __ABE_INLINE EBMLInteger EBMLGetInteger(BitReader& br) {
+static FORCE_INLINE EBMLInteger EBMLGetInteger(BitReader& br) {
     EBMLInteger vint = EBMLGetCodedInteger(br);
     vint.u64 = EBMLClearLeadingBit(vint.u64, vint.length);
     return vint;
 }
 
 // vint with or without leading 1-bit
-static __ABE_INLINE EBMLInteger EBMLGetInteger(BitReader& br, size_t n) {
+static FORCE_INLINE EBMLInteger EBMLGetInteger(BitReader& br, size_t n) {
     CHECK_GT(n, 0);
     CHECK_LE(n, 8);
     EBMLInteger vint;
@@ -123,7 +123,7 @@ static __ABE_INLINE EBMLInteger EBMLGetInteger(BitReader& br, size_t n) {
 }
 
 // vint -> element length
-static __ABE_INLINE EBMLInteger EBMLGetLength(BitReader& br) {
+static FORCE_INLINE EBMLInteger EBMLGetLength(BitReader& br) {
     return EBMLGetInteger(br);
 }
 
@@ -137,7 +137,7 @@ struct Int2Double {
     uint64_t    u64;
 };
 
-static __ABE_INLINE double EBMLGetFloat(BitReader& br, size_t n) {
+static FORCE_INLINE double EBMLGetFloat(BitReader& br, size_t n) {
     if (n == 8) {
         CHECK_EQ(sizeof(double), 8);
         Int2Double a;
@@ -152,7 +152,7 @@ static __ABE_INLINE double EBMLGetFloat(BitReader& br, size_t n) {
     return 0;
 }
 
-static __ABE_INLINE EBMLInteger EBMLGetCodedInteger(sp<Content>& pipe) {
+static FORCE_INLINE EBMLInteger EBMLGetCodedInteger(sp<Content>& pipe) {
     if (pipe->tell() >= pipe->size()) {
         return EBMLIntegerNull;
     }
@@ -180,7 +180,7 @@ static __ABE_INLINE EBMLInteger EBMLGetCodedInteger(sp<Content>& pipe) {
     return vint;
 }
 
-static __ABE_INLINE EBMLInteger EBMLGetInteger(sp<Content>& pipe) {
+static FORCE_INLINE EBMLInteger EBMLGetInteger(sp<Content>& pipe) {
     EBMLInteger vint = EBMLGetCodedInteger(pipe);
     vint.u64 = EBMLClearLeadingBit(vint.u64, vint.length);
     return vint;
@@ -194,7 +194,7 @@ uint64_t vsint_subtr[] = {
     0x00FFFFFFFFFFFF, 0x007FFFFFFFFFFFFF
 };
 
-static __ABE_INLINE EBMLSignedInteger EBMLGetSignedInteger(BitReader& br) {
+static FORCE_INLINE EBMLSignedInteger EBMLGetSignedInteger(BitReader& br) {
     EBMLSignedInteger svint;
     EBMLInteger vint    = EBMLGetInteger(br);
     svint.i64           = vint.u64 - vsint_subtr[vint.length - 1];
@@ -202,7 +202,7 @@ static __ABE_INLINE EBMLSignedInteger EBMLGetSignedInteger(BitReader& br) {
     return svint;
 }
 
-static __ABE_INLINE EBMLSignedInteger EBMLGetSignedInteger(BitReader& br, size_t n) {
+static FORCE_INLINE EBMLSignedInteger EBMLGetSignedInteger(BitReader& br, size_t n) {
     EBMLSignedInteger svint;
     EBMLInteger vint    = EBMLGetInteger(br, n);
     svint.i64           = vint.u64 - vsint_subtr[vint.length - 1];
@@ -328,7 +328,7 @@ String EBMLBlockElement::string() const {
             (size_t)TrackNumber.u64, TimeCode, Flags);
 }
 
-static __ABE_INLINE sp<EBMLElement> MakeEBMLElement(EBMLInteger);
+static FORCE_INLINE sp<EBMLElement> MakeEBMLElement(EBMLInteger);
 
 status_t EBMLMasterElement::parse(BitReader& br, size_t size) {
     size_t remains = size;
@@ -534,7 +534,7 @@ static const struct {
 };
 #define NELEM(x)    sizeof(x)/sizeof(x[0])
 
-static __ABE_INLINE sp<EBMLElement> MakeEBMLElement(EBMLInteger id) {
+static FORCE_INLINE sp<EBMLElement> MakeEBMLElement(EBMLInteger id) {
     for (size_t i = 0; i < NELEM(ELEMENTS); ++i) {
         if (ELEMENTS[i].ID == id.u64) {
             //DEBUG("make element %s[%#x]", ELEMENTS[i].NAME, ELEMENTS[i].ID);

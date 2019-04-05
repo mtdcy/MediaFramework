@@ -419,7 +419,7 @@ void av_log_callback(void *avcl, int level, const char *fmt, va_list vl) {
     INFO("%s", line);
 }
 
-static __ABE_INLINE void releaseContext(AVCodecContext * avcc) {
+static FORCE_INLINE void releaseContext(AVCodecContext * avcc) {
     if (avcc) {
 #if 0 // no need to free hwaccel_context manually
         if (avcc->hwaccel_context) {
@@ -434,7 +434,7 @@ static __ABE_INLINE void releaseContext(AVCodecContext * avcc) {
     }
 }
 
-static __ABE_INLINE MediaError openAudio(AVCodecContext * avcc, const Message& formats, const Message& options) {
+static FORCE_INLINE MediaError openAudio(AVCodecContext * avcc, const Message& formats, const Message& options) {
     AVSampleFormat best_match   = AV_SAMPLE_FMT_S16;
     AVSampleFormat sample_fmt   = get_av_sample_format((eSampleFormat)options.findInt32(kKeyRequestFormat, kSampleFormatS16));
     

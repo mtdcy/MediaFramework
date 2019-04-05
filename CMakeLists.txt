@@ -24,7 +24,7 @@ set (CMAKE_CXX_EXTENSIONS OFF)  # no gnu extensions
 if (APPLE)
     set (CMAKE_MACOSX_RPATH TRUE)
 elseif(WIN32)
-    add_definitions(-DBUILD_ABE_DLL)
+    add_definitions(-DBUILD_DLL)
 endif()
 
 if (XCODE)

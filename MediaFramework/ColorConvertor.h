@@ -48,7 +48,7 @@ __BEGIN_NAMESPACE_MPX
 /**
  * class for convert different pixel color to desired color.
  */
-class __ABE_EXPORT ColorConvertor : public SharedObject {
+class API_EXPORT ColorConvertor : public SharedObject {
     public:
         /**
          * create a color convertor

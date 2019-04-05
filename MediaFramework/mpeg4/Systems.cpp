@@ -71,7 +71,7 @@ eCodecFormat translateObjectTypeIndication(uint8_t objectTypeIndication) {
 }
 
 // ISO/IEC 14496-1:2010 Section 8.3.3 Page 117
-static __ABE_INLINE size_t GetObjectDescriptorSize(const BitReader& br) {
+static FORCE_INLINE size_t GetObjectDescriptorSize(const BitReader& br) {
     bool nextBytes  = br.read(1);
     size_t size     = br.read(7);
     while (nextBytes) {
@@ -81,7 +81,7 @@ static __ABE_INLINE size_t GetObjectDescriptorSize(const BitReader& br) {
     return size;
 }
 
-static __ABE_INLINE size_t GetObjectDescriptorSizeLength(size_t size) {
+static FORCE_INLINE size_t GetObjectDescriptorSizeLength(size_t size) {
     size_t length = 1;
     while (size > 127) {
         size >>= 7;
@@ -91,7 +91,7 @@ static __ABE_INLINE size_t GetObjectDescriptorSizeLength(size_t size) {
     return length;
 }
 
-static __ABE_INLINE size_t WriteObjectDescriptorSize(BitWriter& bw, size_t size) {
+static FORCE_INLINE size_t WriteObjectDescriptorSize(BitWriter& bw, size_t size) {
     size_t length = GetObjectDescriptorSizeLength(size);
     for (size_t i = 0; i < length - 1; ++i) {
         uint8_t u8 = (size >> (7 * (length - i - 1))) & 0x7F;

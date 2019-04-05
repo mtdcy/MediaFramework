@@ -56,7 +56,7 @@ __BEGIN_NAMESPACE_MPX
 /**
  * base class for audio/video codecs
  */
-struct __ABE_EXPORT MediaDecoder : public SharedObject {
+struct API_EXPORT MediaDecoder : public SharedObject {
     /**
      * allocate a codec object
      * @param format    @see eCodecFormat
@@ -65,8 +65,8 @@ struct __ABE_EXPORT MediaDecoder : public SharedObject {
      */
     static sp<MediaDecoder> Create(eCodecFormat format, eModeType mode);
 
-    __ABE_INLINE MediaDecoder() { }
-    __ABE_INLINE virtual ~MediaDecoder() { }
+    FORCE_INLINE MediaDecoder() { }
+    FORCE_INLINE virtual ~MediaDecoder() { }
     /**
      * get information of this codec.
      * @return return a string of information

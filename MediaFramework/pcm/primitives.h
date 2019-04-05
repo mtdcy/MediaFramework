@@ -40,7 +40,7 @@
 #ifndef PCM_PRIMITIVES_H
 #define PCM_PRIMITIVES_H 
 
-#include <ABE/ABE.h>
+#include "MediaDefs.h"
 
 __BEGIN_DECLS
 
@@ -50,7 +50,7 @@ __BEGIN_DECLS
 /**
  * Clamp (aka hard limit or clip) a signed 32-bit sample to 16-bit range.
  */
-static __ABE_INLINE int16_t clamp16(int32_t sample)
+static FORCE_INLINE int16_t clamp16(int32_t sample)
 {
     if ((sample>>15) ^ (sample>>31))
         sample = 0x7FFF ^ (sample>>31);
@@ -58,7 +58,7 @@ static __ABE_INLINE int16_t clamp16(int32_t sample)
 }
 
 
-static __ABE_INLINE int32_t clamp32(int64_t v) {
+static FORCE_INLINE int32_t clamp32(int64_t v) {
     if ((v>>31) ^ (v>>63))
         v = 0x7fffffff ^ (v>>63);
     return v;
@@ -76,7 +76,7 @@ static __ABE_INLINE int32_t clamp32(int64_t v) {
  *
  * Rounding of 0.5 lsb is to even (default for IEEE 754).
  */
-static __ABE_INLINE int16_t clamp16_from_float(float f)
+static FORCE_INLINE int16_t clamp16_from_float(float f)
 {
     /* Offset is used to resize the valid range of [-1.0, 1.0) into the 16 lsbs of the
      * floating point significand. The normal shift is 3<<22, but the -15 offset
@@ -110,7 +110,7 @@ static __ABE_INLINE int16_t clamp16_from_float(float f)
  * including -Inf and +Inf. NaN values are considered undefined, and behavior may change
  * depending on hardware and future implementation of this function.
  */
-static __ABE_INLINE int32_t clamp32_from_float(float f)
+static FORCE_INLINE int32_t clamp32_from_float(float f)
 {
     static const float scale = (float)(1UL << 31);
     static const float limpos = 1.;

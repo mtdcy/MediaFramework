@@ -48,11 +48,11 @@ __BEGIN_NAMESPACE_MPX
 /**
  * base class for audio/video output device
  */
-struct __ABE_EXPORT MediaOut : public SharedObject {
+struct API_EXPORT MediaOut : public SharedObject {
     static sp<MediaOut> Create(eCodecType);
 
-    __ABE_INLINE MediaOut() : SharedObject() { }
-    __ABE_INLINE virtual ~MediaOut() { }
+    FORCE_INLINE MediaOut() : SharedObject() { }
+    FORCE_INLINE virtual ~MediaOut() { }
 
     /**
      * get information of this output device.

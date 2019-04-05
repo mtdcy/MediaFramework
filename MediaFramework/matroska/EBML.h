@@ -250,8 +250,8 @@ struct EBMLElement : public SharedObject {
     EBMLInteger             id;
     const EBMLElementType   type;
 
-    __ABE_INLINE EBMLElement(const char *_name, EBMLInteger& _id, EBMLElementType _type) : name(_name), id(_id), type(_type) { }
-    __ABE_INLINE virtual ~EBMLElement() { }
+    FORCE_INLINE EBMLElement(const char *_name, EBMLInteger& _id, EBMLElementType _type) : name(_name), id(_id), type(_type) { }
+    FORCE_INLINE virtual ~EBMLElement() { }
     virtual status_t parse(BitReader&, size_t) = 0;
     virtual String string() const = 0;
 };
@@ -259,7 +259,7 @@ struct EBMLElement : public SharedObject {
 struct EBMLIntegerElement : public EBMLElement {
     EBMLInteger         vint;
 
-    __ABE_INLINE EBMLIntegerElement(const char *_name, EBMLInteger& _id) : EBMLElement(_name, _id, kEBMLElementInteger) { }
+    FORCE_INLINE EBMLIntegerElement(const char *_name, EBMLInteger& _id) : EBMLElement(_name, _id, kEBMLElementInteger) { }
     virtual status_t parse(BitReader&, size_t);
     virtual String string() const;
 };
@@ -267,7 +267,7 @@ struct EBMLIntegerElement : public EBMLElement {
 struct EBMLSignedIntegerElement : public EBMLElement {
     EBMLSignedInteger   svint;
     
-    __ABE_INLINE EBMLSignedIntegerElement(const char *_name, EBMLInteger& _id) : EBMLElement(_name, _id, kEBMLElementSignedInteger) { }
+    FORCE_INLINE EBMLSignedIntegerElement(const char *_name, EBMLInteger& _id) : EBMLElement(_name, _id, kEBMLElementSignedInteger) { }
     virtual status_t parse(BitReader&, size_t);
     virtual String string() const;
 };
@@ -275,7 +275,7 @@ struct EBMLSignedIntegerElement : public EBMLElement {
 struct EBMLStringElement : public EBMLElement {
     String              str;
 
-    __ABE_INLINE EBMLStringElement(const char *_name, EBMLInteger& _id) : EBMLElement(_name, _id, kEBMLElementString) { }
+    FORCE_INLINE EBMLStringElement(const char *_name, EBMLInteger& _id) : EBMLElement(_name, _id, kEBMLElementString) { }
     virtual status_t parse(BitReader&, size_t);
     virtual String string() const;
 };
@@ -283,7 +283,7 @@ struct EBMLStringElement : public EBMLElement {
 struct EBMLUTF8Element : public EBMLElement {
     String              utf8;
 
-    __ABE_INLINE EBMLUTF8Element(const char *_name, EBMLInteger& _id) : EBMLElement(_name, _id, kEBMLElementUTF8) { }
+    FORCE_INLINE EBMLUTF8Element(const char *_name, EBMLInteger& _id) : EBMLElement(_name, _id, kEBMLElementUTF8) { }
     virtual status_t parse(BitReader&, size_t);
     virtual String string() const;
 };
@@ -291,7 +291,7 @@ struct EBMLUTF8Element : public EBMLElement {
 struct EBMLBinaryElement : public EBMLElement {
     sp<Buffer>          data;
 
-    __ABE_INLINE EBMLBinaryElement(const char *_name, EBMLInteger& _id) : EBMLElement(_name, _id, kEBMLElementBinary) { }
+    FORCE_INLINE EBMLBinaryElement(const char *_name, EBMLInteger& _id) : EBMLElement(_name, _id, kEBMLElementBinary) { }
     virtual status_t parse(BitReader&, size_t);
     virtual String string() const;
 };
@@ -299,7 +299,7 @@ struct EBMLBinaryElement : public EBMLElement {
 struct EBMLFloatElement : public EBMLElement {
     double              flt;
 
-    __ABE_INLINE EBMLFloatElement(const char *_name, EBMLInteger& _id) : EBMLElement(_name, _id, kEBMLElementFloat) { }
+    FORCE_INLINE EBMLFloatElement(const char *_name, EBMLInteger& _id) : EBMLElement(_name, _id, kEBMLElementFloat) { }
     virtual status_t parse(BitReader&, size_t);
     virtual String string() const;
 };
@@ -307,13 +307,13 @@ struct EBMLFloatElement : public EBMLElement {
 struct EBMLMasterElement : public EBMLElement {
     List<sp<EBMLElement> >  children;
 
-    __ABE_INLINE EBMLMasterElement(const char *_name, EBMLInteger& _id) : EBMLElement(_name, _id, kEBMLElementMaster) { }
+    FORCE_INLINE EBMLMasterElement(const char *_name, EBMLInteger& _id) : EBMLElement(_name, _id, kEBMLElementMaster) { }
     virtual status_t parse(BitReader&, size_t);
     virtual String string() const;
 };
 
 struct EBMLSkipElement : public EBMLElement {
-    __ABE_INLINE EBMLSkipElement(const char *_name, EBMLInteger& _id) : EBMLElement(_name, _id, kEBMLElementSkip) { }
+    FORCE_INLINE EBMLSkipElement(const char *_name, EBMLInteger& _id) : EBMLElement(_name, _id, kEBMLElementSkip) { }
     virtual status_t parse(BitReader&, size_t);
     virtual String string() const;
 };
@@ -334,7 +334,7 @@ struct EBMLBlockElement : public EBMLElement {
     uint8_t             Flags;
     List<sp<Buffer> >   data;
 
-    __ABE_INLINE EBMLBlockElement(const char *_name, EBMLInteger& _id) : EBMLElement(_name, _id, kEBMLElementBlock) { }
+    FORCE_INLINE EBMLBlockElement(const char *_name, EBMLInteger& _id) : EBMLElement(_name, _id, kEBMLElementBlock) { }
     virtual status_t parse(BitReader&, size_t);
     virtual String string() const;
 };

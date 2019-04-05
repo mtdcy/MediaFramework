@@ -56,7 +56,7 @@ struct {
     {kSampleFormatUnknown,  0}
 };
 
-static __ABE_INLINE eSampleFormat get_sample_format(SDL_AudioFormat b) {
+static FORCE_INLINE eSampleFormat get_sample_format(SDL_AudioFormat b) {
     for (size_t i = 0; kSampleMap[i].a != kSampleFormatUnknown; ++i) {
         if (kSampleMap[i].b == b) return kSampleMap[i].a;
     }
@@ -64,7 +64,7 @@ static __ABE_INLINE eSampleFormat get_sample_format(SDL_AudioFormat b) {
     return kSampleFormatUnknown;
 };
 
-static __ABE_INLINE SDL_AudioFormat get_sdl_sample_format(eSampleFormat a) {
+static FORCE_INLINE SDL_AudioFormat get_sdl_sample_format(eSampleFormat a) {
     for (size_t i = 0; kSampleMap[i].a != kSampleFormatUnknown; ++i) {
         if (kSampleMap[i].a == a) return kSampleMap[i].b;
     }
@@ -91,7 +91,7 @@ struct SDLAudioContext : public SharedObject {
 };
 
 static void SDLAudioCallback(void *opaque, uint8_t *stream, int len);
-static __ABE_INLINE sp<SDLAudioContext> openDevice(eSampleFormat format, uint32_t freq, uint32_t channels) {
+static FORCE_INLINE sp<SDLAudioContext> openDevice(eSampleFormat format, uint32_t freq, uint32_t channels) {
     INFO("open device: %d %d %d", format, freq, channels);
     sp<SDLAudioContext> sdl = new SDLAudioContext;
 
@@ -126,7 +126,7 @@ static __ABE_INLINE sp<SDLAudioContext> openDevice(eSampleFormat format, uint32_
     return sdl;
 }
 
-static __ABE_INLINE void closeDevice(sp<SDLAudioContext>& sdl) {
+static FORCE_INLINE void closeDevice(sp<SDLAudioContext>& sdl) {
     INFO("SDL audio release.");
     {
         AutoLock _l(sdl->mLock);
@@ -182,7 +182,7 @@ static void SDLAudioCallback(void *opaque, uint8_t *buffer, int len) {
     }
 }
 
-template <class TYPE> __ABE_INLINE sp<Buffer> interleave(const sp<MediaFrame>& frame) {
+template <class TYPE> FORCE_INLINE sp<Buffer> interleave(const sp<MediaFrame>& frame) {
     TYPE * p[MEDIA_FRAME_NB_PLANES];
     for (size_t i = 0; i < frame->a.channels; ++i)
         p[i] = (TYPE*)frame->planes[i].data;
@@ -203,8 +203,8 @@ template <class TYPE> __ABE_INLINE sp<Buffer> interleave(const sp<MediaFrame>& f
 struct SDLAudio : public MediaOut {
     sp<SDLAudioContext>     mSDL;
 
-    __ABE_INLINE SDLAudio() : MediaOut(), mSDL(NULL) { }
-    __ABE_INLINE virtual ~SDLAudio() {
+    FORCE_INLINE SDLAudio() : MediaOut(), mSDL(NULL) { }
+    FORCE_INLINE virtual ~SDLAudio() {
         if (mSDL != NULL) closeDevice(mSDL);
         mSDL.clear();
     }

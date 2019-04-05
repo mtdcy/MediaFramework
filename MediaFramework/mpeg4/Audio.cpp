@@ -54,7 +54,7 @@ const uint8_t kM4AChannels[8] = {
     4,      5,      5+1,    7+1
 };
 
-static __ABE_INLINE uint8_t objectType(const BitReader& br) {
+static FORCE_INLINE uint8_t objectType(const BitReader& br) {
     uint8_t aot = br.read(5);
     DEBUG("aot %" PRIu8, aot);
     if (aot == 31) {
@@ -64,7 +64,7 @@ static __ABE_INLINE uint8_t objectType(const BitReader& br) {
     return aot;
 }
 
-static __ABE_INLINE uint32_t samplingRate(const BitReader& br) {
+static FORCE_INLINE uint32_t samplingRate(const BitReader& br) {
     uint8_t samplingFrequencyIndex = br.read(4);
     DEBUG("samplingFrequencyIndex %" PRIu8, samplingFrequencyIndex);
     if (samplingFrequencyIndex == 15)

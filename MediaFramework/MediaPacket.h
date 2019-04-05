@@ -45,7 +45,7 @@ __BEGIN_NAMESPACE_MPX
 /**
  * media packet class for compressed audio and video packets
  */
-struct __ABE_EXPORT MediaPacket : public SharedObject {
+struct API_EXPORT MediaPacket : public SharedObject {
     uint8_t *           data;       ///< packet data
     size_t              size;       ///< data size in bytes
 
@@ -59,17 +59,17 @@ struct __ABE_EXPORT MediaPacket : public SharedObject {
     void *              opaque;     ///< opaque
 
 #ifdef __cplusplus
-    __ABE_INLINE MediaPacket() : data(NULL), size(0), index(0), format(kCodecFormatUnknown),
+    FORCE_INLINE MediaPacket() : data(NULL), size(0), index(0), format(kCodecFormatUnknown),
     flags(kFrameFlagNone), dts(kTimeInvalid), pts(kTimeInvalid), opaque(NULL) { }
-    __ABE_INLINE virtual ~MediaPacket() { }
+    FORCE_INLINE virtual ~MediaPacket() { }
 #endif
 };
 
 /**
  * create a packet backend by Buffer
  */
-__ABE_EXPORT sp<MediaPacket> MediaPacketCreate(size_t size);
-__ABE_EXPORT sp<MediaPacket> MediaPacketCreate(sp<Buffer>&);
+API_EXPORT sp<MediaPacket> MediaPacketCreate(size_t size);
+API_EXPORT sp<MediaPacket> MediaPacketCreate(sp<Buffer>&);
 
 #ifdef __cplusplus
 __END_NAMESPACE_MPX

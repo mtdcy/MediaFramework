@@ -301,7 +301,7 @@ static GLuint initShader(GLenum type, const char *sl) {
     return sh;
 }
 
-static __ABE_INLINE GLuint initProgram(GLuint vsh, GLuint fsh) {
+static FORCE_INLINE GLuint initProgram(GLuint vsh, GLuint fsh) {
     CHECK_NE(vsh, 0);
     CHECK_NE(fsh, 0);
     GLuint program = glCreateProgram();
@@ -331,7 +331,7 @@ static __ABE_INLINE GLuint initProgram(GLuint vsh, GLuint fsh) {
     return program;
 }
 
-static __ABE_INLINE size_t initTextures(size_t n, GLenum target, GLuint *textures) {
+static FORCE_INLINE size_t initTextures(size_t n, GLenum target, GLuint *textures) {
     glGenTextures(n, textures);
     for (size_t i = 0; i < n; ++i) {
         glBindTexture(target, textures[i]);

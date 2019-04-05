@@ -37,6 +37,26 @@
 
 #include <ABE/ABE.h>
 
+#ifndef FORCE_INLINE 
+#define FORCE_INLINE    __ABE_INLINE
+#endif
+
+#ifndef API_EXPORT
+#if defined(_WIN32) || defined(__MINGW32__)
+#ifdef BUILD_DLL
+#define API_EXPORT      __declspec(dllexport)
+#else
+#define API_EXPORT      __declspec(dllimport)
+#endif
+#else
+#define API_EXPORT      __attribute__ ((__visibility__("default")))
+#endif
+#endif
+
+#ifndef API_DEPRECATED
+#define API_DEPRECATED __ABE_DEPRECATED
+#endif
+
 __BEGIN_DECLS
 
 // common constants and basic types
@@ -94,7 +114,7 @@ enum eCodecType {
     kCodecTypeMax,
 };
 
-eCodecType GetCodecType(eCodecFormat format);
+enum eCodecType GetCodecType(enum eCodecFormat format);
 
 enum ePixelFormat {
     kPixelFormatUnknown     = 0,        ///< Unknown
@@ -300,21 +320,21 @@ namespace Media {
 
 ///////////////////////////////////////////////////////////////////////////
 namespace Tag {
-    class __ABE_EXPORT Parser {
+    class API_EXPORT Parser {
         public:
-            __ABE_INLINE Parser() { }
-            __ABE_INLINE virtual ~Parser() { }
+            FORCE_INLINE Parser() { }
+            FORCE_INLINE virtual ~Parser() { }
             virtual status_t parse(const Buffer& data) = 0;
-            __ABE_INLINE const Message& values() const { return mValues; }
+            FORCE_INLINE const Message& values() const { return mValues; }
 
         protected:
             Message             mValues;
     };
 
-    class __ABE_EXPORT Writter {
+    class API_EXPORT Writter {
         public:
-            __ABE_INLINE Writter() { }
-            __ABE_INLINE virtual ~Writter() { }
+            FORCE_INLINE Writter() { }
+            FORCE_INLINE virtual ~Writter() { }
             virtual status_t synth(const Message& data) = 0;
             //const Buffer&       values() const {  }
 

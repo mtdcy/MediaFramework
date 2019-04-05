@@ -67,7 +67,7 @@ typedef TypedEvent<eClockState>  ClockEvent;
  * context.
  */
 class Clock;
-class __ABE_EXPORT SharedClock : public SharedObject {
+class API_EXPORT SharedClock : public SharedObject {
     public:
         SharedClock();
 
@@ -149,7 +149,7 @@ class __ABE_EXPORT SharedClock : public SharedObject {
  * shadow of SharedClock
  * @see SharedClock
  */
-class __ABE_EXPORT Clock : public SharedObject {
+class API_EXPORT Clock : public SharedObject {
     public:
         /**
          * create a shadow of SharedClock
@@ -164,7 +164,7 @@ class __ABE_EXPORT Clock : public SharedObject {
          * get role of this clock
          * @return @see SharedClock::eClockRole
          */
-        __ABE_INLINE eClockRole role() const { return mRole; }
+        FORCE_INLINE eClockRole role() const { return mRole; }
 
         /**
          * set event to this clock

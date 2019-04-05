@@ -1183,8 +1183,8 @@ RegisterBox("keyd", iTunesKeyDecBox);
 
 #define IgnoreBox(NAME, BoxType)                                            \
     struct BoxType : public Box {                              \
-        __ABE_INLINE BoxType() : Box(NAME) { }                              \
-        __ABE_INLINE virtual status_t parse(const BitReader& br, size_t sz, \
+        FORCE_INLINE BoxType() : Box(NAME) { }                              \
+        FORCE_INLINE virtual status_t parse(const BitReader& br, size_t sz, \
                 const FileTypeBox& ftyp) {                                  \
             br.skipBytes(sz - Box::size());                                 \
             return OK;                                                      \

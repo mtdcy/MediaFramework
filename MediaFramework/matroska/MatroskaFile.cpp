@@ -121,7 +121,7 @@ static struct {
 };
 #define NELEM(x)    sizeof(x)/sizeof(x[0])
 
-static __ABE_INLINE eCodecFormat GetCodecFormat(const String& codec) {
+static FORCE_INLINE eCodecFormat GetCodecFormat(const String& codec) {
     for (size_t i = 0; i < NELEM(kCodecMap); ++i) {
         if (codec.startsWith(kCodecMap[i].codec)) {
             return kCodecMap[i].format;

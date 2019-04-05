@@ -89,10 +89,10 @@ typedef TypedEvent<MediaTime> RenderPositionEvent;
  */
 typedef TypedEvent<MediaError> StatusEvent;
 
-struct __ABE_EXPORT IMediaSession : public SharedObject {
+struct API_EXPORT IMediaSession : public SharedObject {
     static sp<IMediaSession> Create(const Message& formats, const Message& options);
-    __ABE_INLINE IMediaSession() { }
-    __ABE_INLINE virtual ~IMediaSession() { }
+    FORCE_INLINE IMediaSession() { }
+    FORCE_INLINE virtual ~IMediaSession() { }
     virtual void prepare(const Message& options) = 0;
     virtual void flush() = 0;
     virtual void release() = 0;

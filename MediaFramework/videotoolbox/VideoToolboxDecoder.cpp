@@ -72,7 +72,7 @@ struct {
     {kCodecFormatUnknown,       0},
 };
 
-static __ABE_INLINE CMVideoCodecType get_cm_codec_type(eCodecFormat a) {
+static FORCE_INLINE CMVideoCodecType get_cm_codec_type(eCodecFormat a) {
     for (size_t i = 0; kCodecMap[i].a != kCodecFormatUnknown; ++i) {
         if (kCodecMap[i].a == a)
             return kCodecMap[i].b;
@@ -80,7 +80,7 @@ static __ABE_INLINE CMVideoCodecType get_cm_codec_type(eCodecFormat a) {
     return 0;
 }
 
-static __ABE_INLINE eCodecFormat get_codec_format(CMVideoCodecType b) {
+static FORCE_INLINE eCodecFormat get_codec_format(CMVideoCodecType b) {
     for (size_t i = 0; kCodecMap[i].a != kCodecFormatUnknown; ++i) {
         if (kCodecMap[i].b == b)
             return kCodecMap[i].a;
@@ -103,7 +103,7 @@ struct {
     {kPixelFormatUnknown,       0},
 };
 
-static __ABE_INLINE ePixelFormat get_pix_format(OSType b) {
+static FORCE_INLINE ePixelFormat get_pix_format(OSType b) {
     for (size_t i = 0; kPixelMap[i].a != kPixelFormatUnknown; ++i) {
         if (kPixelMap[i].b == b) return kPixelMap[i].a;
     }
@@ -111,7 +111,7 @@ static __ABE_INLINE ePixelFormat get_pix_format(OSType b) {
     return kPixelFormatUnknown;
 }
 
-static __ABE_INLINE OSType get_cv_pix_format(ePixelFormat a) {
+static FORCE_INLINE OSType get_cv_pix_format(ePixelFormat a) {
     for (size_t i = 0; kPixelMap[i].a != kPixelFormatUnknown; ++i) {
         if (kPixelMap[i].a == a) return kPixelMap[i].b;
     }
@@ -121,7 +121,7 @@ static __ABE_INLINE OSType get_cv_pix_format(ePixelFormat a) {
 
 // for store unorderred image buffers and sort them
 struct VTMediaFrame : public MediaFrame {
-    __ABE_INLINE VTMediaFrame(CVPixelBufferRef pixbuf, const MediaTime& _pts, const MediaTime& _duration) : MediaFrame() {
+    FORCE_INLINE VTMediaFrame(CVPixelBufferRef pixbuf, const MediaTime& _pts, const MediaTime& _duration) : MediaFrame() {
         planes[0].data  = NULL;
         pts         = _pts;
         duration    = _duration;
@@ -135,7 +135,7 @@ struct VTMediaFrame : public MediaFrame {
         opaque = CVPixelBufferRetain(pixbuf);
     }
 
-    __ABE_INLINE VTMediaFrame(const VTMediaFrame& rhs) {
+    FORCE_INLINE VTMediaFrame(const VTMediaFrame& rhs) {
         planes[0].data  = NULL;
         pts         = rhs.pts;
         duration    = rhs.duration;
@@ -143,20 +143,20 @@ struct VTMediaFrame : public MediaFrame {
         opaque      = CVPixelBufferRetain((CVPixelBufferRef)rhs.opaque);
     }
 
-    __ABE_INLINE ~VTMediaFrame() {
+    FORCE_INLINE ~VTMediaFrame() {
         CVPixelBufferRelease((CVPixelBufferRef)opaque);
     }
 
-    __ABE_INLINE bool operator<(const VTMediaFrame& rhs) const {
+    FORCE_INLINE bool operator<(const VTMediaFrame& rhs) const {
         return pts < rhs.pts;
     }
 };
 
 struct VTContext : public SharedObject {
-    __ABE_INLINE VTContext() : decompressionSession(NULL), formatDescription(NULL),
+    FORCE_INLINE VTContext() : decompressionSession(NULL), formatDescription(NULL),
     mInputEOS(false), mLastFrameTime(kTimeBegin) { }
 
-    __ABE_INLINE ~VTContext() {
+    FORCE_INLINE ~VTContext() {
         if (decompressionSession) {
             VTDecompressionSessionInvalidate(decompressionSession);
             CFRelease(decompressionSession);
@@ -179,7 +179,7 @@ struct VTContext : public SharedObject {
     MediaTime                       mLastFrameTime;
 };
 
-static __ABE_INLINE void OutputCallback(void *decompressionOutputRefCon,
+static FORCE_INLINE void OutputCallback(void *decompressionOutputRefCon,
         void *sourceFrameRefCon,
         OSStatus status,
         VTDecodeInfoFlags infoFlags,
@@ -229,7 +229,7 @@ static __ABE_INLINE void OutputCallback(void *decompressionOutputRefCon,
     vtc->mImages.sort();
 }
 
-static __ABE_INLINE CFDictionaryRef setupFormatDescriptionExtension(const Message& formats,
+static FORCE_INLINE CFDictionaryRef setupFormatDescriptionExtension(const Message& formats,
         CMVideoCodecType cm_codec_type) {
     CFMutableDictionaryRef atoms = CFDictionaryCreateMutable(
             kCFAllocatorDefault,
@@ -282,7 +282,7 @@ static __ABE_INLINE CFDictionaryRef setupFormatDescriptionExtension(const Messag
     return atoms;
 }
 
-static __ABE_INLINE CFDictionaryRef setupImageBufferAttributes(int32_t width,
+static FORCE_INLINE CFDictionaryRef setupImageBufferAttributes(int32_t width,
         int32_t height,
         OSType cv_pix_fmt,
         bool opengl) {
@@ -334,7 +334,7 @@ static __ABE_INLINE CFDictionaryRef setupImageBufferAttributes(int32_t width,
 }
 
 // https://github.com/jyavenard/DecodeTest/blob/master/DecodeTest/VTDecoder.mm
-static __ABE_INLINE sp<VTContext> createSession(const Message& formats, const Message& options, MediaError *err) {
+static FORCE_INLINE sp<VTContext> createSession(const Message& formats, const Message& options, MediaError *err) {
     sp<VTContext> vtc = new VTContext;
 
     eCodecFormat codec_format = (eCodecFormat)formats.findInt32(kKeyFormat);
@@ -449,7 +449,7 @@ static __ABE_INLINE sp<VTContext> createSession(const Message& formats, const Me
     }
 }
 
-static __ABE_INLINE CMSampleBufferRef createCMSampleBuffer(sp<VTContext>& vtc,
+static FORCE_INLINE CMSampleBufferRef createCMSampleBuffer(sp<VTContext>& vtc,
         const sp<MediaPacket>& packet) {
     DEBUG("CMBlockBufferGetTypeID: %#x", CMBlockBufferGetTypeID());
     CMBlockBufferRef  blockBuffer = NULL;

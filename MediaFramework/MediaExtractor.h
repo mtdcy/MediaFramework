@@ -54,15 +54,15 @@ eFileFormat MediaFormatDetect(Content& pipe);
 /**
  * base class for different files
  */
-struct __ABE_EXPORT MediaExtractor : public SharedObject {
+struct API_EXPORT MediaExtractor : public SharedObject {
     /**
      * allocate an extractor object
      * @return return reference to new extractor
      */
     static sp<MediaExtractor> Create(eFileFormat);
 
-    __ABE_INLINE MediaExtractor() { }
-    __ABE_INLINE virtual ~MediaExtractor() { }
+    FORCE_INLINE MediaExtractor() { }
+    FORCE_INLINE virtual ~MediaExtractor() { }
 
     virtual MediaError      init(sp<Content>& pipe, const Message& options) = 0;
     /**

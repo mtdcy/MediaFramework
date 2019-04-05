@@ -41,11 +41,11 @@
 __BEGIN_NAMESPACE_MPX
 
 ///////////////////////////////////////////////////////////////////////////
-struct __ABE_EXPORT MediaPacketizer : public SharedObject {
+struct API_EXPORT MediaPacketizer : public SharedObject {
     static sp<MediaPacketizer> Create(eCodecFormat format);
 
-    __ABE_INLINE MediaPacketizer() {}
-    __ABE_INLINE virtual ~MediaPacketizer() {}
+    FORCE_INLINE MediaPacketizer() {}
+    FORCE_INLINE virtual ~MediaPacketizer() {}
     
     virtual String          string() const = 0;
     

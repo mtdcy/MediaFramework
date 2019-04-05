@@ -641,7 +641,7 @@ struct Renderer : public SharedObject {
     // render current frame
     // return negtive value if render current frame too early
     // return postive value for next frame render time
-    __ABE_INLINE int64_t renderCurrent() {
+    FORCE_INLINE int64_t renderCurrent() {
         DEBUG("renderer %zu: render with %zu frame ready", mID, mOutputQueue.size());
 
         sp<MediaFrame> frame = *mOutputQueue.begin();

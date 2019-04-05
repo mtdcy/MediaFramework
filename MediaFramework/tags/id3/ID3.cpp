@@ -266,7 +266,7 @@ const char * const ID3GenreList[] = {
 };
 
 ///////////////////////////////////////////////////////////////////////
-static __ABE_INLINE uint32_t ID3v2SynchSafeSize(uint32_t s) {
+static FORCE_INLINE uint32_t ID3v2SynchSafeSize(uint32_t s) {
     // 0x80808080
     if (s & 0x80808080) return 0; // invalid sequence
     uint32_t v = s & 0x7f;
@@ -276,7 +276,7 @@ static __ABE_INLINE uint32_t ID3v2SynchSafeSize(uint32_t s) {
     return v;
 }
 
-static __ABE_INLINE uint32_t ID3v2SynchSafeSize(const char *size, size_t bytes) {
+static FORCE_INLINE uint32_t ID3v2SynchSafeSize(const char *size, size_t bytes) {
     uint32_t v = 0;
     for (size_t i = 0; i < bytes; i++) {
         if ((uint8_t)size[i] >= 0x80) return 0;  // invalid sequence.
@@ -285,7 +285,7 @@ static __ABE_INLINE uint32_t ID3v2SynchSafeSize(const char *size, size_t bytes) 
     return v;
 }
 
-static __ABE_INLINE uint32_t ID3v2Size(const char *size, size_t bytes) {
+static FORCE_INLINE uint32_t ID3v2Size(const char *size, size_t bytes) {
     uint32_t v = 0;
     for (size_t i = 0; i < bytes; i++)  v = (((uint32_t)v)<<8) | (uint8_t)size[i];
     return v;
@@ -363,7 +363,7 @@ static ssize_t isID3v2Header(const Buffer& data, ID3v2Header *header) {
     return size;
 }
 
-static __ABE_INLINE bool isID3NumericString(const String& s) {
+static FORCE_INLINE bool isID3NumericString(const String& s) {
     DEBUG("isID3NumericString %s.", s.c_str());
     for (size_t i = 0; i < s.size(); i++) {
         if (s[i] < '0' || s[i] > '9') return false;
@@ -372,7 +372,7 @@ static __ABE_INLINE bool isID3NumericString(const String& s) {
     return true;
 }
 
-static __ABE_INLINE bool isID3v2TimeString(const String& s) {
+static FORCE_INLINE bool isID3v2TimeString(const String& s) {
     // valid time string:
     // yyyy,
     // yyyy-MM,
@@ -421,7 +421,7 @@ static __ABE_INLINE bool isID3v2TimeString(const String& s) {
     return true;
 }
 
-static __ABE_INLINE bool isID3v2FourCC(const String& s) {
+static FORCE_INLINE bool isID3v2FourCC(const String& s) {
     // this is not an accurate check.
     for (size_t i = 0; i < s.size(); i++) {
         if ((s[i] < 'A' || s[i] > 'Z') &&
@@ -434,7 +434,7 @@ static __ABE_INLINE bool isID3v2FourCC(const String& s) {
     return true;
 }
 
-static __ABE_INLINE size_t ID3v2RemoveUnsyncBytes(const char* src, char* dst, size_t srcLen) {
+static FORCE_INLINE size_t ID3v2RemoveUnsyncBytes(const char* src, char* dst, size_t srcLen) {
     size_t idx = 0;
     for (size_t i = 0; i < srcLen - 1; i++) {
         if (src[i] == '\xff' && src[i+1] == 0x0) {
@@ -448,7 +448,7 @@ static __ABE_INLINE size_t ID3v2RemoveUnsyncBytes(const char* src, char* dst, si
     return idx;
 }
 
-static __ABE_INLINE String ID3v2String(int encoding, const char* data, int length) {
+static FORCE_INLINE String ID3v2String(int encoding, const char* data, int length) {
     if (length == 0) return String();
     
     DEBUG("ID3v2String encoding = %d data = %p length = %d",
@@ -528,7 +528,7 @@ static __ABE_INLINE String ID3v2String(int encoding, const char* data, int lengt
     return str;
 }
 
-static __ABE_INLINE String ID3v2Text(const String& id, const char* data, int length) {
+static FORCE_INLINE String ID3v2Text(const String& id, const char* data, int length) {
     // Text information frames excluding 'TXXX'
     // Text encoding    $xx
     // Information      <text string according to encoding>
@@ -576,7 +576,7 @@ struct ID3v2CommentText {
     String  text;
 };
 
-static __ABE_INLINE ID3v2CommentText ID3v2Comment(const String& id, const char* data, int length) {
+static FORCE_INLINE ID3v2CommentText ID3v2Comment(const String& id, const char* data, int length) {
     // <Header for 'Comment', ID: "COMM">
     // Text encoding           $xx
     // Language                $xx xx xx
@@ -617,7 +617,7 @@ struct ID3v2PictureText {
     sp<Buffer>  pic;
 };
 
-static __ABE_INLINE ID3v2PictureText ID3v2Picture(const String& id, const char* data, int length) {
+static FORCE_INLINE ID3v2PictureText ID3v2Picture(const String& id, const char* data, int length) {
     // <Header for 'Attached picture', ID: "APIC">
     // Text encoding   $xx
     // MIME type       <text string> $00
@@ -649,7 +649,7 @@ static __ABE_INLINE ID3v2PictureText ID3v2Picture(const String& id, const char* 
     return picture;
 }
 
-static __ABE_INLINE ID3v2PictureText ID3v22Picture(const String& id, const char* data, int length) {
+static FORCE_INLINE ID3v2PictureText ID3v22Picture(const String& id, const char* data, int length) {
     // <Header for 'Attached picture', ID: "PIC">
     // Text encoding      $xx
     // Image format       $xx xx xx
@@ -1106,7 +1106,7 @@ status_t ID3v2::parse(const Buffer& data) {
 ////////////////////////////////////////////////////////////////////////////////////////////
 // ID3v1 routines.
 //
-static __ABE_INLINE String ID3v1String(const char* data, int length) {
+static FORCE_INLINE String ID3v1String(const char* data, int length) {
     String str((char*)data, length);
     str.trim(); // this is neccessary for ID3v1
     return str;

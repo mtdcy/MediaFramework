@@ -138,7 +138,7 @@ struct PixelFormatDesc {
     const float     n_size[MEDIA_FRAME_NB_PLANES];
 };
 
-static __ABE_INLINE size_t GetPixelSpaceSize(const PixelFormatDesc * desc, int32_t width, int32_t height) {
+static FORCE_INLINE size_t GetPixelSpaceSize(const PixelFormatDesc * desc, int32_t width, int32_t height) {
     size_t total = 0;
     for (size_t i = 0; i < desc->n_planes; ++i) {
         total += desc->n_size[i] * width * height;
@@ -189,7 +189,7 @@ struct SampleFormatDesc {
     const size_t    n_size;     // sample size in bytes
 };
 
-static __ABE_INLINE size_t GetSampleSpaceSize(const SampleFormatDesc * desc, int32_t channels, int32_t samples) {
+static FORCE_INLINE size_t GetSampleSpaceSize(const SampleFormatDesc * desc, int32_t channels, int32_t samples) {
     return desc->n_size * channels * samples;
 }
 
@@ -233,7 +233,7 @@ struct DefaultMediaFrame : public MediaFrame {
     // one continues buffer for all planes
     sp<Buffer> buffer;
     
-    __ABE_INLINE DefaultMediaFrame(size_t n) : MediaFrame(), buffer(new Buffer(n)) { }
+    FORCE_INLINE DefaultMediaFrame(size_t n) : MediaFrame(), buffer(new Buffer(n)) { }
 };
 
 sp<MediaFrame> MediaFrameCreate(ePixelFormat format, int32_t w, int32_t h) {
@@ -290,7 +290,7 @@ sp<MediaFrame> MediaFrameCreate(eSampleFormat format, bool planar, int32_t chann
 struct DefaultMediaPacket : public MediaPacket {
     sp<Buffer> buffer;
 
-    __ABE_INLINE DefaultMediaPacket() : MediaPacket() { }
+    FORCE_INLINE DefaultMediaPacket() : MediaPacket() { }
 };
 
 sp<MediaPacket> MediaPacketCreate(size_t size) {

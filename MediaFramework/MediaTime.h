@@ -49,98 +49,98 @@ __BEGIN_NAMESPACE_MPX
 /**
  * time struct for represent decoding and presentation time
  */
-struct __ABE_EXPORT MediaTime {
+struct API_EXPORT MediaTime {
     int64_t     value;
     int64_t     timescale;
     MediaTime() : value(0), timescale(1) { }
     MediaTime(int64_t t, int64_t scale) : value(t), timescale(scale) { }
     MediaTime(int64_t us) : value(us), timescale(1000000LL) { }
 
-    __ABE_INLINE double seconds() const { return (double)value / timescale; }
-    __ABE_INLINE int64_t useconds() const { return (1000000LL * value) / timescale; }
+    FORCE_INLINE double seconds() const { return (double)value / timescale; }
+    FORCE_INLINE int64_t useconds() const { return (1000000LL * value) / timescale; }
 
-    __ABE_INLINE MediaTime scale(int64_t new_scale) const {
+    FORCE_INLINE MediaTime scale(int64_t new_scale) const {
         if (new_scale == timescale) return *this;
         else return MediaTime((new_scale * value) / timescale, new_scale);
     }
     
-    __ABE_INLINE MediaTime operator+(double sec) const {
+    FORCE_INLINE MediaTime operator+(double sec) const {
         return MediaTime(value + sec * timescale, timescale);
     }
     
-    __ABE_INLINE MediaTime operator+(int64_t us) const {
+    FORCE_INLINE MediaTime operator+(int64_t us) const {
         if (timescale == 1000000LL) return MediaTime(value + us, timescale);
         return MediaTime(value + (timescale * us) / 1000000LL, timescale);
     }
     
-    __ABE_INLINE MediaTime operator+(const MediaTime& b) const {
+    FORCE_INLINE MediaTime operator+(const MediaTime& b) const {
         if (timescale == b.timescale) return MediaTime(value + b.value, timescale);
         return MediaTime(value + (timescale * b.value) / b.timescale, timescale);
     }
     
-    __ABE_INLINE MediaTime operator-(double sec) const {
+    FORCE_INLINE MediaTime operator-(double sec) const {
         return MediaTime(value - sec * timescale, timescale);
     }
     
-    __ABE_INLINE MediaTime operator-(int64_t us) const {
+    FORCE_INLINE MediaTime operator-(int64_t us) const {
         if (timescale == 1000000LL) return MediaTime(value - us, timescale);
         return MediaTime(value - (timescale * us) / 1000000LL, timescale);
     }
     
-    __ABE_INLINE MediaTime operator-(const MediaTime& b) const {
+    FORCE_INLINE MediaTime operator-(const MediaTime& b) const {
         if (timescale == b.timescale) return MediaTime(value - b.value, timescale);
         return MediaTime(value - (timescale * b.value) / b.timescale, timescale);
     }
     
-    __ABE_INLINE MediaTime operator*(double mul) {
+    FORCE_INLINE MediaTime operator*(double mul) {
         return MediaTime(value * mul, timescale);
     }
     
-    __ABE_INLINE MediaTime& operator+=(const MediaTime& b) {
+    FORCE_INLINE MediaTime& operator+=(const MediaTime& b) {
         if (timescale == b.timescale) value += b.value;
         else value += (timescale * b.value) / b.timescale;
         return *this;
     }
     
-    __ABE_INLINE MediaTime& operator+=(double sec) {
+    FORCE_INLINE MediaTime& operator+=(double sec) {
         value += sec * timescale;
         return *this;
     }
     
-    __ABE_INLINE MediaTime& operator+=(int64_t us) {
+    FORCE_INLINE MediaTime& operator+=(int64_t us) {
         if (timescale == 1000000LL) value += us;
         else value += (timescale * us) / 1000000LL;
         return *this;
     }
     
-    __ABE_INLINE MediaTime& operator-=(const MediaTime& b) {
+    FORCE_INLINE MediaTime& operator-=(const MediaTime& b) {
         if (timescale == b.timescale) value -= b.value;
         else value -= (timescale * b.value) / b.timescale;
         return *this;
     }
     
-    __ABE_INLINE MediaTime& operator-=(double sec) {
+    FORCE_INLINE MediaTime& operator-=(double sec) {
         value -= sec * timescale;
         return *this;
     }
     
-    __ABE_INLINE MediaTime& operator-=(int64_t us) {
+    FORCE_INLINE MediaTime& operator-=(int64_t us) {
         if (timescale == 1000000LL) value -= us;
         else value -= (timescale * us) / 1000000LL;
         return *this;
     }
     
-    __ABE_INLINE MediaTime& operator*=(double mul) {
+    FORCE_INLINE MediaTime& operator*=(double mul) {
         value *= mul;
         return *this;
     }
     
 #define COMPARE(op)                                                     \
-    __ABE_INLINE bool operator op(const MediaTime& b) const             \
+    FORCE_INLINE bool operator op(const MediaTime& b) const             \
     { return (double)value/timescale op (double)b.value/b.timescale; }  \
-    __ABE_INLINE bool operator op(double sec) const                     \
+    FORCE_INLINE bool operator op(double sec) const                     \
     { return (double)value/timescale op sec; }                          \
-    __ABE_INLINE bool operator op(int64_t us) const                     \
+    FORCE_INLINE bool operator op(int64_t us) const                     \
     { return (double)value/timescale op us / 1E6; }
     
     COMPARE(<)

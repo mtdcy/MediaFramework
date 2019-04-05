@@ -53,7 +53,7 @@ __BEGIN_NAMESPACE_MPX
  * the properties inside this structure have to make sure this
  * frame can be renderred properly without additional informations.
  */
-struct __ABE_EXPORT MediaFrame : public SharedObject {
+struct API_EXPORT MediaFrame : public SharedObject {
     MediaTime               pts;        ///< display time in us
     MediaTime               duration;   ///< duration of this frame
     /**
@@ -91,19 +91,19 @@ struct __ABE_EXPORT MediaFrame : public SharedObject {
 
 #ifdef __cplusplus
     MediaFrame();
-    __ABE_INLINE virtual ~MediaFrame() { }
+    FORCE_INLINE virtual ~MediaFrame() { }
 #endif
 };
 
 /**
  * create a video frame backend by Buffer
  */
-__ABE_EXPORT sp<MediaFrame>  MediaFrameCreate(ePixelFormat format, int32_t width, int32_t height);
+API_EXPORT sp<MediaFrame>  MediaFrameCreate(ePixelFormat format, int32_t width, int32_t height);
 
 /**
  * create a audio frame
  */
-__ABE_EXPORT sp<MediaFrame>  MediaFrameCreate(eSampleFormat format, bool planar, int32_t channels, int32_t freq, int32_t samples);
+API_EXPORT sp<MediaFrame>  MediaFrameCreate(eSampleFormat format, bool planar, int32_t channels, int32_t freq, int32_t samples);
 
 #ifdef __cplusplus
 __END_NAMESPACE_MPX

@@ -57,9 +57,9 @@ __END_DECLS
 
 __BEGIN_NAMESPACE_MPX
 
-struct __ABE_EXPORT IMediaPlayer : public SharedObject {
-    __ABE_INLINE IMediaPlayer() { }
-    __ABE_INLINE virtual ~IMediaPlayer() { }
+struct API_EXPORT IMediaPlayer : public SharedObject {
+    FORCE_INLINE IMediaPlayer() { }
+    FORCE_INLINE virtual ~IMediaPlayer() { }
 
     /**
      * create a player with options
