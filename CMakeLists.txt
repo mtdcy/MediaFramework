@@ -16,15 +16,18 @@ add_definitions(-D_ISOC99_SOURCE)
 add_definitions(-D_FORTIFY_SOURCE=2)    # https://access.redhat.com/blogs/766093/posts/1976213
 add_definitions(-DHAVE_CONFIG_H)
 add_definitions(-fvisibility=hidden)
-#add_definitions(-std=c99)
-set (CMAKE_CXX_FLAGS    "${CMAKE_CXX_FLAGS} -std=c++98")
-set (CMAKE_C_FLAGS      "${CMAKE_C_FLAGS} -std=c99")
+set (CMAKE_C_STANDARD   99)     # c98
+set (CMAKE_C_EXTENSIONS OFF)    # no gnu extensions
+set (CMAKE_CXX_STANDARD 98)     # c++98
+set (CMAKE_CXX_EXTENSIONS OFF)  # no gnu extensions
 
 if (APPLE)
     set (CMAKE_MACOSX_RPATH TRUE)
+elseif(WIN32)
+    add_definitions(-DBUILD_ABE_DLL)
 endif()
 
-if ("${CMAKE_GENERATOR}" STREQUAL "Xcode")
+if (XCODE)
     #set (CMAKE_MACOSX_BUNDLE TRUE)
     set (CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
     set (CMAKE_INSTALL_RPATH_USE_LINK_PATH FALSE)
@@ -59,13 +62,15 @@ set (SOURCE_FILES
     MediaFramework/opengl/GLVideo.cpp
     )
 
-if (APPLE)
-    list (APPEND SOURCE_FILES MediaFramework/videotoolbox/VideoToolboxDecoder.cpp)
-endif()
-
 file (GLOB PUBLIC_HEADERS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "MediaFramework/*.h")
 
 add_library (${PROJECT_NAME} SHARED ${SOURCE_FILES} ${PUBLIC_HEADERS})
+
+if (APPLE)
+    target_sources (${PROJECT_NAME} PUBLIC 
+        ${CMAKE_CURRENT_SOURCE_DIR}/MediaFramework/videotoolbox/VideoToolboxDecoder.cpp
+        )
+endif()
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/MediaFramework)
@@ -137,7 +142,7 @@ include_directories(${YUV_INCLUDE_DIRS})
 target_link_libraries(${PROJECT_NAME} ${YUV_LIBRARIES_STATIC})
 
 # install targets and headers
-if ("${CMAKE_GENERATOR}" STREQUAL "Xcode")
+if (XCODE)
     set_target_properties(${PROJECT_NAME} PROPERTIES
         FRAMEWORK TRUE
         FRAMEWORK_VERSION A
@@ -146,16 +151,16 @@ if ("${CMAKE_GENERATOR}" STREQUAL "Xcode")
         MACOSX_FRAMEWORK_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/Info.plist
         #RESOURCE "" 
         )
+
+    install (TARGETS ${PROJECT_NAME} FRAMEWORK DESTINATION .)
 else()
     install (FILES ${PUBLIC_HEADERS} DESTINATION include/MediaFramework)
+    install (TARGETS ${PROJECT_NAME} 
+        RUNTIME DESTINATION bin
+        ARCHIVE DESTINATION lib
+        LIBRARY DESTINATION lib
+        )
 endif()
-
-install (TARGETS ${PROJECT_NAME} 
-    FRAMEWORK DESTINATION Library/Frameworks
-    RUNTIME DESTINATION bin
-    ARCHIVE DESTINATION lib
-    LIBRARY DESTINATION lib
-    )
 
 # example/test code, NO build or install by default
 project (mpx)
@@ -167,4 +172,3 @@ target_link_libraries(mpx MediaFramework)
 set_target_properties(mpx PROPERTIES
     EXCLUDE_FROM_ALL TRUE
     EXCLUDE_FROM_DEFAULT_BUILD TRUE)
-install (TARGETS mpx RUNTIME DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
