@@ -60,7 +60,7 @@
 __BEGIN_DECLS
 
 // common constants and basic types
-enum eFileFormat {
+typedef enum {
     kFileFormatUnknown      = 0,
     kFileFormatMP3,
     kFileFormatMP4,
@@ -69,9 +69,9 @@ enum eFileFormat {
     kFileFormatAVI,
     kFileFormatMKV,
     kFileFormatAAC,
-};
+} eFileFormat;
 
-enum eCodecFormat {
+typedef enum {
     kCodecFormatUnknown     = 0,
     // audio
     kAudioCodecFormatFirst  = 0x100,
@@ -103,20 +103,20 @@ enum eCodecFormat {
     kImageCodecFormatBMP,
     kImageCodecFormatGIF,
     kImageCodecFormatLast   = 0x500 - 1,
-};
+} eCodecFormat;
 
-enum eCodecType {
+typedef enum {
     kCodecTypeUnknown       = 0,
     kCodecTypeVideo         = 1,
     kCodecTypeAudio         = 2,
     kCodecTypeSubtitle      = 3,
     kCodecTypeImage         = 4,
     kCodecTypeMax,
-};
+} eCodecType;
 
-enum eCodecType GetCodecType(enum eCodecFormat format);
+eCodecType GetCodecType(eCodecFormat format);
 
-enum ePixelFormat {
+typedef enum {
     kPixelFormatUnknown     = 0,        ///< Unknown
 
     // about yuv: http://www.fourcc.org/yuv.php
@@ -134,10 +134,10 @@ enum ePixelFormat {
     kPixelFormatRGB888,                 ///< packed RGB 8:8:8, 24 bpp
     kPixelFormatARGB,                   ///< packed ARGB, 32 bpp, AARRGGBB
     kPixelFormatRGBA,                   ///< packed RGBA, 32 bpp, RRGGBBAA
-};
+} ePixelFormat;
 
 // FIXME: code sample infomation into format
-enum eSampleFormat {
+typedef enum {
     kSampleFormatUnknown    = 0,
     kSampleFormatU8,
     kSampleFormatS16,
@@ -145,7 +145,7 @@ enum eSampleFormat {
     kSampleFormatS32,
     kSampleFormatFLT,
     kSampleFormatDBL,
-};
+} eSampleFormat;
 
 /**
  * read behavior modes
@@ -278,6 +278,28 @@ __END_DECLS
 USING_NAMESPACE_ABE
 
 __BEGIN_NAMESPACE_MPX
+
+struct AudioFormat {
+    eSampleFormat       format;         ///< audio sample format @see eSampleFormat
+    int32_t             channels;       ///< audio channels
+    int32_t             freq;           ///< audio sample rate
+    int32_t             samples;        ///< samples per channel
+};
+
+struct Rect {
+    int32_t             x;
+    int32_t             y;
+    int32_t             w;
+    int32_t             h;
+};
+
+struct ImageFormat {
+    ePixelFormat        format;         ///< image pixel format
+    int32_t             width;          ///< plane width
+    int32_t             height;         ///< plane height
+    Rect                rect;           ///< display rectangle
+};
+
 
 // FIXME: use macro to replace these constants
 namespace Media {

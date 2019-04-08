@@ -46,7 +46,6 @@ __END_DECLS
 
 #ifdef __cplusplus
 __BEGIN_NAMESPACE_MPX
-#endif
 
 /**
  * media frame structure for decompressed audio and video frames
@@ -69,30 +68,13 @@ struct API_EXPORT MediaFrame : public SharedObject {
 
     union {
         int32_t             format;     ///< sample format, @see ePixelFormat, @see eSampleFormat
-        struct {
-            eSampleFormat   format;     ///< audio sample format, @see eSampleFormat
-            int32_t         channels;   ///< channel count
-            int32_t         freq;       ///< sampling rate
-            int32_t         samples;    ///< samples per channel
-        } a;
-        struct {
-            ePixelFormat    format;     ///< video pixel format, @see ePixelFormat
-            int32_t         width;      ///< plane width
-            int32_t         height;     ///< plane height
-            struct {
-                int32_t     x, y, w, h;
-            } rect;                     ///< display rectangle
-        } v;
-        struct {
-            // TODO
-        } s;
+        AudioFormat         a;
+        ImageFormat         v;
     };
     void                    *opaque;    ///< opaque
 
-#ifdef __cplusplus
     MediaFrame();
     FORCE_INLINE virtual ~MediaFrame() { }
-#endif
 };
 
 /**
@@ -105,7 +87,6 @@ API_EXPORT sp<MediaFrame>  MediaFrameCreate(ePixelFormat format, int32_t width, 
  */
 API_EXPORT sp<MediaFrame>  MediaFrameCreate(eSampleFormat format, bool planar, int32_t channels, int32_t freq, int32_t samples);
 
-#ifdef __cplusplus
 __END_NAMESPACE_MPX
 #endif
 
