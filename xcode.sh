@@ -6,4 +6,4 @@ fi
 
 cd xcode
 
-cmake -G Xcode -DCMAKE_INSTALL_PREFIX=~/ ..
+cmake -G Xcode -DCMAKE_INSTALL_PREFIX=~/Library/Frameworks ..
