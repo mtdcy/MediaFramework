@@ -83,13 +83,15 @@ message(${SDL2_LIBRARY})
 include_directories(${SDL2_INCLUDE_DIR})
 target_link_libraries(${PROJECT_NAME} ${SDL2_LIBRARY})
 
-if (APPLE)
-    target_link_libraries(${PROJECT_NAME} "-framework ABE")
+if (XCODE)
+    find_library (ABE NAMES ABE PATHS ${CMAKE_INSTALL_PREFIX})
+    target_link_libraries(${PROJECT_NAME} ${ABE})
 
-    # FFmpeg.framework, FIXME
-    target_link_libraries(${PROJECT_NAME} "-framework FFmpeg")
+    # FFmpeg.framework
+    find_library (FFMPEG NAMES FFmpeg PATHS ${CMAKE_INSTALL_PREFIX})
+    target_link_libraries(${PROJECT_NAME} ${FFMPEG})
     # ffmpeg header structure need this
-    include_directories(/Library/Frameworks/FFmpeg.framework/Headers)
+    include_directories(${FFMPEG}/Headers)
 
     # VideoToolbox
     target_link_libraries(${PROJECT_NAME} "-framework CoreFoundation")
@@ -147,7 +149,7 @@ if (XCODE)
         PUBLIC_HEADER "${PUBLIC_HEADERS}"
         MACOSX_FRAMEWORK_IDENTIFIER com.mtdcy.media.MediaFramework
         MACOSX_FRAMEWORK_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/Info.plist
-        #RESOURCE "" 
+        #RESOURCE ""
         )
 
     install (TARGETS ${PROJECT_NAME} FRAMEWORK DESTINATION .)
