@@ -76,7 +76,7 @@ struct Decoder : public SharedObject {
 
     // internal mutable context
     // TODO: clock for decoder, handle late frames
-    volatile int            mGeneration;
+    Atomic<int>             mGeneration;
     bool                    mFlushed;
     List<sp<MediaPacket> >  mInputQueue;        // input packets queue
     bool                    mInputEOS;          // end of input ?
@@ -173,7 +173,7 @@ struct Decoder : public SharedObject {
     };
 
     void onPacketReady(const sp<MediaPacket>& pkt, int generation) {
-        if (atomic_load(&mGeneration) != generation) {
+        if (mGeneration.load() != generation) {
             INFO("codec %zu: ignore outdated packets", mID);
             return;
         }
@@ -208,8 +208,7 @@ struct Decoder : public SharedObject {
         CHECK_TRUE(ts != kTimeInvalid);
 
         // update generation
-        atomic_add(&mGeneration, 1);
-        mPacketReadyEvent = new OnPacketReady(mGeneration);
+        mPacketReadyEvent = new OnPacketReady(++mGeneration);
 
         // TODO: prepare again without flush
         mFlushed = false;
@@ -234,7 +233,7 @@ struct Decoder : public SharedObject {
         INFO("codec %zu: flush %zu packets", mID, mInputQueue.size());
 
         // update generation
-        atomic_add(&mGeneration, 1);
+        ++mGeneration;
         mPacketReadyEvent = NULL;
 
         // remove cmds
@@ -352,7 +351,7 @@ struct Renderer : public SharedObject {
     int64_t                 mLatency;
 
     // render scope context
-    volatile int            mGeneration;
+    Atomic<int>             mGeneration;
     struct PresentRunnable;
     sp<PresentRunnable>     mPresentFrame;      // for present current frame
     List<sp<MediaFrame> >   mOutputQueue;       // output frame queue
@@ -459,7 +458,7 @@ struct Renderer : public SharedObject {
 
     void onFrameReady(const sp<MediaFrame>& frame, int generation) {
         DEBUG("renderer %zu: one frame ready", mID);
-        if (atomic_load(&mGeneration) != generation) {
+        if (mGeneration.load() != generation) {
             INFO("renderer %zu: ignore outdated frames", mID);
             return;
         }
@@ -547,8 +546,7 @@ struct Renderer : public SharedObject {
         CHECK_TRUE(ts >= kTimeBegin);
 
         // update generation
-        atomic_add(&mGeneration, 1);
-        mFrameReadyEvent = new OnFrameReady(mGeneration);
+        mFrameReadyEvent = new OnFrameReady(++mGeneration);
 
         // tell decoder to prepare
         FrameRequest request;
@@ -577,7 +575,7 @@ struct Renderer : public SharedObject {
         INFO("track %zu: flush %zu frames", mID, mOutputQueue.size());
 
         // update generation
-        atomic_add(&mGeneration, 1);
+        ++mGeneration;
         mFrameReadyEvent = NULL;
 
         Looper::Current()->flush();

@@ -121,8 +121,8 @@ class API_EXPORT SharedClock : public SharedObject {
 
     private:
         // atomic int
-        volatile int    mGeneration;
-        volatile int    mMasterClock;
+        Atomic<int>     mGeneration;
+        Atomic<int>     mMasterClock;
         // clock internal context
         mutable Mutex   mLock;
         struct ClockInt {

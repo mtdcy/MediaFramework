@@ -47,7 +47,7 @@
 __USING_NAMESPACE_MPX
 
 struct CountedStatusEvent : public StatusEvent {
-    volatile int mCount;
+    Atomic<int>     mCount;
     sp<StatusEvent> kept;
 
     // FIXME:
@@ -59,9 +59,9 @@ struct CountedStatusEvent : public StatusEvent {
     virtual ~CountedStatusEvent() { }
 
     virtual void onEvent(const MediaError& st) {
-        int old = atomic_sub(&mCount, 1);
-        CHECK_GT(old, 0);
-        if (old == 1 || st != kMediaNoError) {
+        int count = --mCount;
+        CHECK_GE(count, 0);
+        if (count == 0 || st != kMediaNoError) {
             onFinished(st);
             kept.clear();
         }

@@ -56,12 +56,12 @@ void SharedClock::start() {
     mClockInt.mPaused       = false;
     mClockInt.mSystemTime   = SystemTimeUs();
 
-    if (atomic_load(&mMasterClock)) {
+    if (mMasterClock.load()) {
         // wait master clock to update
     } else {
         mClockInt.mTicking  = true;
     }
-    atomic_add(&mGeneration, 1);
+    ++mGeneration;
     notifyListeners_l(kClockStateTicking);
 }
 
@@ -70,14 +70,14 @@ void SharedClock::set(const MediaTime& t) {
     AutoLock _l(mLock);
     mClockInt.mMediaTime  = t;
     mClockInt.mSystemTime = SystemTimeUs();
-    atomic_add(&mGeneration, 1);
+    ++mGeneration;
 }
 
 void SharedClock::update(const ClockInt& c) {
     AutoLock _l(mLock);
     if (mClockInt.mPaused) return;
     mClockInt = c;
-    atomic_add(&mGeneration, 1);
+    ++mGeneration;
 }
 
 MediaTime SharedClock::get() const {
@@ -103,7 +103,7 @@ void SharedClock::pause() {
     mClockInt.mSystemTime   = SystemTimeUs();
     mClockInt.mPaused       = true;
     mClockInt.mTicking      = false;
-    atomic_add(&mGeneration, 1);
+    ++mGeneration;
     notifyListeners_l(kClockStatePaused);
 }
 
@@ -115,7 +115,7 @@ bool SharedClock::isPaused() const {
 void SharedClock::setSpeed(double s) {
     AutoLock _l(mLock);
     mClockInt.mSpeed = s;
-    atomic_add(&mGeneration, 1);
+    ++mGeneration;
 }
 
 double SharedClock::speed() const {
@@ -130,7 +130,7 @@ void SharedClock::reset() {
     mClockInt.mSystemTime   = kTimeBegin;
     mClockInt.mPaused       = true;
     mClockInt.mTicking      = false;
-    atomic_add(&mGeneration, 1);
+    ++mGeneration;
 
     notifyListeners_l(kClockStateReset);
 }
@@ -157,21 +157,20 @@ Clock::Clock(const sp<SharedClock>& sc, eClockRole role) :
     mClock(sc), mRole(role), mGeneration(0)
 {
     if (role == kClockRoleMaster) {
-        int old = atomic_add(&mClock->mMasterClock, 1);
-        CHECK_EQ(old, 0);   // only one master clock allowed
+        CHECK_EQ(++mClock->mMasterClock, 1);   // only one master clock allowed
     }
     reload();
 }
 
 Clock::~Clock() {
     if (mRole == kClockRoleMaster) {
-        atomic_sub(&mClock->mMasterClock, 1);
+        mClock->mMasterClock -= 1;
     }
     mClock.clear();
 }
 
 void Clock::reload() const {
-    int gen = atomic_load(&mClock->mGeneration);
+    int gen = mClock->mGeneration.load();
     CHECK_GE(gen, mGeneration);
     if (gen == mGeneration) return;
 
