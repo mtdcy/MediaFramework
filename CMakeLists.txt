@@ -84,30 +84,36 @@ message(${SDL2_LIBRARY})
 include_directories(${SDL2_INCLUDE_DIR})
 target_link_libraries(${PROJECT_NAME} ${SDL2_LIBRARY})
 
-if (XCODE)
-    find_library (ABE NAMES ABE PATHS ${CMAKE_INSTALL_PREFIX})
-    target_link_libraries(${PROJECT_NAME} ${ABE})
-
-    # FFmpeg.framework
-    find_library (FFMPEG NAMES FFmpeg PATHS ${CMAKE_INSTALL_PREFIX})
-    target_link_libraries(${PROJECT_NAME} ${FFMPEG})
-    # ffmpeg header structure need this
-    include_directories(${FFMPEG}/Headers)
-
+if (APPLE)
     # VideoToolbox
     target_link_libraries(${PROJECT_NAME} "-framework CoreFoundation")
     target_link_libraries(${PROJECT_NAME} "-framework CoreMedia")
     target_link_libraries(${PROJECT_NAME} "-framework CoreVideo")
     target_link_libraries(${PROJECT_NAME} "-framework VideoToolbox")
     target_link_libraries(${PROJECT_NAME} "-framework OpenGL")
+endif()
+
+if (XCODE)
+    find_library (ABE NAMES ABE PATHS ${CMAKE_INSTALL_PREFIX} NO_DEFAULT_PATH)
+    message("ABE: ${ABE}")
+    target_link_libraries(${PROJECT_NAME} ${ABE})
+
+    # FFmpeg.framework
+    find_library (FFMPEG NAMES FFmpeg PATHS ${CMAKE_INSTALL_PREFIX} NO_DEFAULT_PATH)
+    message("FFMPEG: ${FFMPEG}")
+    target_link_libraries(${PROJECT_NAME} ${FFMPEG})
+    # ffmpeg header structure need this
+    include_directories(${FFMPEG}/Headers)
 else()
     find_library (ABE 
         NAMES libABE.a libABE.so libABE.dylib libABE.dll
-        PATHS ${CMAKE_INSTALL_PREFIX}
+        PATHS ${CMAKE_INSTALL_PREFIX}/lib
+        NO_DEFAULT_PATH
         )
     find_path (ABE_HEADER
         NAMES ABE/ABE.h
-        PATHS ${CMAKE_INSTALL_PREFIX}
+        PATHS ${CMAKE_INSTALL_PREFIX}/include
+        NO_DEFAULT_PATH
         )
     message("ABE: ${ABE}")
     message("ABE_HEADER: ${ABE_HEADER}")
@@ -116,17 +122,20 @@ else()
 
     find_library (FFMPEG
         NAMES libFFmpeg.a libFFmpeg.so libFFmpeg.dylib libFFmpeg.dll
-        PATHS ${CMAKE_INSTALL_PREFIX}
+        PATHS ${CMAKE_INSTALL_PREFIX}/lib
+        NO_DEFAULT_PATH
         )
     find_path (FFMPEG_HEADER
         NAMES FFmpeg/FFmpeg.h
-        PATHS ${CMAKE_INSTALL_PREFIX}
+        PATHS ${CMAKE_INSTALL_PREFIX}/include
+        NO_DEFAULT_PATH
         )
     message("FFMPEG: ${FFMPEG}")
     message("FFMPEG_HEADER: ${FFMPEG_HEADER}")
     target_link_libraries(${PROJECT_NAME} ${FFMPEG})
     # ffmpeg header in bad structure
     include_directories(${FFMPEG_HEADER}/FFmpeg)
+
 
     if (WIN32)
         target_link_libraries (${PROJECT_NAME} -lopengl32 -lglew32)
@@ -166,9 +175,6 @@ endif()
 # example/test code, NO build or install by default
 project (mpx)
 add_executable(mpx mpx_main.cpp)
-if (APPLE)
-    target_link_libraries(mpx "-framework ABE")
-endif()
 target_link_libraries(mpx MediaFramework)
 set_target_properties(mpx PROPERTIES
     EXCLUDE_FROM_ALL TRUE
