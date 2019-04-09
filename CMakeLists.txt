@@ -47,6 +47,7 @@ set (SOURCE_FILES
     MediaFramework/tags/id3/ID3.cpp
     MediaFramework/pcm/pcm_convert.c
     MediaFramework/pcm/pcm_interleave.c
+    MediaFramework/audioresampler/AudioResampler.cpp
     MediaFramework/mp3/Mp3File.cpp
     MediaFramework/mpeg4/Mp4File.cpp
     MediaFramework/mpeg4/Systems.cpp

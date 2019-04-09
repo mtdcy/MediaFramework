@@ -40,8 +40,11 @@
 #define LOG_TAG "SDLAudio"
 //#define LOG_NDEBUG 0
 #include "MediaOut.h"
+#include "AudioResampler.h"
 
 #include <SDL.h>
+
+//#define FORCE_FREQ  48000   // for testing
 
 __BEGIN_NAMESPACE_MPX
 
@@ -202,6 +205,7 @@ template <class TYPE> FORCE_INLINE sp<Buffer> interleave(const sp<MediaFrame>& f
 
 struct SDLAudio : public MediaOut {
     sp<SDLAudioContext>     mSDL;
+    Object<AudioResampler>  mResampler;
 
     FORCE_INLINE SDLAudio() : MediaOut(), mSDL(NULL) { }
     FORCE_INLINE virtual ~SDLAudio() {
@@ -215,7 +219,22 @@ struct SDLAudio : public MediaOut {
         eSampleFormat format = (eSampleFormat)options.findInt32(kKeyFormat);
         uint32_t freq = options.findInt32(kKeySampleRate);
         uint32_t chan = options.findInt32(kKeyChannels);
+#if FORCE_FREQ
+        mSDL = openDevice(format, FORCE_FREQ, chan);
+        if (freq != FORCE_FREQ) {
+            AudioFormat in;
+            in.format = format;
+            in.channels = chan;
+            in.freq = freq;
+            AudioFormat out = in;
+            out.freq = FORCE_FREQ;
+            Message options;
+            mResampler = AudioResampler::Create(in, out, options);
+            mSDL->mSampleRate = freq;   // force
+        }
+#else
         mSDL = openDevice(format, freq, chan);
+#endif
         return mSDL != NULL ? kMediaNoError : kMediaErrorBadFormat;
     }
 
@@ -254,6 +273,11 @@ struct SDLAudio : public MediaOut {
             closeDevice(mSDL);
             mSDL = openDevice(input->a.format, input->a.freq, input->a.channels);
         }
+        
+        sp<MediaFrame> frame = input;
+        if (mResampler != NULL) {
+            frame = mResampler->resample(input);
+        }
 
         AutoLock _l(mSDL->mLock);
 
@@ -264,16 +288,16 @@ struct SDLAudio : public MediaOut {
             //mSilence = 1;
         }
 
-        if (input->planes[1].data != NULL) {
+        if (frame->planes[1].data != NULL) {
             switch (mSDL->mSampleFormat) {
                 case kSampleFormatS16:
-                    mSDL->mPendingFrame   = interleave<int16_t>(input);
+                    mSDL->mPendingFrame   = interleave<int16_t>(frame);
                     break;
                 case kSampleFormatS32:
-                    mSDL->mPendingFrame   = interleave<int32_t>(input);
+                    mSDL->mPendingFrame   = interleave<int32_t>(frame);
                     break;
                 case kSampleFormatFLT:
-                    mSDL->mPendingFrame   = interleave<float>(input);
+                    mSDL->mPendingFrame   = interleave<float>(frame);
                     break;
                 default:
                     FATAL("FIXME");
@@ -281,8 +305,8 @@ struct SDLAudio : public MediaOut {
             }
         } else {
             //INFO("frame %zu %d %d %d", input->planes[0].size, input->a.channels, input->a.freq, input->a.samples);
-            mSDL->mPendingFrame   = new Buffer((const char *)input->planes[0].data,
-                    input->planes[0].size);
+            mSDL->mPendingFrame   = new Buffer((const char *)frame->planes[0].data,
+                    frame->planes[0].size);
         }
 
         mSDL->mWait.signal();
