@@ -138,15 +138,16 @@ struct {
     eSampleFormat   a;
     AVSampleFormat  b;
 } kSampleMap[] = {
-    {kSampleFormatS16,          AV_SAMPLE_FMT_S16},
-    {kSampleFormatS32,          AV_SAMPLE_FMT_S32},
-    {kSampleFormatFLT,          AV_SAMPLE_FMT_FLT},
-    {kSampleFormatDBL,          AV_SAMPLE_FMT_DBL},
-    // plannar
+    // plannar goes first as we prefer plannar
     {kSampleFormatS16,          AV_SAMPLE_FMT_S16P},
     {kSampleFormatS32,          AV_SAMPLE_FMT_S32P},
     {kSampleFormatFLT,          AV_SAMPLE_FMT_FLTP},
     {kSampleFormatDBL,          AV_SAMPLE_FMT_DBLP},
+    // packed
+    {kSampleFormatS16,          AV_SAMPLE_FMT_S16},
+    {kSampleFormatS32,          AV_SAMPLE_FMT_S32},
+    {kSampleFormatFLT,          AV_SAMPLE_FMT_FLT},
+    {kSampleFormatDBL,          AV_SAMPLE_FMT_DBL},
     // END OF LIST
     {kSampleFormatUnknown,      AV_SAMPLE_FMT_NONE},
 };
@@ -166,6 +167,56 @@ static AVSampleFormat get_av_sample_format(eSampleFormat a) {
     }
     FATAL("fix the map");
     return AV_SAMPLE_FMT_NONE;
+}
+
+template <typename TYPE>
+static FORCE_INLINE size_t unpack(AVFrame *frame, Object<MediaFrame>& out) {
+    const TYPE * in = (const TYPE *)frame->data[0];
+    for (size_t i = 0; i < frame->nb_samples; ++i) {
+        for (size_t ch = 0; ch < frame->channels; ++ch) {
+            ((TYPE *)out->planes[ch].data)[i]   = *in++;
+        }
+    }
+    return frame->nb_samples;
+}
+
+static FORCE_INLINE Object<MediaFrame> unpack(AVFrame * frame) {
+    Object<MediaFrame> out;
+    AudioFormat format;
+    format.channels     = frame->channels;
+    format.freq         = frame->sample_rate;
+    format.samples      = frame->nb_samples;
+    switch (frame->format) {
+        case AV_SAMPLE_FMT_U8:
+            format.format = kSampleFormatU8;
+            out = MediaFrameCreate(format);
+            out->a.samples = unpack<uint8_t>(frame, out);
+            break;
+        case AV_SAMPLE_FMT_S16:
+            format.format = kSampleFormatS16;
+            out = MediaFrameCreate(format);
+            out->a.samples = unpack<int16_t>(frame, out);
+            break;
+        case AV_SAMPLE_FMT_S32:
+            format.format = kSampleFormatS32;
+            out = MediaFrameCreate(format);
+            out->a.samples = unpack<int32_t>(frame, out);
+            break;
+        case AV_SAMPLE_FMT_FLT:
+            format.format = kSampleFormatFLT;
+            out = MediaFrameCreate(format);
+            out->a.samples = unpack<float>(frame, out);
+            break;
+        case AV_SAMPLE_FMT_DBL:
+            format.format = kSampleFormatDBL;
+            out = MediaFrameCreate(format);
+            out->a.samples = unpack<double>(frame, out);
+            break;
+        default:
+            FATAL("FIXME");
+            break;
+    }
+    return out;
 }
 
 // map AVFrame to MediaFrame, so we don't have to realloc memory again
@@ -435,23 +486,52 @@ static FORCE_INLINE void releaseContext(AVCodecContext * avcc) {
 }
 
 static FORCE_INLINE MediaError openAudio(AVCodecContext * avcc, const Message& formats, const Message& options) {
-    AVSampleFormat best_match   = AV_SAMPLE_FMT_S16;
-    AVSampleFormat sample_fmt   = get_av_sample_format((eSampleFormat)options.findInt32(kKeyRequestFormat, kSampleFormatS16));
+    AVSampleFormat best_match   = AV_SAMPLE_FMT_NONE;
+    eSampleFormat requested     = (eSampleFormat)options.findInt32(kKeyRequestFormat, kSampleFormatS16);
+    const AVSampleFormat request_sample_fmt = get_av_sample_format(requested);
+    CHECK_TRUE(av_sample_fmt_is_planar(request_sample_fmt));
     
+    // find best sample format
     if (avcc->codec->sample_fmts) {
-        best_match   = avcc->codec->sample_fmts[0];
+        bool match = false;
+        // match planar ?
         for (size_t i = 0; avcc->codec->sample_fmts[i] != AV_SAMPLE_FMT_NONE; ++i) {
-            if (avcc->codec->sample_fmts[i] == sample_fmt) {
+            // match the first planar format
+            if (best_match == AV_SAMPLE_FMT_NONE && av_sample_fmt_is_planar(avcc->codec->sample_fmts[i])) {
                 best_match = avcc->codec->sample_fmts[i];
+            }
+            // match the request format ?
+            if (avcc->codec->sample_fmts[i] == request_sample_fmt) {
+                best_match = avcc->codec->sample_fmts[i];
+                match = true;
                 break;
             }
         }
+        
+        // planar -> packed
+        if (!match) {
+            // take the first format
+            if (best_match == AV_SAMPLE_FMT_NONE) best_match = avcc->codec->sample_fmts[0];
+            const AVSampleFormat packed = av_get_alt_sample_fmt(request_sample_fmt, false);
+            CHECK_FALSE(av_sample_fmt_is_planar(packed));
+            for (size_t i = 0; avcc->codec->sample_fmts[i] != AV_SAMPLE_FMT_NONE; ++i) {
+                if (avcc->codec->sample_fmts[i] == packed) {
+                    best_match = avcc->codec->sample_fmts[i];
+                    break;
+                }
+            }
+        }
+    } else {
+        best_match = request_sample_fmt;
     }
+    
+    // TODO: request channel layout
     
     avcc->channels              = formats.findInt32(kKeyChannels);
     avcc->sample_rate           = formats.findInt32(kKeySampleRate);
     avcc->request_channel_layout = AV_CH_LAYOUT_STEREO;
     avcc->request_sample_fmt    = best_match;
+    INFO("request_sample_fmt %s", av_get_sample_fmt_name(avcc->request_sample_fmt));
     
     int ret = avcodec_open2(avcc, NULL, NULL);
     
@@ -567,12 +647,29 @@ static AVCodecContext * initContext(eModeType mode, const Message& formats, cons
     eCodecType type = GetCodecType(codec);
     AVCodecID id = get_av_codec_id(codec);
     
-    INFO("[%#x] -> [%s]", codec, avcodec_get_name(id));
-    
     AVCodec *avc = avcodec_find_decoder(id);
-    if (id == AV_CODEC_ID_AAC) {
-        avc = avcodec_find_decoder_by_name("aac_fixed");
+    
+#if 1 // force fixed decoder if available
+    String name = avc->name;
+    AVCodec * fixed = NULL;
+    if (name.endsWith("float")) {
+        name.replace("float", "");
+        fixed = avcodec_find_decoder_by_name(name.c_str());
+        if (!fixed) {
+            name.append("fixed");
+            fixed = avcodec_find_decoder_by_name(name.c_str());
+        }
+    } else {
+        name.append("_fixed");
+        fixed = avcodec_find_decoder_by_name(name.c_str());
     }
+    if (fixed) {
+        INFO("force to fixed AVCodec %s", name.c_str());
+        avc = fixed;
+    }
+#endif
+    INFO("[%#x] -> [%s][%s]", codec, avcodec_get_name(id), avc->name);
+    
     if (!avc) {
         ERROR("can't find codec for %s", avcodec_get_name(id));
         return NULL;
@@ -782,6 +879,11 @@ struct LavcDecoder : public MediaDecoder {
         }
 
         sp<MediaFrame> out;
+        
+        // unpack interleaved -> planar
+        if (avcc->codec_type == AVMEDIA_TYPE_AUDIO && !av_sample_fmt_is_planar((AVSampleFormat)internal->format)) {
+            out = unpack(internal);
+        } else
 #ifdef __APPLE__
         if (internal->format == AV_PIX_FMT_VIDEOTOOLBOX) {
             out = readVideoToolboxFrame((CVPixelBufferRef)internal->data[3]);

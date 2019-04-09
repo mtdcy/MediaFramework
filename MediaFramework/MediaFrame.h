@@ -83,9 +83,9 @@ struct API_EXPORT MediaFrame : public SharedObject {
 API_EXPORT sp<MediaFrame>  MediaFrameCreate(ePixelFormat format, int32_t width, int32_t height);
 
 /**
- * create a audio frame
+ * create a audio frame backend by Buffer
  */
-API_EXPORT sp<MediaFrame>  MediaFrameCreate(eSampleFormat format, bool planar, int32_t channels, int32_t freq, int32_t samples);
+API_EXPORT sp<MediaFrame>  MediaFrameCreate(const AudioFormat& );
 
 __END_NAMESPACE_MPX
 #endif

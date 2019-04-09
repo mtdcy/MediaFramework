@@ -57,6 +57,28 @@ eCodecType GetCodecType(eCodecFormat format) {
         return kCodecTypeUnknown;
 }
 
+
+size_t GetSampleFormatBytes(eSampleFormat format) {
+    switch (format) {
+        case kSampleFormatU8:
+            return sizeof(uint8_t);
+        case kSampleFormatS16:
+            return sizeof(int16_t);
+        case kSampleFormatS32:
+            return sizeof(int32_t);
+        case kSampleFormatFLT:
+            return sizeof(float);
+        case kSampleFormatDBL:
+            return sizeof(double);
+        case kSampleFormatUnknown:
+            return 0;
+        default:
+            break;
+    }
+    FATAL("FIXME");
+    return 0;
+}
+
 __END_DECLS
 
 __BEGIN_NAMESPACE_MPX
@@ -183,41 +205,6 @@ static PixelFormatDesc s_yuv[] = {
         .n_size     = { 1, 0.5 }
     }
 };
-
-struct SampleFormatDesc {
-    const char *    desc;
-    const size_t    n_size;     // sample size in bytes
-};
-
-static FORCE_INLINE size_t GetSampleSpaceSize(const SampleFormatDesc * desc, int32_t channels, int32_t samples) {
-    return desc->n_size * channels * samples;
-}
-
-static SampleFormatDesc s_samples[] = {
-    {   // kSampleFormatUnknown
-        .desc       = "unknown",
-    },
-    {   // kSampleFormatU8
-        .desc       = "unsigned 8 bit sample",
-        .n_size     = 1,
-    },
-    {   // kSampleFormatS16
-        .desc       = "signed 16 bit sample",
-        .n_size     = 2,
-    },
-    {   // kSampleFormatS24
-        .desc       = "signed 24 bit sample",
-        .n_size     = 3,
-    },
-    {   // kSampleFormatS32
-        .desc       = "signed 32 bit sample",
-        .n_size     = 4,
-    },
-    {   // kSampleFormatFLT
-        .desc       = "float sample",
-        .n_size     = sizeof(float),
-    },
-};
 #define NELEM(x)    (sizeof(x) / sizeof(x[0]))
 
 MediaFrame::MediaFrame() : pts(kTimeInvalid), duration(kTimeInvalid) {
@@ -265,25 +252,19 @@ sp<MediaFrame> MediaFrameCreate(ePixelFormat format, int32_t w, int32_t h) {
     return frame;
 }
 
-sp<MediaFrame> MediaFrameCreate(eSampleFormat format, bool planar, int32_t channels, int32_t freq, int32_t samples) {
-    const SampleFormatDesc *desc = &s_samples[format];
-    sp<DefaultMediaFrame> frame = new DefaultMediaFrame(GetSampleSpaceSize(desc, channels, samples));
+sp<MediaFrame> MediaFrameCreate(const AudioFormat& a) {
+    const size_t bytes = GetSampleFormatBytes(a.format);
+    const size_t total = bytes * a.channels * a.samples;
+    sp<DefaultMediaFrame> frame = new DefaultMediaFrame(total);
     
-    if (planar) {
-        uint8_t * next = (uint8_t*)frame->buffer->data();
-        for (size_t i = 0; i < channels; ++i) {
-            frame->planes[i].size   = desc->n_size * samples;
-            frame->planes[i].data   = next;
-            next += frame->planes[i].size;
-        }
-    } else {
-        frame->planes[0].size       = frame->buffer->size();
-        frame->planes[0].data       = (uint8_t*)frame->buffer->data();
+    uint8_t * next = (uint8_t*)frame->buffer->data();
+    for (size_t i = 0; i < a.channels; ++i) {
+        frame->planes[i].size   = bytes * a.samples;
+        frame->planes[i].data   = next;
+        next += frame->planes[i].size;
     }
-    frame->a.format     = format;
-    frame->a.channels   = channels;
-    frame->a.freq       = freq;
-    frame->a.samples    = samples;
+    
+    frame->a            = a;
     return frame;
 }
 

@@ -137,15 +137,20 @@ typedef enum {
 } ePixelFormat;
 
 // FIXME: code sample infomation into format
+/**
+ * we always use planar data instead of interleaved,
+ * which is very common in audio processing
+ */
 typedef enum {
     kSampleFormatUnknown    = 0,
     kSampleFormatU8,
     kSampleFormatS16,
-    kSampleFormatS24,
     kSampleFormatS32,
     kSampleFormatFLT,
     kSampleFormatDBL,
 } eSampleFormat;
+
+API_EXPORT size_t GetSampleFormatBytes(eSampleFormat);
 
 /**
  * read behavior modes
