@@ -263,9 +263,9 @@ static MediaError prepareMedia(sp<MPContext>& mpc, const Message& media) {
             if (external != NULL) {
                 options.setObject("MediaOut", external);
             }
+            options.setInt32(kKeyRequestFormat, kPixelFormatNV12);
+            options.setInt32(kKeyOpenGLCompatible, true);
         }
-        options.setInt32(kKeyRequestFormat, kPixelFormatNV12);
-        options.setInt32(kKeyOpenGLCompatible, true);
         options.setObject("PacketRequestEvent", ms);
 
         options.setObject("RenderPositionEvent",
