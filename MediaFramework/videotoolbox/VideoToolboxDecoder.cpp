@@ -189,14 +189,14 @@ static FORCE_INLINE void OutputCallback(void *decompressionOutputRefCon,
 
     CHECK_NULL(decompressionOutputRefCon);
     CHECK_NULL(sourceFrameRefCon);  // strong ref to the packet
-    sp<MediaPacket> *packet = static_cast<sp<MediaPacket> * >(sourceFrameRefCon);
+    sp<MediaPacket> packet = sourceFrameRefCon;
 
     DEBUG("packet %p, status %d, infoFlags %#x, imageBuffer %p, presentationTimeStamp %.3f(s)/%.3f(s)",
             packet->get()->data, status, infoFlags, imageBuffer,
             CMTimeGetSeconds(presentationTimeStamp),
             CMTimeGetSeconds(presentationDuration));
 
-    delete packet;
+    packet.get()->ReleaseObject();
 
     if (status || imageBuffer == NULL) {
         ERROR("decode frame failed, st = %d", status);
@@ -648,7 +648,7 @@ struct VideoToolboxDecoder : public MediaDecoder {
                 mVTContext->decompressionSession,   // VTDecompressionSessionRef
                 sampleBuffer,                       // CMSampleBufferRef
                 decodeFlags,                        // VTDecodeFrameFlags
-                new sp<MediaPacket>(input),         // sourceFrameRefCon
+                input.get()->RetainObject(),        // sourceFrameRefCon
                 &infoFlagsOut                       // VTDecodeInfoFlags
                 );
         DEBUG("decode info flag %#x", infoFlagsOut);

@@ -44,7 +44,8 @@
 
 #include <SDL.h>
 
-//#define FORCE_FREQ  48000   // for testing
+#define FORCE_FREQ  48000   // for testing
+#define FORCE_FMT   kSampleFormatS32
 
 __BEGIN_NAMESPACE_MPX
 
@@ -78,9 +79,8 @@ static FORCE_INLINE SDL_AudioFormat get_sdl_sample_format(eSampleFormat a) {
 struct SDLAudioContext : public SharedObject {
     bool                    mInitByUs;
     sp<Message>             mFormat;
-    eSampleFormat           mSampleFormat;
-    uint32_t                mSampleRate;
-    uint32_t                mChannels;
+    AudioFormat             mAudioFormat;
+    
     mutable Mutex           mLock;
     Condition               mWait;
     sp<Buffer>              mPendingFrame;
@@ -88,14 +88,13 @@ struct SDLAudioContext : public SharedObject {
     bool                    mFlushing;
     size_t                  mSilence;
 
-    SDLAudioContext() : SharedObject(),
-    mInitByUs(false),
+    SDLAudioContext() : SharedObject(), mInitByUs(false),
     mPendingFrame(0), mFlushing(false), mSilence(0) { }
 };
 
 static void SDLAudioCallback(void *opaque, uint8_t *stream, int len);
-static FORCE_INLINE sp<SDLAudioContext> openDevice(eSampleFormat format, uint32_t freq, uint32_t channels) {
-    INFO("open device: %d %d %d", format, freq, channels);
+static FORCE_INLINE sp<SDLAudioContext> openDevice(const AudioFormat& format) {
+    INFO("open device: %d %d %d", format.format, format.freq, format.channels);
     sp<SDLAudioContext> sdl = new SDLAudioContext;
 
     if (SDL_WasInit(SDL_INIT_AUDIO) == SDL_INIT_AUDIO) {
@@ -108,9 +107,9 @@ static FORCE_INLINE sp<SDLAudioContext> openDevice(eSampleFormat format, uint32_
     SDL_AudioSpec wanted_spec, spec;
 
     // sdl only support s16.
-    wanted_spec.channels    = channels;
-    wanted_spec.freq        = freq;
-    wanted_spec.format      = get_sdl_sample_format((eSampleFormat)format);
+    wanted_spec.channels    = format.channels;
+    wanted_spec.freq        = format.freq;
+    wanted_spec.format      = get_sdl_sample_format((eSampleFormat)format.format);
     wanted_spec.silence     = 0;
     wanted_spec.samples     = 2048;
     wanted_spec.callback    = SDLAudioCallback;
@@ -121,9 +120,9 @@ static FORCE_INLINE sp<SDLAudioContext> openDevice(eSampleFormat format, uint32_
         return NULL;
     }
 
-    sdl->mSampleFormat   = get_sample_format(spec.format);
-    sdl->mSampleRate     = spec.freq;
-    sdl->mChannels       = spec.channels;
+    sdl->mAudioFormat.format    = get_sample_format(spec.format);
+    sdl->mAudioFormat.freq      = spec.freq;
+    sdl->mAudioFormat.channels  = spec.channels;
 
     INFO("SDL audio init done.");
     return sdl;
@@ -216,24 +215,25 @@ struct SDLAudio : public MediaOut {
     virtual String string() const { return "SDLAudio"; }
 
     virtual MediaError prepare(const Message& options) {
-        eSampleFormat format = (eSampleFormat)options.findInt32(kKeyFormat);
-        uint32_t freq = options.findInt32(kKeySampleRate);
-        uint32_t chan = options.findInt32(kKeyChannels);
-#if FORCE_FREQ
-        mSDL = openDevice(format, FORCE_FREQ, chan);
-        if (freq != FORCE_FREQ) {
-            AudioFormat in;
-            in.format = format;
-            in.channels = chan;
-            in.freq = freq;
-            AudioFormat out = in;
-            out.freq = FORCE_FREQ;
+        AudioFormat format;
+        
+        format.format   = (eSampleFormat)options.findInt32(kKeyFormat);
+        format.freq     = options.findInt32(kKeySampleRate);
+        format.channels = options.findInt32(kKeyChannels);
+#ifdef FORCE_FREQ
+        AudioFormat _a  = format;
+        _a.freq         = FORCE_FREQ;
+#ifdef FORCE_FMT
+        _a.format       = FORCE_FMT;
+#endif
+        
+        mSDL = openDevice(_a);
+        if (_a != format) {
             Message options;
-            mResampler = AudioResampler::Create(in, out, options);
-            mSDL->mSampleRate = freq;   // force
+            mResampler = AudioResampler::Create(format, _a, options);
         }
 #else
-        mSDL = openDevice(format, freq, chan);
+        mSDL = openDevice(format);
 #endif
         return mSDL != NULL ? kMediaNoError : kMediaErrorBadFormat;
     }
@@ -243,9 +243,9 @@ struct SDLAudio : public MediaOut {
     }
     virtual Message formats() const {
         Message info;
-        info.setInt32(kKeyFormat, mSDL->mSampleFormat);
-        info.setInt32(kKeySampleRate, mSDL->mSampleRate);
-        info.setInt32(kKeyChannels, mSDL->mChannels);
+        info.setInt32(kKeyFormat, mSDL->mAudioFormat.format);
+        info.setInt32(kKeySampleRate, mSDL->mAudioFormat.freq);
+        info.setInt32(kKeyChannels, mSDL->mAudioFormat.channels);
         return info;
     }
     virtual MediaError configure(const Message& options) {
@@ -267,11 +267,9 @@ struct SDLAudio : public MediaOut {
         DEBUG("write");
         if (input == NULL) return flush();
 
-        if (input->a.format != mSDL->mSampleFormat ||
-                input->a.channels != mSDL->mChannels ||
-                input->a.freq != mSDL->mSampleRate) {
+        if (mResampler == NULL && input->a != mSDL->mAudioFormat) {
             closeDevice(mSDL);
-            mSDL = openDevice(input->a.format, input->a.freq, input->a.channels);
+            mSDL = openDevice(input->a);
         }
         
         sp<MediaFrame> frame = input;
@@ -289,7 +287,7 @@ struct SDLAudio : public MediaOut {
         }
 
         if (frame->planes[1].data != NULL) {
-            switch (mSDL->mSampleFormat) {
+            switch (mSDL->mAudioFormat.format) {
                 case kSampleFormatS16:
                     mSDL->mPendingFrame   = interleave<int16_t>(frame);
                     break;

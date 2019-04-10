@@ -44,6 +44,7 @@ __BEGIN_DECLS
 
 __END_DECLS
 
+#ifdef __cplusplus
 __BEGIN_NAMESPACE_MPX
 
 /**
@@ -158,5 +159,6 @@ struct API_EXPORT MediaTime {
 #define kTimeEnd            MediaTime( kTimeValueEnd )
 
 __END_NAMESPACE_MPX
+#endif
 
 #endif // _MEDIA_TIME_H 

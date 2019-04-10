@@ -55,6 +55,7 @@ enum eClockState {
 
 __END_DECLS
 
+#ifdef __cplusplus
 __BEGIN_NAMESPACE_MPX
 
 typedef TypedEvent<eClockState>  ClockEvent;
@@ -218,5 +219,6 @@ class API_EXPORT Clock : public SharedObject {
 
 
 __END_NAMESPACE_MPX
+#endif
 
 #endif

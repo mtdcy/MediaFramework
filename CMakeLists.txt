@@ -31,7 +31,7 @@ if (XCODE)
     #set (CMAKE_MACOSX_BUNDLE TRUE)
     set (CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
     set (CMAKE_INSTALL_RPATH_USE_LINK_PATH FALSE)
-    set (CMAKE_XCODE_ATTRIBUTE_SIGN_IDENTITY "macOS Developer")
+    set (CMAKE_XCODE_ATTRIBUTE_SIGN_IDENTITY "Mac Developer")
     #set (CMAKE_XCODE_ATTRIBUTE_MACOSX_DEPLOYMENT_TARGET 10.8)
 endif()
 
@@ -173,7 +173,6 @@ else()
 endif()
 
 # example/test code, NO build or install by default
-project (mpx)
 add_executable(mpx mpx_main.cpp)
 target_link_libraries(mpx MediaFramework)
 set_target_properties(mpx PROPERTIES

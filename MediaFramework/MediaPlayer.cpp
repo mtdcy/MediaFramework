@@ -614,3 +614,17 @@ sp<IMediaPlayer> IMediaPlayer::Create(const Message &options) {
     return new AVPlayer(options);
 }
 
+__BEGIN_DECLS
+
+MediaPlayerRef MediaPlayerCreate() {
+    Message options;
+    Object<IMediaPlayer> mp = IMediaPlayer::Create(options);
+    return mp->RetainObject();
+}
+
+MediaError MediaPlayerInit(MediaPlayerRef ref) {
+    Object<IMediaPlayer> mp = ref;
+    Message media;
+    return mp->init(media);
+}
+__END_DECLS

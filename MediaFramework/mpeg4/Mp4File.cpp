@@ -317,11 +317,11 @@ static sp<Mp4Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderB
     return track;
 }
 
-static size_t findSampleIndex(Mp4Track& track,
+static size_t findSampleIndex(const sp<Mp4Track>& track,
         int64_t ts,
         eModeReadType mode,
         size_t *match = NULL) {
-    const Vector<Sample>& tbl = track.sampleTable;
+    const Vector<Sample>& tbl = track->sampleTable;
 
     size_t first = 0;
     size_t second = tbl.size() - 1;
@@ -374,7 +374,7 @@ static size_t findSampleIndex(Mp4Track& track,
 
 
     INFO("track %zu: seek %.3f(s) => [%zu - %zu - %zu] => %zu # %zu",
-            track.trackIndex, (double)ts / track.duration.timescale,
+         track->trackIndex, (double)ts / track->duration.timescale,
             first, mid, second, result,
             search_count);
 
@@ -392,7 +392,7 @@ struct Mp4Packet : public MediaPacket {
 
 struct Mp4File : public MediaExtractor {
     sp<Content>             mContent;
-    Vector<Mp4Track>        mTracks;
+    Vector<sp<Mp4Track > >  mTracks;
     MediaTime               mDuration;
     struct {
         size_t              offset;
@@ -412,23 +412,23 @@ struct Mp4File : public MediaExtractor {
         info.setInt32(kKeyCount, mTracks.size());
 
         for (size_t i = 0; i < mTracks.size(); ++i) {
-            const Mp4Track& trak = mTracks[i];
+            const sp<Mp4Track>& trak = mTracks[i];
 
             Message trakInfo;
-            trakInfo.setInt32(kKeyFormat, trak.codec);
-            trakInfo.set<MediaTime>(kKeyDuration, trak.duration);
+            trakInfo.setInt32(kKeyFormat, trak->codec);
+            trakInfo.set<MediaTime>(kKeyDuration, trak->duration);
 
-            eCodecType type = GetCodecType(trak.codec);
+            eCodecType type = GetCodecType(trak->codec);
             if (type == kCodecTypeAudio) {
-                trakInfo.setInt32(kKeySampleRate, trak.audio.sampleRate);
-                trakInfo.setInt32(kKeyChannels, trak.audio.channelCount);
+                trakInfo.setInt32(kKeySampleRate, trak->audio.sampleRate);
+                trakInfo.setInt32(kKeyChannels, trak->audio.channelCount);
             } else if (type == kCodecTypeVideo) {
-                trakInfo.setInt32(kKeyWidth, trak.video.width);
-                trakInfo.setInt32(kKeyHeight, trak.video.height);
+                trakInfo.setInt32(kKeyWidth, trak->video.width);
+                trakInfo.setInt32(kKeyHeight, trak->video.height);
             }
 
-            if (trak.esds != NULL) {
-                trakInfo.setObject(trak.esds->name, trak.esds->data);
+            if (trak->esds != NULL) {
+                trakInfo.setObject(trak->esds->name, trak->esds->data);
             }
 
 #if 0
@@ -595,7 +595,7 @@ struct Mp4File : public MediaExtractor {
             if (track == NULL) continue;
 
             track->trackIndex = mTracks.size();
-            mTracks.push(*track);
+            mTracks.push(track);
         }
 
         if (mTracks.empty()) {
@@ -614,16 +614,16 @@ struct Mp4File : public MediaExtractor {
     virtual sp<MediaPacket> read(size_t index,
             eModeReadType mode,
             const MediaTime& _ts = kTimeInvalid) {
-        Mp4Track& track = mTracks[index];
-        Vector<Sample>& tbl = track.sampleTable;
+        sp<Mp4Track>& track = mTracks[index];
+        Vector<Sample>& tbl = track->sampleTable;
 
         MediaTime ts = _ts;
 
         // first read, force mode = kModeReadFirst;
-        if (track.startTime == kTimeInvalid) {
+        if (track->startTime == kTimeInvalid) {
             INFO("track %zu: read first pakcet", index);
             mode = kModeReadFirst;
-            track.startTime = kTimeBegin.scale(track.duration.timescale);
+            track->startTime = kTimeBegin.scale(track->duration.timescale);
         }
 
         // ts will be ignored for these modes
@@ -636,21 +636,21 @@ struct Mp4File : public MediaExtractor {
 
         // calc sample index before read sample
         // determine direction and sample index based on mode
-        int sampleIndex = track.sampleIndex;
+        int sampleIndex = track->sampleIndex;
         if (ts != kTimeInvalid) {
             // if ts exists, seek directly to new position,
             // seek() will take direction into account
-            ts = ts.scale(track.duration.timescale);
+            ts = ts.scale(track->duration.timescale);
 
             size_t match;
             sampleIndex = findSampleIndex(track, ts.value, mode, &match);
 
             if (mode != kModeReadPeek) {
-                track.startTime = MediaTime(tbl[sampleIndex].dts,
-                        track.duration.timescale);
+                track->startTime = MediaTime(tbl[sampleIndex].dts,
+                                             track->duration.timescale);
                 if (sampleIndex < match) {
-                    track.startTime = MediaTime(tbl[match].dts,
-                            track.duration.timescale);
+                    track->startTime = MediaTime(tbl[match].dts,
+                                                 track->duration.timescale);
                 }
             }
         } else if (mode == kModeReadNextSync) {
@@ -681,7 +681,7 @@ struct Mp4File : public MediaExtractor {
 
         // save sample index
         if (mode != kModeReadPeek) {
-            track.sampleIndex = sampleIndex;
+            track->sampleIndex = sampleIndex;
         }
 
         // read sample data
@@ -698,8 +698,8 @@ struct Mp4File : public MediaExtractor {
         // setup flags
         uint32_t flags  = s.flags;
 #if 1
-        MediaTime dts( s.dts, track.startTime.timescale);
-        if (dts < track.startTime) {
+        MediaTime dts( s.dts, track->startTime.timescale);
+        if (dts < track->startTime) {
             if (flags & kFrameFlagDisposal) {
                 INFO("track %zu: drop frame", index);
                 return read(index, mode, kTimeInvalid);
@@ -707,20 +707,20 @@ struct Mp4File : public MediaExtractor {
                 INFO("track %zu: reference frame", index);
                 flags |= kFrameFlagReference;
             }
-        } else if (dts == track.startTime) {
+        } else if (dts == track->startTime) {
             INFO("track %zu: hit starting...", index);
         }
 #endif
         // init MediaPacket context
         sp<MediaPacket> packet = new Mp4Packet(sample);
         packet->index   = sampleIndex;
-        packet->format  = track.codec;
+        packet->format  = track->codec;
         packet->flags   = flags;
         if (s.pts == kTimeValueInvalid)
             packet->pts = kTimeInvalid;
         else
-            packet->pts = MediaTime(s.pts, track.duration.timescale);
-        packet->dts     = MediaTime(s.dts, track.duration.timescale);
+            packet->pts = MediaTime(s.pts, track->duration.timescale);
+        packet->dts     = MediaTime(s.dts, track->duration.timescale);
         return packet;
     }
 };

@@ -40,7 +40,6 @@
 
 #ifdef __cplusplus
 __BEGIN_NAMESPACE_MPX
-#endif
 
 /**
  * media packet class for compressed audio and video packets
@@ -58,11 +57,9 @@ struct API_EXPORT MediaPacket : public SharedObject {
     sp<Message>         properties; ///< extra properties of current frame
     void *              opaque;     ///< opaque
 
-#ifdef __cplusplus
     FORCE_INLINE MediaPacket() : data(NULL), size(0), index(0), format(kCodecFormatUnknown),
     flags(kFrameFlagNone), dts(kTimeInvalid), pts(kTimeInvalid), opaque(NULL) { }
     FORCE_INLINE virtual ~MediaPacket() { }
-#endif
 };
 
 /**
@@ -71,7 +68,6 @@ struct API_EXPORT MediaPacket : public SharedObject {
 API_EXPORT sp<MediaPacket> MediaPacketCreate(size_t size);
 API_EXPORT sp<MediaPacket> MediaPacketCreate(sp<Buffer>&);
 
-#ifdef __cplusplus
 __END_NAMESPACE_MPX
 #endif // __cplusplus
 

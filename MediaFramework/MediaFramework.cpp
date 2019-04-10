@@ -79,6 +79,27 @@ size_t GetSampleFormatBytes(eSampleFormat format) {
     return 0;
 }
 
+const char * GetSampleFormatString(eSampleFormat format) {
+    switch (format) {
+        case kSampleFormatU8:
+            return "u8";
+        case kSampleFormatS16:
+            return "s16";
+        case kSampleFormatS32:
+            return "s32";
+        case kSampleFormatFLT:
+            return "flt";
+        case kSampleFormatDBL:
+            return "dbl";
+        case kSampleFormatUnknown:
+            return "unknown";
+        default:
+            break;
+    }
+    FATAL("FIXME");
+    return 0;
+}
+
 __END_DECLS
 
 __BEGIN_NAMESPACE_MPX
@@ -250,6 +271,14 @@ sp<MediaFrame> MediaFrameCreate(ePixelFormat format, int32_t w, int32_t h) {
     frame->v.rect.w     = w;
     frame->v.rect.h     = h;
     return frame;
+}
+
+String GetAudioFormatString(const AudioFormat& a) {
+    return String::format("audio %s: ch %d, freq %d, samples %d",
+                          GetSampleFormatString(a.format),
+                          a.channels,
+                          a.freq,
+                          a.samples);
 }
 
 sp<MediaFrame> MediaFrameCreate(const AudioFormat& a) {

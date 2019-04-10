@@ -45,6 +45,7 @@
 #include <MediaFramework/ColorConvertor.h>
 #include <MediaFramework/MediaClock.h>
 
+#ifdef __cplusplus
 __BEGIN_NAMESPACE_MPX
 /**
  * For pushing packets to target. when a packet is ready,
@@ -98,4 +99,5 @@ struct API_EXPORT IMediaSession : public SharedObject {
     virtual void release() = 0;
 };
 __END_NAMESPACE_MPX
+#endif
 #endif 

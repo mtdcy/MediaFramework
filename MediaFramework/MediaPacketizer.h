@@ -38,6 +38,7 @@
 #include <MediaFramework/MediaDefs.h>
 #include <MediaFramework/MediaPacket.h>
 
+#ifdef __cplusplus
 __BEGIN_NAMESPACE_MPX
 
 ///////////////////////////////////////////////////////////////////////////
@@ -69,5 +70,7 @@ struct API_EXPORT MediaPacketizer : public SharedObject {
 };
 
 __END_NAMESPACE_MPX
+#endif
+
 #endif // _MEDIA_PACKETIZER_H
 

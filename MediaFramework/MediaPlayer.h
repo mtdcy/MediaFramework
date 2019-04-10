@@ -53,8 +53,16 @@ enum eStateType {
     kStateReleased,     ///< mp context is released
     kStateMax,
 };
+
+typedef void *  MediaPlayerRef;
+
+API_EXPORT MediaPlayerRef   MediaPlayerCreate();
+
+API_EXPORT MediaError       MediaPlayerInit(MediaPlayerRef);
+
 __END_DECLS
 
+#ifdef __cplusplus
 __BEGIN_NAMESPACE_MPX
 
 struct API_EXPORT IMediaPlayer : public SharedObject {
@@ -113,6 +121,7 @@ struct API_EXPORT IMediaPlayer : public SharedObject {
     virtual MediaError release() = 0;
 };
 __END_NAMESPACE_MPX
+#endif
 
 #endif // _MEDIA_PLAYER_H
 

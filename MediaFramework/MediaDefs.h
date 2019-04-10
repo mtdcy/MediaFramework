@@ -260,7 +260,7 @@ enum {
  */
 #define kKeyCodecSpecificData   "csd"   ///< Buffer
 
-enum MediaError {
+typedef enum {
     kMediaNoError                   = 0,
     kMediaErrorUnknown              = -10000,
     kMediaErrorNotSupported         = -10001,
@@ -270,8 +270,9 @@ enum MediaError {
     kMediaErrorTryAgain             = -10005,
     kMediaErrorResourceBusy         = -10006,
     kMediaErrorBadFormat            = -10007,   ///<
-    kMediaErrorNoMoreData           = -10008,
-};
+    kMediaErrorNoMoreData           = -10008,   ///<
+    kMediaErrorOutOfMemory          = -10009,   ///< Out Of Memory
+} MediaError;
 
 __END_DECLS
 
@@ -289,7 +290,16 @@ struct AudioFormat {
     int32_t             channels;       ///< audio channels
     int32_t             freq;           ///< audio sample rate
     int32_t             samples;        ///< samples per channel
+    
+    
+    bool operator==(const AudioFormat& rhs) const {
+        return format == rhs.format && channels == rhs.channels && freq == rhs.freq;
+    }
+    
+    bool operator!=(const AudioFormat& rhs) const { return !operator==(rhs); }
 };
+
+String GetAudioFormatString(const AudioFormat& format);
 
 struct Rect {
     int32_t             x;
