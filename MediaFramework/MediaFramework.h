@@ -68,7 +68,7 @@ typedef SharedObjectRef         MediaPlayerRef;
 API_EXPORT MediaPlayerRef       MediaPlayerCreate(MessageRef, MessageRef);
 API_EXPORT MediaError           MediaPlayerRelease(MediaPlayerRef);
 
-API_EXPORT MediaError           MediaPlayerPrepare(MediaPlayerRef, MessageRef);
+API_EXPORT MediaError           MediaPlayerPrepare(MediaPlayerRef, double /* @seconds */);
 API_EXPORT MediaError           MediaPlayerStart(MediaPlayerRef);
 API_EXPORT MediaError           MediaPlayerPause(MediaPlayerRef);
 API_EXPORT MediaError           MediaPlayerFlush(MediaPlayerRef);
@@ -93,6 +93,13 @@ API_EXPORT MediaOutRef          MediaOutCreate(eCodecType);
 API_EXPORT MediaError           MediaOutPrepare(MediaOutRef, MessageRef, MessageRef);
 API_EXPORT MediaError           MediaOutWrite(MediaOutRef, MediaFrameRef);
 API_EXPORT MediaError           MediaOutFlush(MediaOutRef);
+
+// Clock, get a clock from MediaPlayerRef, used to update ui
+typedef SharedObjectRef         MediaClockRef;
+API_EXPORT MediaClockRef        MediaClockGet(MediaPlayerRef);
+#define MediaClockRelease(x)    SharedObjectRelease((SharedObjectRef)x)
+
+API_EXPORT int64_t              MediaClockGetTime(MediaClockRef);
 
 __END_DECLS
 

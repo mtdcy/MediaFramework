@@ -521,8 +521,12 @@ static void updateTexture_VideoToolbox(const sp<OpenGLContext>& glc, const sp<Me
 
     glUniform1iv(glc->uniforms[UNIFORM_PLANES], glc->config->n_textures, index);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-
-    glFlush();  // always assume single buffer here, let client handle swap buffers
+    
+    //glFlush();  // always assume single buffer here, let client handle swap buffers
+    
+#ifdef __APPLE__
+    glSwapAPPLE();
+#endif
     CHECK_GL_ERROR();
 }
 #endif
@@ -604,7 +608,9 @@ struct GLVideo : public MediaOut {
 
         // is gl context ready for current thread
 #ifdef __APPLE__
-        if (ogl) CHECK_NULL(CGLGetCurrentContext());
+        if (ogl) {
+            CHECK_NULL(CGLGetCurrentContext());
+        }
 #endif
 
         int32_t width       = format.findInt32(kKeyWidth);

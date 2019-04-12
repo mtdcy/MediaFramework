@@ -48,7 +48,7 @@
 #endif
 #include <SDL.h>
 
-#define DOUBLE_BUFFER 1
+//#define DOUBLE_BUFFER 1
 //#define TEST_SCREEN
 #define MAIN_THREAD_RENDER
 #define PREFER_MODE kModeTypeDefault
@@ -73,18 +73,9 @@ struct MPStatus : public StatusEvent {
     virtual String string() const { return "MPStatus"; }
 };
 
-struct MPRenderPosition : public RenderPositionEvent {
-    MPRenderPosition() : RenderPositionEvent() { }
-    virtual void onEvent(const MediaTime& v) {
-        //INFO("progress %" PRId64, v);
-        position = v.seconds();
-    }
-    virtual String string() const { return "MPRenderPosition"; }
-};
-
-struct OnMediaFrameReady : public FrameReadyEvent {
-    virtual void onEvent(const Object<MediaFrame>& frame) {
-        
+struct OnPlayerInfo : public InfomationEvent {
+    virtual void onEvent(const eInfoType& info) {
+        // TODO
     }
 };
 
@@ -128,7 +119,7 @@ struct OnFrameUpdate : public MediaFrameEvent {
         g_out->write(frame);
         
 #if DOUBLE_BUFFER
-        SDL_GL_SwapWindow(window);
+        //SDL_GL_SwapWindow(window);
 #endif
     }
 };
@@ -240,7 +231,7 @@ int main (int argc, char **argv)
 #ifdef MAIN_THREAD_RENDER
         options.setObject("MediaFrameEvent", new OnFrameUpdate);
 #endif
-        options.setObject("RenderPositionEvent", new MPRenderPosition);
+        options.setObject("InfomationEvent", new OnPlayerInfo);
         options.setObject("StatusEvent", new MPStatus);
         mp = IMediaPlayer::Create(options);
         

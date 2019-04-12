@@ -106,8 +106,7 @@ struct SessionContext : public SharedObject {
 struct MPContext : public SharedObject {
     // external static context
     Message mOptions;
-    sp<RenderPositionEvent> mRenderPositionEvent;
-    int64_t mRenderPositionUpdateInterval;
+    sp<InfomationEvent>     mInfomationEvent;
     sp<StatusEvent> mStatusEvent;
 
     // mutable context
@@ -120,7 +119,7 @@ struct MPContext : public SharedObject {
 
     MPContext(const Message& options) : SharedObject(), mOptions(options),
         // external static context
-        mRenderPositionEvent(NULL), mRenderPositionUpdateInterval(500000LL),
+        mInfomationEvent(NULL),
         mStatusEvent(NULL),
         // internal static context
         // mutable context
@@ -129,12 +128,8 @@ struct MPContext : public SharedObject {
         mClock(new SharedClock)
     {
         INFO("init MPContext with %s", mOptions.string().c_str());
-        if (mOptions.contains("RenderPositionEvent")) {
-            mRenderPositionEvent = mOptions.findObject("RenderPositionEvent");
-        }
-
-        if (mOptions.contains("RenderPositionUpdateInterval")) {
-            mRenderPositionUpdateInterval = mOptions.findInt64("RenderPositionUpdateInterval");
+        if (mOptions.contains("InfomationEvent")) {
+            mInfomationEvent = mOptions.findObject("InfomationEvent");
         }
 
         if (mOptions.contains("StatusEvent")) {
@@ -147,42 +142,10 @@ struct MPContext : public SharedObject {
     }
 };
 
-// update render position to client
-struct UpdateRenderPosition : public Runnable {
-    UpdateRenderPosition() : Runnable() { }
-
-    virtual void run() {
-        sp<MPContext> mpc = Looper::Current()->user(0);
-
-        // send render position info to client
-        MediaTime ts = mpc->mClock->get();
-        DEBUG("current progress %.3f(s)", ts.seconds());
-        
-        // update render position to client
-        if (mpc->mRenderPositionEvent != NULL)
-            mpc->mRenderPositionEvent->fire(ts);
-
-        if (mpc->mClock->isPaused() == false) {
-            Looper::Current()->post(new UpdateRenderPosition,
-                    mpc->mRenderPositionUpdateInterval);
-        }
-    }
-};
-
-// for media session update render position
-struct OnUpdateRenderPosition : public RenderPositionEvent {
-    const size_t mID;
-    OnUpdateRenderPosition(const sp<Looper>& lp, size_t id) : RenderPositionEvent(lp), mID(id) { }
-
-    virtual void onEvent(const MediaTime& ts) {
-        sp<MPContext> mpc = Looper::Current()->user(0);
-
-        if (ts == kTimeEnd) {
-            INFO("eos...");
-            if (mpc->mRenderPositionEvent != NULL) {
-                mpc->mRenderPositionEvent->fire(kTimeEnd);
-            }
-        }
+struct OnInfomation : public InfomationEvent {
+    OnInfomation() : InfomationEvent(Looper::Current()) { }
+    virtual void onEvent(const eInfoType& info) {
+        // TODO
     }
 };
 
@@ -259,9 +222,7 @@ static MediaError prepareMedia(sp<MPContext>& mpc, const Message& media) {
             options.setInt32(kKeyOpenGLCompatible, true);
         }
         options.setObject("PacketRequestEvent", ms);
-
-        options.setObject("RenderPositionEvent",
-                          new OnUpdateRenderPosition(Looper::Current(), mpc->mNextId));
+        options.setObject("InformationEvent", new OnInfomation);
 
         if (kCodecTypeAudio == type || numTracks == 1) {
             options.setObject("Clock", new Clock(mpc->mClock, kClockRoleMaster));
@@ -349,10 +310,6 @@ struct PrepareStatusEvent : public CountedStatusEvent {
         // notify client
         if (mpc->mStatusEvent != NULL)
             mpc->mStatusEvent->fire(st);
-
-        // notify the render position
-        if (mpc->mRenderPositionEvent != NULL)
-            mpc->mRenderPositionEvent->fire(mpc->mClock->get());
     }
 };
 
@@ -401,9 +358,6 @@ struct PlayingState : public State {
 
         mpc->mClock->start();
         
-        if (mpc->mRenderPositionEvent != NULL) {
-            Looper::Current()->post(new UpdateRenderPosition);
-        }
         return kMediaNoError;
     }
 };
@@ -558,6 +512,14 @@ struct AVPlayer : public IMediaPlayer {
     virtual eStateType state() const {
         AutoLock _l(mLock);
         return mState;
+    }
+    
+    virtual sp<Clock> clock() const {
+        sp<MPContext> mpc = mLooper->user(0);
+        if (mpc->mClock != NULL) {
+            return new Clock(mpc->mClock);
+        }
+        return NULL;
     }
 
     virtual MediaError init(const Message& media) {

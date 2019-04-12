@@ -345,7 +345,7 @@ struct Renderer : public SharedObject {
     // external static context
     sp<FrameRequestEvent>   mFrameRequestEvent;
     eCodecFormat            mID;
-    sp<RenderPositionEvent> mPositionEvent;
+    sp<InfomationEvent>     mInfomationEvent;
     // internal static context
     sp<FrameReadyEvent>     mFrameReadyEvent;
     sp<MediaFrameEvent>     mMediaFrameEvent;
@@ -377,7 +377,7 @@ struct Renderer : public SharedObject {
         SharedObject(),
         // external static context
         mFrameRequestEvent(fre), mID(id),
-        mPositionEvent(NULL),
+        mInfomationEvent(NULL),
         // internal static context
         mFrameReadyEvent(NULL),
         mOut(NULL), mColorConvertor(NULL), mClock(NULL), mLatency(0),
@@ -392,8 +392,8 @@ struct Renderer : public SharedObject {
         mFramesRenderred(0)
     {
         // setup external context
-        if (options.contains("RenderPositionEvent")) {
-            mPositionEvent = options.findObject("RenderPositionEvent");
+        if (options.contains("InfomationEvent")) {
+            mInfomationEvent = options.findObject("InfomationEvent");
         }
 
         if (options.contains("Clock")) {
@@ -517,8 +517,8 @@ struct Renderer : public SharedObject {
                     mID, frame->pts.seconds());
 
             // notify about the first render postion
-            if (mPositionEvent != NULL) {
-                mPositionEvent->fire(frame->pts);
+            if (mInfomationEvent != NULL) {
+                mInfomationEvent->fire(kInfoBeginOfStream);
             }
 
             if (GetCodecType(mID) == kCodecTypeVideo) {
@@ -686,14 +686,6 @@ struct Renderer : public SharedObject {
             mClock->update(frame->pts.useconds() - mLatency, realTime);
         }
 
-        // broadcast render position to others every 1s
-        if (frame->pts - mLastUpdateTime > 1000000LL) {
-            mLastUpdateTime = frame->pts;
-            if (mPositionEvent != NULL) {
-                mPositionEvent->fire(frame->pts);
-            }
-        }
-
         // next frame render time.
         if (mOutputQueue.size()) {
             if (mClock == NULL) {
@@ -710,9 +702,9 @@ struct Renderer : public SharedObject {
             // tell out device about eos
             if (mOut != NULL) mOut->write(NULL);
             else mMediaFrameEvent->fire(NULL);
-
-            if (mPositionEvent != NULL) {
-                mPositionEvent->fire(kTimeEnd);
+            
+            if (mInfomationEvent != NULL) {
+                mInfomationEvent->fire(kInfoEndOfStream);
             }
         }
         INFO("refresh rate");

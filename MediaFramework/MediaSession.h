@@ -77,6 +77,7 @@ typedef TypedEvent<FrameRequest>  FrameRequestEvent;
 
 /**
  * For handle error status
+ * TODO: merge to InfomationEvent
  */
 typedef TypedEvent<MediaError> StatusEvent;
 

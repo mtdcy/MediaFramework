@@ -249,8 +249,10 @@ static FORCE_INLINE bool operator!=(const ImageFormat& lhs, const ImageFormat& r
  * @note we prefer int64_t(us) for our framework, but extractors and decoders prefer
  * time value & scale, so we using MediaTime for MediaPacket and MediaFrame, but int64_t
  * for reset of the framework.
+ * @note MediaTime should only be used inside, no export, using int64_t(us) export
+ * time related properties. so MediaTime will not derive from SharedObject
  */
-struct API_EXPORT MediaTime {
+struct MediaTime {
     int64_t     value;
     int64_t     timescale;
 

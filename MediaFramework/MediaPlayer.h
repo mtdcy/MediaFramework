@@ -38,6 +38,7 @@
 #define _MEDIA_PLAYER_H
 
 #include <MediaFramework/MediaDefs.h>
+#include <MediaFramework/MediaClock.h>
 
 __BEGIN_DECLS
 
@@ -52,6 +53,29 @@ typedef enum {
     kStateMax,
 } eStateType;
 
+typedef enum {
+    /**
+     * player state info
+     */
+    kInfoPlayerInitialized,     ///< 
+    kInfoPlayerReady,           ///<
+    kInfoPlayerPlaying,         ///<
+    kInfoPlayerPaused,          ///<
+    kInfoPlayerFlushed,         ///<
+    kInfoPlayerReleased,        ///<
+    /**
+     * player property info
+     */
+    kInfoOpenGLEnabled,         ///< OpenGL Enabled for video output
+    kInfoVideoToolboxEnabled,   ///<
+    /**
+     *
+     */
+    kInfoBeginOfStream,         ///< BOS
+    kInfoEndOfStream,           ///< EOS
+    kInfoClockUpdated,          ///< Clock been updated by master
+} eInfoType;
+
 __END_DECLS
 
 #ifdef __cplusplus
@@ -63,9 +87,9 @@ __BEGIN_NAMESPACE_MPX
 typedef TypedEvent<Object<MediaFrame> >     MediaFrameEvent;
 
 /**
- * For update render position to target.
+ * a generic event
  */
-typedef TypedEvent<MediaTime>               RenderPositionEvent;
+typedef TypedEvent<eInfoType>               InfomationEvent;
 
 struct API_EXPORT IMediaPlayer : public SharedObject {
     IMediaPlayer() { }
@@ -75,10 +99,12 @@ struct API_EXPORT IMediaPlayer : public SharedObject {
      * create a player with options
      * about options:
      *  "StatusEvent"           - [sp<StatusEvent>]         - optional
-     *  "RenderPositionEvent"   - [sp<RenderPositionEvent>] - optional
+     *  "InfomationEvent"       - [sp<InfomationEvent>]     - optional
      * @param options   option and parameter for player
      */
     static sp<IMediaPlayer> Create(const Message& options);
+    
+    virtual sp<Clock> clock() const = 0;
 
     /**
      *
@@ -89,7 +115,7 @@ struct API_EXPORT IMediaPlayer : public SharedObject {
      * add a media to player.
      * about options:
      *  "url"                   - [String]                  - mandatory, url of the media
-     *  "MediaOut"              - [sp<MediaOut>]            - optional
+     *  "MediaFrameEvent"       - [sp<MediaFrameEvent>]     - optional
      *  "StartTime"             - [double|seconds]          - optional
      *  "EndTime"               - [double|seconds]          - optional
      * if MediaOut exists, external renderer will be used.
