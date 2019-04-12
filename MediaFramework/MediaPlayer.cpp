@@ -34,15 +34,12 @@
 
 #define LOG_TAG "Player"
 //#define LOG_NDEBUG 0
-
-#include <ABE/ABE.h>
-#include <MediaFramework/MediaSession.h>
-#include <MediaFramework/MediaExtractor.h>
-#include <MediaFramework/MediaDecoder.h>
-#include <MediaFramework/MediaOut.h>
-#include <MediaFramework/MediaPlayer.h>
-
-#include <SDL.h>
+#include "MediaPlayer.h"
+#include "MediaSession.h"
+#include "MediaExtractor.h"
+#include "MediaClock.h"
+#include "MediaDecoder.h"
+#include "MediaOut.h"
 
 __USING_NAMESPACE_MPX
 
@@ -108,6 +105,7 @@ struct SessionContext : public SharedObject {
 
 struct MPContext : public SharedObject {
     // external static context
+    Message mOptions;
     sp<RenderPositionEvent> mRenderPositionEvent;
     int64_t mRenderPositionUpdateInterval;
     sp<StatusEvent> mStatusEvent;
@@ -120,7 +118,7 @@ struct MPContext : public SharedObject {
     // clock
     sp<SharedClock> mClock;
 
-    MPContext(const Message& options) : SharedObject(),
+    MPContext(const Message& options) : SharedObject(), mOptions(options),
         // external static context
         mRenderPositionEvent(NULL), mRenderPositionUpdateInterval(500000LL),
         mStatusEvent(NULL),
@@ -130,16 +128,17 @@ struct MPContext : public SharedObject {
         // clock
         mClock(new SharedClock)
     {
-        if (options.contains("RenderPositionEvent")) {
-            mRenderPositionEvent = options.findObject("RenderPositionEvent");
+        INFO("init MPContext with %s", mOptions.string().c_str());
+        if (mOptions.contains("RenderPositionEvent")) {
+            mRenderPositionEvent = mOptions.findObject("RenderPositionEvent");
         }
 
-        if (options.contains("RenderPositionUpdateInterval")) {
-            mRenderPositionUpdateInterval = options.findInt64("RenderPositionUpdateInterval");
+        if (mOptions.contains("RenderPositionUpdateInterval")) {
+            mRenderPositionUpdateInterval = mOptions.findInt64("RenderPositionUpdateInterval");
         }
 
-        if (options.contains("StatusEvent")) {
-            mStatusEvent = options.findObject("StatusEvent");
+        if (mOptions.contains("StatusEvent")) {
+            mStatusEvent = mOptions.findObject("StatusEvent");
         }
     }
 
@@ -158,7 +157,10 @@ struct UpdateRenderPosition : public Runnable {
         // send render position info to client
         MediaTime ts = mpc->mClock->get();
         DEBUG("current progress %.3f(s)", ts.seconds());
-        mpc->mRenderPositionEvent->fire(ts);
+        
+        // update render position to client
+        if (mpc->mRenderPositionEvent != NULL)
+            mpc->mRenderPositionEvent->fire(ts);
 
         if (mpc->mClock->isPaused() == false) {
             Looper::Current()->post(new UpdateRenderPosition,
@@ -205,16 +207,6 @@ static MediaError prepareMedia(sp<MPContext>& mpc, const Message& media) {
 
     eModeType mode = (eModeType)media.findInt32(kKeyMode, kModeTypeNormal);
 
-    sp<MediaOut> external;
-    if (media.contains("MediaOut")) {
-        external = media.findObject("MediaOut");
-    }
-
-#if 0
-    if (media.contains("SDL_Window")) {
-        nativeWindow = media.findPointer("SDL_Window");
-    }
-#endif
     //double startTimeUs = options.findDouble("StartTime");
     //double endTimeUs = options.findDouble("EndTime");
 
@@ -260,8 +252,8 @@ static MediaError prepareMedia(sp<MPContext>& mpc, const Message& media) {
         Message options;
         options.setInt32(kKeyMode, mode);
         if (type == kCodecTypeVideo) {
-            if (external != NULL) {
-                options.setObject("MediaOut", external);
+            if (mpc->mOptions.contains("MediaFrameEvent")) {
+                options.setObject("MediaFrameEvent", mpc->mOptions.findObject("MediaFrameEvent"));
             }
             options.setInt32(kKeyRequestFormat, kPixelFormatNV12);
             options.setInt32(kKeyOpenGLCompatible, true);
@@ -352,7 +344,7 @@ struct PrepareStatusEvent : public CountedStatusEvent {
         sp<MPContext> mpc = Looper::Current()->user(0);
 
         INFO("prepare finished with status %d, current pos %.3f(s)",
-                st, mpc->mClock->get().seconds());
+                st, mpc->mClock->get() / 1E6);
 
         // notify client
         if (mpc->mStatusEvent != NULL)
@@ -378,7 +370,7 @@ struct ReadyState : public State {
         MediaTime ts = payload.find<MediaTime>("time");
 
         // set clock time
-        mpc->mClock->set(ts);
+        mpc->mClock->set(ts.useconds());
 
         // prepare sessions
         sp<PrepareStatusEvent> event = new PrepareStatusEvent(Looper::Current(), mpc->mSessions.size());
@@ -408,7 +400,10 @@ struct PlayingState : public State {
         sp<MPContext> mpc = Looper::Current()->user(0);
 
         mpc->mClock->start();
-        Looper::Current()->post(new UpdateRenderPosition);
+        
+        if (mpc->mRenderPositionEvent != NULL) {
+            Looper::Current()->post(new UpdateRenderPosition);
+        }
         return kMediaNoError;
     }
 };
@@ -613,18 +608,3 @@ struct AVPlayer : public IMediaPlayer {
 sp<IMediaPlayer> IMediaPlayer::Create(const Message &options) {
     return new AVPlayer(options);
 }
-
-__BEGIN_DECLS
-
-MediaPlayerRef MediaPlayerCreate() {
-    Message options;
-    Object<IMediaPlayer> mp = IMediaPlayer::Create(options);
-    return mp->RetainObject();
-}
-
-MediaError MediaPlayerInit(MediaPlayerRef ref) {
-    Object<IMediaPlayer> mp = ref;
-    Message media;
-    return mp->init(media);
-}
-__END_DECLS

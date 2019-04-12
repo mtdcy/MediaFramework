@@ -32,9 +32,8 @@
 //          1. 20160701     initial version
 //
 
-#define LOG_TAG "Module"
+#define LOG_TAG "MediaFramework"
 #include "MediaDefs.h"
-
 #include "ColorConvertor.h"
 #include "MediaDecoder.h"
 #include "MediaExtractor.h"
@@ -380,4 +379,3 @@ sp<MediaFrame> ColorConvertor::convert(const sp<MediaFrame>& input) {
     return out;
 }
 __END_NAMESPACE_MPX
-

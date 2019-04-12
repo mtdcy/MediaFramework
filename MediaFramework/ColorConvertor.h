@@ -36,37 +36,32 @@
 #define _MEDIA_COLOR_CONVERTOR_H
 
 #include <MediaFramework/MediaDefs.h>
-#include <MediaFramework/MediaTime.h>
-#include <MediaFramework/MediaFrame.h>
-
-__BEGIN_DECLS 
-
-__END_DECLS 
 
 #ifdef __cplusplus
 __BEGIN_NAMESPACE_MPX
 /**
  * class for convert different pixel color to desired color.
  */
-class API_EXPORT ColorConvertor : public SharedObject {
-    public:
-        /**
-         * create a color convertor
-         * @param pixel     desired pixel color
-         * @return return new color convertor object
-         */
-        ColorConvertor(ePixelFormat pixel);
-        virtual ~ColorConvertor();
+struct API_EXPORT ColorConvertor : public SharedObject {
+    /**
+     * create a color convertor
+     * @param pixel     desired pixel color
+     * @return return new color convertor object
+     */
+    ColorConvertor(ePixelFormat pixel);
+    virtual ~ColorConvertor();
 
-        /**
-         * convert frame to desired pixel color
-         * @param input     the source media frame
-         * @return return a new media frame with desired pixel color
-         */
-        sp<MediaFrame> convert(const sp<MediaFrame>& input);
+    /**
+     * convert frame to desired pixel color
+     * @param input     the source media frame
+     * @return return a new media frame with desired pixel color
+     */
+    sp<MediaFrame> convert(const sp<MediaFrame>& input);
 
     private:
-        ePixelFormat mFormat;
+    ePixelFormat mFormat;
+
+    DISALLOW_EVILS(ColorConvertor);
 };
 __END_NAMESPACE_MPX
 #endif 

@@ -38,24 +38,23 @@
 #define _MPX_AUDIO_RESAMPLER_H
 
 #include <MediaFramework/MediaDefs.h>
-#include <MediaFramework/MediaFrame.h>
 
 #ifdef __cplusplus
 __BEGIN_NAMESPACE_MPX
 
 struct API_EXPORT AudioResampler : public SharedObject {
-    static Object<AudioResampler> Create(const AudioFormat& in,
-                                  const AudioFormat& out,
-                                  const Message& options);
-    
     AudioResampler() : SharedObject() { }
     virtual ~AudioResampler() { }
-    
+
+    static Object<AudioResampler> Create(const AudioFormat& in,
+                                         const AudioFormat& out,
+                                         const Message& options);
+
     virtual Object<MediaFrame>  resample(const Object<MediaFrame>& input) = 0;
-    
+
     virtual void                reset() = 0;
-    
-    private: DISALLOW_EVILS(AudioResampler);
+
+    DISALLOW_EVILS(AudioResampler);
 };
 
 __END_NAMESPACE_MPX

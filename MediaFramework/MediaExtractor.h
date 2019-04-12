@@ -36,8 +36,6 @@
 #define _MEDIA_MODULES_EXTRACTOR_H
 
 #include <MediaFramework/MediaDefs.h>
-#include <MediaFramework/MediaTime.h>
-#include <MediaFramework/MediaPacket.h>
 
 #ifdef __cplusplus
 __BEGIN_NAMESPACE_MPX
@@ -55,14 +53,14 @@ eFileFormat MediaFormatDetect(Content& pipe);
  * base class for different files
  */
 struct API_EXPORT MediaExtractor : public SharedObject {
+    MediaExtractor() { }
+    virtual ~MediaExtractor() { }
+
     /**
      * allocate an extractor object
      * @return return reference to new extractor
      */
     static sp<MediaExtractor> Create(eFileFormat);
-
-    FORCE_INLINE MediaExtractor() { }
-    FORCE_INLINE virtual ~MediaExtractor() { }
 
     virtual MediaError      init(sp<Content>& pipe, const Message& options) = 0;
     /**

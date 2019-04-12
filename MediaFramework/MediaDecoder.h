@@ -36,8 +36,6 @@
 #define _MEDIA_MODULES_CODEC_H
 
 #include <MediaFramework/MediaDefs.h>
-#include <MediaFramework/MediaPacket.h>
-#include <MediaFramework/MediaFrame.h>
 
 __BEGIN_DECLS
 
@@ -57,6 +55,9 @@ __BEGIN_NAMESPACE_MPX
  * base class for audio/video codecs
  */
 struct API_EXPORT MediaDecoder : public SharedObject {
+    MediaDecoder() { }
+    virtual ~MediaDecoder() { }
+
     /**
      * allocate a codec object
      * @param format    @see eCodecFormat
@@ -65,8 +66,6 @@ struct API_EXPORT MediaDecoder : public SharedObject {
      */
     static sp<MediaDecoder> Create(eCodecFormat format, eModeType mode);
 
-    FORCE_INLINE MediaDecoder() { }
-    FORCE_INLINE virtual ~MediaDecoder() { }
     /**
      * get information of this codec.
      * @return return a string of information

@@ -43,8 +43,9 @@
 
 #include <stdio.h> // FIXME: sscanf
 
-#include <MediaFramework/MediaPacketizer.h>
-#include <MediaFramework/MediaExtractor.h>
+#include "MediaPacketizer.h"
+#include "MediaExtractor.h"
+
 
 __BEGIN_NAMESPACE_MPX
 

@@ -253,7 +253,8 @@ BaseDescriptor(ES_DescrTag)
           ", streamPriority %" PRIu8 ", dependsOn_ES_ID %" PRIu16
           ", URLstring %s, OCR_ES_Id %" PRIu16,
           ES_ID, streamDependenceFlag, URL_Flag, OCRstreamFlag,
-          streamPriority, dependsOn_ES_ID, URLstring.c_str(),
+          streamPriority, dependsOn_ES_ID,
+          URLstring != String::Null ? URLstring.c_str() : "null",
           OCR_ES_Id);
     
     // mandatory DecoderConfigDescriptor

@@ -38,7 +38,6 @@
 #define _MPX_MEDIA_CLOCK_H
 
 #include <MediaFramework/MediaDefs.h>
-#include <MediaFramework/MediaTime.h>
 
 __BEGIN_DECLS
 
@@ -76,7 +75,7 @@ class API_EXPORT SharedClock : public SharedObject {
          * set clock time, without alter clock state
          * @param   ts      media time
          */
-        void        set(const MediaTime& ts);
+        void        set(int64_t us);
         /**
          * start this clock.
          */
@@ -112,7 +111,7 @@ class API_EXPORT SharedClock : public SharedObject {
          * get clock media time
          * @return  media time, always valid.
          */
-        MediaTime   get() const;
+        int64_t     get() const;
 
     private:
         void        _regListener(const void * who, const sp<ClockEvent>& ce);
@@ -128,8 +127,8 @@ class API_EXPORT SharedClock : public SharedObject {
         mutable Mutex   mLock;
         struct ClockInt {
             ClockInt();
-            MediaTime   mMediaTime;
-            MediaTime   mSystemTime;
+            int64_t     mMediaTime;
+            int64_t     mSystemTime;
             bool        mPaused;
             bool        mTicking;
             double      mSpeed;
@@ -141,7 +140,7 @@ class API_EXPORT SharedClock : public SharedObject {
         void            update(const ClockInt&);
         HashTable<const void *, sp<ClockEvent> > mListeners;
 
-        MediaTime       get_l() const;
+        int64_t         get_l() const;
     private:
         DISALLOW_EVILS(SharedClock);
 };
@@ -175,7 +174,7 @@ class API_EXPORT Clock : public SharedObject {
         void        setListener(const sp<ClockEvent>& ce);
 
         /** @see SharedClock::get() */
-        MediaTime   get() const;
+        int64_t     get() const;
 
         /** @see SharedClock::isPaused() */
         bool        isPaused() const;
@@ -187,10 +186,10 @@ class API_EXPORT Clock : public SharedObject {
          * @see SharedClock::update();
          * @note update method is only for master clock
          */
-        void        update(const MediaTime&);
-        void        update(const MediaTime&, int64_t);
+        void        update(int64_t);
+        void        update(int64_t, int64_t);
         /** @see SharedClock::set() */
-        void        set(const MediaTime&);
+        void        set(int64_t);
 
     private:
         /**

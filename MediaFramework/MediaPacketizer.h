@@ -36,20 +36,19 @@
 #define _MEDIA_PACKETIZER_H
 
 #include <MediaFramework/MediaDefs.h>
-#include <MediaFramework/MediaPacket.h>
 
 #ifdef __cplusplus
 __BEGIN_NAMESPACE_MPX
 
 ///////////////////////////////////////////////////////////////////////////
 struct API_EXPORT MediaPacketizer : public SharedObject {
+    MediaPacketizer() {}
+    virtual ~MediaPacketizer() {}
+
     static sp<MediaPacketizer> Create(eCodecFormat format);
 
-    FORCE_INLINE MediaPacketizer() {}
-    FORCE_INLINE virtual ~MediaPacketizer() {}
-    
     virtual String          string() const = 0;
-    
+
     /**
      * queue a packet into packetizer
      * @param   in      reference of input packet
@@ -62,7 +61,7 @@ struct API_EXPORT MediaPacketizer : public SharedObject {
      * @return return reference to new packet, or NULL if no packet ready
      */
     virtual sp<MediaPacket> dequeue() = 0;
-    
+
     /**
      * flush packetizer content and reset its state
      */

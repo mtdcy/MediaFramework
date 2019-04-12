@@ -41,8 +41,6 @@
 //#define LOG_NDEBUG 0
 #include <ABE/ABE.h>
 
-#include "MediaFrame.h"
-
 #include "MediaOut.h"
 
 #define SL(x)   #x
@@ -599,8 +597,8 @@ struct GLVideo : public MediaOut {
 
     virtual ~GLVideo() { }
 
-    virtual MediaError prepare(const Message& options) {
-        INFO("gl video => %s", options.string().c_str());
+    virtual MediaError prepare(const Message& format, const Message& options) {
+        INFO("gl video => %s %s", format.string().c_str(), options.string().c_str());
 
         bool ogl = options.findInt32(kKeyOpenGLCompatible, 0);
 
@@ -609,9 +607,9 @@ struct GLVideo : public MediaOut {
         if (ogl) CHECK_NULL(CGLGetCurrentContext());
 #endif
 
-        int32_t width       = options.findInt32(kKeyWidth);
-        int32_t height      = options.findInt32(kKeyHeight);
-        ePixelFormat pixel  = (ePixelFormat)options.findInt32(kKeyFormat);
+        int32_t width       = format.findInt32(kKeyWidth);
+        int32_t height      = format.findInt32(kKeyHeight);
+        ePixelFormat pixel  = (ePixelFormat)format.findInt32(kKeyFormat);
 
         switch (pixel) {
             case kPixelFormatNV12:

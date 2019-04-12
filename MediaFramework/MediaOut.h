@@ -36,7 +36,6 @@
 #define _MEDIA_MODULES_OUT_H
 
 #include <MediaFramework/MediaDefs.h>
-#include <MediaFramework/MediaFrame.h>
 
 __BEGIN_DECLS
 
@@ -49,10 +48,10 @@ __BEGIN_NAMESPACE_MPX
  * base class for audio/video output device
  */
 struct API_EXPORT MediaOut : public SharedObject {
-    static sp<MediaOut> Create(eCodecType);
+    MediaOut() : SharedObject() { }
+    virtual ~MediaOut() { }
 
-    FORCE_INLINE MediaOut() : SharedObject() { }
-    FORCE_INLINE virtual ~MediaOut() { }
+    static sp<MediaOut> Create(eCodecType);
 
     /**
      * get information of this output device.
@@ -64,7 +63,7 @@ struct API_EXPORT MediaOut : public SharedObject {
      * @param options   option and parameter for creating device
      * @return return reference to a new output device
      */
-    virtual MediaError      prepare(const Message& options) = 0;
+    virtual MediaError      prepare(const Message& format, const Message& options) = 0;
     /**
      * get status of this output device.
      * @return return OK if everything is OK, otherwise error code

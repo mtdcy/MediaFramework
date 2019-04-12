@@ -39,9 +39,7 @@
 #include "Systems.h"
 #include "tags/id3/ID3.h"
 #include "Box.h"
-#include <MediaFramework/MediaTime.h>
 
-#include <MediaFramework/MediaPacket.h>
 #include <MediaFramework/MediaExtractor.h>
 
 
@@ -623,7 +621,8 @@ struct Mp4File : public MediaExtractor {
         if (track->startTime == kTimeInvalid) {
             INFO("track %zu: read first pakcet", index);
             mode = kModeReadFirst;
-            track->startTime = kTimeBegin.scale(track->duration.timescale);
+            track->startTime = kTimeBegin;
+            track->startTime.scale(track->duration.timescale);
         }
 
         // ts will be ignored for these modes

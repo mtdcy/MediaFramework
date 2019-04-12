@@ -37,9 +37,6 @@
 
 // MediaFramework
 #include <MediaFramework/MediaDefs.h>
-#include <MediaFramework/MediaTime.h>
-#include <MediaFramework/MediaPacket.h>
-#include <MediaFramework/MediaFrame.h>
 #include <MediaFramework/MediaExtractor.h>
 #include <MediaFramework/MediaDecoder.h>
 #include <MediaFramework/MediaOut.h>
@@ -47,5 +44,56 @@
 #include <MediaFramework/MediaClock.h>
 #include <MediaFramework/MediaSession.h>
 #include <MediaFramework/MediaPlayer.h>
+
+__BEGIN_DECLS
+
+// MediaFrame
+typedef SharedObjectRef         MediaFrameRef;
+
+API_EXPORT MediaFrameRef        AudioFrameCreate(const AudioFormat *);
+API_EXPORT MediaFrameRef        ImageFrameCreate(const ImageFormat *);
+#define MediaFrameRelease(x)    SharedObjectRelease((SharedObjectRef)x)
+
+API_EXPORT uint8_t *            MediaFrameGetPlaneData(MediaFrameRef, size_t);
+API_EXPORT size_t               MediaFrameGetPlaneSize(MediaFrameRef, size_t);
+
+API_EXPORT AudioFormat *        MediaFrameGetAudioFormat(MediaFrameRef);
+API_EXPORT ImageFormat *        MediaFrameGetImageFormat(MediaFrameRef);
+
+API_EXPORT void *               MediaFrameGetOpaque(MediaFrameRef);
+
+// MediaPlayer
+typedef SharedObjectRef         MediaPlayerRef;
+
+API_EXPORT MediaPlayerRef       MediaPlayerCreate(MessageRef, MessageRef);
+API_EXPORT MediaError           MediaPlayerRelease(MediaPlayerRef);
+
+API_EXPORT MediaError           MediaPlayerPrepare(MediaPlayerRef, MessageRef);
+API_EXPORT MediaError           MediaPlayerStart(MediaPlayerRef);
+API_EXPORT MediaError           MediaPlayerPause(MediaPlayerRef);
+API_EXPORT MediaError           MediaPlayerFlush(MediaPlayerRef);
+API_EXPORT eStateType           MediaPlayerGetState(const MediaPlayerRef);
+
+// Events
+typedef SharedObjectRef         FrameEventRef;
+typedef SharedObjectRef         PositionEventRef;
+
+API_EXPORT FrameEventRef        FrameEventCreate(void (*Callback)(MediaFrameRef, void *), void *);
+#define FrameEventRelease(x)    SharedObjectRelease((SharedObjectRef)x)
+
+API_EXPORT PositionEventRef     PositionEventCreate(void (*Callback)(int64_t, void *), void *);
+#define PositionEventRelease(x) SharedObjectRelease((SharedObjectRef)x)
+
+// MediaOut
+typedef SharedObjectRef         MediaOutRef;
+
+API_EXPORT MediaOutRef          MediaOutCreate(eCodecType);
+#define MediaOutRelease(x)      SharedObjectRelease((SharedObjectRef)x)
+
+API_EXPORT MediaError           MediaOutPrepare(MediaOutRef, MessageRef, MessageRef);
+API_EXPORT MediaError           MediaOutWrite(MediaOutRef, MediaFrameRef);
+API_EXPORT MediaError           MediaOutFlush(MediaOutRef);
+
+__END_DECLS
 
 #endif // _MEDIA_MODULES_ALL_H

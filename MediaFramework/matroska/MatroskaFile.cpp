@@ -36,9 +36,6 @@
 //#define LOG_NDEBUG 0
 #include "MediaDefs.h"
 
-#include <MediaFramework/MediaTime.h>
-
-#include <MediaFramework/MediaPacket.h>
 #include <MediaFramework/MediaPacketizer.h>
 
 #include <MediaFramework/MediaExtractor.h>
@@ -175,7 +172,7 @@ struct MatroskaPacket : public MediaPacket {
         buffer  = _data;
         data    = (uint8_t*)buffer->data();
         size    = buffer->size();
-
+        
         pts     = MediaTime(timecode / trak.timescale, 1000000000LL);
 #if 0
         dts     = kTimeInvalid;

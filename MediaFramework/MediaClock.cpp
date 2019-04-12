@@ -40,7 +40,7 @@
 __BEGIN_NAMESPACE_MPX
 
 SharedClock::ClockInt::ClockInt() :
-    mMediaTime(kTimeBegin), mSystemTime(kTimeBegin),
+    mMediaTime(0), mSystemTime(0),
     mPaused(true), mTicking(false), mSpeed(1.0f)
 {
 }
@@ -65,10 +65,10 @@ void SharedClock::start() {
     notifyListeners_l(kClockStateTicking);
 }
 
-void SharedClock::set(const MediaTime& t) {
+void SharedClock::set(int64_t us) {
     // NOT alter clock state here
     AutoLock _l(mLock);
-    mClockInt.mMediaTime  = t;
+    mClockInt.mMediaTime  = us;
     mClockInt.mSystemTime = SystemTimeUs();
     ++mGeneration;
 }
@@ -80,17 +80,17 @@ void SharedClock::update(const ClockInt& c) {
     ++mGeneration;
 }
 
-MediaTime SharedClock::get() const {
+int64_t SharedClock::get() const {
     AutoLock _l(mLock);
     return get_l();
 }
 
-MediaTime SharedClock::get_l() const {
+int64_t SharedClock::get_l() const {
     if (mClockInt.mPaused || !mClockInt.mTicking) {
         return mClockInt.mMediaTime;
     }
 
-    MediaTime now = SystemTimeUs();
+    int64_t now = SystemTimeUs();
     return mClockInt.mMediaTime +
         (now - mClockInt.mSystemTime) * mClockInt.mSpeed;
 }
@@ -126,8 +126,8 @@ double SharedClock::speed() const {
 void SharedClock::reset() {
     AutoLock _l(mLock);
 
-    mClockInt.mMediaTime    = kTimeBegin;
-    mClockInt.mSystemTime   = kTimeBegin;
+    mClockInt.mMediaTime    = 0;
+    mClockInt.mSystemTime   = 0;
     mClockInt.mPaused       = true;
     mClockInt.mTicking      = false;
     ++mGeneration;
@@ -187,18 +187,18 @@ void Clock::setListener(const sp<ClockEvent> &ce) {
     }
 }
 
-void Clock::update(const MediaTime& t) {
+void Clock::update(int64_t us) {
     CHECK_EQ(mRole, (uint32_t)kClockRoleMaster);
-    mClockInt.mMediaTime    = t;
+    mClockInt.mMediaTime    = us;
     mClockInt.mSystemTime   = SystemTimeUs();
     mClockInt.mTicking      = true;
     mClock->update(mClockInt);
     reload();
 }
 
-void Clock::update(const MediaTime& t, int64_t real) {
+void Clock::update(int64_t us, int64_t real) {
     CHECK_EQ(mRole, (uint32_t)kClockRoleMaster);
-    mClockInt.mMediaTime    = t;
+    mClockInt.mMediaTime    = us;
     mClockInt.mSystemTime   = real;
     mClockInt.mTicking      = true;
     mClock->update(mClockInt);
@@ -220,18 +220,18 @@ double Clock::speed() const {
     return mClockInt.mSpeed;
 }
 
-MediaTime Clock::get() const {
+int64_t Clock::get() const {
     reload();
     if (mClockInt.mPaused || !mClockInt.mTicking) {
         return mClockInt.mMediaTime;
     }
 
-    MediaTime now = SystemTimeUs();
+    int64_t now = SystemTimeUs();
     return mClockInt.mMediaTime + (now - mClockInt.mSystemTime) * mClockInt.mSpeed;
 }
 
-void Clock::set(const MediaTime& t) {
-    mClockInt.mMediaTime    = t;
+void Clock::set(int64_t us) {
+    mClockInt.mMediaTime    = us;
     mClockInt.mSystemTime   = SystemTimeUs();
     mClock->update(mClockInt);
     reload();

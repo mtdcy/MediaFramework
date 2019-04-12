@@ -38,12 +38,10 @@
 #define _MEDIA_PLAYER_H
 
 #include <MediaFramework/MediaDefs.h>
-#include <MediaFramework/MediaClock.h>
-#include <MediaFramework/MediaSession.h>
-#include <MediaFramework/MediaTime.h>
 
 __BEGIN_DECLS
-enum eStateType {
+
+typedef enum {
     kStateInvalid,      ///< mp just allocated
     kStateInitial,      ///< mp initialized with media
     kStateReady,        ///< mp ready to play
@@ -52,22 +50,26 @@ enum eStateType {
     kStateFlushed,      ///< mp context is reset, can be prepare again
     kStateReleased,     ///< mp context is released
     kStateMax,
-};
-
-typedef void *  MediaPlayerRef;
-
-API_EXPORT MediaPlayerRef   MediaPlayerCreate();
-
-API_EXPORT MediaError       MediaPlayerInit(MediaPlayerRef);
+} eStateType;
 
 __END_DECLS
 
 #ifdef __cplusplus
 __BEGIN_NAMESPACE_MPX
 
+/**
+ * for MediaPlayer streaming MediaFrame to client
+ */
+typedef TypedEvent<Object<MediaFrame> >     MediaFrameEvent;
+
+/**
+ * For update render position to target.
+ */
+typedef TypedEvent<MediaTime>               RenderPositionEvent;
+
 struct API_EXPORT IMediaPlayer : public SharedObject {
-    FORCE_INLINE IMediaPlayer() { }
-    FORCE_INLINE virtual ~IMediaPlayer() { }
+    IMediaPlayer() { }
+    virtual ~IMediaPlayer() { }
 
     /**
      * create a player with options

@@ -214,23 +214,23 @@ struct SDLAudio : public MediaOut {
 
     virtual String string() const { return "SDLAudio"; }
 
-    virtual MediaError prepare(const Message& options) {
-        AudioFormat format;
+    virtual MediaError prepare(const Message& format, const Message& options) {
+        AudioFormat a;
         
-        format.format   = (eSampleFormat)options.findInt32(kKeyFormat);
-        format.freq     = options.findInt32(kKeySampleRate);
-        format.channels = options.findInt32(kKeyChannels);
+        a.format    = (eSampleFormat)format.findInt32(kKeyFormat);
+        a.freq      = format.findInt32(kKeySampleRate);
+        a.channels  = format.findInt32(kKeyChannels);
 #ifdef FORCE_FREQ
-        AudioFormat _a  = format;
+        AudioFormat _a  = a;
         _a.freq         = FORCE_FREQ;
 #ifdef FORCE_FMT
         _a.format       = FORCE_FMT;
 #endif
         
         mSDL = openDevice(_a);
-        if (_a != format) {
+        if (_a != a) {
             Message options;
-            mResampler = AudioResampler::Create(format, _a, options);
+            mResampler = AudioResampler::Create(a, _a, options);
         }
 #else
         mSDL = openDevice(format);

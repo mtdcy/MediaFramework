@@ -32,11 +32,14 @@
 //          1. 20181126     initial version
 //
 
-#define LOG_TAG "Session"
+#define LOG_TAG "MediaSession"
 //#define LOG_NDEBUG 0
-#include <ABE/ABE.h>
-
 #include "MediaSession.h"
+#include "MediaDecoder.h"
+#include "MediaOut.h"
+#include "ColorConvertor.h"
+#include "MediaClock.h"
+#include "MediaPlayer.h"
 
 // TODO: calc count based on duration
 // max count: 1s
@@ -345,6 +348,7 @@ struct Renderer : public SharedObject {
     sp<RenderPositionEvent> mPositionEvent;
     // internal static context
     sp<FrameReadyEvent>     mFrameReadyEvent;
+    sp<MediaFrameEvent>     mMediaFrameEvent;
     sp<MediaOut>            mOut;
     sp<ColorConvertor>      mColorConvertor;
     sp<Clock>               mClock;
@@ -364,7 +368,7 @@ struct Renderer : public SharedObject {
     // statistics
     size_t                  mFramesRenderred;
 
-    bool valid() const { return mOut != NULL; }
+    bool valid() const { return mOut != NULL || mMediaFrameEvent != NULL; }
 
     Renderer(eCodecFormat id,
             const Message& format,
@@ -402,27 +406,26 @@ struct Renderer : public SharedObject {
         eCodecType type = GetCodecType(mID);
 
         INFO("output format %s", format.string().c_str());
-        if (options.contains("MediaOut")) {
-            mOut = options.findObject("MediaOut");
+        if (options.contains("MediaFrameEvent")) {
+            mMediaFrameEvent = options.findObject("MediaFrameEvent");
         } else {
             mOut = MediaOut::Create(type);
-        }
-        
-        if (mOut->prepare(format) != kMediaNoError) {
-            ERROR("track %zu: create out failed", mID);
-            return;
-        }
-
-        if (type == kCodecTypeVideo) {
-            ePixelFormat pixel = (ePixelFormat)format.findInt32(kKeyFormat);
-            ePixelFormat accpeted = (ePixelFormat)mOut->formats().findInt32(kKeyFormat);// color convert
-            if (accpeted != pixel) {
-                mColorConvertor = new ColorConvertor(accpeted);
+            if (mOut->prepare(format, options) != kMediaNoError) {
+                ERROR("track %zu: create out failed", mID);
+                return;
             }
-        } else if (type == kCodecTypeAudio) {
-            mLatency = mOut->formats().findInt32(kKeyLatency);
-        } else {
-            FATAL("FIXME");
+            
+            if (type == kCodecTypeVideo) {
+                ePixelFormat pixel = (ePixelFormat)format.findInt32(kKeyFormat);
+                ePixelFormat accpeted = (ePixelFormat)mOut->formats().findInt32(kKeyFormat);// color convert
+                if (accpeted != pixel) {
+                    mColorConvertor = new ColorConvertor(accpeted);
+                }
+            } else if (type == kCodecTypeAudio) {
+                mLatency = mOut->formats().findInt32(kKeyLatency);
+            } else {
+                FATAL("FIXME");
+            }
         }
     }
 
@@ -519,12 +522,13 @@ struct Renderer : public SharedObject {
             }
 
             if (GetCodecType(mID) == kCodecTypeVideo) {
-                mOut->write(frame);
+                if (mMediaFrameEvent != NULL) mMediaFrameEvent->fire(frame);
+                else mOut->write(frame);
             }
 
             if (mClock != NULL && mClock->role() == kClockRoleMaster) {
                 DEBUG("renderer %zu: set clock time %.3f(s)", mID, frame->pts.seconds());
-                mClock->set(frame->pts);
+                mClock->set(frame->pts.useconds());
             }
         }
 
@@ -555,7 +559,7 @@ struct Renderer : public SharedObject {
 
         // reset flags
         mFlushed = false;
-        mLastUpdateTime = 0;
+        mLastUpdateTime = kTimeBegin;
         mOutputEOS = false;
         mLastFrameTime = kTimeInvalid;
         mStatusEvent = se;
@@ -591,10 +595,11 @@ struct Renderer : public SharedObject {
         // flush output
         mOutputEOS = false;
         mOutputQueue.clear();
-        if (mOut != NULL) mOut->flush();
+        if (mMediaFrameEvent != NULL) mMediaFrameEvent->fire(NULL);
+        else mOut->flush();
 
         // reset flags
-        mLastUpdateTime = 0;
+        mLastUpdateTime = kTimeBegin;
 
         // reset statistics
         mFramesRenderred = 0;
@@ -649,7 +654,7 @@ struct Renderer : public SharedObject {
             // check render time
             if (mClock->role() == kClockRoleSlave) {
                 // render too early or late ?
-                int64_t late = mClock->get().useconds() - frame->pts.useconds();
+                int64_t late = mClock->get() - frame->pts.useconds();
                 if (late > REFRESH_RATE) {
                     // render late: drop current frame
                     WARN("renderer %zu: render late by %.3f(s)|%.3f(s), drop frame... [%zu]",
@@ -666,8 +671,9 @@ struct Renderer : public SharedObject {
         }
 
         DEBUG("renderer %zu: render frame %.3f(s)", mID, frame->pts.seconds());
-        MediaError rt = mOut->write(frame);
-        CHECK_TRUE(rt == kMediaNoError); // always eat frame
+        MediaError rt = kMediaNoError;
+        if (mOut != NULL) CHECK_TRUE(mOut->write(frame) == kMediaNoError);
+        else mMediaFrameEvent->fire(frame);
         mOutputQueue.pop();
         ++mFramesRenderred;
 
@@ -677,7 +683,7 @@ struct Renderer : public SharedObject {
             const int64_t realTime = SystemTimeUs();
             INFO("renderer %zu: update clock %.3f(s)+%.3f(s)",
                     mID, frame->pts.seconds(), realTime / 1E6);
-            mClock->update(frame->pts - mLatency, realTime);
+            mClock->update(frame->pts.useconds() - mLatency, realTime);
         }
 
         // broadcast render position to others every 1s
@@ -696,13 +702,14 @@ struct Renderer : public SharedObject {
             }
 
             sp<MediaFrame> next = mOutputQueue.front();
-            MediaTime delay = next->pts - mClock->get();
-            if (delay < kTimeBegin) return 0;
-            else                    return delay.useconds();
+            int64_t delay = next->pts.useconds() - mClock->get();
+            if (delay < 0)  return 0;
+            else            return delay;
         } else if (mOutputEOS) {
             INFO("renderer %zu: eos...", mID);
             // tell out device about eos
-            mOut->write(NULL);
+            if (mOut != NULL) mOut->write(NULL);
+            else mMediaFrameEvent->fire(NULL);
 
             if (mPositionEvent != NULL) {
                 mPositionEvent->fire(kTimeEnd);
@@ -741,7 +748,7 @@ struct Renderer : public SharedObject {
     }
 
     void onPauseRenderer() {
-        INFO("renderer %zu: pause at %.3f(s)", mID, mClock->get().seconds());
+        INFO("renderer %zu: pause at %.3f(s)", mID, mClock->get() / 1E6);
         Looper::Current()->remove(mPresentFrame);
 
         if (mOut != NULL) {
@@ -917,4 +924,3 @@ sp<IMediaSession> IMediaSession::Create(const Message& format, const Message& op
     if (av->valid())    return av;
     else                return NULL;
 }
-

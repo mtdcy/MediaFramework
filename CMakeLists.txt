@@ -61,6 +61,7 @@ set (SOURCE_FILES
     MediaFramework/sdl2/SDLAudio.cpp
     #MediaFramework/sdl2/SDLVideo.cpp
     MediaFramework/opengl/GLVideo.cpp
+    MediaFramework/MediaFramework_c.cpp
     )
 
 file (GLOB PUBLIC_HEADERS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "MediaFramework/*.h")

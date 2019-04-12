@@ -39,6 +39,7 @@
 #include <MediaFramework/MediaFramework.h>
 #ifdef __APPLE__
 #include <OpenGL/gl.h>
+#include <OpenGL/OpenGL.h>
 #else
 #if defined(__MINGW32__)
 #include <GL/glew.h>   // GL_SHADING_LANGUAGE_VERSION
@@ -81,19 +82,41 @@ struct MPRenderPosition : public RenderPositionEvent {
     virtual String string() const { return "MPRenderPosition"; }
 };
 
-static sp<MediaOut> g_out;
-static Message g_format;
-struct PrepareRunnable : public Runnable {
-    virtual void run() {
-        CHECK_TRUE(g_out->prepare(g_format) == kMediaNoError);
-        // have to make MediaOut accept this format
+struct OnMediaFrameReady : public FrameReadyEvent {
+    virtual void onEvent(const Object<MediaFrame>& frame) {
+        
     }
 };
 
-struct DisplayRunnable : public Runnable {
-    sp<MediaFrame>  frame;
-    DisplayRunnable(const sp<MediaFrame>& _frame) : frame(_frame) { }
-    virtual void run() {
+static sp<MediaOut> g_out;
+static ImageFormat g_format;
+struct OnFrameUpdate : public MediaFrameEvent {
+    OnFrameUpdate() : MediaFrameEvent(Looper::Main()) { }
+    
+    virtual void onEvent(const Object<MediaFrame>& frame) {
+        if (frame == NULL) {
+            if (g_out != NULL) g_out->flush();
+            return;
+        }
+        
+        if (g_out == NULL || frame->v != g_format) {
+            g_format = frame->v;
+            
+            // setup local context
+            g_out = MediaOut::Create(kCodecTypeVideo);
+            Message format, options;
+            format.setInt32(kKeyFormat, g_format.format);
+            format.setInt32(kKeyWidth,  g_format.width);
+            format.setInt32(kKeyHeight, g_format.height);
+            
+            if (frame->opaque) {
+                options.setInt32(kKeyOpenGLCompatible, 1);
+            }
+            
+            CHECK_TRUE(g_out->prepare(format, options) == kMediaNoError);
+        }
+        
+        
         //glViewport(0, 0, 800, 480);
 #ifdef TEST_SCREEN
         glClearColor(0, 1.0, 0, 1.0);
@@ -101,31 +124,13 @@ struct DisplayRunnable : public Runnable {
         glFlush();
 #endif
         if (frame == NULL) return;
-
+        
         g_out->write(frame);
         
 #if DOUBLE_BUFFER
         SDL_GL_SwapWindow(window);
 #endif
     }
-};
-
-struct FlushRunnable : public Runnable {
-    virtual void run() {
-        g_out->flush();
-    }
-};
-
-struct MediaOutProxy : public MediaOut {
-    MediaOutProxy() : MediaOut() { }
-    virtual ~MediaOutProxy() { }
-    virtual MediaError status() const                       { return kMediaNoError; }
-    virtual String string() const                           { return ""; }
-    virtual Message formats() const                         { return g_format; }
-    virtual MediaError configure(const Message& options)    { return kMediaErrorInvalidOperation; }
-    virtual MediaError prepare(const Message& options)      { g_format = options; Looper::Main()->post(new PrepareRunnable); return kMediaNoError; }
-    virtual MediaError write(const sp<MediaFrame>& frame)   { Looper::Main()->post(new DisplayRunnable(frame)); return kMediaNoError; }
-    virtual MediaError flush()                              { Looper::Main()->post(new FlushRunnable); return kMediaNoError; }
 };
 
 struct SDLRunnable : public Runnable {
@@ -230,11 +235,11 @@ int main (int argc, char **argv)
         INFO("gl version: %s", glGetString(GL_VERSION));
         INFO("glsl version: %s", glGetString(GL_SHADING_LANGUAGE_VERSION));
         
-        // setup local context
-        g_out = MediaOut::Create(kCodecTypeVideo);
-        
         // create the mp
         Message options;
+#ifdef MAIN_THREAD_RENDER
+        options.setObject("MediaFrameEvent", new OnFrameUpdate);
+#endif
         options.setObject("RenderPositionEvent", new MPRenderPosition);
         options.setObject("StatusEvent", new MPStatus);
         mp = IMediaPlayer::Create(options);
@@ -243,9 +248,6 @@ int main (int argc, char **argv)
         Message media;
         media.setString("url", url);
         media.setInt32(kKeyMode, PREFER_MODE);
-#ifdef MAIN_THREAD_RENDER
-        media.setObject("MediaOut", new MediaOutProxy);
-#endif
         mp->init(media);
         
         // prepare the mp
@@ -270,7 +272,6 @@ int main (int argc, char **argv)
         
         // clear static context
         g_out.clear();
-        g_format.clear();
         
         // quit sdl
         SDL_Quit();

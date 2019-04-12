@@ -38,15 +38,10 @@
 #define _MPX_MEDIA_TRACK_H
 
 #include <MediaFramework/MediaDefs.h>
-#include <MediaFramework/MediaPacket.h>
-#include <MediaFramework/MediaFrame.h>
-#include <MediaFramework/MediaDecoder.h>
-#include <MediaFramework/MediaOut.h>
-#include <MediaFramework/ColorConvertor.h>
-#include <MediaFramework/MediaClock.h>
 
 #ifdef __cplusplus
 __BEGIN_NAMESPACE_MPX
+
 /**
  * For pushing packets to target. when a packet is ready,
  * fire this event, and target will get the packet.
@@ -81,23 +76,21 @@ struct FrameRequest {
 typedef TypedEvent<FrameRequest>  FrameRequestEvent;
 
 /**
- * For update render position to target.
- */
-typedef TypedEvent<MediaTime> RenderPositionEvent;
-
-/**
  * For handle error status
  */
 typedef TypedEvent<MediaError> StatusEvent;
 
 struct API_EXPORT IMediaSession : public SharedObject {
+    IMediaSession() { }
+    virtual ~IMediaSession() { }
+    
     static sp<IMediaSession> Create(const Message& formats, const Message& options);
-    FORCE_INLINE IMediaSession() { }
-    FORCE_INLINE virtual ~IMediaSession() { }
     virtual void prepare(const Message& options) = 0;
     virtual void flush() = 0;
     virtual void release() = 0;
 };
+
 __END_NAMESPACE_MPX
 #endif
-#endif 
+
+#endif // _MPX_MEDIA_TRACK_H
