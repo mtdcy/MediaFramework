@@ -562,6 +562,7 @@ struct AVPlayer : public IMediaPlayer {
 
     virtual MediaError prepare(int64_t us) {
         AutoLock _l(mLock);
+        if (us < 0) us = 0;
         INFO("prepare @ %.3f(s)", us / 1E6);
         Message payload;
         payload.setInt64("time", us);
