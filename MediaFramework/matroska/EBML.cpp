@@ -127,12 +127,12 @@ static FORCE_INLINE EBMLInteger EBMLGetLength(BitReader& br) {
     return EBMLGetInteger(br);
 }
 
-struct Int2Float {
+union Int2Float {
     float       flt;
     uint32_t    u32;
 };
 
-struct Int2Double {
+union Int2Double {
     double      dbl;
     uint64_t    u64;
 };
