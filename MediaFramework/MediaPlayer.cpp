@@ -107,7 +107,8 @@ struct MPContext : public SharedObject {
     // external static context
     Message mOptions;
     sp<InfomationEvent>     mInfomationEvent;
-    sp<StatusEvent> mStatusEvent;
+    sp<StatusEvent>         mStatusEvent;
+    sp<Message>             mInfo;
 
     // mutable context
     HashTable<size_t, sp<SessionContext> > mSessions;
@@ -175,6 +176,8 @@ static MediaError prepareMedia(sp<MPContext>& mpc, const Message& media) {
 
     Message fileFormats = extractor->formats();
     size_t numTracks = fileFormats.findInt32(kKeyCount, 1);
+    INFO("%s", fileFormats.string().c_str());
+    mpc->mInfo = new Message(fileFormats);
 
     uint32_t activeTracks = 0;
     for (size_t i = 0; i < numTracks; ++i) {
@@ -324,17 +327,17 @@ struct ReadyState : public State {
         // -> ready by prepare
         sp<MPContext> mpc = Looper::Current()->user(0);
 
-        MediaTime ts = payload.find<MediaTime>("time");
+        int64_t ts = payload.findInt64("time");
 
         // set clock time
-        mpc->mClock->set(ts.useconds());
+        mpc->mClock->set(ts);
 
         // prepare sessions
         sp<PrepareStatusEvent> event = new PrepareStatusEvent(Looper::Current(), mpc->mSessions.size());
         event->keep(event);
 
         Message options;
-        options.set<MediaTime>("time", ts);
+        options.setInt64("time", ts);
         options.setObject("StatusEvent", event);
 
         HashTable<size_t, sp<SessionContext> >::iterator it = mpc->mSessions.begin();
@@ -515,11 +518,18 @@ struct AVPlayer : public IMediaPlayer {
     }
     
     virtual sp<Clock> clock() const {
+        AutoLock _l(mLock);
         sp<MPContext> mpc = mLooper->user(0);
         if (mpc->mClock != NULL) {
             return new Clock(mpc->mClock);
         }
         return NULL;
+    }
+    
+    virtual sp<Message> info() const {
+        AutoLock _l(mLock);
+        sp<MPContext> mpc = mLooper->user(0);
+        return mpc->mInfo;
     }
 
     virtual MediaError init(const Message& media) {
@@ -531,11 +541,11 @@ struct AVPlayer : public IMediaPlayer {
         return setState_l(kStateInitial, media);
     }
 
-    virtual MediaError prepare(const MediaTime& ts) {
+    virtual MediaError prepare(int64_t us) {
         AutoLock _l(mLock);
-        INFO("prepare @ %.3f(s)", ts.seconds());
+        INFO("prepare @ %.3f(s)", us / 1E6);
         Message payload;
-        payload.set<MediaTime>("time", ts);
+        payload.setInt64("time", us);
         return setState_l(kStateReady, payload);
     }
 

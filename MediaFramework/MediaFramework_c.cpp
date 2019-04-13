@@ -94,10 +94,23 @@ MediaPlayerRef MediaPlayerCreate(MessageRef media, MessageRef options) {
     return mp->RetainObject();
 }
 
-MediaError MediaPlayerPrepare(MediaPlayerRef ref, double seconds) {
+MediaClockRef MediaPlayerGetClock(MediaPlayerRef player) {
+    Object<IMediaPlayer> _player = player;
+    Object<Clock> clock = _player->clock();
+    if (clock == NULL) return NULL;
+    else return (MediaClockRef)clock->RetainObject();
+}
+
+MessageRef MediaPlayerGetInfo(const MediaPlayerRef ref) {
+    const Object<IMediaPlayer> mp = ref;
+    Object<Message> info = mp->info();
+    if (info == NULL) return NULL;
+    else return (MessageRef)info->RetainObject();
+}
+
+MediaError MediaPlayerPrepare(MediaPlayerRef ref, int64_t us) {
     Object<IMediaPlayer> mp = ref;
-    MediaTime time (seconds * 1E6);
-    return mp->prepare(time);
+    return mp->prepare(us);
 }
 
 MediaError MediaPlayerStart(MediaPlayerRef ref) {
@@ -147,13 +160,6 @@ MediaError MediaOutWrite(MediaOutRef ref, MediaFrameRef frame) {
 MediaError MediaOutFlush(MediaOutRef ref) {
     Object<MediaOut> out = ref;
     return out->flush();
-}
-
-MediaClockRef MediaClockGet(MediaPlayerRef player) {
-    Object<IMediaPlayer> _player = player;
-    Object<Clock> clock = _player->clock();
-    if (clock == NULL) return NULL;
-    else return (MediaClockRef)clock->RetainObject();
 }
 
 int64_t MediaClockGetTime(MediaClockRef ref) {

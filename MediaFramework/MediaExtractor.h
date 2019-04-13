@@ -78,13 +78,13 @@ struct API_EXPORT MediaExtractor : public SharedObject {
      * get output format information of this codec.
      * about the output format:
      *  kKeyFormat      - [eFileFormat]     - mandatory, file format
-     *  kKeyDuration    - [MediaTime]       - mandatory, file duration
+     *  kKeyDuration    - [int64_t]         - mandatory, file duration
      *  kKeyCount       - [int32_t]         - mandatory,
      *  "track-%zu"     - [Message]         - mandatory
      * about the track output format:
      *  kKeyFormat      - [eCodecFormat]    - mandatory
      *  kKeyType        - [eCodecType]      - mandatory
-     *  kKeyDuration    - [MediaTime]       - optional, track duration
+     *  kKeyDuration    - [int64_t]         - optional, track duration
      *  "****"          - [Buffer]          - optional, codec csd data, may have different names
      * for audio track:
      *  kKeySampleRate  - [int32_t]         - mandatory

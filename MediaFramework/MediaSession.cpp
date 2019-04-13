@@ -537,12 +537,12 @@ struct Renderer : public SharedObject {
     }
 
     void onPrepareRenderer(const Message& options) {
-        const MediaTime& ts = options.find<MediaTime>("time");
+        int64_t us = options.findInt64("time");
         sp<StatusEvent> se;
         if (options.contains("StatusEvent")) {
             se = options.findObject("StatusEvent");
         }
-        onPrepareRenderer(ts, se);
+        onPrepareRenderer(MediaTime(us), se);
     }
 
     void onPrepareRenderer(const MediaTime& ts, const sp<StatusEvent>& se) {

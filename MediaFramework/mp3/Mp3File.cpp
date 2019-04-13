@@ -714,7 +714,7 @@ struct Mp3File : public MediaExtractor {
     virtual Message formats() const {
         Message info;
         info.setInt32(kKeyFormat, kFileFormatMP3);
-        info.set<MediaTime>(kKeyDuration, mDuration);
+        info.setInt64(kKeyDuration, mDuration.useconds());
 
         Message trak;
         trak.setInt32(kKeyFormat, kAudioCodecFormatMP3);

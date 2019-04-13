@@ -141,7 +141,7 @@ struct SDLRunnable : public Runnable {
                                 mp->pause();
                             else {
                                 if (mp->state() != kStateReady)
-                                    mp->prepare(kTimeBegin);
+                                    mp->prepare(0);
                                 mp->start();
                             }
                             break;
@@ -242,7 +242,7 @@ int main (int argc, char **argv)
         mp->init(media);
         
         // prepare the mp
-        mp->prepare(kTimeBegin);
+        mp->prepare(0);
         
         // loop
         mainLooper->profile();

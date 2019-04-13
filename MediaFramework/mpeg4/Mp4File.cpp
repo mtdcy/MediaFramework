@@ -406,7 +406,7 @@ struct Mp4File : public MediaExtractor {
     virtual Message formats() const {
         Message info;
         info.setInt32(kKeyFormat, kFileFormatMP4);
-        info.set<MediaTime>(kKeyDuration, mDuration);
+        info.setInt64(kKeyDuration, mDuration.useconds());
         info.setInt32(kKeyCount, mTracks.size());
 
         for (size_t i = 0; i < mTracks.size(); ++i) {
@@ -414,7 +414,7 @@ struct Mp4File : public MediaExtractor {
 
             Message trakInfo;
             trakInfo.setInt32(kKeyFormat, trak->codec);
-            trakInfo.set<MediaTime>(kKeyDuration, trak->duration);
+            trakInfo.setInt64(kKeyDuration, trak->duration.useconds());
 
             eCodecType type = GetCodecType(trak->codec);
             if (type == kCodecTypeAudio) {
@@ -583,6 +583,7 @@ struct Mp4File : public MediaExtractor {
             ERROR("can not find mvhd.");
             return kMediaErrorBadFormat;
         }
+        mDuration = MediaTime(mvhd->duration, mvhd->timescale);
 
         for (size_t i = 0; ; ++i) {
             sp<TrackBox> trak = FindBox(moov, "trak", i);

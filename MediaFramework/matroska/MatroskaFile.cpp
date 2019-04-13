@@ -195,7 +195,7 @@ bool decodeMPEGAudioFrameHeader(const Buffer& frame, uint32_t *sampleRate, uint3
 struct MatroskaFile : public MediaExtractor {
     int64_t                 mSegment;   // offset of SEGMENT
     int64_t                 mClusters;  // offset of CLUSTERs
-    double                  mDuration;
+    MediaTime               mDuration;
     uint64_t                mTimeScale;
     sp<Content>             mContent;
     Vector<MatroskaTrack>   mTracks;
@@ -250,9 +250,9 @@ struct MatroskaFile : public MediaExtractor {
 
         sp<EBMLFloatElement> DURATION = FindEBMLElement(SEGMENTINFO, ID_DURATION);
         if (DURATION != NULL) {
-            mDuration = DURATION->flt * mTimeScale;
+            mDuration = MediaTime( DURATION->flt * mTimeScale, 1000000000LL);
         }
-        DEBUG("duration %.3f(s)", mDuration / 1E9);
+        DEBUG("duration %.3f(s)", mDuration.seconds());
 
         // handle SEGMENT
         sp<EBMLMasterElement> TRACKS = getSegmentElement(pipe, SEGMENT, mSegment, ID_TRACKS);
@@ -292,7 +292,7 @@ struct MatroskaFile : public MediaExtractor {
 
             sp<EBMLFloatElement> TRACKTIMECODESCALE = FindEBMLElement(TRACKENTRY, ID_TRACKTIMECODESCALE);
             if (TRACKTIMECODESCALE != NULL) {
-                DEBUG("track timecodescale %f", TRACKTIMECODESCALE->vint.flt);
+                DEBUG("track timecodescale %f", TRACKTIMECODESCALE->flt);
                 trak.timescale = TRACKTIMECODESCALE->flt;
                 if (IS_ZERO(trak.timescale)) {
                     trak.timescale = 1.0f;
@@ -422,7 +422,7 @@ struct MatroskaFile : public MediaExtractor {
         Message info;
         info.setInt32(kKeyFormat, kFileFormatMKV);
         info.setInt32(kKeyCount, mTracks.size());
-        info.set<MediaTime>(kKeyDuration, mDuration);
+        info.setInt64(kKeyDuration, mDuration.useconds());
         for (size_t i = 0; i < mTracks.size(); ++i) {
             Message trakInfo;
             const MatroskaTrack& trak = mTracks[i];
@@ -516,10 +516,8 @@ struct MatroskaFile : public MediaExtractor {
             }
 
 #if LOG_NDEBUG == 0
-            List<MatroskaTrack>::iterator it0 = mTracks.begin();
-            for (; it0 != mTracks.end(); ++it0) {
-                MatroskaTrack& trak = *it0;
-                DEBUG("track %zu: %zu blocks", trak.id, trak.blocks.size());
+            for (size_t i = 0; i < mTracks.size(); ++i) {
+                DEBUG("track %zu: %zu blocks", mTracks[i].id, mTracks[i].blocks.size());
             }
 #endif
         }

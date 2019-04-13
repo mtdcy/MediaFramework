@@ -62,13 +62,25 @@ API_EXPORT ImageFormat *        MediaFrameGetImageFormat(MediaFrameRef);
 
 API_EXPORT void *               MediaFrameGetOpaque(MediaFrameRef);
 
+// Clock, get a clock from MediaPlayerRef, used to update ui
+typedef SharedObjectRef         MediaClockRef;
+#define MediaClockRelease(x)    SharedObjectRelease((SharedObjectRef)x)
+
+API_EXPORT int64_t              MediaClockGetTime(MediaClockRef);
+
 // MediaPlayer
 typedef SharedObjectRef         MediaPlayerRef;
 
 API_EXPORT MediaPlayerRef       MediaPlayerCreate(MessageRef, MessageRef);
 API_EXPORT MediaError           MediaPlayerRelease(MediaPlayerRef);
 
-API_EXPORT MediaError           MediaPlayerPrepare(MediaPlayerRef, double /* @seconds */);
+/**
+ * @note remember to release after use
+ */
+API_EXPORT MediaClockRef        MediaPlayerGetClock(const MediaPlayerRef);
+API_EXPORT MessageRef           MediaPlayerGetInfo(const MediaPlayerRef);
+
+API_EXPORT MediaError           MediaPlayerPrepare(MediaPlayerRef, int64_t);
 API_EXPORT MediaError           MediaPlayerStart(MediaPlayerRef);
 API_EXPORT MediaError           MediaPlayerPause(MediaPlayerRef);
 API_EXPORT MediaError           MediaPlayerFlush(MediaPlayerRef);
@@ -93,13 +105,6 @@ API_EXPORT MediaOutRef          MediaOutCreate(eCodecType);
 API_EXPORT MediaError           MediaOutPrepare(MediaOutRef, MessageRef, MessageRef);
 API_EXPORT MediaError           MediaOutWrite(MediaOutRef, MediaFrameRef);
 API_EXPORT MediaError           MediaOutFlush(MediaOutRef);
-
-// Clock, get a clock from MediaPlayerRef, used to update ui
-typedef SharedObjectRef         MediaClockRef;
-API_EXPORT MediaClockRef        MediaClockGet(MediaPlayerRef);
-#define MediaClockRelease(x)    SharedObjectRelease((SharedObjectRef)x)
-
-API_EXPORT int64_t              MediaClockGetTime(MediaClockRef);
 
 __END_DECLS
 

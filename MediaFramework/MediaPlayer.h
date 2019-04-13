@@ -104,7 +104,8 @@ struct API_EXPORT IMediaPlayer : public SharedObject {
      */
     static sp<IMediaPlayer> Create(const Message& options);
     
-    virtual sp<Clock> clock() const = 0;
+    virtual sp<Clock>   clock() const = 0;
+    virtual sp<Message> info() const = 0;
 
     /**
      *
@@ -127,7 +128,7 @@ struct API_EXPORT IMediaPlayer : public SharedObject {
      * prepare player after add media
      * @return return OK on success, otherwise error code
      */
-    virtual MediaError prepare(const MediaTime& ts) = 0;
+    virtual MediaError prepare(int64_t us) = 0;
     /**
      * start this player.
      * @return return OK on success, otherwise error code.
