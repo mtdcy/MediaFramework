@@ -86,6 +86,11 @@ struct API_EXPORT IMediaSession : public SharedObject {
     virtual ~IMediaSession() { }
     
     static sp<IMediaSession> Create(const Message& formats, const Message& options);
+    /**
+     * prepare session at new position
+     * "time"               - [int64_t|useconds]    - mandatory
+     * "delay"              - [int64_t|useconds]    - optional
+     */
     virtual void prepare(const Message& options) = 0;
     virtual void flush() = 0;
     virtual void release() = 0;

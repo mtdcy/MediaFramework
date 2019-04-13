@@ -81,6 +81,7 @@ struct OnPlayerInfo : public InfomationEvent {
 
 static sp<MediaOut> g_out;
 static ImageFormat g_format;
+static sp<Clock> g_clock;
 struct OnFrameUpdate : public MediaFrameEvent {
     OnFrameUpdate() : MediaFrameEvent(Looper::Main()) { }
     
@@ -149,6 +150,15 @@ struct SDLRunnable : public Runnable {
                         case SDLK_ESCAPE:
                             mp->flush();
                             break;
+                        case SDLK_LEFT: {
+                            int64_t pos = g_clock->get() - 5000000LL;
+                            if (pos < 0) pos = 0;
+                            mp->prepare(pos);
+                        } break;
+                        case SDLK_RIGHT: {
+                            int64_t pos = g_clock->get() + 5000000LL;
+                            mp->prepare(pos);
+                        } break;
                     }
                     break;
                 case SDL_WINDOWEVENT:
@@ -234,6 +244,7 @@ int main (int argc, char **argv)
         options.setObject("InfomationEvent", new OnPlayerInfo);
         options.setObject("StatusEvent", new MPStatus);
         mp = IMediaPlayer::Create(options);
+        g_clock = mp->clock();
         
         // add media to the mp
         Message media;
@@ -253,6 +264,7 @@ int main (int argc, char **argv)
         if (mp->state() != kStateFlushed) mp->flush();
         mp->release();
         mp.clear();
+        g_clock = NULL;
         
         // terminate threads
         mainLooper->terminate();

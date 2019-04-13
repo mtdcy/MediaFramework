@@ -296,6 +296,9 @@ struct InitialState : public State {
         } else {
             prepareMedia(mpc, media);
         }
+        
+        if (mpc->mInfomationEvent != NULL)
+            mpc->mInfomationEvent->fire(kInfoPlayerInitialized);
         return kMediaNoError;
     }
 };
@@ -345,6 +348,9 @@ struct ReadyState : public State {
             sp<SessionContext>& sc = it.value();
             sc->mMediaSession->prepare(options);
         }
+        
+        if (mpc->mInfomationEvent != NULL)
+            mpc->mInfomationEvent->fire(kInfoPlayerReady);
         return kMediaNoError;
     }
 };
@@ -361,6 +367,8 @@ struct PlayingState : public State {
 
         mpc->mClock->start();
         
+        if (mpc->mInfomationEvent != NULL)
+            mpc->mInfomationEvent->fire(kInfoPlayerPlaying);
         return kMediaNoError;
     }
 };
@@ -378,6 +386,8 @@ struct IdleState : public State {
         mpc->mClock->pause();
 
         // we may have to suspend codec after some time
+        if (mpc->mInfomationEvent != NULL)
+            mpc->mInfomationEvent->fire(kInfoPlayerPaused);
         return kMediaNoError;
     }
 };
@@ -397,6 +407,9 @@ struct FlushedState : public State {
         }
 
         mpc->mClock->reset();
+        
+        if (mpc->mInfomationEvent != NULL)
+            mpc->mInfomationEvent->fire(kInfoPlayerFlushed);
         return kMediaNoError;
     }
 };
@@ -411,6 +424,9 @@ struct ReleasedState : public State {
     virtual MediaError onEnterState(const Message& payload) {
         sp<MPContext> mpc = Looper::Current()->user(0);
         mpc->mSessions.clear();
+        
+        if (mpc->mInfomationEvent != NULL)
+            mpc->mInfomationEvent->fire(kInfoPlayerReleased);
         return kMediaNoError;
     }
 };
@@ -448,6 +464,9 @@ static struct StateLink {
     // start
     { kStateIdle,           kStatePlaying   },  // start @ paused
     // prepare
+    { kStateReady,          kStateReady     },
+    { kStatePlaying,        kStateReady     },
+    { kStateIdle,           kStateReady     },
     { kStateFlushed,        kStateReady     },  // prepare @ flushed
     // flush
     { kStateReady,          kStateFlushed   },  // flush @ ready
@@ -505,6 +524,10 @@ struct AVPlayer : public IMediaPlayer {
 
     AVPlayer(const Message& options) : IMediaPlayer(), mMPContext(new MPContext(options)),
     mLooper(NULL), mState(kStateInvalid) {
+        mLooper = Looper::Create("avplayer");
+        mLooper->bind(mMPContext.get());
+        mLooper->profile();
+        mLooper->loop();
     }
 
     virtual ~AVPlayer() {
@@ -534,10 +557,6 @@ struct AVPlayer : public IMediaPlayer {
 
     virtual MediaError init(const Message& media) {
         AutoLock _l(mLock);
-        mLooper = Looper::Create("avplayer");
-        mLooper->bind(mMPContext.get());
-        mLooper->profile();
-        mLooper->loop();
         return setState_l(kStateInitial, media);
     }
 
