@@ -463,13 +463,9 @@ static struct StateLink {
     // start
     { kStateIdle,           kStatePlaying   },  // start @ paused
     // prepare
-    { kStateReady,          kStateReady     },
-    { kStatePlaying,        kStateReady     },
-    { kStateIdle,           kStateReady     },
     { kStateFlushed,        kStateReady     },  // prepare @ flushed
     // flush
     { kStateReady,          kStateFlushed   },  // flush @ ready
-    { kStatePlaying,        kStateFlushed   },  // flush @ playing
     // release
     { kStateInitial,        kStateReleased  },  // release @ init
 };
@@ -488,36 +484,63 @@ struct AVPlayer : public IMediaPlayer {
     sp<MPContext>   mMPContext;
     mutable Mutex   mLock;
     sp<Looper>      mLooper;
-    eStateType      mLastState;
     eStateType      mState;
 
-    struct Transition : public SyncRunnable {
+    struct Transition : public Runnable {
         eStateType  mFrom;
         eStateType  mTo;
         Message     mOptions;
         Transition(eStateType from, eStateType to, const Message& options) :
             mFrom(from), mTo(to), mOptions(options) { }
 
-        virtual void sync() {
+        virtual void run() {
             DEBUG("transition %s => %s", kNames[mFrom], kNames[mTo]);
             sStates[mFrom]->onLeaveState();
             sStates[mTo]->onEnterState(mOptions);
         }
     };
 
-    MediaError setState_l(eStateType state, const Message& options) {
-        if (checkStateTransition(mState, state) != kMediaNoError) {
-            ERROR("invalid state transition %s => %s", kNames[mState], kNames[state]);
-            return kMediaErrorInvalidOperation;
+    MediaError setState_l(const eStateType state, const Message& options) {
+        // auto state transition:
+        // 1. invalid -> init -> ready -> playing -> idle -> flush -> release
+        // 2. ready -> flush -> release
+        eStateType link[kStateMax];
+        
+        // find transition path
+        link[0] = mState;
+        size_t n = 1;
+        for (; n < kStateMax; ++n) {
+            bool complete = false;
+            for (size_t i = 0; i < NELEM(kStateLinks); ++i) {
+                if (kStateLinks[i].from == link[n-1]) {
+                    if (kStateLinks[i].to == state) {
+                        link[n] = state;
+                        complete = true;
+                        break;
+                    } else {
+                        if ((state - kStateLinks[i].to) < (state - link[n-1])) {
+                            // find close path
+                            link[n] = kStateLinks[i].to;
+                        }
+                    }
+                }
+            }
+            if (complete) break;
         }
-        INFO("transition %s => %s", kNames[mState], kNames[state]);
-        sp<SyncRunnable> sync = new Transition(mState, state, options);
-        mLooper->post(sync);
-        if (sync->wait(1000000000LL) == false) {    // wait 1s at most
-            ERROR("state transition %s => %s timeout", kNames[mState], kNames[state]);
+        
+        if (n == kStateMax) {
+            ERROR("bad state transition %s => %s timeout", kNames[mState], kNames[state]);
+            return kMediaErrorBadValue;
         }
-        mLastState  = mState;
-        mState      = state;
+        
+        INFO("%s", kNames[link[0]]);
+        for (size_t i = 1; i <= n; ++i) {
+            INFO("-> %s", kNames[link[i]]);
+            
+            sp<Runnable> routine = new Transition(link[i-1], link[i], options);
+            mLooper->post(routine);
+            mState      = state;
+        }
         return kMediaNoError;
     }
 
@@ -565,7 +588,18 @@ struct AVPlayer : public IMediaPlayer {
         INFO("prepare @ %.3f(s)", us / 1E6);
         Message payload;
         payload.setInt64("time", us);
-        return setState_l(kStateReady, payload);
+        
+        if (mState < kStateInitial && mState == kStateReleased) {
+            ERROR("prepare at bad state");
+            return kMediaErrorInvalidOperation;
+        }
+        
+        // prepare can perform @ init/ready/play/idle/flushed
+        mLooper->post(new Transition(mState, kStateReady, payload));
+        if (mState == kStateInitial || mState == kStateFlushed) {
+            mState = kStateReady;
+        }
+        return kMediaNoError;
     }
 
     virtual MediaError start() {

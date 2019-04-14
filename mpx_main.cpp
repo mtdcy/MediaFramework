@@ -257,7 +257,6 @@ int main (int argc, char **argv)
         mainLooper->loop();
         
         // clearup
-        if (mp->state() != kStateFlushed) mp->flush();
         mp->release();
         mp.clear();
         g_clock = NULL;
