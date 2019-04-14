@@ -222,7 +222,6 @@ static MediaError prepareMedia(sp<MPContext>& mpc, const Message& media) {
                 options.setObject("MediaFrameEvent", mpc->mOptions.findObject("MediaFrameEvent"));
             }
             options.setInt32(kKeyRequestFormat, kPixelFormatNV12);
-            options.setInt32(kKeyOpenGLCompatible, true);
         }
         options.setObject("PacketRequestEvent", ms);
         options.setObject("InformationEvent", new OnInfomation);

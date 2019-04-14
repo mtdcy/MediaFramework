@@ -134,6 +134,9 @@ typedef enum ePixelFormat {
     kPixelFormatRGB888,                 ///< packed RGB 8:8:8, 24 bpp
     kPixelFormatARGB,                   ///< packed ARGB, 32 bpp, AARRGGBB
     kPixelFormatRGBA,                   ///< packed RGBA, 32 bpp, RRGGBBAA
+    
+    // hardware pixel format
+    kPixelFormatVideoToolbox    = 0x300,    ///< hardware frame from video toolbox
 } ePixelFormat;
 
 // FIXME: code sample infomation into format
@@ -519,13 +522,6 @@ __END_NAMESPACE_MPX
  * some device need to pause/unpause implicit
  */
 #define kKeyPause       "pause"     ///< int32_t, bool
-
-/**
- * opengl compatible frame
- * used for passing opengl compatible memory to MediaOut,
- * to avoid memory copy
- */
-#define kKeyOpenGLCompatible    "opengl"  ///< int32_t, bool
 
 /**
  * csd keys

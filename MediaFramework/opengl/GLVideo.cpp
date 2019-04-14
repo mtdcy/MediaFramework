@@ -403,16 +403,6 @@ static sp<OpenGLContext> initContext(const Config *config) {
     return glc;
 }
 
-static sp<OpenGLContext> init_rectangle(const Config *config, GLint w, GLint h) {
-    sp<OpenGLContext> glc = initContext(config);
-    if (glc == NULL) return NULL;
-
-    CHECK_GE(glc->uniforms[UNIFORM_RESOLUTION], 0);
-    glUniform2f(glc->uniforms[UNIFORM_RESOLUTION], (GLfloat)w, (GLfloat)h);
-
-    return glc;
-}
-
 static void updateTexture(const sp<OpenGLContext>& glc, const sp<MediaFrame>& frame) {
     uint8_t * planes[3] = {
         frame->planes[0].data,
@@ -593,6 +583,18 @@ static const Config s_config_vt_nv12 = {
 };
 #endif
 
+#ifdef __APPLE__
+static sp<OpenGLContext> initOpenGLForVideoToolbox(const Config *config, GLint w, GLint h) {
+    sp<OpenGLContext> glc = initContext(config);
+    if (glc == NULL) return NULL;
+    
+    CHECK_GE(glc->uniforms[UNIFORM_RESOLUTION], 0);
+    glUniform2f(glc->uniforms[UNIFORM_RESOLUTION], (GLfloat)w, (GLfloat)h);
+    
+    return glc;
+}
+#endif
+
 ////////////////////////////////////////////////////////////////////
 struct GLVideo : public MediaOut {
     sp<OpenGLContext> mGLContext;
@@ -604,45 +606,26 @@ struct GLVideo : public MediaOut {
     virtual MediaError prepare(const Message& format, const Message& options) {
         INFO("gl video => %s %s", format.string().c_str(), options.string().c_str());
 
-        bool ogl = options.findInt32(kKeyOpenGLCompatible, 0);
-
-        // is gl context ready for current thread
-#ifdef __APPLE__
-        if (ogl) {
-            CHECK_NULL(CGLGetCurrentContext());
-        }
-#endif
-
         int32_t width       = format.findInt32(kKeyWidth);
         int32_t height      = format.findInt32(kKeyHeight);
         ePixelFormat pixel  = (ePixelFormat)format.findInt32(kKeyFormat);
-
+        
         switch (pixel) {
             case kPixelFormatNV12:
-                if (ogl) {
-#ifdef __APPLE__
-                    mGLContext = init_rectangle(&s_config_vt_nv12, width, height);
-#endif
-                } else {
-                    mGLContext = initContext(&s_config_nv12);
-                }
+                mGLContext = initContext(&s_config_nv12);
                 break;
             case kPixelFormatYUV420P:
-                if (ogl) {
-                    FATAL("FIXME");
-                } else {
-                    mGLContext = initContext(&s_config_yuv420);
-                }
+                mGLContext = initContext(&s_config_yuv420);
                 break;
-            case kPixelFormatYUYV422:
-                if (ogl) {
 #ifdef __APPLE__
-                    mGLContext = init_rectangle(&s_config_vt_y422p, width, height);
-#endif
-                } else {
-                    FATAL("FIXME");
-                }
+            case kPixelFormatVideoToolbox:
+                // client have to prepare gl context for current thread
+                CHECK_NULL(CGLGetCurrentContext());
+                // kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
+                // TODO: defer init OpenGL, get real pixel format from data
+                mGLContext = initOpenGLForVideoToolbox(&s_config_vt_nv12, width, height);
                 break;
+#endif
             default:
                 FATAL("FIXME");
         }

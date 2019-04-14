@@ -272,6 +272,10 @@ sp<MediaFrame> MediaFrameCreate(ePixelFormat format, int32_t w, int32_t h) {
     return frame;
 }
 
+sp<MediaFrame> MediaFrameCreate(const ImageFormat& image) {
+    return MediaFrameCreate(image.format, image.width, image.height);
+}
+
 String GetAudioFormatString(const AudioFormat& a) {
     return String::format("audio %s: ch %d, freq %d, samples %d",
                           GetSampleFormatString(a.format),

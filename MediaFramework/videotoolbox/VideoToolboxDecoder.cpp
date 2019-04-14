@@ -50,9 +50,6 @@
 #define DEBUGV(fmt, ...) do {} while(0)
 #endif
 
-// kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange <-> nv12
-#define kPreferredPixelFormat kPixelFormatNV12
-
 #define FORCE_DTS   0 // for testing
 
 // https://www.objc.io/issues/23-video/videotoolbox/
@@ -125,7 +122,7 @@ struct VTMediaFrame : public MediaFrame {
         planes[0].data  = NULL;
         pts         = _pts;
         duration    = _duration;
-        v.format    = get_pix_format(CVPixelBufferGetPixelFormatType(pixbuf));
+        v.format    = kPixelFormatVideoToolbox;
         v.width     = CVPixelBufferGetWidth(pixbuf);
         v.height    = CVPixelBufferGetHeight(pixbuf);
         v.rect.x    = 0;
@@ -282,11 +279,10 @@ static FORCE_INLINE CFDictionaryRef setupFormatDescriptionExtension(const Messag
     return atoms;
 }
 
-static FORCE_INLINE CFDictionaryRef setupImageBufferAttributes(int32_t width,
-        int32_t height,
-        OSType cv_pix_fmt,
-        bool opengl) {
+static FORCE_INLINE CFDictionaryRef setupImageBufferAttributes(int32_t width, int32_t height) {
 
+    const OSType cv_pix_fmt = kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange;  // nv12
+    
     CFNumberRef w   = CFNumberCreate(kCFAllocatorDefault,
             kCFNumberSInt32Type,
             &width);
@@ -314,15 +310,13 @@ static FORCE_INLINE CFDictionaryRef setupImageBufferAttributes(int32_t width,
     CFDictionarySetValue(attr, kCVPixelBufferIOSurfacePropertiesKey, surfaceProp);
     CFDictionarySetValue(attr, kCVPixelBufferWidthKey, w);
     CFDictionarySetValue(attr, kCVPixelBufferHeightKey, h);
-    if (opengl) {
-        // https://ffmpeg.org/pipermail/ffmpeg-devel/2017-December/222481.html
+    // https://ffmpeg.org/pipermail/ffmpeg-devel/2017-December/222481.html
 #if TARGET_OS_IPHONE
-        CFDictionarySetValue(attr, kCVPixelBufferOpenGLESCompatibilityKey, kCFBooleanTrue);
+    CFDictionarySetValue(attr, kCVPixelBufferOpenGLESCompatibilityKey, kCFBooleanTrue);
 #else
-        //kCVPixelBufferOpenGLCompatibilityKey
-        CFDictionarySetValue(attr, kCVPixelBufferIOSurfaceOpenGLTextureCompatibilityKey, kCFBooleanTrue);
+    //kCVPixelBufferOpenGLCompatibilityKey
+    CFDictionarySetValue(attr, kCVPixelBufferIOSurfaceOpenGLTextureCompatibilityKey, kCFBooleanTrue);
 #endif
-    }
 
     CFRelease(surfaceProp);
     CFRelease(fmt);
@@ -337,21 +331,11 @@ static FORCE_INLINE CFDictionaryRef setupImageBufferAttributes(int32_t width,
 static FORCE_INLINE sp<VTContext> createSession(const Message& formats, const Message& options, MediaError *err) {
     sp<VTContext> vtc = new VTContext;
 
-    eCodecFormat codec_format = (eCodecFormat)formats.findInt32(kKeyFormat);
+    eCodecFormat codec = (eCodecFormat)formats.findInt32(kKeyFormat);
     int32_t width = formats.findInt32(kKeyWidth);
     int32_t height = formats.findInt32(kKeyHeight);
-    int32_t requested_format = options.findInt32(kKeyRequestFormat, kPreferredPixelFormat);
-    OSType cv_pix_fmt = get_cv_pix_format((ePixelFormat)requested_format);
-    bool opengl = options.findInt32(kKeyOpenGLCompatible);
 
-    if (cv_pix_fmt == 0) {
-        ERROR("request format is not supported, fall to %d", kPreferredPixelFormat);
-        cv_pix_fmt = get_cv_pix_format(kPreferredPixelFormat);
-        //*err = kMediaErrorNotSupported;
-        //return NULL;
-    }
-
-    CMVideoCodecType cm_codec_type = get_cm_codec_type(codec_format);
+    CMVideoCodecType cm_codec_type = get_cm_codec_type(codec);
     if (cm_codec_type == 0) {
         ERROR("unsupported codec");
         *err = kMediaErrorNotSupported;
@@ -398,9 +382,7 @@ static FORCE_INLINE sp<VTContext> createSession(const Message& formats, const Me
 
     CFDictionaryRef destinationImageBufferAttributes = setupImageBufferAttributes(
             width,
-            height,
-            cv_pix_fmt,
-            opengl);
+            height);
 
     VTDecompressionOutputCallbackRecord callback;
     callback.decompressionOutputCallback = OutputCallback;
@@ -444,7 +426,7 @@ static FORCE_INLINE sp<VTContext> createSession(const Message& formats, const Me
     } else {
         vtc->width  = width;
         vtc->height = height;
-        vtc->pixel  = get_pix_format(cv_pix_fmt);
+        vtc->pixel  = kPixelFormatVideoToolbox;
         return vtc;
     }
 }
@@ -589,7 +571,6 @@ struct VideoToolboxDecoder : public MediaDecoder {
         formats.setInt32(kKeyWidth, mVTContext->width);
         formats.setInt32(kKeyHeight, mVTContext->height);
         formats.setInt32(kKeyFormat, mVTContext->pixel);
-        formats.setInt32(kKeyOpenGLCompatible, 1);
         DEBUG(" => %s", formats.string().c_str());
         return formats;
     }

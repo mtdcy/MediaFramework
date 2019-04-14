@@ -101,10 +101,6 @@ struct OnFrameUpdate : public MediaFrameEvent {
             format.setInt32(kKeyWidth,  g_format.width);
             format.setInt32(kKeyHeight, g_format.height);
             
-            if (frame->opaque) {
-                options.setInt32(kKeyOpenGLCompatible, 1);
-            }
-            
             CHECK_TRUE(g_out->prepare(format, options) == kMediaNoError);
         }
         
