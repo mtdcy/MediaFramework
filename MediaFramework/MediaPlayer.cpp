@@ -548,7 +548,7 @@ struct AVPlayer : public IMediaPlayer {
     mLooper(NULL), mState(kStateInvalid) {
         mLooper = Looper::Create("avplayer");
         mLooper->bind(mMPContext.get());
-        mLooper->profile();
+        //mLooper->profile();
         mLooper->loop();
     }
 

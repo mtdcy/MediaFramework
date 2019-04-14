@@ -882,7 +882,8 @@ struct AVSession : public IMediaSession {
 
         for (size_t i = 0; i < mLoopers.size(); ++i) {
             mLoopers[i]->loop();
-            mLoopers[i]->profile();
+            // enable only for debug
+            //mLoopers[i]->profile();
         }
     }
     
