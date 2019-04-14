@@ -512,10 +512,10 @@ static void updateTexture_VideoToolbox(const sp<OpenGLContext>& glc, const sp<Me
     glUniform1iv(glc->uniforms[UNIFORM_PLANES], glc->config->n_textures, index);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     
-    //glFlush();  // always assume single buffer here, let client handle swap buffers
-    
 #ifdef __APPLE__
     glSwapAPPLE();
+#else
+    glFlush();  // always assume single buffer here, let client handle swap buffers
 #endif
     CHECK_GL_ERROR();
 }
