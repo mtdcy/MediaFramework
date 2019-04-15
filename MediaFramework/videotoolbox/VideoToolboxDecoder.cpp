@@ -463,7 +463,7 @@ static FORCE_INLINE CMSampleBufferRef createCMSampleBuffer(sp<VTContext>& vtc,
     }
     if (packet->pts != kTimeInvalid && !FORCE_DTS) {
         timingInfo[0].presentationTimeStamp = CMTimeMake(packet->pts.value, packet->pts.timescale);
-    } else {
+    } else if (!(packet->flags & kFrameFlagReference)) {
         //WARN("pts is missing");
         timingInfo[0].presentationTimeStamp = kCMTimeInvalid;
         vtc->mTimestamps.push(packet->dts);
