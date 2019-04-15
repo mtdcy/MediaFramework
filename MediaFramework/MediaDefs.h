@@ -139,6 +139,11 @@ typedef enum ePixelFormat {
     kPixelFormatVideoToolbox    = 0x300,    ///< hardware frame from video toolbox
 } ePixelFormat;
 
+API_EXPORT size_t   GetPixelFormatBPP(ePixelFormat);
+API_EXPORT size_t   GetPixelFormatPlanes(ePixelFormat);
+API_EXPORT size_t   GetPixelFormatPlaneBPP(ePixelFormat, size_t);
+API_EXPORT bool     GetPixelFormatIsPlanar(ePixelFormat);
+
 // FIXME: code sample infomation into format
 /**
  * we always use planar data instead of interleaved,
@@ -217,6 +222,8 @@ typedef struct ImageFormat {
     int32_t             height;         ///< plane height
     ImageRect           rect;           ///< display rectangle
 } ImageFormat;
+
+API_EXPORT size_t GetImageFormatBytes(const ImageFormat *);
 
 #define kTimeValueBegin     (0)
 #define kTimeValueInvalid   (-1)
@@ -380,7 +387,6 @@ struct API_EXPORT MediaFrame : public SharedObject {
 /**
  * create a video frame backend by Buffer
  */
-API_EXPORT sp<MediaFrame>   MediaFrameCreate(ePixelFormat format, int32_t width, int32_t height);
 API_EXPORT sp<MediaFrame>   MediaFrameCreate(const ImageFormat& );
 API_EXPORT sp<MediaFrame>   MediaFrameCreate(const ImageFormat&, const sp<Buffer>& buffer);
 

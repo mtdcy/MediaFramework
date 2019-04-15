@@ -42,6 +42,11 @@ MediaFrameRef ImageFrameCreate(const ImageFormat * image) {
     // TODO
 }
 
+MediaFrameRef ImageFrameGenerate(const ImageFormat * image, BufferRef buffer) {
+    Object<MediaFrame> frame = MediaFrameCreate(*image, buffer);
+    return frame->RetainObject();
+}
+
 uint8_t * MediaFrameGetPlaneData(MediaFrameRef ref, size_t index) {
     Object<MediaFrame> frame = ref;
     CHECK_LT(index, MEDIA_FRAME_NB_PLANES);

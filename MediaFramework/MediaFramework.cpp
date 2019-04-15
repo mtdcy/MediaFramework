@@ -56,23 +56,97 @@ eCodecType GetCodecType(eCodecFormat format) {
         return kCodecTypeUnknown;
 }
 
+size_t GetPixelFormatBPP(ePixelFormat pixel) {
+    switch (pixel) {
+            // planar yuv
+        case kPixelFormatYUV420P:           return 12;
+        case kPixelFormatYUV422P:           return 16;
+        case kPixelFormatYUV444P:           return 24;
+        case kPixelFormatNV12:              return 12;
+        case kPixelFormatNV21:              return 12;
+            
+            // packed yuv
+        case kPixelFormatYUYV422:           return 16;
+        case kPixelFormatUYVY422:           return 16;
+            
+            // rgb
+        case kPixelFormatRGB565:            return 16;
+        case kPixelFormatRGB888:            return 24;
+        case kPixelFormatARGB:              return 32;
+        case kPixelFormatRGBA:              return 32;
+            
+        case kPixelFormatUnknown:           return 0;
+            
+        default:
+            FATAL("FIXME: missing case for %d", pixel);
+            return 0;
+    }
+}
+
+bool GetPixelFormatIsPlanar(ePixelFormat pixel) {
+    switch (pixel) {
+        case kPixelFormatYUV420P:
+        case kPixelFormatYUV422P:
+        case kPixelFormatYUV444P:   return true;
+        default:                    return false;
+    }
+}
+
+size_t GetPixelFormatPlanes(ePixelFormat pixel) {
+    switch (pixel) {
+            // planar yuv
+        case kPixelFormatYUV420P:
+        case kPixelFormatYUV422P:
+        case kPixelFormatYUV444P:   return 3;
+        case kPixelFormatNV12:
+        case kPixelFormatNV21:      return 2;
+        case kPixelFormatUnknown:   return 0;
+        default:                    break;
+    }
+    
+    if (GetPixelFormatIsPlanar(pixel) == false) {
+        return 1;
+    } else {
+        FATAL("FIXME: missing case for %d", pixel);
+        return 0;
+    }
+}
+
+size_t GetPixelFormatPlaneBPP(ePixelFormat pixel, size_t plane) {
+    CHECK_LT(plane, GetPixelFormatPlanes(pixel));
+    if (GetPixelFormatIsPlanar(pixel) == false) {
+        return GetPixelFormatBPP(pixel);
+    }
+    
+    switch (pixel) {
+        case kPixelFormatYUV420P:   return plane == 0 ? 8 : 2;
+        case kPixelFormatYUV422P:   return plane == 0 ? 8 : 4;
+        case kPixelFormatYUV444P:   return 8;
+        case kPixelFormatNV12:      return plane == 0 ? 8 : 4;
+        case kPixelFormatNV21:      return plane == 0 ? 8 : 4;
+
+        case kPixelFormatUnknown:   return 0;
+            
+        default:
+            FATAL("FIXME: missing case for %d", pixel);
+            return 0;
+    }
+}
+
+size_t GetImageFormatBytes(const ImageFormat * image) {
+    return (image->width * image->height * GetPixelFormatBPP(image->format)) / 8;
+}
+
 
 size_t GetSampleFormatBytes(eSampleFormat format) {
     switch (format) {
-        case kSampleFormatU8:
-            return sizeof(uint8_t);
-        case kSampleFormatS16:
-            return sizeof(int16_t);
-        case kSampleFormatS32:
-            return sizeof(int32_t);
-        case kSampleFormatFLT:
-            return sizeof(float);
-        case kSampleFormatDBL:
-            return sizeof(double);
-        case kSampleFormatUnknown:
-            return 0;
-        default:
-            break;
+        case kSampleFormatU8:       return sizeof(uint8_t);
+        case kSampleFormatS16:      return sizeof(int16_t);
+        case kSampleFormatS32:      return sizeof(int32_t);
+        case kSampleFormatFLT:      return sizeof(float);
+        case kSampleFormatDBL:      return sizeof(double);
+        case kSampleFormatUnknown:  return 0;
+        default:                    break;
     }
     FATAL("FIXME");
     return 0;
@@ -173,60 +247,6 @@ sp<MediaOut> MediaOut::Create(eCodecType type) {
     }
 }
 
-struct PixelFormatDesc {
-    ePixelFormat    format;
-    const char *    desc;
-    const size_t    n_planes;
-    const float     n_size[MEDIA_FRAME_NB_PLANES];
-};
-
-static FORCE_INLINE size_t GetPixelSpaceSize(const PixelFormatDesc * desc, int32_t width, int32_t height) {
-    size_t total = 0;
-    for (size_t i = 0; i < desc->n_planes; ++i) {
-        total += desc->n_size[i] * width * height;
-    }
-    return total;
-}
-
-static PixelFormatDesc s_yuv[] = {
-    {   // kPixelFormatUnknown
-        .format     = kPixelFormatUnknown,
-        .desc       = "unknown",
-        .n_planes   = 0,
-    },
-    {   // kPixelFormatYUV420P
-        .format     = kPixelFormatYUV420P,
-        .desc       = "planar yuv 4:2:0, 3 planes Y/U/V",
-        .n_planes   = 3,
-        .n_size     = { 1, 0.25, 0.25 },
-    },  // kPixelFormatYUV422P
-    {
-        .format     = kPixelFormatYUV422P,
-        .desc       = "planar yuv 4:2:2, 3 planes Y/U/V",
-        .n_planes   = 3,
-        .n_size     = { 1, 0.5, 0.5 },
-    },
-    {   // kPixelFormatYUV444P
-        .format     = kPixelFormatYUV444P,
-        .desc       = "planar yuv 4:4:4, 3 planes Y/U/V",
-        .n_planes   = 3,
-        .n_size     = { 1, 1, 1 },
-    },
-    {   // kPixelFormatNV12
-        .format     = kPixelFormatNV12,
-        .desc       = "packed yuv 4:2:0, 2 planes Y/(UV)",
-        .n_planes   = 2,
-        .n_size     = { 1, 0.5 }
-    },
-    {   // kPixelFormatNV21
-        .format     = kPixelFormatNV21,
-        .desc       = "packed yuv 4:2:0, 2 planes Y/(VU)",
-        .n_planes   = 2,
-        .n_size     = { 1, 0.5 }
-    }
-};
-#define NELEM(x)    (sizeof(x) / sizeof(x[0]))
-
 MediaFrame::MediaFrame() : pts(kTimeInvalid), duration(kTimeInvalid) {
     for (size_t i = 0; i < MEDIA_FRAME_NB_PLANES; ++i) {
         planes[i].data = NULL;
@@ -236,44 +256,40 @@ MediaFrame::MediaFrame() : pts(kTimeInvalid), duration(kTimeInvalid) {
     opaque = NULL;
 }
 
-struct DefaultMediaFrame : public MediaFrame {
+struct _MediaFrame : public MediaFrame {
     // one continues buffer for all planes
     sp<Buffer> buffer;
-    
-    FORCE_INLINE DefaultMediaFrame(size_t n) : MediaFrame(), buffer(new Buffer(n)) { }
 };
 
-sp<MediaFrame> MediaFrameCreate(ePixelFormat format, int32_t w, int32_t h) {
-    sp<DefaultMediaFrame> frame;
-    const size_t size = w * h;
-
-    if (format > kPixelFormatUnknown && format < kPixelFormatYUYV422) {
-        CHECK_LT(format, NELEM(s_yuv));
-        const PixelFormatDesc *desc = &s_yuv[format];
-        CHECK_TRUE(format == desc->format);
-        frame = new DefaultMediaFrame(GetPixelSpaceSize(desc, w, h));
-        
-        uint8_t * next = (uint8_t*)frame->buffer->data();
-        for (size_t i = 0; i < desc->n_planes; ++i) {
-            frame->planes[i].size   = size * desc->n_size[i];
-            frame->planes[i].data   = next;
-            next += frame->planes[i].size;
-        }
-    } else {
-        FATAL("FIXME");
-    }
-    frame->v.format     = format;
-    frame->v.width      = w;
-    frame->v.height     = h;
-    frame->v.rect.x     = 0;
-    frame->v.rect.y     = 0;
-    frame->v.rect.w     = w;
-    frame->v.rect.h     = h;
-    return frame;
+sp<MediaFrame> MediaFrameCreate(const ImageFormat& image) {
+    const size_t bytes = GetImageFormatBytes(&image);
+    Object<Buffer> buffer = new Buffer(bytes);
+    return MediaFrameCreate(image, buffer);
 }
 
-sp<MediaFrame> MediaFrameCreate(const ImageFormat& image) {
-    return MediaFrameCreate(image.format, image.width, image.height);
+sp<MediaFrame> MediaFrameCreate(const ImageFormat& image, const sp<Buffer>& buffer) {
+    const size_t bytes = GetImageFormatBytes(&image);
+    if (buffer->capacity() < bytes) return NULL;
+    
+    Object<_MediaFrame> frame = new _MediaFrame;
+    frame->buffer = buffer;
+    
+    if (GetPixelFormatIsPlanar(image.format)) {
+        uint8_t * next = (uint8_t*)frame->buffer->data();
+        for (size_t i = 0; i < GetPixelFormatPlanes(image.format); ++i) {
+            const size_t bpp = GetPixelFormatPlaneBPP(image.format, i);
+            const size_t bytes = (image.width * image.height * bpp) / 8;
+            frame->planes[i].data   = next;
+            frame->planes[i].size   = bytes;
+            next += bytes;
+        }
+    } else {
+        frame->planes[0].data   = (uint8_t*)frame->buffer->data();
+        frame->planes[0].size   = bytes;
+    }
+    
+    frame->v    = image;
+    return frame;
 }
 
 String GetAudioFormatString(const AudioFormat& a) {
@@ -287,7 +303,8 @@ String GetAudioFormatString(const AudioFormat& a) {
 sp<MediaFrame> MediaFrameCreate(const AudioFormat& a) {
     const size_t bytes = GetSampleFormatBytes(a.format);
     const size_t total = bytes * a.channels * a.samples;
-    sp<DefaultMediaFrame> frame = new DefaultMediaFrame(total);
+    sp<_MediaFrame> frame = new _MediaFrame;
+    frame->buffer = new Buffer(total);
     
     uint8_t * next = (uint8_t*)frame->buffer->data();
     for (size_t i = 0; i < a.channels; ++i) {
@@ -352,10 +369,10 @@ uint32_t get_libyuv_pixel_format(ePixelFormat a) {
 
 sp<MediaFrame> ColorConvertor::convert(const sp<MediaFrame>& input) {
     if (input->v.format == mFormat) return input;
-
-    sp<MediaFrame> out = MediaFrameCreate(mFormat, input->v.width, input->v.height);
-    out->v              = input->v;
-    out->v.format       = mFormat;
+    
+    ImageFormat format = input->v;
+    format.format = mFormat;
+    sp<MediaFrame> out  = MediaFrameCreate(format);
     out->pts            = input->pts;
     out->duration       = input->duration;
 

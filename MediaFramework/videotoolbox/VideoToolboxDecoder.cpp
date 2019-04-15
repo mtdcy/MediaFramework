@@ -511,9 +511,11 @@ sp<MediaFrame> readVideoToolboxFrame(CVPixelBufferRef pixbuf) {
     DEBUGV("CVPixelBufferGetBytesPerRow %zu", CVPixelBufferGetBytesPerRow(pixbuf));
 
     if (CVPixelBufferIsPlanar(pixbuf)) {
-        frame = MediaFrameCreate(get_pix_format(CVPixelBufferGetPixelFormatType(pixbuf)),
-                CVPixelBufferGetBytesPerRowOfPlane(pixbuf, 0),
-                CVPixelBufferGetHeight(pixbuf));
+        ImageFormat format;
+        format.format = get_pix_format(CVPixelBufferGetPixelFormatType(pixbuf));
+        format.width = CVPixelBufferGetBytesPerRowOfPlane(pixbuf, 0);
+        format.height = CVPixelBufferGetHeight(pixbuf);
+        frame = MediaFrameCreate(format);
         DEBUGV("CVPixelBufferGetWidth %zu", CVPixelBufferGetWidth(pixbuf));
         DEBUGV("CVPixelBufferGetHeight %zu", CVPixelBufferGetHeight(pixbuf));
 
@@ -538,9 +540,11 @@ sp<MediaFrame> readVideoToolboxFrame(CVPixelBufferRef pixbuf) {
         }
     } else {
         // FIXME: is this right
-        frame = MediaFrameCreate(get_pix_format(CVPixelBufferGetPixelFormatType(pixbuf)),
-                CVPixelBufferGetBytesPerRow(pixbuf),
-                CVPixelBufferGetHeight(pixbuf));
+        ImageFormat format;
+        format.format = get_pix_format(CVPixelBufferGetPixelFormatType(pixbuf));
+        format.width = CVPixelBufferGetBytesPerRow(pixbuf);
+        format.height = CVPixelBufferGetHeight(pixbuf);
+        frame = MediaFrameCreate(format);
         CHECK_LE(CVPixelBufferGetBytesPerRow(pixbuf) * CVPixelBufferGetHeight(pixbuf), frame->planes[0].size);
         frame->planes[0].size = CVPixelBufferGetBytesPerRow(pixbuf) * CVPixelBufferGetHeight(pixbuf);
         memcpy(frame->planes[0].data,
