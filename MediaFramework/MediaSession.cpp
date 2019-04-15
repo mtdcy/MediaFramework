@@ -48,12 +48,6 @@
 #define MAX_COUNT (16)
 #define REFRESH_RATE (10000LL)    // 10ms
 
-enum {
-    INDEX0,
-    INDEX1,
-    N_INDEX
-};
-
 // media session <= control session
 //  packet ready event
 //          v
@@ -68,6 +62,44 @@ enum {
 //                  <= looper(external)
 
 __USING_NAMESPACE_MPX
+
+struct MediaFrameTunnel : public MediaFrame {
+    sp<MediaPacket>     mPacket;
+    MediaFrameTunnel(const sp<MediaPacket>& packet) : MediaFrame(), mPacket(packet) {
+        pts                 = packet->pts;
+        duration            = kTimeInvalid;
+        planes[0].data      = packet->data;
+        planes[0].size      = packet->size;
+        // FIXME
+    }
+};
+
+struct OnPacketReadyTunnel : public PacketReadyEvent {
+    sp<FrameReadyEvent>     mFrameReadyEvent;
+    OnPacketReadyTunnel(const sp<FrameReadyEvent>& event) :
+    PacketReadyEvent(), mFrameReadyEvent(event) { }
+    virtual void onEvent(const sp<MediaPacket>& packet) {
+        mFrameReadyEvent->fire(new MediaFrameTunnel(packet));
+    }
+};
+
+struct OnFrameRequestTunnel : public FrameRequestEvent {
+    sp<PacketRequestEvent>      mPacketRequestEvent;
+    OnFrameRequestTunnel(const sp<PacketRequestEvent>& event) :
+    FrameRequestEvent(), mPacketRequestEvent(event) { }
+    
+    virtual void onEvent(const FrameRequest& request) {
+        PacketRequest packetRequest;
+        packetRequest.event     = new OnPacketReadyTunnel(request.event);
+        packetRequest.mode      = kModeReadNext;
+        if (request.ts != kTimeInvalid) {
+            packetRequest.ts    = request.ts;
+            packetRequest.mode  = kModeReadClosestSync;
+        }
+        // request packet
+        mPacketRequestEvent->fire(packetRequest);
+    }
+};
 
 struct Decoder : public SharedObject {
     // external static context
@@ -168,7 +200,7 @@ struct Decoder : public SharedObject {
         const int mGeneration;
         OnPacketReady(int gen) : PacketReadyEvent(String::format("OnPacketReady %d", gen), Looper::Current()), mGeneration(gen) { }
         virtual void onEvent(const sp<MediaPacket>& packet) {
-            sp<Decoder> decoder = Looper::Current()->user(INDEX0);
+            sp<Decoder> decoder = Looper::Current()->user(0);
             decoder->onPacketReady(packet, mGeneration);
         }
     };
@@ -322,6 +354,16 @@ struct Decoder : public SharedObject {
     }
 };
 
+// request frame from decoder
+struct OnFrameRequest : public FrameRequestEvent {
+    OnFrameRequest(const sp<Looper>& looper) : FrameRequestEvent(looper) { }
+    
+    virtual void onEvent(const FrameRequest& request) {
+        sp<Decoder> decoder = Looper::Current()->user(0);
+        decoder->onRequestFrame(request);
+    }
+};
+
 enum eRenderState {
     kRenderInitialized,
     kRenderReady,
@@ -336,6 +378,7 @@ struct Renderer : public SharedObject {
     eCodecFormat            mID;
     sp<SessionInfoEvent>    mInfoEvent;
     // internal static context
+    sp<Looper>              mDecoder;
     sp<FrameReadyEvent>     mFrameReadyEvent;
     sp<MediaFrameEvent>     mMediaFrameEvent;
     sp<MediaOut>            mOut;
@@ -359,13 +402,10 @@ struct Renderer : public SharedObject {
 
     bool valid() const { return mOut != NULL || mMediaFrameEvent != NULL; }
 
-    Renderer(eCodecFormat id,
-            const sp<Message>& format,
-            const sp<Message>& options,
-            const sp<FrameRequestEvent>& fre) :
+    Renderer(const sp<Message>& format, const sp<Message>& options) :
         SharedObject(),
         // external static context
-        mFrameRequestEvent(fre), mID(id), mInfoEvent(NULL),
+        mFrameRequestEvent(NULL), mID(kCodecFormatUnknown), mInfoEvent(NULL),
         // internal static context
         mFrameReadyEvent(NULL),
         mOut(NULL), mColorConvertor(NULL), mClock(NULL), mLatency(0),
@@ -381,28 +421,48 @@ struct Renderer : public SharedObject {
         if (options->contains("SessionInfoEvent")) {
             mInfoEvent = options->findObject("SessionInfoEvent");
         }
-
+        
         if (options->contains("Clock")) {
             mClock = options->findObject("Clock");
         }
-
-        // setup out context
+        
         CHECK_TRUE(format->contains(kKeyFormat));
-
+        mID = (eCodecFormat)format->findInt32(kKeyFormat);
         eCodecType type = GetCodecType(mID);
 
-        INFO("output format %s", format->string().c_str());
+        sp<Message> raw;
+        if (1 /* FIXME */) {
+            sp<Decoder> decoder = new Decoder(format, options);
+            if (decoder->valid() == false) return;
+            
+            mDecoder = Looper::Create(String::format("d.%zu", mID));
+            mDecoder->loop();
+            mDecoder->bind(decoder->RetainObject());
+            mFrameRequestEvent = new OnFrameRequest(mDecoder);
+
+            raw = decoder->mCodec->formats();
+        } else {
+            CHECK_TRUE(options->contains("PacketRequestEvent"));
+            sp<PacketRequestEvent> pre = options->findObject("PacketRequestEvent");
+            mFrameRequestEvent = new OnFrameRequestTunnel(pre);
+            raw = format;
+        }
+        
+        // setup out context
+        CHECK_TRUE(raw->contains(kKeyFormat));
+        
+        INFO("output format %s", raw->string().c_str());
         if (options->contains("MediaFrameEvent")) {
             mMediaFrameEvent = options->findObject("MediaFrameEvent");
         } else {
             mOut = MediaOut::Create(type);
-            if (mOut->prepare(format, options) != kMediaNoError) {
+            if (mOut->prepare(raw, options) != kMediaNoError) {
                 ERROR("track %zu: create out failed", mID);
                 return;
             }
             
             if (type == kCodecTypeVideo) {
-                ePixelFormat pixel = (ePixelFormat)format->findInt32(kKeyFormat);
+                ePixelFormat pixel = (ePixelFormat)raw->findInt32(kKeyFormat);
                 ePixelFormat accpeted = (ePixelFormat)mOut->formats()->findInt32(kKeyFormat);// color convert
                 if (accpeted != pixel) {
                     mColorConvertor = new ColorConvertor(accpeted);
@@ -446,7 +506,7 @@ struct Renderer : public SharedObject {
         const int mGeneration;
         OnFrameReady(int gen) : mGeneration(gen) { }
         virtual void onEvent(const sp<MediaFrame>& frame) {
-            sp<Renderer> renderer = Looper::Current()->user(INDEX1);
+            sp<Renderer> renderer = Looper::Current()->user(0);
             renderer->onFrameReady(frame, mGeneration);
         }
     };
@@ -570,7 +630,7 @@ struct Renderer : public SharedObject {
     struct PresentRunnable : public Runnable {
         PresentRunnable() : Runnable() { }
         virtual void run() {
-            sp<Renderer> renderer = Looper::Current()->user(INDEX1);
+            sp<Renderer> renderer = Looper::Current()->user(0);
             renderer->onRender();
         }
     };
@@ -709,60 +769,12 @@ struct Renderer : public SharedObject {
     }
 };
 
-// request frame from decoder
-struct OnFrameRequest : public FrameRequestEvent {
-    OnFrameRequest(const sp<Looper>& looper) : FrameRequestEvent(looper) { }
-    
-    virtual void onEvent(const FrameRequest& request) {
-        sp<Decoder> decoder = Looper::Current()->user(INDEX0);
-        decoder->onRequestFrame(request);
-    }
-};
-
-struct MediaFrameTunnel : public MediaFrame {
-    sp<MediaPacket>     mPacket;
-    MediaFrameTunnel(const sp<MediaPacket>& packet) : MediaFrame(), mPacket(packet) {
-        pts                 = packet->pts;
-        duration            = kTimeInvalid;
-        planes[0].data      = packet->data;
-        planes[0].size      = packet->size;
-        // FIXME
-    }
-};
-
-struct OnPacketReadyTunnel : public PacketReadyEvent {
-    sp<FrameReadyEvent>     mFrameReadyEvent;
-    OnPacketReadyTunnel(const sp<FrameReadyEvent>& event) :
-        PacketReadyEvent(), mFrameReadyEvent(event) { }
-    virtual void onEvent(const sp<MediaPacket>& packet) {
-        mFrameReadyEvent->fire(new MediaFrameTunnel(packet));
-    }
-};
-
-struct OnFrameRequestTunnel : public FrameRequestEvent {
-    sp<PacketRequestEvent>      mPacketRequestEvent;
-    OnFrameRequestTunnel(const sp<PacketRequestEvent>& event) :
-        FrameRequestEvent(), mPacketRequestEvent(event) { }
-
-    virtual void onEvent(const FrameRequest& request) {
-        PacketRequest packetRequest;
-        packetRequest.event     = new OnPacketReadyTunnel(request.event);
-        packetRequest.mode      = kModeReadNext;
-        if (request.ts != kTimeInvalid) {
-            packetRequest.ts    = request.ts;
-            packetRequest.mode  = kModeReadClosestSync;
-        }
-        // request packet
-        mPacketRequestEvent->fire(packetRequest);
-    }
-};
-
 struct PrepareRunnable : public Runnable {
     sp<Message>     mOptions;
     PrepareRunnable(const sp<Message>& options) : mOptions(options) { }
     virtual void run() {
         int64_t us = mOptions->findInt64("time");
-        sp<Renderer> renderer = Looper::Current()->user(INDEX1);
+        sp<Renderer> renderer = Looper::Current()->user(0);
         renderer->onPrepareRenderer(us);
     }
 };
@@ -770,7 +782,7 @@ struct PrepareRunnable : public Runnable {
 struct FlushRunnable : public Runnable {
     FlushRunnable() : Runnable() { }
     virtual void run() {
-        sp<Renderer> renderer = Looper::Current()->user(INDEX1);
+        sp<Renderer> renderer = Looper::Current()->user(0);
         renderer->onFlushRenderer();
     }
 };
@@ -780,7 +792,7 @@ struct OnClockEvent : public ClockEvent {
     OnClockEvent(const sp<Looper>& lp) : ClockEvent(lp) { }
 
     virtual void onEvent(const eClockState& cs) {
-        sp<Renderer> renderer = Looper::Current()->user(INDEX1);
+        sp<Renderer> renderer = Looper::Current()->user(0);
         INFO("clock state => %d", cs);
         switch (cs) {
             case kClockStateTicking:
@@ -799,70 +811,38 @@ struct OnClockEvent : public ClockEvent {
 };
 
 struct AVSession : public IMediaSession {
-    Vector<sp<Looper> >     mLoopers;
+    sp<Looper>  mLooper;
 
-    bool valid() const { return mLoopers.size(); }
+    bool valid() const { return mLooper != NULL; }
 
     AVSession(const sp<Message>& format, const sp<Message>& options) : IMediaSession() {
-        CHECK_TRUE(format->contains(kKeyFormat));
-        eCodecFormat codec = (eCodecFormat)format->findInt32(kKeyFormat);
-        eCodecType type = GetCodecType(codec);
-
-        sp<Decoder> decoder = new Decoder(format, options);
-        if (decoder->valid() == false) return;
-
-        mLoopers.push(Looper::Create(String::format("d.%#x", codec)));
-
-        sp<FrameRequestEvent> fre = new OnFrameRequest(mLoopers[INDEX0]);
-
-        sp<Renderer> renderer = new Renderer(codec, decoder->mCodec->formats(), options, fre);
+        sp<Renderer> renderer = new Renderer(format, options);
         if (renderer->valid() == false) {
-            mLoopers.clear();
             return;
         }
-
-        mLoopers[INDEX0]->bind(INDEX0, decoder->RetainObject());
-        if (type == kCodecTypeVideo) {
-            mLoopers[INDEX0]->bind(INDEX1, NULL);
-
-            mLoopers.push(Looper::Create(String::format("r.%#x", codec)));
-
-            mLoopers[INDEX1]->bind(INDEX0, NULL);
-            mLoopers[INDEX1]->bind(INDEX1, renderer->RetainObject());
-        } else {
-            mLoopers[INDEX0]->bind(INDEX1, renderer->RetainObject());
-        }
+        
+        mLooper = Looper::Create(String::format("%#x", renderer->mID));
+        mLooper->loop();
+        mLooper->bind(renderer->RetainObject());
 
         if (renderer->mClock != NULL)
-            renderer->mClock->setListener(new OnClockEvent(mLoopers.back()));
-
-        for (size_t i = 0; i < mLoopers.size(); ++i) {
-            mLoopers[i]->loop();
-            // enable only for debug
-            //mLoopers[i]->profile();
-        }
+            renderer->mClock->setListener(new OnClockEvent(mLooper));
     }
     
-    virtual ~AVSession() { CHECK_TRUE(mLoopers.empty()); }
+    virtual ~AVSession() { CHECK_TRUE(mLooper == NULL); }
 
     virtual void prepare(const sp<Message>& options) {
-        mLoopers.back()->post(new PrepareRunnable(options));
+        mLooper->post(new PrepareRunnable(options));
     }
 
     virtual void flush() {
-        mLoopers.back()->post(new FlushRunnable);
+        mLooper->post(new FlushRunnable);
     }
     
     virtual void release() {
-        for (size_t i = 0; i < mLoopers.size(); ++i) {
-            mLoopers[i]->terminate(true);
-            for (size_t j = INDEX0; j < N_INDEX; ++j) {
-                if (mLoopers[i]->user(j) != NULL) {
-                    static_cast<SharedObject *>(mLoopers[i]->user(j))->ReleaseObject();
-                }
-            }
-        }
-        mLoopers.clear();
+        mLooper->terminate(true);
+        static_cast<SharedObject *>(mLooper->user(0))->ReleaseObject();
+        mLooper.clear();
         INFO("release av session");
     }
 };
