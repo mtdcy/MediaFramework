@@ -83,6 +83,9 @@ struct MPContext : public SharedObject {
     // external static context
     sp<PlayerInfoEvent>     mInfoEvent;
     sp<Message>             mInfo;
+    
+    // internal static context
+    sp<Runnable>            mDeferStart;
 
     // mutable context
     HashTable<size_t, sp<SessionContext> > mSessions;
@@ -97,6 +100,7 @@ struct MPContext : public SharedObject {
         // external static context
         mInfoEvent(NULL),
         // internal static context
+        mDeferStart(new DeferStart),
         // mutable context
         mNextId(0),mHasAudio(false),
         // clock
@@ -273,6 +277,8 @@ struct MPContext : public SharedObject {
     };
     
     MediaError prepare(int64_t us) {
+        Looper::Current()->remove(mDeferStart);
+        
         // -> ready by prepare
         bool paused = mClock->isPaused();
         if (!paused) {
@@ -294,7 +300,7 @@ struct MPContext : public SharedObject {
         }
         
         if (!paused) {
-            Looper::Current()->post(new DeferStart, kDeferTimeUs);
+            Looper::Current()->post(mDeferStart, kDeferTimeUs);
         }
         
         return kMediaNoError;
@@ -303,7 +309,7 @@ struct MPContext : public SharedObject {
     MediaError start() {
         if (!mReadyMask.empty()) {
             // add limit here
-            Looper::Current()->post(new DeferStart, kDeferTimeUs);
+            Looper::Current()->post(mDeferStart, kDeferTimeUs);
         }
         
         mClock->start();
