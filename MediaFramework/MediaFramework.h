@@ -54,6 +54,8 @@ API_EXPORT MediaFrameRef        AudioFrameCreate(const AudioFormat *);
 API_EXPORT MediaFrameRef        ImageFrameCreate(const ImageFormat *);
 #define MediaFrameRelease(x)    SharedObjectRelease((SharedObjectRef)x)
 
+API_EXPORT MediaFrameRef        ImageFrameGenerate(const ImageFormat *, BufferRef);
+
 API_EXPORT uint8_t *            MediaFrameGetPlaneData(MediaFrameRef, size_t);
 API_EXPORT size_t               MediaFrameGetPlaneSize(MediaFrameRef, size_t);
 

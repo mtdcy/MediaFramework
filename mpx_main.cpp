@@ -73,15 +73,23 @@ struct MPStatus : public StatusEvent {
     virtual String string() const { return "MPStatus"; }
 };
 
-struct OnPlayerInfo : public InfomationEvent {
-    virtual void onEvent(const eInfoType& info) {
-        // TODO
-    }
-};
-
 static sp<MediaOut> g_out;
 static ImageFormat g_format;
 static sp<Clock> g_clock;
+
+struct OnPlayerInfo : public InfomationEvent {
+    virtual void onEvent(const eInfoType& info) {
+        switch (info) {
+            case kInfoPlayerInitialized:
+                g_clock = mp->clock();
+                break;
+                
+            default:
+                break;
+        }
+    }
+};
+
 struct OnFrameUpdate : public MediaFrameEvent {
     OnFrameUpdate() : MediaFrameEvent(Looper::Main()) { }
     
@@ -96,10 +104,11 @@ struct OnFrameUpdate : public MediaFrameEvent {
             
             // setup local context
             g_out = MediaOut::Create(kCodecTypeVideo);
-            Message format, options;
-            format.setInt32(kKeyFormat, g_format.format);
-            format.setInt32(kKeyWidth,  g_format.width);
-            format.setInt32(kKeyHeight, g_format.height);
+            sp<Message> format = new Message;
+            sp<Message> options = new Message;
+            format->setInt32(kKeyFormat, g_format.format);
+            format->setInt32(kKeyWidth,  g_format.width);
+            format->setInt32(kKeyHeight, g_format.height);
             
             CHECK_TRUE(g_out->prepare(format, options) == kMediaNoError);
         }
@@ -233,20 +242,19 @@ int main (int argc, char **argv)
         INFO("glsl version: %s", glGetString(GL_SHADING_LANGUAGE_VERSION));
         
         // create the mp
-        Message options;
-#ifdef MAIN_THREAD_RENDER
-        options.setObject("MediaFrameEvent", new OnFrameUpdate);
-#endif
-        options.setObject("InfomationEvent", new OnPlayerInfo);
-        options.setObject("StatusEvent", new MPStatus);
-        mp = IMediaPlayer::Create(options);
-        g_clock = mp->clock();
+        mp = IMediaPlayer::Create();
         
         // add media to the mp
-        Message media;
-        media.setString("url", url);
-        media.setInt32(kKeyMode, PREFER_MODE);
-        mp->init(media);
+        sp<Message> media = new Message;
+        media->setString("url", url);
+        media->setInt32(kKeyMode, PREFER_MODE);
+        sp<Message> options = new Message;
+#ifdef MAIN_THREAD_RENDER
+        options->setObject("MediaFrameEvent", new OnFrameUpdate);
+#endif
+        options->setObject("InfomationEvent", new OnPlayerInfo);
+        options->setObject("StatusEvent", new MPStatus);
+        mp->init(media, options);
         
         // prepare the mp
         mp->prepare(0);

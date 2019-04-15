@@ -48,7 +48,7 @@ struct API_EXPORT AudioResampler : public SharedObject {
 
     static Object<AudioResampler> Create(const AudioFormat& in,
                                          const AudioFormat& out,
-                                         const Message& options);
+                                         const sp<Message>& options);
 
     virtual Object<MediaFrame>  resample(const Object<MediaFrame>& input) = 0;
 

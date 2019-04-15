@@ -555,7 +555,7 @@ struct Mp3File : public MediaExtractor {
     // 1. http://gabriel.mp3-tech.org/mp3infotag.html#versionstring
     // 2. http://www.codeproject.com/Articles/8295/MPEG-Audio-Frame-Header
     // 3. http://mpgedit.org/mpgedit/mpeg_format/mpeghdr.htm
-    virtual MediaError init(sp<Content>& pipe, const Message& options) {
+    virtual MediaError init(sp<Content>& pipe, const sp<Message>& options) {
         CHECK_TRUE(pipe != 0);
 
         sp<Message> outputFormat    = new Message;
@@ -572,12 +572,12 @@ struct Mp3File : public MediaExtractor {
                     head->write(*data);
                     ID3v2 id3;
                     if (id3.parse(*head) == OK) {
-                        const Message& values = id3.values();
+                        const sp<Message>& values = id3.values();
                         DEBUG("id3v2 found: %s", values.string().c_str());
 #if 1
                         // information for gapless playback
                         // http://yabb.jriver.com/interact/index.php?topic=65076.msg436101#msg436101
-                        const char *iTunSMPB = values.findString("iTunSMPB");
+                        const char *iTunSMPB = values->findString("iTunSMPB");
                         if (iTunSMPB != 0) {
                             int32_t encodeDelay, encodePadding;
                             int32_t originalSampleCount;
@@ -590,7 +590,7 @@ struct Mp3File : public MediaExtractor {
                             }
                         }
 #endif
-                        outputFormat->set<Message>(Media::ID3v2, values);
+                        outputFormat->setObject(Media::ID3v2, values);
                         mFirstFrameOffset = pipe->tell();
                     }
                 }
@@ -604,7 +604,7 @@ struct Mp3File : public MediaExtractor {
         if (tail != NULL && tail->size() == ID3v1::kLength) {
             ID3v1 id3;
             if (id3.parse(*tail) == OK) {
-                outputFormat->set<Message>(Media::ID3v1, id3.values());
+                outputFormat->setObject(Media::ID3v1, id3.values());
                 totalLength -= ID3v1::kLength;
             }
         }
@@ -711,19 +711,19 @@ struct Mp3File : public MediaExtractor {
 
     virtual ~Mp3File() { }
 
-    virtual Message formats() const {
-        Message info;
-        info.setInt32(kKeyFormat, kFileFormatMP3);
-        info.setInt64(kKeyDuration, mDuration.useconds());
+    virtual sp<Message> formats() const {
+        sp<Message> info = new Message;
+        info->setInt32(kKeyFormat, kFileFormatMP3);
+        info->setInt64(kKeyDuration, mDuration.useconds());
 
-        Message trak;
-        trak.setInt32(kKeyFormat, kAudioCodecFormatMP3);
+        sp<Message> trak = new Message;
+        trak->setInt32(kKeyFormat, kAudioCodecFormatMP3);
         // FIXME:
         //ast->setInt32(Media::Bitrate, mBitRate);
-        trak.setInt32(kKeyChannels, mHeader.numChannels);
-        trak.setInt32(kKeySampleRate, mHeader.sampleRate);
+        trak->setInt32(kKeyChannels, mHeader.numChannels);
+        trak->setInt32(kKeySampleRate, mHeader.sampleRate);
 
-        info.set<Message>("track-0", trak);
+        info->setObject("track-0", trak);
         return info;
     }
 

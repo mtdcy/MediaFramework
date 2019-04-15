@@ -403,30 +403,30 @@ struct Mp4File : public MediaExtractor {
     
     virtual String string() const { return "Mp4File"; }
 
-    virtual Message formats() const {
-        Message info;
-        info.setInt32(kKeyFormat, kFileFormatMP4);
-        info.setInt64(kKeyDuration, mDuration.useconds());
-        info.setInt32(kKeyCount, mTracks.size());
+    virtual sp<Message> formats() const {
+        sp<Message> info = new Message;
+        info->setInt32(kKeyFormat, kFileFormatMP4);
+        info->setInt64(kKeyDuration, mDuration.useconds());
+        info->setInt32(kKeyCount, mTracks.size());
 
         for (size_t i = 0; i < mTracks.size(); ++i) {
             const sp<Mp4Track>& trak = mTracks[i];
 
-            Message trakInfo;
-            trakInfo.setInt32(kKeyFormat, trak->codec);
-            trakInfo.setInt64(kKeyDuration, trak->duration.useconds());
+            sp<Message> trakInfo = new Message;
+            trakInfo->setInt32(kKeyFormat, trak->codec);
+            trakInfo->setInt64(kKeyDuration, trak->duration.useconds());
 
             eCodecType type = GetCodecType(trak->codec);
             if (type == kCodecTypeAudio) {
-                trakInfo.setInt32(kKeySampleRate, trak->audio.sampleRate);
-                trakInfo.setInt32(kKeyChannels, trak->audio.channelCount);
+                trakInfo->setInt32(kKeySampleRate, trak->audio.sampleRate);
+                trakInfo->setInt32(kKeyChannels, trak->audio.channelCount);
             } else if (type == kCodecTypeVideo) {
-                trakInfo.setInt32(kKeyWidth, trak->video.width);
-                trakInfo.setInt32(kKeyHeight, trak->video.height);
+                trakInfo->setInt32(kKeyWidth, trak->video.width);
+                trakInfo->setInt32(kKeyHeight, trak->video.height);
             }
 
             if (trak->esds != NULL) {
-                trakInfo.setObject(trak->esds->name, trak->esds->data);
+                trakInfo->setObject(trak->esds->name, trak->esds->data);
             }
 
 #if 0
@@ -460,7 +460,7 @@ struct Mp4File : public MediaExtractor {
 #endif
 
             String name = String::format("track-%zu", i);
-            info.set<Message>(name, trakInfo);
+            info->setObject(name, trakInfo);
         }
 
 #if 0
@@ -478,7 +478,7 @@ struct Mp4File : public MediaExtractor {
         return info;
     }
 
-    virtual MediaError init(sp<Content>& pipe, const Message& options) {
+    virtual MediaError init(sp<Content>& pipe, const sp<Message>& options) {
         CHECK_TRUE(pipe != NULL);
         pipe->reset();
 

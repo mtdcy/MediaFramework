@@ -382,6 +382,7 @@ struct API_EXPORT MediaFrame : public SharedObject {
  */
 API_EXPORT sp<MediaFrame>   MediaFrameCreate(ePixelFormat format, int32_t width, int32_t height);
 API_EXPORT sp<MediaFrame>   MediaFrameCreate(const ImageFormat& );
+API_EXPORT sp<MediaFrame>   MediaFrameCreate(const ImageFormat&, const sp<Buffer>& buffer);
 
 /**
  * create a audio frame backend by Buffer
@@ -441,10 +442,10 @@ namespace Tag {
             FORCE_INLINE Parser() { }
             FORCE_INLINE virtual ~Parser() { }
             virtual status_t parse(const Buffer& data) = 0;
-            FORCE_INLINE const Message& values() const { return mValues; }
+            FORCE_INLINE const sp<Message>& values() const { return mValues; }
 
         protected:
-            Message             mValues;
+            sp<Message>     mValues;
     };
 
     class API_EXPORT Writter {

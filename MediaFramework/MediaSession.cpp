@@ -94,7 +94,7 @@ struct Decoder : public SharedObject {
 
     bool valid() const { return mCodec != NULL; }
 
-    Decoder(const Message& format, const Message& options) :
+    Decoder(const sp<Message>& format, const sp<Message>& options) :
         // external static context
         mID(kCodecFormatUnknown),
         mPacketRequestEvent(NULL),
@@ -106,13 +106,13 @@ struct Decoder : public SharedObject {
         // statistics
         mPacketsReceived(0), mPacketsComsumed(0), mFramesDecoded(0)
     {
-        CHECK_TRUE(options.contains("PacketRequestEvent"));
-        mPacketRequestEvent = options.findObject("PacketRequestEvent");
+        CHECK_TRUE(options->contains("PacketRequestEvent"));
+        mPacketRequestEvent = options->findObject("PacketRequestEvent");
 
         // setup decoder...
-        CHECK_TRUE(format.contains(kKeyFormat));
-        mID = (eCodecFormat)format.findInt32(kKeyFormat);
-        eModeType mode = (eModeType)options.findInt32(kKeyMode, kModeTypeDefault);
+        CHECK_TRUE(format->contains(kKeyFormat));
+        mID = (eCodecFormat)format->findInt32(kKeyFormat);
+        eModeType mode = (eModeType)options->findInt32(kKeyMode, kModeTypeDefault);
 
         eCodecType type = GetCodecType(mID);
 
@@ -124,11 +124,11 @@ struct Decoder : public SharedObject {
 
 #if 1
             if (mode != kModeTypeSoftware) {
-                Message options_software = options;
-                options_software.setInt32(kKeyMode, kModeTypeSoftware);
+                sp<Message> soft = options->dup();
+                soft->setInt32(kKeyMode, kModeTypeSoftware);
                 mCodec = MediaDecoder::Create(mID, kModeTypeSoftware);
 
-                if (mCodec->init(format, options_software) != kMediaNoError) {
+                if (mCodec->init(format, soft) != kMediaNoError) {
                     ERROR("track %zu: create software codec failed", mID);
                     mCodec.clear();
                 }
@@ -371,8 +371,8 @@ struct Renderer : public SharedObject {
     bool valid() const { return mOut != NULL || mMediaFrameEvent != NULL; }
 
     Renderer(eCodecFormat id,
-            const Message& format,
-            const Message& options,
+            const sp<Message>& format,
+            const sp<Message>& options,
             const sp<FrameRequestEvent>& fre) :
         SharedObject(),
         // external static context
@@ -392,22 +392,22 @@ struct Renderer : public SharedObject {
         mFramesRenderred(0)
     {
         // setup external context
-        if (options.contains("InfomationEvent")) {
-            mInfomationEvent = options.findObject("InfomationEvent");
+        if (options->contains("InfomationEvent")) {
+            mInfomationEvent = options->findObject("InfomationEvent");
         }
 
-        if (options.contains("Clock")) {
-            mClock = options.findObject("Clock");
+        if (options->contains("Clock")) {
+            mClock = options->findObject("Clock");
         }
 
         // setup out context
-        CHECK_TRUE(format.contains(kKeyFormat));
+        CHECK_TRUE(format->contains(kKeyFormat));
 
         eCodecType type = GetCodecType(mID);
 
-        INFO("output format %s", format.string().c_str());
-        if (options.contains("MediaFrameEvent")) {
-            mMediaFrameEvent = options.findObject("MediaFrameEvent");
+        INFO("output format %s", format->string().c_str());
+        if (options->contains("MediaFrameEvent")) {
+            mMediaFrameEvent = options->findObject("MediaFrameEvent");
         } else {
             mOut = MediaOut::Create(type);
             if (mOut->prepare(format, options) != kMediaNoError) {
@@ -416,13 +416,13 @@ struct Renderer : public SharedObject {
             }
             
             if (type == kCodecTypeVideo) {
-                ePixelFormat pixel = (ePixelFormat)format.findInt32(kKeyFormat);
-                ePixelFormat accpeted = (ePixelFormat)mOut->formats().findInt32(kKeyFormat);// color convert
+                ePixelFormat pixel = (ePixelFormat)format->findInt32(kKeyFormat);
+                ePixelFormat accpeted = (ePixelFormat)mOut->formats()->findInt32(kKeyFormat);// color convert
                 if (accpeted != pixel) {
                     mColorConvertor = new ColorConvertor(accpeted);
                 }
             } else if (type == kCodecTypeAudio) {
-                mLatency = mOut->formats().findInt32(kKeyLatency);
+                mLatency = mOut->formats()->findInt32(kKeyLatency);
             } else {
                 FATAL("FIXME");
             }
@@ -536,11 +536,11 @@ struct Renderer : public SharedObject {
         mLastFrameTime = frame->pts;
     }
 
-    void onPrepareRenderer(const Message& options) {
-        int64_t us = options.findInt64("time");
+    void onPrepareRenderer(const sp<Message>& options) {
+        int64_t us = options->findInt64("time");
         sp<StatusEvent> se;
-        if (options.contains("StatusEvent")) {
-            se = options.findObject("StatusEvent");
+        if (options->contains("StatusEvent")) {
+            se = options->findObject("StatusEvent");
         }
         onPrepareRenderer(MediaTime(us), se);
     }
@@ -730,8 +730,8 @@ struct Renderer : public SharedObject {
         // case 3: frames ready
         else {
             if (mOut != NULL) {
-                Message options;
-                options.setInt32(kKeyPause, 0);
+                sp<Message> options = new Message;
+                options->setInt32(kKeyPause, 0);
                 mOut->configure(options);
             }
 
@@ -744,8 +744,8 @@ struct Renderer : public SharedObject {
         Looper::Current()->remove(mPresentFrame);
 
         if (mOut != NULL) {
-            Message options;
-            options.setInt32(kKeyPause, 1);
+            sp<Message> options = new Message;
+            options->setInt32(kKeyPause, 1);
             mOut->configure(options);
         }
     }
@@ -803,8 +803,8 @@ struct OnFrameRequestTunnel : public FrameRequestEvent {
 };
 
 struct PrepareRunnable : public Runnable {
-    Message             mOptions;
-    PrepareRunnable(const Message& options) : mOptions(options) { }
+    sp<Message>     mOptions;
+    PrepareRunnable(const sp<Message>& options) : mOptions(options) { }
     virtual void run() {
         sp<Renderer> renderer = Looper::Current()->user(INDEX1);
         renderer->onPrepareRenderer(mOptions);
@@ -847,9 +847,9 @@ struct AVSession : public IMediaSession {
 
     bool valid() const { return mLoopers.size(); }
 
-    AVSession(const Message& format, const Message& options) : IMediaSession() {
-        CHECK_TRUE(format.contains(kKeyFormat));
-        eCodecFormat codec = (eCodecFormat)format.findInt32(kKeyFormat);
+    AVSession(const sp<Message>& format, const sp<Message>& options) : IMediaSession() {
+        CHECK_TRUE(format->contains(kKeyFormat));
+        eCodecFormat codec = (eCodecFormat)format->findInt32(kKeyFormat);
         eCodecType type = GetCodecType(codec);
 
         sp<Decoder> decoder = new Decoder(format, options);
@@ -889,7 +889,7 @@ struct AVSession : public IMediaSession {
     
     virtual ~AVSession() { CHECK_TRUE(mLoopers.empty()); }
 
-    virtual void prepare(const Message& options) {
+    virtual void prepare(const sp<Message>& options) {
         mLoopers.back()->post(new PrepareRunnable(options));
     }
 
@@ -912,7 +912,7 @@ struct AVSession : public IMediaSession {
 };
 
 // PacketRequestEvent <- DecodeSession <- FrameRequestEvent <- RenderSession
-sp<IMediaSession> IMediaSession::Create(const Message& format, const Message& options) {
+sp<IMediaSession> IMediaSession::Create(const sp<Message>& format, const sp<Message>& options) {
     sp<AVSession> av = new AVSession(format, options);
     if (av->valid())    return av;
     else                return NULL;

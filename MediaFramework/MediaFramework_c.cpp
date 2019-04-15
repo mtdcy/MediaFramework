@@ -103,16 +103,14 @@ InfoEventRef InfoEventCreate(void (*callback)(eInfoType, void *), void * user) {
 }
 
 MediaPlayerRef MediaPlayerCreate(MessageRef media, MessageRef options) {
-    INFO("media: %s", media->string().c_str());
-    INFO("options: %s", options->string().c_str());
-    Object<IMediaPlayer> mp = IMediaPlayer::Create(*options);
-    mp->init(*media);
+    Object<IMediaPlayer> mp = IMediaPlayer::Create();
+    mp->init(media, options);
     return mp->RetainObject();
 }
 
-MediaClockRef MediaPlayerGetClock(MediaPlayerRef player) {
-    Object<IMediaPlayer> _player = player;
-    Object<Clock> clock = _player->clock();
+MediaClockRef MediaPlayerGetClock(MediaPlayerRef ref) {
+    Object<IMediaPlayer> mp = ref;
+    Object<Clock> clock = mp->clock();
     if (clock == NULL) return NULL;
     else return (MediaClockRef)clock->RetainObject();
 }
@@ -163,9 +161,7 @@ MediaOutRef MediaOutCreate(eCodecType type) {
 
 MediaError MediaOutPrepare(MediaOutRef ref, MessageRef format, MessageRef options) {
     Object<MediaOut> out = ref;
-    Object<Message> _format = format;
-    Object<Message> _options = options;
-    return out->prepare(*_format, *_options);
+    return out->prepare(format, options);
 }
 
 MediaError MediaOutWrite(MediaOutRef ref, MediaFrameRef frame) {

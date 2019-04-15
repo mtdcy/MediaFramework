@@ -63,7 +63,7 @@ struct API_EXPORT MediaOut : public SharedObject {
      * @param options   option and parameter for creating device
      * @return return reference to a new output device
      */
-    virtual MediaError      prepare(const Message& format, const Message& options) = 0;
+    virtual MediaError      prepare(const sp<Message>& format, const sp<Message>& options) = 0;
     /**
      * get status of this output device.
      * @return return OK if everything is OK, otherwise error code
@@ -73,13 +73,13 @@ struct API_EXPORT MediaOut : public SharedObject {
      * get information of this output device
      * @return return message reference of this output device.
      */
-    virtual Message         formats() const = 0;
+    virtual sp<Message>     formats() const = 0;
     /**
      * configure this output device
      * @param options   option and parameter
      * @return return OK on success, otherwise error code.
      */
-    virtual MediaError      configure(const Message& options) = 0;
+    virtual MediaError      configure(const sp<Message>& options) = 0;
     /**
      * push a MediaFrame to this output device.
      * @param input     reference of MediaFrame

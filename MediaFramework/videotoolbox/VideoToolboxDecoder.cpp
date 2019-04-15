@@ -226,7 +226,7 @@ static FORCE_INLINE void OutputCallback(void *decompressionOutputRefCon,
     vtc->mImages.sort();
 }
 
-static FORCE_INLINE CFDictionaryRef setupFormatDescriptionExtension(const Message& formats,
+static FORCE_INLINE CFDictionaryRef setupFormatDescriptionExtension(const sp<Message>& formats,
         CMVideoCodecType cm_codec_type) {
     CFMutableDictionaryRef atoms = CFDictionaryCreateMutable(
             kCFAllocatorDefault,
@@ -236,8 +236,8 @@ static FORCE_INLINE CFDictionaryRef setupFormatDescriptionExtension(const Messag
 
     switch (cm_codec_type) {
         case kCMVideoCodecType_H264:
-            if (formats.contains(kKeyavcC)) {
-                sp<Buffer> avcC = formats.findObject(kKeyavcC);
+            if (formats->contains(kKeyavcC)) {
+                sp<Buffer> avcC = formats->findObject(kKeyavcC);
                 CFDataRef data = CFDataCreate(kCFAllocatorDefault, (const UInt8*)avcC->data(), avcC->size());
                 CFDictionarySetValue(atoms, CFSTR("avcC"), data);
                 CFRelease(data);
@@ -246,8 +246,8 @@ static FORCE_INLINE CFDictionaryRef setupFormatDescriptionExtension(const Messag
             }
             break;
         case kCMVideoCodecType_HEVC:
-            if (formats.contains(kKeyhvcC)) {
-                sp<Buffer> hvcC = formats.findObject(kKeyhvcC);
+            if (formats->contains(kKeyhvcC)) {
+                sp<Buffer> hvcC = formats->findObject(kKeyhvcC);
                 CFDataRef data = CFDataCreate(kCFAllocatorDefault, (const UInt8*)hvcC->data(), hvcC->size());
                 CFDictionarySetValue(atoms, CFSTR("hvcC"), data);
                 CFRelease(data);
@@ -256,8 +256,8 @@ static FORCE_INLINE CFDictionaryRef setupFormatDescriptionExtension(const Messag
             }
             break;
         case kCMVideoCodecType_MPEG4Video:
-            if (formats.contains(kKeyESDS)) {
-                sp<Buffer> esds = formats.findObject(kKeyESDS);
+            if (formats->contains(kKeyESDS)) {
+                sp<Buffer> esds = formats->findObject(kKeyESDS);
                 BitReader br(*esds);
                 MPEG4::ES_Descriptor esd(br);
                 if (esd.valid) {
@@ -328,12 +328,12 @@ static FORCE_INLINE CFDictionaryRef setupImageBufferAttributes(int32_t width, in
 }
 
 // https://github.com/jyavenard/DecodeTest/blob/master/DecodeTest/VTDecoder.mm
-static FORCE_INLINE sp<VTContext> createSession(const Message& formats, const Message& options, MediaError *err) {
+static FORCE_INLINE sp<VTContext> createSession(const sp<Message>& formats, const sp<Message>& options, MediaError *err) {
     sp<VTContext> vtc = new VTContext;
 
-    eCodecFormat codec = (eCodecFormat)formats.findInt32(kKeyFormat);
-    int32_t width = formats.findInt32(kKeyWidth);
-    int32_t height = formats.findInt32(kKeyHeight);
+    eCodecFormat codec = (eCodecFormat)formats->findInt32(kKeyFormat);
+    int32_t width = formats->findInt32(kKeyWidth);
+    int32_t height = formats->findInt32(kKeyHeight);
 
     CMVideoCodecType cm_codec_type = get_cm_codec_type(codec);
     if (cm_codec_type == 0) {
@@ -566,21 +566,21 @@ struct VideoToolboxDecoder : public MediaDecoder {
 
     virtual String string() const { return ""; }
 
-    virtual Message formats() const {
-        Message formats;
-        formats.setInt32(kKeyWidth, mVTContext->width);
-        formats.setInt32(kKeyHeight, mVTContext->height);
-        formats.setInt32(kKeyFormat, mVTContext->pixel);
+    virtual sp<Message> formats() const {
+        sp<Message> info = new Message;
+        info->setInt32(kKeyWidth, mVTContext->width);
+        info->setInt32(kKeyHeight, mVTContext->height);
+        info->setInt32(kKeyFormat, mVTContext->pixel);
         DEBUG(" => %s", formats.string().c_str());
-        return formats;
+        return info;
     }
 
     virtual MediaError configure(const Message& options) {
         return kMediaErrorNotSupported;
     }
 
-    virtual MediaError init(const Message& format, const Message& options) {
-        INFO("create VideoToolbox for %s", format.string().c_str());
+    virtual MediaError init(const sp<Message>& format, const sp<Message>& options) {
+        INFO("create VideoToolbox for %s", format->string().c_str());
 
         DEBUG("VTDecompressionSessionGetTypeID: %#x", VTDecompressionSessionGetTypeID());
 

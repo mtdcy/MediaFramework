@@ -603,12 +603,12 @@ struct GLVideo : public MediaOut {
 
     virtual ~GLVideo() { }
 
-    virtual MediaError prepare(const Message& format, const Message& options) {
-        INFO("gl video => %s %s", format.string().c_str(), options.string().c_str());
+    virtual MediaError prepare(const sp<Message>& format, const sp<Message>& options) {
+        INFO("gl video => %s %s", format->string().c_str(), options->string().c_str());
 
-        int32_t width       = format.findInt32(kKeyWidth);
-        int32_t height      = format.findInt32(kKeyHeight);
-        ePixelFormat pixel  = (ePixelFormat)format.findInt32(kKeyFormat);
+        int32_t width       = format->findInt32(kKeyWidth);
+        int32_t height      = format->findInt32(kKeyHeight);
+        ePixelFormat pixel  = (ePixelFormat)format->findInt32(kKeyFormat);
         
         switch (pixel) {
             case kPixelFormatNV12:
@@ -651,15 +651,15 @@ struct GLVideo : public MediaOut {
         return mGLContext != NULL ? kMediaNoError : kMediaErrorNotInitialied;
     }
 
-    virtual Message formats() const {
-        Message fmt;
-        fmt.setInt32(kKeyWidth, mGLContext->width);
-        fmt.setInt32(kKeyHeight, mGLContext->height);
-        fmt.setInt32(kKeyFormat, mGLContext->format);
-        return fmt;
+    virtual sp<Message> formats() const {
+        sp<Message> info = new Message;
+        info->setInt32(kKeyWidth, mGLContext->width);
+        info->setInt32(kKeyHeight, mGLContext->height);
+        info->setInt32(kKeyFormat, mGLContext->format);
+        return info;
     }
 
-    virtual MediaError configure(const Message &options) {
+    virtual MediaError configure(const sp<Message> &options) {
         return kMediaErrorInvalidOperation;
     }
 

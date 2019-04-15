@@ -97,12 +97,9 @@ struct API_EXPORT IMediaPlayer : public SharedObject {
 
     /**
      * create a player with options
-     * about options:
-     *  "StatusEvent"           - [sp<StatusEvent>]         - optional
-     *  "InfomationEvent"       - [sp<InfomationEvent>]     - optional
      * @param options   option and parameter for player
      */
-    static sp<IMediaPlayer> Create(const Message& options);
+    static sp<IMediaPlayer> Create();
     
     virtual sp<Clock>   clock() const = 0;
     virtual sp<Message> info() const = 0;
@@ -110,44 +107,47 @@ struct API_EXPORT IMediaPlayer : public SharedObject {
     /**
      *
      */
-    virtual eStateType state() const = 0;
+    virtual eStateType  state() const = 0;
 
     /**
      * add a media to player.
-     * about options:
+     * about media:
      *  "url"                   - [String]                  - mandatory, url of the media
      *  "MediaFrameEvent"       - [sp<MediaFrameEvent>]     - optional
      *  "StartTime"             - [double|seconds]          - optional
      *  "EndTime"               - [double|seconds]          - optional
+     * about options:
+     *  "StatusEvent"           - [sp<StatusEvent>]         - optional
+     *  "InfomationEvent"       - [sp<InfomationEvent>]     - optional
      * if MediaOut exists, external renderer will be used.
      * @param media option and parameter for this media
      * @return return OK on success, otherwise error code
      */
-    virtual MediaError init(const Message& media) = 0;
+    virtual MediaError  init(const sp<Message>& media, const sp<Message>& options) = 0;
     /**
      * prepare player after add media
      * @return return OK on success, otherwise error code
      */
-    virtual MediaError prepare(int64_t us) = 0;
+    virtual MediaError  prepare(int64_t us) = 0;
     /**
      * start this player.
      * @return return OK on success, otherwise error code.
      * @note there must be at least one media exists and start success.
      */
-    virtual MediaError start() = 0;
+    virtual MediaError  start() = 0;
     /**
      * pause this player.
      * @return return OK on success, otherwise error code.
      */
-    virtual MediaError pause() = 0;
+    virtual MediaError  pause() = 0;
     /**
      * flush this player
      */
-    virtual MediaError flush() = 0;
+    virtual MediaError  flush() = 0;
     /**
      * release this player
      */
-    virtual MediaError release() = 0;
+    virtual MediaError  release() = 0;
 };
 __END_NAMESPACE_MPX
 #endif

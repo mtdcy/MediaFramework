@@ -214,12 +214,12 @@ struct SDLAudio : public MediaOut {
 
     virtual String string() const { return "SDLAudio"; }
 
-    virtual MediaError prepare(const Message& format, const Message& options) {
+    virtual MediaError prepare(const sp<Message>& format, const sp<Message>& options) {
         AudioFormat a;
         
-        a.format    = (eSampleFormat)format.findInt32(kKeyFormat);
-        a.freq      = format.findInt32(kKeySampleRate);
-        a.channels  = format.findInt32(kKeyChannels);
+        a.format    = (eSampleFormat)format->findInt32(kKeyFormat);
+        a.freq      = format->findInt32(kKeySampleRate);
+        a.channels  = format->findInt32(kKeyChannels);
 #ifdef FORCE_FREQ
         AudioFormat _a  = a;
         _a.freq         = FORCE_FREQ;
@@ -229,7 +229,7 @@ struct SDLAudio : public MediaOut {
         
         mSDL = openDevice(_a);
         if (_a != a) {
-            Message options;
+            sp<Message> options = new Message;
             mResampler = AudioResampler::Create(a, _a, options);
         }
 #else
@@ -241,16 +241,16 @@ struct SDLAudio : public MediaOut {
     virtual MediaError status() const {
         return mSDL != NULL ? kMediaNoError : kMediaErrorNotInitialied;
     }
-    virtual Message formats() const {
-        Message info;
-        info.setInt32(kKeyFormat, mSDL->mAudioFormat.format);
-        info.setInt32(kKeySampleRate, mSDL->mAudioFormat.freq);
-        info.setInt32(kKeyChannels, mSDL->mAudioFormat.channels);
+    virtual sp<Message> formats() const {
+        sp<Message> info = new Message;
+        info->setInt32(kKeyFormat, mSDL->mAudioFormat.format);
+        info->setInt32(kKeySampleRate, mSDL->mAudioFormat.freq);
+        info->setInt32(kKeyChannels, mSDL->mAudioFormat.channels);
         return info;
     }
-    virtual MediaError configure(const Message& options) {
-        if (options.contains(kKeyPause)) {
-            bool pause = options.findInt32(kKeyPause);
+    virtual MediaError configure(const sp<Message>& options) {
+        if (options->contains(kKeyPause)) {
+            bool pause = options->findInt32(kKeyPause);
 
             AutoLock _l(mSDL->mLock);
             if (SDL_GetAudioStatus() == SDL_AUDIO_PLAYING && pause) {

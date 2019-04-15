@@ -205,7 +205,7 @@ struct MatroskaFile : public MediaExtractor {
     
     virtual String string() const { return "MatroskaFile"; }
 
-    virtual MediaError init(sp<Content>& pipe, const Message& options) {
+    virtual MediaError init(sp<Content>& pipe, const sp<Message>& options) {
         pipe->seek(0);
         sp<EBMLMasterElement> top = ParseMatroska(pipe, &mSegment, &mClusters);
 #if LOG_NDEBUG == 0
@@ -418,22 +418,22 @@ struct MatroskaFile : public MediaExtractor {
         return kMediaNoError;
     }
 
-    virtual Message formats() const {
-        Message info;
-        info.setInt32(kKeyFormat, kFileFormatMKV);
-        info.setInt32(kKeyCount, mTracks.size());
-        info.setInt64(kKeyDuration, mDuration.useconds());
+    virtual sp<Message> formats() const {
+        sp<Message> info = new Message;
+        info->setInt32(kKeyFormat, kFileFormatMKV);
+        info->setInt32(kKeyCount, mTracks.size());
+        info->setInt64(kKeyDuration, mDuration.useconds());
         for (size_t i = 0; i < mTracks.size(); ++i) {
-            Message trakInfo;
+            sp<Message> trakInfo = new Message;
             const MatroskaTrack& trak = mTracks[i];
-            trakInfo.setInt32(kKeyFormat, trak.format);
+            trakInfo->setInt32(kKeyFormat, trak.format);
             eCodecType type = GetCodecType(trak.format);
             if (type == kCodecTypeAudio) {
-                trakInfo.setInt32(kKeySampleRate, trak.a.sampleRate);
-                trakInfo.setInt32(kKeyChannels, trak.a.channels);
+                trakInfo->setInt32(kKeySampleRate, trak.a.sampleRate);
+                trakInfo->setInt32(kKeyChannels, trak.a.channels);
             } else if (type == kCodecTypeVideo) {
-                trakInfo.setInt32(kKeyWidth, trak.v.width);
-                trakInfo.setInt32(kKeyHeight, trak.v.height);
+                trakInfo->setInt32(kKeyWidth, trak.v.width);
+                trakInfo->setInt32(kKeyHeight, trak.v.height);
             } else {
                 ERROR("FIXME");
                 continue;
@@ -451,29 +451,29 @@ struct MatroskaFile : public MediaExtractor {
                     if (asc.valid) {
                         MPEG4::ES_Descriptor esd = MakeESDescriptor(asc);
                         esd.decConfigDescr.decSpecificInfo.csd = trak.csd;
-                        trakInfo.setObject(kKeyESDS, MPEG4::MakeESDS(esd));
+                        trakInfo->setObject(kKeyESDS, MPEG4::MakeESDS(esd));
                     } else
                         ERROR("bad AudioSpecificConfig");
                 } else if (trak.format == kVideoCodecFormatH264) {
                     BitReader br(*trak.csd);
                     MPEG4::AVCDecoderConfigurationRecord avcC(br);
                     if (avcC.valid) {
-                        trakInfo.setObject(kKeyavcC, trak.csd);
+                        trakInfo->setObject(kKeyavcC, trak.csd);
                     } else {
                         ERROR("bad avcC");
                     }
                 } else if (trak.format == kVideoCodecFormatHEVC) {
-                    trakInfo.setObject(kKeyhvcC, trak.csd);
+                    trakInfo->setObject(kKeyhvcC, trak.csd);
                 } else if (trak.format == kVideoCodecFormatMPEG4) {
-                    trakInfo.setObject(kKeyESDS, trak.csd);
+                    trakInfo->setObject(kKeyESDS, trak.csd);
                 }
             }
 
-            INFO("trak %zu: %s", i, trakInfo.string().c_str());
+            INFO("trak %zu: %s", i, trakInfo->string().c_str());
             String name = String::format("track-%zu", i);
-            info.set<Message>(name, trakInfo);
+            info->setObject(name, trakInfo);
         }
-        INFO("format %s", info.string().c_str());
+        INFO("format %s", info->string().c_str());
         return info;
     }
 

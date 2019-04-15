@@ -260,7 +260,7 @@ struct AudioResamplerLinear : public AudioResampler {
 
 Object<AudioResampler> AudioResampler::Create(const AudioFormat& in,
                                               const AudioFormat& out,
-                                              const Message& options) {
+                                              const sp<Message>& options) {
     INFO("init AudioResampler %s -> %s", GetAudioFormatString(in).c_str(), GetAudioFormatString(out).c_str());
     
     switch (out.format) {

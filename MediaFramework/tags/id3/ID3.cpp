@@ -685,7 +685,7 @@ static FORCE_INLINE ID3v2PictureText ID3v22Picture(const String& id, const char*
 // Size           $xx xx xx
 static status_t ID3v2_2(const Buffer& data,
                         const ID3v2Header& header,
-                        Message& values) {
+                        sp<Message>& values) {
     struct ID3v2Frame {
         char    id[3];
         // The size is calculated as frame size excluding frame header
@@ -718,7 +718,7 @@ static status_t ID3v2_2(const Buffer& data,
                 int match = 0;
                 for (int i = 0; kSupportedID3v2_2Frames[i].key; i++) {
                     if (id == kSupportedID3v2_2Frames[i].id3) {
-                        values.setString(kSupportedID3v2_2Frames[i].key, text);
+                        values->setString(kSupportedID3v2_2Frames[i].key, text);
                         match = 1;
                         break;
                     }
@@ -733,14 +733,14 @@ static status_t ID3v2_2(const Buffer& data,
             ID3v2CommentText comment = ID3v2Comment(id, frameData, frameLength);
             if (!comment.text.empty()) {
                 if (comment.desc.empty())
-                    values.setString(Media::Comment, comment.text);
+                    values->setString(Media::Comment, comment.text);
                 else
-                    values.setString(comment.desc.c_str(), comment.text);
+                    values->setString(comment.desc.c_str(), comment.text);
             }
         } else if (id == "APIC") {
             ID3v2PictureText picture = ID3v22Picture(id, frameData, frameLength);
             // XXX: set the right tag.
-            values.setObject(Media::AlbumArt, picture.pic);
+            values->setObject(Media::AlbumArt, picture.pic);
         } else {
             DEBUG("been skipped frame [%s] length %d.",
                   id.c_str(), frameLength);
@@ -755,7 +755,7 @@ static status_t ID3v2_2(const Buffer& data,
 // Flags          $xx xx
 static status_t ID3v2_3(const Buffer& data,
                         const ID3v2Header& header,
-                        Message& values) {
+                        sp<Message>& values) {
     sp<Buffer> local;   // for de-unsync
     
     struct ID3v2Frame {
@@ -854,7 +854,7 @@ static status_t ID3v2_3(const Buffer& data,
                 int match = 0;
                 for (int i = 0; kSupportedID3v2_3Frames[i].key; i++) {
                     if (id == kSupportedID3v2_3Frames[i].id3) {
-                        values.setString(kSupportedID3v2_3Frames[i].key, text);
+                        values->setString(kSupportedID3v2_3Frames[i].key, text);
                         match = 1;
                         break;
                     }
@@ -874,14 +874,14 @@ static status_t ID3v2_3(const Buffer& data,
             ID3v2CommentText comment = ID3v2Comment(id, frameData, frameLength);
             if (!comment.text.empty()) {
                 if (comment.desc.empty())
-                    values.setString(Media::Comment, comment.text);
+                    values->setString(Media::Comment, comment.text);
                 else
-                    values.setString(comment.desc.c_str(), comment.text);
+                    values->setString(comment.desc.c_str(), comment.text);
             }
         } else if (id == "APIC") {
             ID3v2PictureText picture = ID3v2Picture(id, frameData, frameLength);
             // XXX: set the right tag.
-            values.setObject(Media::AlbumArt, picture.pic);
+            values->setObject(Media::AlbumArt, picture.pic);
         } else {
             DEBUG("been skipped frame [%s] length %d.",
                   id.c_str(),
@@ -894,7 +894,7 @@ static status_t ID3v2_3(const Buffer& data,
 
 static status_t ID3v2_4(const Buffer& data,
                         const ID3v2Header& header,
-                        Message& values) {
+                        sp<Message>& values) {
     struct ID3v2Frame {
         char    id[4];
         // The size is calculated as frame size excluding frame header
@@ -1021,7 +1021,7 @@ static status_t ID3v2_4(const Buffer& data,
                 int match = 0;
                 for (int i = 0; kSupportedID3v2_3Frames[i].key; i++) {
                     if (id == kSupportedID3v2_3Frames[i].id3) {
-                        values.setString(kSupportedID3v2_3Frames[i].key, text);
+                        values->setString(kSupportedID3v2_3Frames[i].key, text);
                         match = 1;
                         break;
                     }
@@ -1033,7 +1033,7 @@ static status_t ID3v2_4(const Buffer& data,
                           frame->id[2], frame->id[3],
                           text.c_str());
                 } else if (id == "TDRC") {
-                    values.setString(Media::Year, text.substring(0, 4));
+                    values->setString(Media::Year, text.substring(0, 4));
                 }
             }
         } else if (id.startsWith("W")) {
@@ -1045,14 +1045,14 @@ static status_t ID3v2_4(const Buffer& data,
             ID3v2CommentText comment = ID3v2Comment(id, frameData, frameLength);
             if (!comment.text.empty()) {
                 if (comment.desc.empty())
-                    values.setString(Media::Comment, comment.text);
+                    values->setString(Media::Comment, comment.text);
                 else
-                    values.setString(comment.desc.c_str(), comment.text);
+                    values->setString(comment.desc.c_str(), comment.text);
             }
         } else if (id == "APIC") {
             ID3v2PictureText picture = ID3v2Picture(id, frameData, frameLength);
             // XXX: set the right tag.
-            values.setObject(Media::AlbumArt, picture.pic);
+            values->setObject(Media::AlbumArt, picture.pic);
         } else {
             DEBUG("been skipped frame [%s] length %d.",
                   id.c_str(),
@@ -1097,7 +1097,7 @@ status_t ID3v2::parse(const Buffer& data) {
     
     String version = String::format("v2.%d.%d",
                                     header.major, header.revision);
-    mValues.setString("version", version);
+    mValues->setString("version", version);
     
     DEBUG("id3v2: %s", mValues.string().c_str());
     return status;
@@ -1137,21 +1137,21 @@ status_t ID3v1::parse(const Buffer& data) {
     String title = ID3v1String(buffer, 30);
     if (!title.empty()) {
         DEBUG("title: [%s].", title.c_str());
-        mValues.setString(Media::Title, title);
+        mValues->setString(Media::Title, title);
     }
     buffer += 30;
     
     String artist = ID3v1String(buffer, 30);
     if (!artist.empty()) {
         DEBUG("artist: [%s].", artist.c_str());
-        mValues.setString(Media::Artist, artist);
+        mValues->setString(Media::Artist, artist);
     }
     buffer += 30;
     
     String album = ID3v1String(buffer, 30);
     if (!album.empty()) {
         DEBUG("album: [%s].", album.c_str());
-        mValues.setString(Media::Album, album);
+        mValues->setString(Media::Album, album);
     }
     buffer += 30;
     
@@ -1159,7 +1159,7 @@ status_t ID3v1::parse(const Buffer& data) {
     if (!year.empty()) {
         DEBUG("year: [%s].", year.c_str());
         if (isID3NumericString(year))
-            mValues.setString(Media::Year, year);
+            mValues->setString(Media::Year, year);
         else {
             DEBUG("invalid id3 numeric string.");
         }
@@ -1169,23 +1169,23 @@ status_t ID3v1::parse(const Buffer& data) {
     String comment = ID3v1String(buffer, 30);
     if (!comment.empty()) {
         DEBUG("comment: [%s].", comment.c_str());
-        mValues.setString(Media::Comment, comment);
+        mValues->setString(Media::Comment, comment);
     }
     
     if (buffer[28] == 0 && buffer[29] != 0) {
         const uint8_t trck = buffer[29];
         DEBUG("track: [%d].", trck);
-        mValues.setString(Media::CDTrackNum, String::format("%u", trck));
-        mValues.setString("id3-version", "v1.1");
+        mValues->setString(Media::CDTrackNum, String::format("%u", trck));
+        mValues->setString("id3-version", "v1.1");
     } else {
-        mValues.setString("id3-version", "v1.0");
+        mValues->setString("id3-version", "v1.0");
     }
     buffer += 30;
     
     unsigned char genre = buffer[0];
     if (genre < 80) {
         DEBUG("genre: [%s].", ID3GenreList[genre]);
-        mValues.setString(Media::Genre, ID3GenreList[genre]);
+        mValues->setString(Media::Genre, ID3GenreList[genre]);
     }
     
     return OK;

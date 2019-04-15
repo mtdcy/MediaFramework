@@ -385,17 +385,17 @@ static void parseESDS(AVCodecContext *avcc, const Buffer& esds) {
     }
 }
 
-static status_t setupExtraData(AVCodecContext *avcc, const Message& formats) {
+static status_t setupExtraData(AVCodecContext *avcc, const sp<Message>& formats) {
     // different extra data for  different decoder
     switch (avcc->codec->id) {
         case AV_CODEC_ID_AAC:
-            if (formats.contains(kKeyESDS)) {
-                sp<Buffer> esds = formats.findObject(kKeyESDS);
+            if (formats->contains(kKeyESDS)) {
+                sp<Buffer> esds = formats->findObject(kKeyESDS);
                 parseESDS(avcc, *esds);
                 // aac sbr have real sample rate in AudioSpecificConfig
                 // but, DON'T fix avcc->sample_rate here
-            } else if (formats.contains(kKeyCodecSpecificData)) {
-                sp<Buffer> csd = formats.findObject(kKeyCodecSpecificData);
+            } else if (formats->contains(kKeyCodecSpecificData)) {
+                sp<Buffer> csd = formats->findObject(kKeyCodecSpecificData);
                 parseAudioSpecificConfig(avcc, *csd);
             } else {
                 ERROR("missing esds|csd for aac");
@@ -403,8 +403,8 @@ static status_t setupExtraData(AVCodecContext *avcc, const Message& formats) {
             }
             break;
         case AV_CODEC_ID_H264:
-            if (formats.contains(kKeyavcC)) {
-                sp<Buffer> avcC = formats.findObject(kKeyavcC);
+            if (formats->contains(kKeyavcC)) {
+                sp<Buffer> avcC = formats->findObject(kKeyavcC);
                 // h264 decoder
                 avcc->extradata_size = avcC->size();
                 avcc->extradata = (uint8_t*)av_mallocz(avcc->extradata_size +
@@ -416,8 +416,8 @@ static status_t setupExtraData(AVCodecContext *avcc, const Message& formats) {
             }
             break;
         case AV_CODEC_ID_HEVC:
-            if (formats.contains(kKeyhvcC)) {
-                sp<Buffer> hvcC = formats.findObject(kKeyhvcC);
+            if (formats->contains(kKeyhvcC)) {
+                sp<Buffer> hvcC = formats->findObject(kKeyhvcC);
                 avcc->extradata_size = hvcC->size();
                 avcc->extradata = (uint8_t*)av_mallocz(avcc->extradata_size +
                         AV_INPUT_BUFFER_PADDING_SIZE);
@@ -485,9 +485,9 @@ static FORCE_INLINE void releaseContext(AVCodecContext * avcc) {
     }
 }
 
-static FORCE_INLINE MediaError openAudio(AVCodecContext * avcc, const Message& formats, const Message& options) {
+static FORCE_INLINE MediaError openAudio(AVCodecContext * avcc, const sp<Message>& formats, const sp<Message>& options) {
     AVSampleFormat best_match   = AV_SAMPLE_FMT_NONE;
-    eSampleFormat requested     = (eSampleFormat)options.findInt32(kKeyRequestFormat, kSampleFormatS16);
+    eSampleFormat requested     = (eSampleFormat)options->findInt32(kKeyRequestFormat, kSampleFormatS16);
     const AVSampleFormat request_sample_fmt = get_av_sample_format(requested);
     CHECK_TRUE(av_sample_fmt_is_planar(request_sample_fmt));
     
@@ -527,8 +527,8 @@ static FORCE_INLINE MediaError openAudio(AVCodecContext * avcc, const Message& f
     
     // TODO: request channel layout
     
-    avcc->channels              = formats.findInt32(kKeyChannels);
-    avcc->sample_rate           = formats.findInt32(kKeySampleRate);
+    avcc->channels              = formats->findInt32(kKeyChannels);
+    avcc->sample_rate           = formats->findInt32(kKeySampleRate);
     avcc->request_channel_layout = AV_CH_LAYOUT_STEREO;
     avcc->request_sample_fmt    = best_match;
     INFO("request_sample_fmt %s", av_get_sample_fmt_name(avcc->request_sample_fmt));
@@ -554,12 +554,12 @@ static FORCE_INLINE MediaError openAudio(AVCodecContext * avcc, const Message& f
     return kMediaNoError;
 }
 
-MediaError openVideo(AVCodecContext * avcc, eModeType mode, const Message& formats, const Message& options) {
+MediaError openVideo(AVCodecContext * avcc, eModeType mode, const sp<Message>& formats, const sp<Message>& options) {
     bool hwaccel = mode != kModeTypeSoftware;
     
     // find best pixel format
     AVPixelFormat best_match = AV_PIX_FMT_YUV420P;
-    AVPixelFormat pix_fmt   = get_av_pix_format((ePixelFormat)options.findInt32(kKeyRequestFormat, kPixelFormatYUV420P));
+    AVPixelFormat pix_fmt   = get_av_pix_format((ePixelFormat)options->findInt32(kKeyRequestFormat, kPixelFormatYUV420P));
     if (avcc->codec->pix_fmts) {
         best_match = avcc->codec->pix_fmts[0];
         for (size_t i = 0; avcc->codec->pix_fmts[i] != AV_PIX_FMT_NONE; ++i) {
@@ -585,8 +585,8 @@ MediaError openVideo(AVCodecContext * avcc, eModeType mode, const Message& forma
     }
     
     // setup context
-    avcc->width                 = formats.findInt32(kKeyWidth);
-    avcc->height                = formats.findInt32(kKeyHeight);
+    avcc->width                 = formats->findInt32(kKeyWidth);
+    avcc->height                = formats->findInt32(kKeyHeight);
     avcc->coded_width           = avcc->width;
     avcc->coded_height          = avcc->height;
     avcc->pix_fmt               = best_match;
@@ -635,15 +635,15 @@ MediaError openVideo(AVCodecContext * avcc, eModeType mode, const Message& forma
     return kMediaNoError;
 }
 
-static AVCodecContext * initContext(eModeType mode, const Message& formats, const Message& options) {
-    CHECK_TRUE(formats.contains(kKeyFormat));
+static AVCodecContext * initContext(eModeType mode, const sp<Message>& formats, const sp<Message>& options) {
+    CHECK_TRUE(formats->contains(kKeyFormat));
     
 #if LOG_NDEBUG == 0
     av_log_set_level(AV_LOG_VERBOSE);
     av_log_set_callback(av_log_callback);
 #endif
     
-    eCodecFormat codec = (eCodecFormat)formats.findInt32(kKeyFormat);
+    eCodecFormat codec = (eCodecFormat)formats->findInt32(kKeyFormat);
     eCodecType type = GetCodecType(codec);
     AVCodecID id = get_av_codec_id(codec);
     
@@ -747,19 +747,19 @@ struct LavcDecoder : public MediaDecoder {
         return "LavcDecoder";
     }
 
-    virtual MediaError init(const Message& formats, const Message& options) {
+    virtual MediaError init(const sp<Message>& formats, const sp<Message>& options) {
         mContext = initContext(mMode, formats, options);
         if (mContext)   return kMediaNoError;
         else            return kMediaErrorNotSupported;
     }
 
-    virtual Message formats() const {
-        Message formats;
+    virtual sp<Message> formats() const {
+        sp<Message> info = new Message;
         AVCodecContext* avcc = mContext;
         if (avcc->codec_type == AVMEDIA_TYPE_AUDIO) {
-            formats.setInt32(kKeyFormat, get_sample_format(avcc->sample_fmt));
-            formats.setInt32(kKeyChannels, avcc->channels);
-            formats.setInt32(kKeySampleRate, avcc->sample_rate);
+            info->setInt32(kKeyFormat, get_sample_format(avcc->sample_fmt));
+            info->setInt32(kKeyChannels, avcc->channels);
+            info->setInt32(kKeySampleRate, avcc->sample_rate);
 
             // FIX sample rate of AAC SBR
             if (avcc->codec_id == AV_CODEC_ID_AAC &&
@@ -771,18 +771,18 @@ struct LavcDecoder : public MediaDecoder {
                     INFO("fix sample rate %d => %d",
                             avcc->sample_rate,
                             config.extSamplingFrquency);
-                    formats.setInt32(kKeySampleRate,
+                    info->setInt32(kKeySampleRate,
                             config.extSamplingFrquency);
                 }
             }
         } else if (avcc->codec_type == AVMEDIA_TYPE_VIDEO) {
-            formats.setInt32(kKeyFormat, get_pix_format(avcc->hw_device_ctx ? HWACCEL_PIX_FMT : avcc->pix_fmt));
-            formats.setInt32(kKeyWidth, avcc->width);
-            formats.setInt32(kKeyHeight, avcc->height);
+            info->setInt32(kKeyFormat, get_pix_format(avcc->hw_device_ctx ? HWACCEL_PIX_FMT : avcc->pix_fmt));
+            info->setInt32(kKeyWidth, avcc->width);
+            info->setInt32(kKeyHeight, avcc->height);
         } else {
             FATAL("unknown codec type %#x", avcc->codec_type);
         }
-        return formats;
+        return info;
     }
 
     virtual MediaError configure(const Message& options) {

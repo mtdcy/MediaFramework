@@ -62,7 +62,7 @@ struct API_EXPORT MediaExtractor : public SharedObject {
      */
     static sp<MediaExtractor> Create(eFileFormat);
 
-    virtual MediaError      init(sp<Content>& pipe, const Message& options) = 0;
+    virtual MediaError      init(sp<Content>& pipe, const sp<Message>& options) = 0;
     /**
      * get information of this extractor.
      * @return return a string of information
@@ -73,7 +73,7 @@ struct API_EXPORT MediaExtractor : public SharedObject {
      * @param options   option and parameter
      * @return return OK on success, otherwise error code.
      */
-    virtual MediaError      configure(const Message& options) { return kMediaErrorNotSupported; }
+    virtual MediaError      configure(const sp<Message>& options) { return kMediaErrorNotSupported; }
     /**
      * get output format information of this codec.
      * about the output format:
@@ -98,7 +98,7 @@ struct API_EXPORT MediaExtractor : public SharedObject {
      *       not a good structure for frequently access, and it is waste
      *       of memory.
      */
-    virtual Message         formats() const = 0;
+    virtual sp<Message>     formats() const = 0;
     /**
      * read packets for each track.
      * @param index     index of the track

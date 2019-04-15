@@ -83,14 +83,14 @@ struct API_EXPORT MediaDecoder : public SharedObject {
      *  kKeyHeight      - [int32_t]                     - mandatory
      * @return return Message contains output format information
      */
-    virtual Message         formats() const = 0;
+    virtual sp<Message>     formats() const = 0;
     /**
      * initial codec object with format and options
      * @param format    stream format
      * @param options   option and parameter for initial the object
      * @return return kMediaNoError on success.
      */
-    virtual MediaError      init(const Message& format, const Message& options) = 0;
+    virtual MediaError      init(const sp<Message>& format, const sp<Message>& options) = 0;
     /**
      * push MediaPacket to codec in decoding order.
      * @param input     reference of MediaPacket
