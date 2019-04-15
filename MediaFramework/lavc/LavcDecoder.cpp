@@ -919,6 +919,9 @@ struct LavcDecoder : public MediaDecoder {
                     internal->nb_samples);
         }
 #endif
+        if (mOutputCount == 0) {
+            INFO("first frame @ %.3f(s)", out->pts.seconds());
+        }
 
         av_frame_free(&internal);
         ++mOutputCount;
@@ -930,6 +933,7 @@ struct LavcDecoder : public MediaDecoder {
         if (avcc && avcodec_is_open(avcc)) {
             avcodec_flush_buffers(avcc);
         }
+        mTimestamps.clear();
         mInputCount = mOutputCount = 0;
         return kMediaNoError;
     }
