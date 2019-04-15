@@ -111,12 +111,13 @@ struct API_EXPORT IMediaPlayer : public SharedObject {
 
     /**
      * add a media to player.
-     * about media:
+     * about media (per media):
      *  "url"                   - [String]                  - mandatory, url of the media
-     *  "MediaFrameEvent"       - [sp<MediaFrameEvent>]     - optional
+     *  "VideoFrameEvent"       - [sp<MediaFrameEvent>]     - optional
+     *  "AudioFrameEvent"       - [sp<MediaFrameEvent>]     - optional
      *  "StartTime"             - [double|seconds]          - optional
      *  "EndTime"               - [double|seconds]          - optional
-     * about options:
+     * about options (global):
      *  "StatusEvent"           - [sp<StatusEvent>]         - optional
      *  "InfomationEvent"       - [sp<InfomationEvent>]     - optional
      * if MediaOut exists, external renderer will be used.

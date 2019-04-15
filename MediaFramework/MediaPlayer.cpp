@@ -108,8 +108,6 @@ struct MPContext : public SharedObject {
     sp<InfomationEvent>     mInfomationEvent;
     sp<StatusEvent>         mStatusEvent;
     sp<Message>             mInfo;
-    sp<MediaFrameEvent>     mVideoFrameEvent;
-    sp<MediaFrameEvent>     mAudioFrameEvent;
 
     // mutable context
     HashTable<size_t, sp<SessionContext> > mSessions;
@@ -138,10 +136,6 @@ struct MPContext : public SharedObject {
         if (options->contains("StatusEvent")) {
             mStatusEvent = options->findObject("StatusEvent");
         }
-        
-        if (options->contains("MediaFrameEvent")) {
-            mVideoFrameEvent = options->findObject("MediaFrameEvent");
-        }
     }
 
     ~MPContext() {
@@ -163,9 +157,8 @@ struct OnInfomation : public InfomationEvent {
 };
 
 static MediaError prepareMedia(sp<MPContext>& mpc, const sp<Message>& media) {
-
+    INFO("prepare media %s", media->string().c_str());
     const char * url = media->findString("url");
-    INFO("prepare media %s", url);
 
     sp<Content> pipe = Content::Create(url);
     if (pipe == NULL) {
@@ -230,10 +223,16 @@ static MediaError prepareMedia(sp<MPContext>& mpc, const sp<Message>& media) {
         sp<Message> options = new Message;
         options->setInt32(kKeyMode, mode);
         if (type == kCodecTypeVideo) {
-            if (mpc->mVideoFrameEvent != NULL) {
-                options->setObject("MediaFrameEvent", mpc->mVideoFrameEvent);
+            if (media->contains("VideoFrameEvent")) {
+                sp<MediaFrameEvent> video = media->findObject("VideoFrameEvent");
+                options->setObject("MediaFrameEvent", video);
             }
             options->setInt32(kKeyRequestFormat, kPixelFormatNV12);
+        } else if (type == kCodecTypeAudio) {
+            if (media->contains("AudioFrameEvent")) {
+                sp<MediaFrameEvent> audio = media->findObject("AudioFrameEvent");
+                options->setObject("MediaFrameEvent", audio);
+            }
         }
         options->setObject("PacketRequestEvent", ms);
         options->setObject("InformationEvent", new OnInfomation);

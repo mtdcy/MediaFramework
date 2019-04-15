@@ -248,10 +248,11 @@ int main (int argc, char **argv)
         sp<Message> media = new Message;
         media->setString("url", url);
         media->setInt32(kKeyMode, PREFER_MODE);
-        sp<Message> options = new Message;
 #ifdef MAIN_THREAD_RENDER
-        options->setObject("MediaFrameEvent", new OnFrameUpdate);
+        media->setObject("VideoFrameEvent", new OnFrameUpdate);
 #endif
+        
+        sp<Message> options = new Message;
         options->setObject("InfomationEvent", new OnPlayerInfo);
         options->setObject("StatusEvent", new MPStatus);
         mp->init(media, options);
