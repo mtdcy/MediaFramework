@@ -198,7 +198,7 @@ struct Decoder : public SharedObject {
 
     struct OnPacketReady : public PacketReadyEvent {
         const int mGeneration;
-        OnPacketReady(int gen) : PacketReadyEvent(String::format("OnPacketReady %d", gen), Looper::Current()), mGeneration(gen) { }
+        OnPacketReady(int gen) : mGeneration(gen) { }
         virtual void onEvent(const sp<MediaPacket>& packet) {
             sp<Decoder> decoder = Looper::Current()->user(0);
             decoder->onPacketReady(packet, mGeneration);
