@@ -76,18 +76,13 @@ struct FrameRequest {
 typedef TypedEvent<FrameRequest>  FrameRequestEvent;
 
 /**
- * For handle error status
- * TODO: merge to InfomationEvent
- */
-typedef TypedEvent<MediaError> StatusEvent;
-
-/**
  * For MediaSession Info
  */
 typedef enum {
     kSessionInfoReady,      ///< we are ready
     kSessionInfoBegin,      ///< begin of stream, before first frame
     kSessionInfoEnd,        ///< end of stream, after last frame
+    kSessionInfoError,      ///< we don't need the error code, just release the session after error
 } eSessionInfoType;
 typedef TypedEvent<eSessionInfoType>    SessionInfoEvent;
 

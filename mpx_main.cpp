@@ -66,13 +66,6 @@ static SDL_Window * window = NULL;
 static sp<IMediaPlayer> mp;
 static double position = 0;
 
-struct MPStatus : public StatusEvent {
-    virtual void onEvent(const MediaError& st) {
-        INFO("==> status %d", st);
-    }
-    virtual String string() const { return "MPStatus"; }
-};
-
 static sp<MediaOut> g_out;
 static ImageFormat g_format;
 static sp<Clock> g_clock;
@@ -252,7 +245,6 @@ int main (int argc, char **argv)
         
         sp<Message> options = new Message;
         options->setObject("PlayerInfoEvent", new OnPlayerInfo);
-        options->setObject("StatusEvent", new MPStatus);
         mp->init(media, options);
         
         // prepare the mp

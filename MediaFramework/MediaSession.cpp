@@ -371,7 +371,6 @@ struct Renderer : public SharedObject {
     bool                    mOutputEOS;
     
     MediaTime               mLastFrameTime;     // kTimeInvalid => first frame
-    sp<StatusEvent>         mStatusEvent;
     // clock context
     MediaTime               mLastUpdateTime;    // last clock update time
     // statistics
@@ -393,7 +392,6 @@ struct Renderer : public SharedObject {
         mGeneration(0),
         mPresentFrame(new PresentRunnable()), mState(kRenderInitialized), mOutputEOS(false),
         mLastFrameTime(kTimeInvalid),
-        mStatusEvent(NULL),
         mLastUpdateTime(kTimeInvalid),
         // statistics
         mFramesRenderred(0)
@@ -485,8 +483,7 @@ struct Renderer : public SharedObject {
             mOutputEOS = true;
             if (mLastFrameTime == kTimeInvalid) {
                 WARN("renderer %zu: eos at start", mID);
-                mStatusEvent->fire(kMediaErrorUnknown);
-                mStatusEvent = NULL;
+                notify(kSessionInfoEnd);
             }
             // NOTHING TO DO
             return;
@@ -521,11 +518,6 @@ struct Renderer : public SharedObject {
             INFO("renderer %zu: prepare done", mID);
             mState = kRenderReady;
             notify(kSessionInfoReady);
-            
-            if (mStatusEvent != NULL) {
-                mStatusEvent->fire(kMediaNoError);
-                mStatusEvent = NULL;
-            }
         }
 
         // always render the first video
@@ -552,25 +544,16 @@ struct Renderer : public SharedObject {
         mLastFrameTime = frame->pts;
     }
 
-    void onPrepareRenderer(const sp<Message>& options) {
-        int64_t us = options->findInt64("time");
-        sp<StatusEvent> se;
-        if (options->contains("StatusEvent")) {
-            se = options->findObject("StatusEvent");
-        }
-        onPrepareRenderer(MediaTime(us), se);
-    }
-
-    void onPrepareRenderer(const MediaTime& ts, const sp<StatusEvent>& se) {
+    void onPrepareRenderer(int64_t us) {
         INFO("renderer %zu: prepare renderer...", mID);
-        CHECK_TRUE(ts >= kTimeBegin);
-
+        if (us < 0) us = 0;
+        
         // update generation
         mFrameReadyEvent = new OnFrameReady(++mGeneration);
 
         // tell decoder to prepare
         FrameRequest request;
-        request.ts = ts;
+        request.ts = us;
         mFrameRequestEvent->fire(request);
 
         // reset flags
@@ -578,7 +561,6 @@ struct Renderer : public SharedObject {
         mLastUpdateTime = kTimeBegin;
         mOutputEOS = false;
         mLastFrameTime = kTimeInvalid;
-        mStatusEvent = se;
         mOutputQueue.clear();
 
         // request frames
@@ -811,8 +793,9 @@ struct PrepareRunnable : public Runnable {
     sp<Message>     mOptions;
     PrepareRunnable(const sp<Message>& options) : mOptions(options) { }
     virtual void run() {
+        int64_t us = mOptions->findInt64("time");
         sp<Renderer> renderer = Looper::Current()->user(INDEX1);
-        renderer->onPrepareRenderer(mOptions);
+        renderer->onPrepareRenderer(us);
     }
 };
 

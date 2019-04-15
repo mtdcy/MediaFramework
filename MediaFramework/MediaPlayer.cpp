@@ -43,30 +43,6 @@
 
 __USING_NAMESPACE_MPX
 
-struct CountedStatusEvent : public StatusEvent {
-    Atomic<int>     mCount;
-    sp<StatusEvent> kept;
-
-    // FIXME:
-    void keep(const sp<StatusEvent>& self) { kept = self; }
-
-    CountedStatusEvent(const sp<Looper>& lp, size_t n) :
-        StatusEvent(lp), mCount(n) { }
-
-    virtual ~CountedStatusEvent() { }
-
-    virtual void onEvent(const MediaError& st) {
-        int count = --mCount;
-        CHECK_GE(count, 0);
-        if (count == 0 || st != kMediaNoError) {
-            onFinished(st);
-            kept.clear();
-        }
-    }
-
-    virtual void onFinished(MediaError st) = 0;
-};
-
 // for MediaSession request packet, which always run in player's looper
 struct MediaSource : public PacketRequestEvent {
     sp<MediaExtractor>  mMedia;
@@ -106,7 +82,6 @@ struct SessionContext : public SharedObject {
 struct MPContext : public SharedObject {
     // external static context
     sp<PlayerInfoEvent>     mInfoEvent;
-    sp<StatusEvent>         mStatusEvent;
     sp<Message>             mInfo;
 
     // mutable context
@@ -120,7 +95,7 @@ struct MPContext : public SharedObject {
 
     MPContext(const sp<Message>& options) : SharedObject(),
         // external static context
-        mInfoEvent(NULL), mStatusEvent(NULL),
+        mInfoEvent(NULL),
         // internal static context
         // mutable context
         mNextId(0),mHasAudio(false),
@@ -130,10 +105,6 @@ struct MPContext : public SharedObject {
         INFO("init MPContext with %s", options->string().c_str());
         if (options->contains("PlayerInfoEvent")) {
             mInfoEvent = options->findObject("PlayerInfoEvent");
-        }
-
-        if (options->contains("StatusEvent")) {
-            mStatusEvent = options->findObject("StatusEvent");
         }
     }
 
