@@ -53,6 +53,10 @@ typedef enum {
     kStateMax,
 } eStateType;
 
+/**
+ * player info -> client
+ * @note we prefer eInfoType instead of eStateType for client
+ */
 typedef enum {
     /**
      * player state info
@@ -71,10 +75,10 @@ typedef enum {
     /**
      *
      */
-    kInfoBeginOfStream,         ///< BOS
-    kInfoEndOfStream,           ///< EOS
+    kInfoBeginOfFile,           ///< BOS
+    kInfoEndOfFile,             ///< EOS
     kInfoClockUpdated,          ///< Clock been updated by master
-} eInfoType;
+} ePlayerInfoType;
 
 __END_DECLS
 
@@ -89,7 +93,7 @@ typedef TypedEvent<Object<MediaFrame> >     MediaFrameEvent;
 /**
  * a generic event
  */
-typedef TypedEvent<eInfoType>               InfomationEvent;
+typedef TypedEvent<ePlayerInfoType>         PlayerInfoEvent;
 
 struct API_EXPORT IMediaPlayer : public SharedObject {
     IMediaPlayer() { }
@@ -119,7 +123,7 @@ struct API_EXPORT IMediaPlayer : public SharedObject {
      *  "EndTime"               - [double|seconds]          - optional
      * about options (global):
      *  "StatusEvent"           - [sp<StatusEvent>]         - optional
-     *  "InfomationEvent"       - [sp<InfomationEvent>]     - optional
+     *  "PlayerInfoEvent"       - [sp<PlayerInfoEvent>]     - optional
      * if MediaOut exists, external renderer will be used.
      * @param media option and parameter for this media
      * @return return OK on success, otherwise error code

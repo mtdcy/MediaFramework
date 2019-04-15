@@ -90,13 +90,13 @@ API_EXPORT eStateType           MediaPlayerGetState(const MediaPlayerRef);
 
 // Events
 typedef SharedObjectRef         FrameEventRef;
-typedef SharedObjectRef         InfoEventRef;
+typedef SharedObjectRef         PlayerInfoEventRef;
 
 API_EXPORT FrameEventRef        FrameEventCreate(void (*Callback)(MediaFrameRef, void *), void *);
 #define FrameEventRelease(x)    SharedObjectRelease((SharedObjectRef)x)
 
-API_EXPORT InfoEventRef         InfoEventCreate(void (*Callback)(eInfoType, void *), void *);
-#define InfoEventRelease(x)     SharedObjectRelease((SharedObjectRef)x)
+API_EXPORT PlayerInfoEventRef   PlayerInfoEventCreate(void (*Callback)(ePlayerInfoType, void *), void *);
+#define PlayerInfoEventRelease(x) SharedObjectRelease((SharedObjectRef)x)
 
 // MediaOut
 typedef SharedObjectRef         MediaOutRef;

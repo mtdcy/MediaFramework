@@ -77,8 +77,8 @@ static sp<MediaOut> g_out;
 static ImageFormat g_format;
 static sp<Clock> g_clock;
 
-struct OnPlayerInfo : public InfomationEvent {
-    virtual void onEvent(const eInfoType& info) {
+struct OnPlayerInfo : public PlayerInfoEvent {
+    virtual void onEvent(const ePlayerInfoType& info) {
         switch (info) {
             case kInfoPlayerInitialized:
                 g_clock = mp->clock();
@@ -146,8 +146,6 @@ struct SDLRunnable : public Runnable {
                             if (mp->state() == kStatePlaying)
                                 mp->pause();
                             else {
-                                if (mp->state() != kStateReady)
-                                    mp->prepare(0);
                                 mp->start();
                             }
                             break;
@@ -253,7 +251,7 @@ int main (int argc, char **argv)
 #endif
         
         sp<Message> options = new Message;
-        options->setObject("InfomationEvent", new OnPlayerInfo);
+        options->setObject("PlayerInfoEvent", new OnPlayerInfo);
         options->setObject("StatusEvent", new MPStatus);
         mp->init(media, options);
         

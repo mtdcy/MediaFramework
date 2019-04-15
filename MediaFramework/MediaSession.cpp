@@ -341,11 +341,19 @@ struct Decoder : public SharedObject {
     }
 };
 
+enum eRenderState {
+    kRenderInitialized,
+    kRenderReady,
+    kRenderTicking,
+    kRenderFlushed,
+    kRenderEnd
+};
+
 struct Renderer : public SharedObject {
     // external static context
     sp<FrameRequestEvent>   mFrameRequestEvent;
     eCodecFormat            mID;
-    sp<InfomationEvent>     mInfomationEvent;
+    sp<SessionInfoEvent>    mInfoEvent;
     // internal static context
     sp<FrameReadyEvent>     mFrameReadyEvent;
     sp<MediaFrameEvent>     mMediaFrameEvent;
@@ -359,8 +367,9 @@ struct Renderer : public SharedObject {
     struct PresentRunnable;
     sp<PresentRunnable>     mPresentFrame;      // for present current frame
     List<sp<MediaFrame> >   mOutputQueue;       // output frame queue
-    bool                    mOutputEOS;         // output frame eos
-    bool                    mFlushed;
+    eRenderState            mState;
+    bool                    mOutputEOS;
+    
     MediaTime               mLastFrameTime;     // kTimeInvalid => first frame
     sp<StatusEvent>         mStatusEvent;
     // clock context
@@ -376,15 +385,13 @@ struct Renderer : public SharedObject {
             const sp<FrameRequestEvent>& fre) :
         SharedObject(),
         // external static context
-        mFrameRequestEvent(fre), mID(id),
-        mInfomationEvent(NULL),
+        mFrameRequestEvent(fre), mID(id), mInfoEvent(NULL),
         // internal static context
         mFrameReadyEvent(NULL),
         mOut(NULL), mColorConvertor(NULL), mClock(NULL), mLatency(0),
         // render context
         mGeneration(0),
-        mPresentFrame(new PresentRunnable()),
-        mOutputEOS(false), mFlushed(false),
+        mPresentFrame(new PresentRunnable()), mState(kRenderInitialized), mOutputEOS(false),
         mLastFrameTime(kTimeInvalid),
         mStatusEvent(NULL),
         mLastUpdateTime(kTimeInvalid),
@@ -392,8 +399,8 @@ struct Renderer : public SharedObject {
         mFramesRenderred(0)
     {
         // setup external context
-        if (options->contains("InfomationEvent")) {
-            mInfomationEvent = options->findObject("InfomationEvent");
+        if (options->contains("SessionInfoEvent")) {
+            mInfoEvent = options->findObject("SessionInfoEvent");
         }
 
         if (options->contains("Clock")) {
@@ -430,6 +437,12 @@ struct Renderer : public SharedObject {
     }
 
     virtual ~Renderer() {
+    }
+    
+    void notify(eSessionInfoType info) {
+        if (mInfoEvent != NULL) {
+            mInfoEvent->fire(info);
+        }
     }
 
     void requestFrame() {
@@ -504,10 +517,15 @@ struct Renderer : public SharedObject {
         requestFrame();
 
         // prepare done ?
-        if (mStatusEvent != NULL && (mOutputQueue.size() >= MIN_COUNT || mOutputEOS)) {
+        if (mState == kRenderInitialized && (mOutputQueue.size() >= MIN_COUNT || mOutputEOS)) {
             INFO("renderer %zu: prepare done", mID);
-            mStatusEvent->fire(kMediaNoError);
-            mStatusEvent = NULL;
+            mState = kRenderReady;
+            notify(kSessionInfoReady);
+            
+            if (mStatusEvent != NULL) {
+                mStatusEvent->fire(kMediaNoError);
+                mStatusEvent = NULL;
+            }
         }
 
         // always render the first video
@@ -517,9 +535,7 @@ struct Renderer : public SharedObject {
                     mID, frame->pts.seconds());
 
             // notify about the first render postion
-            if (mInfomationEvent != NULL) {
-                mInfomationEvent->fire(kInfoBeginOfStream);
-            }
+            notify(kSessionInfoBegin);
 
             if (GetCodecType(mID) == kCodecTypeVideo) {
                 if (mMediaFrameEvent != NULL) mMediaFrameEvent->fire(frame);
@@ -558,7 +574,7 @@ struct Renderer : public SharedObject {
         mFrameRequestEvent->fire(request);
 
         // reset flags
-        mFlushed = false;
+        mState = kRenderInitialized;
         mLastUpdateTime = kTimeBegin;
         mOutputEOS = false;
         mLastFrameTime = kTimeInvalid;
@@ -575,15 +591,13 @@ struct Renderer : public SharedObject {
         }
     }
 
+    // just flush resources, leave state as it is, reset state on prepare
     void onFlushRenderer() {
         INFO("track %zu: flush %zu frames", mID, mOutputQueue.size());
 
         // update generation
         ++mGeneration;
-        mFrameReadyEvent = NULL;
-
-        Looper::Current()->flush();
-
+        
         // tell decoder to flush
         FrameRequest request;
         request.ts = kTimeEnd;
@@ -593,18 +607,11 @@ struct Renderer : public SharedObject {
         Looper::Current()->remove(mPresentFrame);
 
         // flush output
-        mOutputEOS = false;
         mOutputQueue.clear();
         if (mMediaFrameEvent != NULL) mMediaFrameEvent->fire(NULL);
         else mOut->flush();
 
-        // reset flags
-        mLastUpdateTime = kTimeBegin;
-
-        // reset statistics
-        mFramesRenderred = 0;
-
-        mFlushed = true;
+        mState = kRenderFlushed;
     }
 
     struct PresentRunnable : public Runnable {
@@ -703,9 +710,7 @@ struct Renderer : public SharedObject {
             if (mOut != NULL) mOut->write(NULL);
             else mMediaFrameEvent->fire(NULL);
             
-            if (mInfomationEvent != NULL) {
-                mInfomationEvent->fire(kInfoEndOfStream);
-            }
+            notify(kSessionInfoEnd);
         }
         INFO("refresh rate");
         return REFRESH_RATE;

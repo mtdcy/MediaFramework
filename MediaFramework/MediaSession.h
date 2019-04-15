@@ -81,11 +81,25 @@ typedef TypedEvent<FrameRequest>  FrameRequestEvent;
  */
 typedef TypedEvent<MediaError> StatusEvent;
 
+/**
+ * For MediaSession Info
+ */
+typedef enum {
+    kSessionInfoReady,      ///< we are ready
+    kSessionInfoBegin,      ///< begin of stream, before first frame
+    kSessionInfoEnd,        ///< end of stream, after last frame
+} eSessionInfoType;
+typedef TypedEvent<eSessionInfoType>    SessionInfoEvent;
+
 struct API_EXPORT IMediaSession : public SharedObject {
     IMediaSession() { }
     virtual ~IMediaSession() { }
     
+    /**
+     * "SessionInfoEvent"   - [sp<SessionInfoEvent>]    - optional
+     */
     static sp<IMediaSession> Create(const sp<Message>& formats, const sp<Message>& options);
+    
     /**
      * prepare session at new position
      * "time"               - [int64_t|useconds]    - mandatory

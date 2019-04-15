@@ -86,20 +86,20 @@ FrameEventRef FrameEventCreate(void (*callback)(MediaFrameRef, void *), void * u
     return (FrameEventRef)event->RetainObject();
 }
 
-struct UserInfoEvent : public InfomationEvent {
-    void (*callback)(eInfoType, void *);
+struct UserInfoEvent : public PlayerInfoEvent {
+    void (*callback)(ePlayerInfoType, void *);
     void * opaque;
-    UserInfoEvent(void (*cb)(eInfoType, void *), void * user) :
-    InfomationEvent(), callback(cb), opaque(user) { }
+    UserInfoEvent(void (*cb)(ePlayerInfoType, void *), void * user) :
+    PlayerInfoEvent(), callback(cb), opaque(user) { }
     
-    virtual void onEvent(const eInfoType& info) {
+    virtual void onEvent(const ePlayerInfoType& info) {
         callback(info, opaque);
     }
 };
 
-InfoEventRef InfoEventCreate(void (*callback)(eInfoType, void *), void * user) {
+PlayerInfoEventRef PlayerInfoEventCreate(void (*callback)(ePlayerInfoType, void *), void * user) {
     Object<UserInfoEvent> event = new UserInfoEvent(callback, user);
-    return (InfoEventRef)event->RetainObject();
+    return (PlayerInfoEventRef)event->RetainObject();
 }
 
 MediaPlayerRef MediaPlayerCreate(MessageRef media, MessageRef options) {

@@ -89,13 +89,13 @@ struct MediaSource : public PacketRequestEvent {
 };
 
 struct SessionContext : public SharedObject {
-    eCodecFormat        mCodec;
+    size_t              mID;
     sp<IMediaSession>   mMediaSession;
     int64_t             mStartTime;
     int64_t             mEndTime;
 
-    SessionContext(eCodecFormat codec, const sp<IMediaSession>& ms) :
-        mCodec(codec),  mMediaSession(ms) { }
+    SessionContext(size_t id, const sp<IMediaSession>& ms) :
+        mID(id),  mMediaSession(ms) { }
 
     ~SessionContext() {
         if (mMediaSession != NULL) mMediaSession->release();
@@ -105,7 +105,7 @@ struct SessionContext : public SharedObject {
 
 struct MPContext : public SharedObject {
     // external static context
-    sp<InfomationEvent>     mInfomationEvent;
+    sp<PlayerInfoEvent>     mInfoEvent;
     sp<StatusEvent>         mStatusEvent;
     sp<Message>             mInfo;
 
@@ -113,15 +113,14 @@ struct MPContext : public SharedObject {
     HashTable<size_t, sp<SessionContext> > mSessions;
     size_t          mNextId;
     bool            mHasAudio;
-    Bitmask         mMask;
+    BitSet          mReadyMask;     // set when not ready
 
     // clock
     sp<SharedClock> mClock;
 
     MPContext(const sp<Message>& options) : SharedObject(),
         // external static context
-        mInfomationEvent(NULL),
-        mStatusEvent(NULL),
+        mInfoEvent(NULL), mStatusEvent(NULL),
         // internal static context
         // mutable context
         mNextId(0),mHasAudio(false),
@@ -129,8 +128,8 @@ struct MPContext : public SharedObject {
         mClock(new SharedClock)
     {
         INFO("init MPContext with %s", options->string().c_str());
-        if (options->contains("InfomationEvent")) {
-            mInfomationEvent = options->findObject("InfomationEvent");
+        if (options->contains("PlayerInfoEvent")) {
+            mInfoEvent = options->findObject("PlayerInfoEvent");
         }
 
         if (options->contains("StatusEvent")) {
@@ -142,127 +141,231 @@ struct MPContext : public SharedObject {
         mSessions.clear();
     }
     
-    void notify(eInfoType info) {
-        if (mInfomationEvent != NULL) {
-            mInfomationEvent->fire(info);
+    void notify(ePlayerInfoType info) {
+        if (mInfoEvent != NULL) {
+            mInfoEvent->fire(info);
         }
     }
-};
-
-struct OnInfomation : public InfomationEvent {
-    OnInfomation() : InfomationEvent(Looper::Current()) { }
-    virtual void onEvent(const eInfoType& info) {
-        // TODO
-    }
-};
-
-static MediaError prepareMedia(sp<MPContext>& mpc, const sp<Message>& media) {
-    INFO("prepare media %s", media->string().c_str());
-    const char * url = media->findString("url");
-
-    sp<Content> pipe = Content::Create(url);
-    if (pipe == NULL) {
-        ERROR("create pipe failed");
-        return kMediaErrorBadFormat;
-    }
-
-    sp<MediaExtractor> extractor = MediaExtractor::Create(MediaFormatDetect(*pipe));
-
-    sp<Message> options = new Message;
-    if (extractor == NULL || extractor->init(pipe, options) != kMediaNoError) {
-        ERROR("create extractor failed");
-        return kMediaErrorBadFormat;
-    }
-
-    eModeType mode = (eModeType)media->findInt32(kKeyMode, kModeTypeNormal);
-
-    //double startTimeUs = options.findDouble("StartTime");
-    //double endTimeUs = options.findDouble("EndTime");
-
-    sp<Message> fileFormats = extractor->formats();
-    size_t numTracks = fileFormats->findInt32(kKeyCount, 1);
-    INFO("%s", fileFormats->string().c_str());
-    mpc->mInfo = fileFormats->dup();
-
-    uint32_t activeTracks = 0;
-    for (size_t i = 0; i < numTracks; ++i) {
-        // PacketRequestEvent
-        sp<MediaSource> ms = new MediaSource(Looper::Current(), extractor, i);
-
-        String name = String::format("track-%zu", i);
-        sp<Message> formats = fileFormats->findObject(name);
-
-        DEBUG("session %zu: %s", i, formats.string().c_str());
-
-        eCodecFormat codec = (eCodecFormat)formats->findInt32(kKeyFormat);
-        if (codec == kCodecFormatUnknown) {
-            ERROR("ignore unknown codec");
-            continue;
-        }
-
-        eCodecType type = GetCodecType(codec);
-        if (type == kCodecTypeAudio) {
-            if (formats->findInt32(kKeySampleRate) == 0 ||
-                formats->findInt32(kKeyChannels) == 0) {
-                ERROR("missing mandatory format infomation, playback may be broken");
-            }
-
-            if (mpc->mHasAudio) {
-                INFO("ignore this audio");
-                continue;
-            } else {
-                mpc->mHasAudio = true;
-            }
-        } else if (type == kCodecTypeVideo) {
-            if (formats->findInt32(kKeyWidth) == 0 ||
-                formats->findInt32(kKeyHeight) == 0) {
-                ERROR("missing mandatory format infomation, playback may be broken");
+    
+    struct OnSessionInfo : public SessionInfoEvent {
+        size_t mId;
+        OnSessionInfo(size_t id) : SessionInfoEvent(), mId(id) { }
+        virtual void onEvent(const eSessionInfoType& info) {
+            sp<MPContext> mpc = Looper::Current()->user(0);
+            
+            switch (info) {
+                case kSessionInfoReady:
+                    INFO("session %zu is ready", mId);
+                    mpc->mReadyMask.clear(mId);
+                    if (mpc->mReadyMask.empty()) {
+                        INFO("all sessions are ready");
+                        mpc->notify(kInfoPlayerReady);
+                    }
+                    break;
+                default:
+                    break;
             }
         }
-
+    };
+    
+    MediaError addMedia(const sp<Message>& media) {
+        INFO("add media %s", media->string().c_str());
+        const char * url = media->findString("url");
+        
+        sp<Content> pipe = Content::Create(url);
+        if (pipe == NULL) {
+            ERROR("create pipe failed");
+            return kMediaErrorBadFormat;
+        }
+        
+        sp<MediaExtractor> extractor = MediaExtractor::Create(MediaFormatDetect(*pipe));
+        
         sp<Message> options = new Message;
-        options->setInt32(kKeyMode, mode);
-        if (type == kCodecTypeVideo) {
-            if (media->contains("VideoFrameEvent")) {
-                sp<MediaFrameEvent> video = media->findObject("VideoFrameEvent");
-                options->setObject("MediaFrameEvent", video);
-            }
-            options->setInt32(kKeyRequestFormat, kPixelFormatNV12);
-        } else if (type == kCodecTypeAudio) {
-            if (media->contains("AudioFrameEvent")) {
-                sp<MediaFrameEvent> audio = media->findObject("AudioFrameEvent");
-                options->setObject("MediaFrameEvent", audio);
-            }
+        if (extractor == NULL || extractor->init(pipe, options) != kMediaNoError) {
+            ERROR("create extractor failed");
+            return kMediaErrorBadFormat;
         }
-        options->setObject("PacketRequestEvent", ms);
-        options->setObject("InformationEvent", new OnInfomation);
-
-        if (kCodecTypeAudio == type || numTracks == 1) {
-            options->setObject("Clock", new Clock(mpc->mClock, kClockRoleMaster));
+        
+        eModeType mode = (eModeType)media->findInt32(kKeyMode, kModeTypeNormal);
+        
+        //double startTimeUs = options.findDouble("StartTime");
+        //double endTimeUs = options.findDouble("EndTime");
+        
+        sp<Message> fileFormats = extractor->formats();
+        size_t numTracks = fileFormats->findInt32(kKeyCount, 1);
+        INFO("%s", fileFormats->string().c_str());
+        mInfo = fileFormats->dup();
+        
+        uint32_t activeTracks = 0;
+        for (size_t i = 0; i < numTracks; ++i) {
+            // PacketRequestEvent
+            sp<MediaSource> ms = new MediaSource(Looper::Current(), extractor, i);
+            
+            String name = String::format("track-%zu", i);
+            sp<Message> formats = fileFormats->findObject(name);
+            
+            DEBUG("session %zu: %s", i, formats.string().c_str());
+            
+            eCodecFormat codec = (eCodecFormat)formats->findInt32(kKeyFormat);
+            if (codec == kCodecFormatUnknown) {
+                ERROR("ignore unknown codec");
+                continue;
+            }
+            
+            eCodecType type = GetCodecType(codec);
+            if (type == kCodecTypeAudio) {
+                if (formats->findInt32(kKeySampleRate) == 0 ||
+                    formats->findInt32(kKeyChannels) == 0) {
+                    ERROR("missing mandatory format infomation, playback may be broken");
+                }
+                
+                if (mHasAudio) {
+                    INFO("ignore this audio");
+                    continue;
+                } else {
+                    mHasAudio = true;
+                }
+            } else if (type == kCodecTypeVideo) {
+                if (formats->findInt32(kKeyWidth) == 0 ||
+                    formats->findInt32(kKeyHeight) == 0) {
+                    ERROR("missing mandatory format infomation, playback may be broken");
+                }
+            }
+            
+            sp<Message> options = new Message;
+            options->setInt32(kKeyMode, mode);
+            if (type == kCodecTypeVideo) {
+                if (media->contains("VideoFrameEvent")) {
+                    sp<MediaFrameEvent> video = media->findObject("VideoFrameEvent");
+                    options->setObject("MediaFrameEvent", video);
+                }
+                options->setInt32(kKeyRequestFormat, kPixelFormatNV12);
+            } else if (type == kCodecTypeAudio) {
+                if (media->contains("AudioFrameEvent")) {
+                    sp<MediaFrameEvent> audio = media->findObject("AudioFrameEvent");
+                    options->setObject("MediaFrameEvent", audio);
+                }
+            }
+            options->setObject("PacketRequestEvent", ms);
+            options->setObject("SessionInfoEvent", new OnSessionInfo(i));
+            
+            if (kCodecTypeAudio == type || numTracks == 1) {
+                options->setObject("Clock", new Clock(mClock, kClockRoleMaster));
+            } else {
+                options->setObject("Clock", new Clock(mClock));
+            }
+            
+            sp<IMediaSession> session = IMediaSession::Create(formats, options);
+            if (session == NULL) {
+                ERROR("create session for %s[%zu] failed", url, i);
+                continue;
+            }
+            
+            // save this packet queue
+            mSessions.insert(mNextId, new SessionContext(mNextId, session));
+            mNextId += 1;
+            activeTracks |= (1<<i);
+        }
+        
+        // tell extractor which tracks are enabled.
+        sp<Message> config = new Message;
+        config->setInt32(kKeyMask, activeTracks);
+        if (extractor->configure(config) != kMediaNoError) {
+            WARN("extractor not support configure active tracks");
+        }
+        return kMediaNoError;
+    }
+    
+    MediaError init(const sp<Message>& media, const sp<Message>& options) {
+        if (media->contains(kKeyCount)) {
+            size_t count = media->findInt32(kKeyCount);
+            for (size_t i = 0; i < count; ++i) {
+                String name = String::format("media-%zu", i);
+                sp<Message> _media = media->findObject(name);
+                addMedia(_media);
+            }
         } else {
-            options->setObject("Clock", new Clock(mpc->mClock));
+            addMedia(media);
         }
-
-        sp<IMediaSession> session = IMediaSession::Create(formats, options);
-        if (session == NULL) {
-            ERROR("create session for %s[%zu] failed", url, i);
-            continue;
+        
+        notify(kInfoPlayerInitialized);
+        return kMediaNoError;
+    }
+    
+#define kDeferTimeUs     500000LL    // 500ms
+    struct DeferStart : public Runnable {
+        virtual void run() {
+            sp<MPContext> mpc = Looper::Current()->user(0);
+            INFO("defer start");
+            mpc->start();
         }
-
-        // save this packet queue
-        mpc->mSessions.insert(mpc->mNextId++,
-                              new SessionContext(codec, session));
-        activeTracks |= (1<<i);
+    };
+    
+    MediaError prepare(int64_t us) {
+        // -> ready by prepare
+        bool paused = mClock->isPaused();
+        if (!paused) {
+            // pause clock before seek
+            mClock->pause();
+        }
+        
+        // set clock time
+        mClock->set(us);
+        
+        sp<Message> options = new Message;
+        options->setInt64("time", us);
+        
+        HashTable<size_t, sp<SessionContext> >::iterator it = mSessions.begin();
+        for (; it != mSessions.end(); ++it) {
+            sp<SessionContext>& sc = it.value();
+            sc->mMediaSession->prepare(options);
+            mReadyMask.set(sc->mID);
+        }
+        
+        if (!paused) {
+            Looper::Current()->post(new DeferStart, kDeferTimeUs);
+        }
+        
+        return kMediaNoError;
     }
-
-    // tell extractor which tracks are enabled.
-    sp<Message> config = new Message;
-    config->setInt32(kKeyMask, activeTracks);
-    if (extractor->configure(config) != kMediaNoError) {
-        WARN("extractor not support configure active tracks");
+    
+    MediaError start() {
+        if (!mReadyMask.empty()) {
+            // add limit here
+            Looper::Current()->post(new DeferStart, kDeferTimeUs);
+        }
+        
+        mClock->start();
+        notify(kInfoPlayerPlaying);
+        return kMediaNoError;
     }
-    return kMediaNoError;
-}
+    
+    MediaError pause() {
+        mClock->pause();
+        // TODO: suspend codec after some time
+        notify(kInfoPlayerPaused);
+        return kMediaNoError;
+    }
+    
+    MediaError flush() {
+        HashTable<size_t, sp<SessionContext> >::iterator it = mSessions.begin();
+        for (; it != mSessions.end(); ++it) {
+            sp<SessionContext>& sc = it.value();
+            sc->mMediaSession->flush();
+        }
+        
+        mClock->reset();
+        
+        notify(kInfoPlayerFlushed);
+        return kMediaNoError;
+    }
+    
+    MediaError release() {
+        mSessions.clear();
+        notify(kInfoPlayerReleased);
+        return kMediaNoError;
+    }
+};
 
 struct State : public SharedObject {
     const eStateType kState;
@@ -275,10 +378,12 @@ struct State : public SharedObject {
 
 struct InvalidState : public State {
     InvalidState() : State(kStateInvalid) { }
+    
     virtual MediaError onLeaveState() {
         // NOTHING
         return kMediaNoError;
     }
+    
     virtual MediaError onEnterState(const sp<Message>& payload) {
         // NOTHING
         return kMediaNoError;
@@ -287,6 +392,7 @@ struct InvalidState : public State {
 
 struct InitialState : public State {
     InitialState() : State(kStateInitial) { }
+    
     virtual MediaError onLeaveState() {
         // NOTHING
         return kMediaNoError;
@@ -299,41 +405,14 @@ struct InitialState : public State {
         
         sp<MPContext> mpc = new MPContext(options);
         Looper::Current()->bind(mpc->RetainObject());
-
-        if (media->contains(kKeyCount)) {
-            size_t count = media->findInt32(kKeyCount);
-            for (size_t i = 0; i < count; ++i) {
-                String name = String::format("media-%zu", i);
-                sp<Message> _media = media->findObject(name);
-                prepareMedia(mpc, _media);
-            }
-        } else {
-            prepareMedia(mpc, media);
-        }
         
-        mpc->notify(kInfoPlayerInitialized);
-        return kMediaNoError;
-    }
-};
-
-struct PrepareStatusEvent : public CountedStatusEvent {
-    PrepareStatusEvent(const sp<Looper>& looper, size_t n) :
-        CountedStatusEvent(looper, n) { }
-
-    virtual void onFinished(MediaError st) {
-        sp<MPContext> mpc = Looper::Current()->user(0);
-
-        INFO("prepare finished with status %d, current pos %.3f(s)",
-                st, mpc->mClock->get() / 1E6);
-
-        // notify client
-        if (mpc->mStatusEvent != NULL)
-            mpc->mStatusEvent->fire(st);
+        return mpc->init(media, options);
     }
 };
 
 struct ReadyState : public State {
     ReadyState() : State(kStateReady) { }
+    
     virtual MediaError onLeaveState() {
         // NOTHING
         return kMediaNoError;
@@ -342,85 +421,51 @@ struct ReadyState : public State {
     virtual MediaError onEnterState(const sp<Message>& payload) {
         // -> ready by prepare
         sp<MPContext> mpc = Looper::Current()->user(0);
-
-        int64_t ts = payload->findInt64("time");
-
-        // set clock time
-        mpc->mClock->set(ts);
-
-        // prepare sessions
-        sp<PrepareStatusEvent> event = new PrepareStatusEvent(Looper::Current(), mpc->mSessions.size());
-        event->keep(event);
-
-        sp<Message> options = new Message;
-        options->setInt64("time", ts);
-        options->setObject("StatusEvent", event);
-
-        HashTable<size_t, sp<SessionContext> >::iterator it = mpc->mSessions.begin();
-        for (; it != mpc->mSessions.end(); ++it) {
-            sp<SessionContext>& sc = it.value();
-            sc->mMediaSession->prepare(options);
-        }
-        
-        mpc->notify(kInfoPlayerReady);
-        return kMediaNoError;
+        int64_t us = payload->findInt64("time");
+        return mpc->prepare(us);
     }
 };
 
 struct PlayingState : public State {
     PlayingState() : State(kStatePlaying) { }
+    
     virtual MediaError onLeaveState() {
         // NOTHINGS
         return kMediaNoError;
     }
+    
     virtual MediaError onEnterState(const sp<Message>& payload) {
         // -> playing by start
         sp<MPContext> mpc = Looper::Current()->user(0);
-
-        mpc->mClock->start();
-        
-        mpc->notify(kInfoPlayerPlaying);
-        return kMediaNoError;
+        return mpc->start();
     }
 };
 
 struct IdleState : public State {
     IdleState() : State(kStateIdle) { }
+    
     virtual MediaError onLeaveState() {
         // NOTHING
         return kMediaNoError;
     }
+    
     virtual MediaError onEnterState(const sp<Message>& payload) {
         // -> paused by pause
         sp<MPContext> mpc = Looper::Current()->user(0);
-
-        mpc->mClock->pause();
-
-        // we may have to suspend codec after some time
-        
-        mpc->notify(kInfoPlayerPaused);
-        return kMediaNoError;
+        return mpc->pause();
     }
 };
 
 struct FlushedState : public State {
     FlushedState() : State(kStateFlushed) { }
+    
     virtual MediaError onLeaveState() {
         return kMediaNoError;
     }
+    
     virtual MediaError onEnterState(const sp<Message>& payload) {
         sp<MPContext> mpc = Looper::Current()->user(0);
-
-        HashTable<size_t, sp<SessionContext> >::iterator it = mpc->mSessions.begin();
-        for (; it != mpc->mSessions.end(); ++it) {
-            sp<SessionContext>& sc = it.value();
-            sc->mMediaSession->flush();
-        }
-
-        mpc->mClock->reset();
-        
-        mpc->notify(kInfoPlayerFlushed);
-        return kMediaNoError;
+        return mpc->flush();
     }
 };
 
@@ -433,12 +478,10 @@ struct ReleasedState : public State {
 
     virtual MediaError onEnterState(const sp<Message>& payload) {
         sp<MPContext> mpc = Looper::Current()->user(0);
+        mpc->release();
+        
         Looper::Current()->bind(NULL);
         mpc->ReleaseObject();       // release refs in looper
-        
-        mpc->mSessions.clear();
-        mpc->notify(kInfoPlayerReleased);
-        
         return kMediaNoError;
     }
 };
@@ -616,6 +659,10 @@ struct AVPlayer : public IMediaPlayer {
 
     virtual MediaError start() {
         AutoLock _l(mLock);
+        if (mState == kStatePlaying) {
+            ERROR("already started");
+            return kMediaErrorInvalidOperation;
+        }
         INFO("start");
         sp<Message> payload = new Message;
         return setState_l(kStatePlaying, payload);
@@ -623,6 +670,10 @@ struct AVPlayer : public IMediaPlayer {
 
     virtual MediaError pause() {
         AutoLock _l(mLock);
+        if (mState == kStateIdle) {
+            ERROR("already paused");
+            return kMediaErrorInvalidOperation;
+        }
         INFO("pause");
         sp<Message> payload = new Message;
         return setState_l(kStateIdle, payload);
@@ -630,6 +681,10 @@ struct AVPlayer : public IMediaPlayer {
 
     virtual MediaError flush() {
         AutoLock _l(mLock);
+        if (mState == kStateFlushed) {
+            ERROR("already flushed");
+            return kMediaErrorInvalidOperation;
+        }
         INFO("flush");
         sp<Message> payload = new Message;
         return setState_l(kStateFlushed, payload);
@@ -637,6 +692,10 @@ struct AVPlayer : public IMediaPlayer {
 
     virtual MediaError release() {
         AutoLock _l(mLock);
+        if (mState == kStateReleased) {
+            ERROR("already released");
+            return kMediaErrorInvalidOperation;
+        }
         INFO("release");
         sp<Message> payload = new Message;
         MediaError st = setState_l(kStateReleased, payload);
