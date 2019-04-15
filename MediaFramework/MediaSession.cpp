@@ -80,7 +80,6 @@ struct Decoder : public SharedObject {
     // internal mutable context
     // TODO: clock for decoder, handle late frames
     Atomic<int>             mGeneration;
-    bool                    mFlushed;
     List<sp<MediaPacket> >  mInputQueue;        // input packets queue
     bool                    mInputEOS;          // end of input ?
     bool                    mSignalCodecEOS;    // tell codec eos
@@ -101,8 +100,7 @@ struct Decoder : public SharedObject {
         // internal static context
         mCodec(NULL), mPacketReadyEvent(NULL),
         // internal mutable context
-        mGeneration(0), mFlushed(false),
-        mInputEOS(false), mSignalCodecEOS(false), mLastPacketTime(kTimeInvalid),
+        mGeneration(0), mInputEOS(false), mSignalCodecEOS(false), mLastPacketTime(kTimeInvalid),
         // statistics
         mPacketsReceived(0), mPacketsComsumed(0), mFramesDecoded(0)
     {
@@ -187,6 +185,10 @@ struct Decoder : public SharedObject {
         } else {
             DEBUG("codec %zu: packet %.3f|%.3f(s) ready",
                     mID, pkt->dts.seconds(), pkt->pts.seconds());
+            
+            if (mPacketsReceived == 0) {
+                INFO("codec %zu: first packet @ %.3f(s)|%.3f(s)", mID, pkt->pts.seconds(), pkt->dts.seconds());
+            }
 
             ++mPacketsReceived;
             // @see MediaExtractor::read(), packets should in dts order.
@@ -207,19 +209,21 @@ struct Decoder : public SharedObject {
     }
 
     void onPrepareDecoder(const MediaTime& ts) {
-        INFO("codec %zu: prepare decoder", mID);
+        INFO("codec %zu: prepare decoder @ %.3f(s)", mID, ts.seconds());
         CHECK_TRUE(ts != kTimeInvalid);
+        
+        // clear
+        mInputQueue.clear();
+        mCodec->flush();
+        mFrameRequests.clear();
 
         // update generation
         mPacketReadyEvent = new OnPacketReady(++mGeneration);
 
-        // TODO: prepare again without flush
-        mFlushed = false;
+        // reset flags
         mInputEOS = false;
         mOutputEOS = false;
         mSignalCodecEOS = false;
-        mInputQueue.clear();
-        mCodec->flush();
         mLastPacketTime = kTimeBegin;
 
         mPacketsReceived = 0;
@@ -232,45 +236,22 @@ struct Decoder : public SharedObject {
         // MIN_COUNT packets
     }
 
-    void onFlushDecoder() {
-        INFO("codec %zu: flush %zu packets", mID, mInputQueue.size());
-
-        // update generation
-        ++mGeneration;
-        mPacketReadyEvent = NULL;
-
-        // remove cmds
-        mFrameRequests.clear();
-
-        // flush input queue and codec
-        mInputQueue.clear();
-        mCodec->flush();
-
-        mFlushed = true;
-    }
-
     void onRequestFrame(const FrameRequest& request) {
         DEBUG("codec %zu: request frames", mID);
-
-        if (request.event == NULL) {
-            // request to flush
-            if (request.ts == kTimeEnd) {
-                onFlushDecoder();
-            }
-            // request to prepare @ ts
-            else if (request.ts != kTimeInvalid) {
-                onPrepareDecoder(request.ts);
-            }
-            return;
+        CHECK_TRUE(request.event != NULL);
+        
+        if (request.ts != kTimeInvalid) {
+            // request frame @ new position
+            onPrepareDecoder(request.ts);
         }
-
+    
+        // request next frame
         if (mOutputEOS) {
             ERROR("codec %zu: request frame at eos", mID);
             return;
         }
         CHECK_TRUE(request.event != NULL);
 
-        // request.ts == kTimeInvalid => request next
         mFrameRequests.push(request);
         // case 2: packet is ready
         // decode the first packet
@@ -443,7 +424,7 @@ struct Renderer : public SharedObject {
         }
     }
 
-    void requestFrame() {
+    void requestFrame(int64_t us = -1) {
         // don't request frame if eos detected.
         if (mOutputEOS) return;
 
@@ -454,7 +435,7 @@ struct Renderer : public SharedObject {
         }
 
         FrameRequest request;
-        request.ts      = kTimeInvalid;
+        request.ts      = us < 0 ? kTimeInvalid : us;
         request.event   = mFrameReadyEvent;
         mFrameRequestEvent->fire(request);
         DEBUG("renderer %zu: request more frames", mID);
@@ -463,7 +444,7 @@ struct Renderer : public SharedObject {
 
     struct OnFrameReady : public FrameReadyEvent {
         const int mGeneration;
-        OnFrameReady(int gen) : FrameReadyEvent(String::format("OnFrameReady %d", gen), Looper::Current()), mGeneration(gen) { }
+        OnFrameReady(int gen) : mGeneration(gen) { }
         virtual void onEvent(const sp<MediaFrame>& frame) {
             sp<Renderer> renderer = Looper::Current()->user(INDEX1);
             renderer->onFrameReady(frame, mGeneration);
@@ -545,16 +526,11 @@ struct Renderer : public SharedObject {
     }
 
     void onPrepareRenderer(int64_t us) {
-        INFO("renderer %zu: prepare renderer...", mID);
+        INFO("renderer %zu: prepare renderer @ %.3f(s)", mID, us / 1E6);
         if (us < 0) us = 0;
         
         // update generation
         mFrameReadyEvent = new OnFrameReady(++mGeneration);
-
-        // tell decoder to prepare
-        FrameRequest request;
-        request.ts = us;
-        mFrameRequestEvent->fire(request);
 
         // reset flags
         mState = kRenderInitialized;
@@ -564,7 +540,7 @@ struct Renderer : public SharedObject {
         mOutputQueue.clear();
 
         // request frames
-        requestFrame();
+        requestFrame(us);
         // -> onFrameReady
 
         // if no clock, start render directly
@@ -579,11 +555,6 @@ struct Renderer : public SharedObject {
 
         // update generation
         ++mGeneration;
-        
-        // tell decoder to flush
-        FrameRequest request;
-        request.ts = kTimeEnd;
-        mFrameRequestEvent->fire(request);
 
         // remove present runnable
         Looper::Current()->remove(mPresentFrame);
@@ -775,9 +746,6 @@ struct OnFrameRequestTunnel : public FrameRequestEvent {
 
     virtual void onEvent(const FrameRequest& request) {
         PacketRequest packetRequest;
-        if (request.ts == kTimeEnd) {
-            return;
-        }
         packetRequest.event     = new OnPacketReadyTunnel(request.event);
         packetRequest.mode      = kModeReadNext;
         if (request.ts != kTimeInvalid) {
