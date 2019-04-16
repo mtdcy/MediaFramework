@@ -100,7 +100,7 @@ enum {
     OBJ_MAX
 };
 
-struct Config_Format {
+struct TextureFormat {
     const GLint     internalformat;
     const GLenum    format;
     const GLenum    type;
@@ -108,31 +108,24 @@ struct Config_Format {
     const GLfloat   height; // factor of height
 };
 
-struct OpenGLContext;
-struct Config {
+struct OpenGLConfig {
     const char *            s_vsh;          // vertex sl source
     const char *            s_fsh;          // fragment sl source
     const GLenum            e_target;       // texture target
     const GLsizei           n_textures;     // n texture for n planes
-    const Config_Format     a_format[4];    // texture format for each plane
+    const TextureFormat     a_format[4];    // texture format for each plane
     const char *            s_attrs[ATTR_MAX];          // attribute names to get
     const char *            s_uniforms[UNIFORM_MAX];    // uniform names to get
-    void                    (*update)(const sp<OpenGLContext>&, const sp<MediaFrame>&);
 };
 
 struct OpenGLContext : public SharedObject {
     // gl context
-    const Config *  config;
-    GLuint          objs[OBJ_MAX];
-    GLint           attrs[ATTR_MAX];
-    GLint           uniforms[UNIFORM_MAX];
-    
-    int32_t         width;
-    int32_t         height;
-    ePixelFormat    format;
-    
-    OpenGLContext() : SharedObject(), config(NULL), width(0), height(0), format(kPixelFormatUnknown)
-    {
+    const OpenGLConfig *    config;
+    GLuint                  objs[OBJ_MAX];
+    GLint                   attrs[ATTR_MAX];
+    GLint                   uniforms[UNIFORM_MAX];
+
+    OpenGLContext() : SharedObject(), config(NULL) {
         for (size_t i = 0; i < OBJ_MAX; ++i) objs[i] = 0;
         for (size_t i = 0; i < ATTR_MAX; ++i) attrs[i] = -1;
         for (size_t i = 0; i < UNIFORM_MAX; ++i) uniforms[i] = -1;
@@ -157,106 +150,6 @@ struct OpenGLContext : public SharedObject {
         }
     }
 };
-
-// https://github.com/wshxbqq/GLSL-Card
-static const char * vsh_yuv = SL(
-        attribute vec4 a_position;
-        attribute vec2 a_texcoord;
-        varying vec2 v_texcoord;
-        void main(void)
-        {
-        gl_Position = a_position;
-        v_texcoord = a_texcoord;
-        }
-        );
-
-/**
-// SDTV with BT.601
-// y,   u,          v
-1,      0,          1.13983,
-1,      -0.39465,   -0.58060,
-1,      2.03211,    0
-// HDTV with BT.709
-//
-1,     0,          1.28033,
-1,     -0.21482,   -0.38059,
-1,     2.12798,    0
-// JPEG/JFIF
-1,     0,          1.402,
-1,     -0.34414,   -0.71414,
-1,     1.772,      0
-*/
-
-static const GLfloat color_matrix_JFIF[] = {
-    // y,   u,  v
-    1,     0,          1.402,
-    1,     -0.344,     -0.714,
-    1,     1.772,      0
-};
-
-static const char * fsh_yuv420p = SL(
-        varying vec2 v_texcoord;
-        uniform sampler2D u_planes[3];
-        uniform mat3 u_colorMatrix;
-        void main(void)
-        {
-        vec3 yuv;
-        vec3 rgb;
-        yuv.x = texture2D(u_planes[0], v_texcoord).r;
-        yuv.y = texture2D(u_planes[1], v_texcoord).r - 0.5;
-        yuv.z = texture2D(u_planes[2], v_texcoord).r - 0.5;
-        rgb = yuv * u_colorMatrix;
-        gl_FragColor = vec4(rgb, 1.0);
-        }
-        );
-
-static const char * fsh_nv12 = SL(
-        varying vec2 v_texcoord;
-        uniform sampler2D u_planes[2];
-        uniform mat3 u_colorMatrix;
-        void main(void)
-        {
-        vec3 yuv;
-        vec3 rgb;
-        yuv.x = texture2D(u_planes[0], v_texcoord).r;
-        yuv.y = texture2D(u_planes[1], v_texcoord).r - 0.5;
-        yuv.z = texture2D(u_planes[1], v_texcoord).a - 0.5;
-        rgb = yuv * u_colorMatrix;
-        gl_FragColor = vec4(rgb, 1.0);
-        }
-        );
-
-#ifdef __APPLE__
-// xxx: WHY NO COLOR MATRIX NEED HERE?
-static const char * fsh_vt_yuv422p = SL(
-        varying vec2 v_texcoord;
-        uniform sampler2DRect u_planes[1];
-        //uniform mat3 u_colorMatrix;
-        uniform vec2 u_resolution;
-        void main(void)
-        {
-        gl_FragColor = texture2DRect(u_planes[0], v_texcoord * u_resolution);
-        }
-        );
-
-static const char * fsh_vt_nv12 = SL(
-        varying vec2 v_texcoord;
-        uniform sampler2DRect u_planes[2];
-        uniform mat3 u_colorMatrix;
-        uniform vec2 u_resolution;
-        void main(void)
-        {
-        vec3 yuv;
-        vec3 rgb;
-        vec2 coord = v_texcoord * u_resolution;
-        yuv.x = texture2DRect(u_planes[0], coord).r;
-        yuv.y = texture2DRect(u_planes[1], coord * 0.5).r - 0.5;
-        yuv.z = texture2DRect(u_planes[1], coord * 0.5).a - 0.5;
-        rgb = yuv * u_colorMatrix;
-        gl_FragColor = vec4(rgb, 1.0);
-        }
-        );
-#endif
 
 static const GLfloat position_vertices_original[] = {
     // x    y
@@ -350,7 +243,31 @@ static FORCE_INLINE size_t initTextures(size_t n, GLenum target, GLuint *texture
     return n;
 }
 
-static sp<OpenGLContext> initContext(const Config *config) {
+/**
+ // SDTV with BT.601
+ // y,   u,          v
+ 1,      0,          1.13983,
+ 1,      -0.39465,   -0.58060,
+ 1,      2.03211,    0
+ // HDTV with BT.709
+ //
+ 1,     0,          1.28033,
+ 1,     -0.21482,   -0.38059,
+ 1,     2.12798,    0
+ // JPEG/JFIF
+ 1,     0,          1.402,
+ 1,     -0.34414,   -0.71414,
+ 1,     1.772,      0
+ */
+
+static const GLfloat color_matrix_JFIF[] = {
+    // y,   u,  v
+    1,     0,          1.402,
+    1,     -0.344,     -0.714,
+    1,     1.772,      0
+};
+
+static sp<OpenGLContext> initOpenGLContext(const OpenGLConfig *config) {
     sp<OpenGLContext> glc = new OpenGLContext;
 
     glc->objs[OBJ_VERTEX_SHADER]    = initShader(GL_VERTEX_SHADER, config->s_vsh);
@@ -403,7 +320,19 @@ static sp<OpenGLContext> initContext(const Config *config) {
     return glc;
 }
 
-static void updateTexture(const sp<OpenGLContext>& glc, const sp<MediaFrame>& frame) {
+#ifdef __APPLE__
+static sp<OpenGLContext> initOpenGLContextForVideoToolbox(const OpenGLConfig *OpenGLConfig, GLint w, GLint h) {
+    sp<OpenGLContext> glc = initOpenGLContext(OpenGLConfig);
+    if (glc == NULL) return NULL;
+
+    CHECK_GE(glc->uniforms[UNIFORM_RESOLUTION], 0);
+    glUniform2f(glc->uniforms[UNIFORM_RESOLUTION], (GLfloat)w, (GLfloat)h);
+
+    return glc;
+}
+#endif
+
+static void drawFrame(const sp<OpenGLContext>& glc, const sp<MediaFrame>& frame) {
     uint8_t * planes[3] = {
         frame->planes[0].data,
         frame->planes[1].data,
@@ -462,12 +391,16 @@ static void updateTexture(const sp<OpenGLContext>& glc, const sp<MediaFrame>& fr
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     CHECK_GL_ERROR();
 
+#ifdef __APPLE__
+    glSwapAPPLE();
+#else
     glFlush();  // always assume single buffer here, let client handle swap buffers
+#endif
     CHECK_GL_ERROR();
 }
 
 #ifdef __APPLE__
-static void updateTexture_VideoToolbox(const sp<OpenGLContext>& glc, const sp<MediaFrame>& frame) {
+static void drawVideoToolboxFrame(const sp<OpenGLContext>& glc, const sp<MediaFrame>& frame) {
     GLsizei w = frame->v.width;
     GLsizei h = frame->v.height;
 
@@ -511,7 +444,7 @@ static void updateTexture_VideoToolbox(const sp<OpenGLContext>& glc, const sp<Me
 
     glUniform1iv(glc->uniforms[UNIFORM_PLANES], glc->config->n_textures, index);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-    
+
 #ifdef __APPLE__
     glSwapAPPLE();
 #else
@@ -521,7 +454,81 @@ static void updateTexture_VideoToolbox(const sp<OpenGLContext>& glc, const sp<Me
 }
 #endif
 
-static const Config s_config_yuv420 = {
+// https://github.com/wshxbqq/GLSL-Card
+static const char * vsh_yuv = SL(
+        attribute vec4 a_position;
+        attribute vec2 a_texcoord;
+        varying vec2 v_texcoord;
+        void main(void)
+        {
+            gl_Position = a_position;
+            v_texcoord = a_texcoord;
+        }
+    );
+
+static const char * fsh_yuv420p = SL(
+        varying vec2 v_texcoord;
+        uniform sampler2D u_planes[3];
+        uniform mat3 u_colorMatrix;
+        void main(void)
+        {
+            vec3 yuv;
+            vec3 rgb;
+            yuv.x = texture2D(u_planes[0], v_texcoord).r;
+            yuv.y = texture2D(u_planes[1], v_texcoord).r - 0.5;
+            yuv.z = texture2D(u_planes[2], v_texcoord).r - 0.5;
+            rgb = yuv * u_colorMatrix;
+            gl_FragColor = vec4(rgb, 1.0);
+        }
+    );
+
+static const char * fsh_nv12 = SL(
+        varying vec2 v_texcoord;
+        uniform sampler2D u_planes[2];
+        uniform mat3 u_colorMatrix;
+        void main(void)
+        {
+            vec3 yuv;
+            vec3 rgb;
+            yuv.x = texture2D(u_planes[0], v_texcoord).r;
+            yuv.y = texture2D(u_planes[1], v_texcoord).r - 0.5;
+            yuv.z = texture2D(u_planes[1], v_texcoord).a - 0.5;
+            rgb = yuv * u_colorMatrix;
+            gl_FragColor = vec4(rgb, 1.0);
+        }
+    );
+
+// xxx: WHY NO COLOR MATRIX NEED HERE?
+static const char * fsh_yuv422p_rect = SL(
+        varying vec2 v_texcoord;
+        uniform sampler2DRect u_planes[1];
+        //uniform mat3 u_colorMatrix;
+        uniform vec2 u_resolution;
+        void main(void)
+        {
+            gl_FragColor = texture2DRect(u_planes[0], v_texcoord * u_resolution);
+        }
+    );
+
+static const char * fsh_nv12_rect = SL(
+        varying vec2 v_texcoord;
+        uniform sampler2DRect u_planes[2];
+        uniform mat3 u_colorMatrix;
+        uniform vec2 u_resolution;
+        void main(void)
+        {
+            vec3 yuv;
+            vec3 rgb;
+            vec2 coord = v_texcoord * u_resolution;
+            yuv.x = texture2DRect(u_planes[0], coord).r;
+            yuv.y = texture2DRect(u_planes[1], coord * 0.5).r - 0.5;
+            yuv.z = texture2DRect(u_planes[1], coord * 0.5).a - 0.5;
+            rgb = yuv * u_colorMatrix;
+            gl_FragColor = vec4(rgb, 1.0);
+        }
+    );
+
+static const OpenGLConfig YUV420p = {
     .s_vsh      = vsh_yuv,
     .s_fsh      = fsh_yuv420p,
     .e_target   = GL_TEXTURE_2D,
@@ -533,10 +540,9 @@ static const Config s_config_yuv420 = {
     },
     .s_attrs    = { "a_position", "a_texcoord" },
     .s_uniforms = { "u_planes", "u_colorMatrix", NULL },
-    .update     = updateTexture,
 };
 
-static const Config s_config_nv12 = {
+static const OpenGLConfig NV12 = {
     .s_vsh      = vsh_yuv,
     .s_fsh      = fsh_nv12,
     .e_target   = GL_TEXTURE_2D,
@@ -547,30 +553,11 @@ static const Config s_config_nv12 = {
     },
     .s_attrs    = { "a_position", "a_texcoord" },
     .s_uniforms = { "u_planes", "u_colorMatrix", NULL },
-    .update     = updateTexture,
 };
 
-#ifdef __APPLE__
-// about rectangle texture
-// https://www.khronos.org/opengl/wiki/Rectangle_Texture
-// about yuv422
-// https://www.khronos.org/registry/OpenGL/extensions/APPLE/APPLE_ycbcr_422.txt
-static const Config s_config_vt_y422p = {
+static const OpenGLConfig NV12_RECT = {
     .s_vsh      = vsh_yuv,
-    .s_fsh      = fsh_vt_yuv422p,
-    .e_target   = GL_TEXTURE_RECTANGLE_ARB,
-    .n_textures = 1,
-    .a_format   = {
-        {GL_RGB, GL_YCBCR_422_APPLE, GL_UNSIGNED_SHORT_8_8_APPLE, 1.0, 1.0},
-    },
-    .s_attrs    = { "a_position", "a_texcoord" },
-    .s_uniforms = { "u_planes", NULL, "u_resolution" },
-    .update     = updateTexture_VideoToolbox,
-};
-
-static const Config s_config_vt_nv12 = {
-    .s_vsh      = vsh_yuv,
-    .s_fsh      = fsh_vt_nv12,
+    .s_fsh      = fsh_nv12_rect,
     .e_target   = GL_TEXTURE_RECTANGLE_ARB,
     .n_textures = 2,
     .a_format   = {
@@ -579,29 +566,66 @@ static const Config s_config_vt_nv12 = {
     },
     .s_attrs    = { "a_position", "a_texcoord" },
     .s_uniforms = { "u_planes", "u_colorMatrix", "u_resolution" },
-    .update     = updateTexture_VideoToolbox,
 };
-#endif
 
 #ifdef __APPLE__
-static sp<OpenGLContext> initOpenGLForVideoToolbox(const Config *config, GLint w, GLint h) {
-    sp<OpenGLContext> glc = initContext(config);
-    if (glc == NULL) return NULL;
-    
-    CHECK_GE(glc->uniforms[UNIFORM_RESOLUTION], 0);
-    glUniform2f(glc->uniforms[UNIFORM_RESOLUTION], (GLfloat)w, (GLfloat)h);
-    
-    return glc;
-}
+// about rectangle texture
+// https://www.khronos.org/opengl/wiki/Rectangle_Texture
+// about yuv422
+// https://www.khronos.org/registry/OpenGL/extensions/APPLE/APPLE_ycbcr_422.txt
+static const OpenGLConfig YUV422p_APPLE = {
+    .s_vsh      = vsh_yuv,
+    .s_fsh      = fsh_yuv422p_rect,
+    .e_target   = GL_TEXTURE_RECTANGLE_ARB,
+    .n_textures = 1,
+    .a_format   = {
+        {GL_RGB, GL_YCBCR_422_APPLE, GL_UNSIGNED_SHORT_8_8_APPLE, 1.0, 1.0},
+    },
+    .s_attrs    = { "a_position", "a_texcoord" },
+    .s_uniforms = { "u_planes", NULL, "u_resolution" },
+};
 #endif
 
 ////////////////////////////////////////////////////////////////////
 struct GLVideo : public MediaOut {
-    sp<OpenGLContext> mGLContext;
+    ImageFormat         mFormat;
+    sp<OpenGLContext>   mGLContext;
+    void (*drawFunc)(const sp<OpenGLContext>&, const sp<MediaFrame>&);
+#ifdef TEST_COLOR
+    sp<ColorConvertor>  mConvertor;
+#endif
 
     GLVideo() : MediaOut(), mGLContext(NULL) { }
 
     virtual ~GLVideo() { }
+    
+    MediaError init(const ImageFormat& format) {
+        switch (format.format) {
+            case kPixelFormatNV12:
+                mGLContext = initOpenGLContext(&NV12);
+                drawFunc = drawFrame;
+                break;
+            case kPixelFormatYUV420P:
+                mGLContext = initOpenGLContext(&YUV420p);
+                drawFunc = drawFrame;
+                break;
+#ifdef __APPLE__
+            case kPixelFormatVideoToolbox:
+                // client have to prepare gl context for current thread
+                CHECK_NULL(CGLGetCurrentContext());
+                // kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
+                // TODO: defer init OpenGL, get real pixel format from data
+                mGLContext = initOpenGLContextForVideoToolbox(&NV12_RECT, format.width, format.height);
+                drawFunc = drawVideoToolboxFrame;
+                break;
+#endif
+            default:
+                FATAL("FIXME");
+        }
+        
+        CHECK_TRUE(mGLContext != NULL);
+        return kMediaNoError;
+    }
 
     virtual MediaError prepare(const sp<Message>& format, const sp<Message>& options) {
         CHECK_TRUE(format != NULL);
@@ -614,36 +638,15 @@ struct GLVideo : public MediaOut {
         int32_t height      = format->findInt32(kKeyHeight);
         ePixelFormat pixel  = (ePixelFormat)format->findInt32(kKeyFormat);
         
-        switch (pixel) {
-            case kPixelFormatNV12:
-                mGLContext = initContext(&s_config_nv12);
-                break;
-            case kPixelFormatYUV420P:
-                mGLContext = initContext(&s_config_yuv420);
-                break;
-#ifdef __APPLE__
-            case kPixelFormatVideoToolbox:
-                // client have to prepare gl context for current thread
-                CHECK_NULL(CGLGetCurrentContext());
-                // kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
-                // TODO: defer init OpenGL, get real pixel format from data
-                mGLContext = initOpenGLForVideoToolbox(&s_config_vt_nv12, width, height);
-                break;
-#endif
-            default:
-                FATAL("FIXME");
-        }
-
-        CHECK_TRUE(mGLContext != NULL);
-
+        mFormat.format      = pixel;
+        mFormat.width       = width;
+        mFormat.height      = height;
 #ifdef TEST_COLOR
-        mGLContext->format  = TEST_COLOR;
-        mGLContext->cc      = new ColorConvertor(TEST_COLOR);
-#else
-        mGLContext->format  = pixel;
+        mFormat.format      = TEST_COLOR;
+        mConvertor          = new ColorConvertor(TEST_COLOR);
 #endif
-        mGLContext->width   = width;
-        mGLContext->height  = height;
+
+        init(mFormat);
         return kMediaNoError;
     }
 
@@ -657,9 +660,9 @@ struct GLVideo : public MediaOut {
 
     virtual sp<Message> formats() const {
         sp<Message> info = new Message;
-        info->setInt32(kKeyWidth, mGLContext->width);
-        info->setInt32(kKeyHeight, mGLContext->height);
-        info->setInt32(kKeyFormat, mGLContext->format);
+        info->setInt32(kKeyWidth,   mFormat.width);
+        info->setInt32(kKeyHeight,  mFormat.height);
+        info->setInt32(kKeyFormat,  mFormat.format);
         return info;
     }
 
@@ -672,15 +675,21 @@ struct GLVideo : public MediaOut {
             INFO("eos...");
             return kMediaNoError;
         }
+        
+        if (input->v != mFormat) {
+            INFO("frame format changed, re-init opengl context");
+            init(input->v);
+            mFormat = input->v;
+        }
 
         sp<MediaFrame> frame = input;
 #ifdef TEST_COLOR
         if (input->v.format != TEST_COLOR) {
-            frame = mGLContext->cc->convert(input);
+            frame = mConvertor->convert(input);
         }
 #endif
 
-        mGLContext->config->update(mGLContext, frame);
+        drawFunc(mGLContext, frame);
 
         return kMediaNoError;
     }
