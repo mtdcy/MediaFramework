@@ -104,8 +104,8 @@ struct TextureFormat {
     const GLint     internalformat;
     const GLenum    format;
     const GLenum    type;
-    const GLfloat   width;  // factor of width
-    const GLfloat   height; // factor of height
+    const GLsizei   width;  // bpp of width
+    const GLsizei   height; // bpp of height
 };
 
 struct OpenGLConfig {
@@ -377,8 +377,8 @@ static void drawFrame(const sp<OpenGLContext>& glc, const sp<MediaFrame>& frame)
 
         glTexImage2D(glc->config->e_target, 0,
                 glc->config->a_format[i].internalformat,
-                (GLsizei)(frame->v.width * glc->config->a_format[i].width),
-                (GLsizei)(frame->v.height * glc->config->a_format[i].height),
+                (GLsizei)(frame->v.width * glc->config->a_format[i].width) / 8,
+                (GLsizei)(frame->v.height * glc->config->a_format[i].height) / 8,
                 0,
                 glc->config->a_format[i].format,
                 glc->config->a_format[i].type,
@@ -429,8 +429,8 @@ static void drawVideoToolboxFrame(const sp<OpenGLContext>& glc, const sp<MediaFr
         CGLError err = CGLTexImageIOSurface2D(CGLGetCurrentContext(),
                 glc->config->e_target,
                 glc->config->a_format[i].internalformat,
-                (GLsizei)(w * glc->config->a_format[i].width),
-                (GLsizei)(h * glc->config->a_format[i].height),
+                (GLsizei)(w * glc->config->a_format[i].width) / 8,
+                (GLsizei)(h * glc->config->a_format[i].height) / 8,
                 glc->config->a_format[i].format,
                 glc->config->a_format[i].type,
                 iosurface, i);
@@ -534,9 +534,9 @@ static const OpenGLConfig YUV420p = {
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 3,
     .a_format   = {
-        {GL_LUMINANCE, GL_LUMINANCE, GL_UNSIGNED_BYTE, 1.0, 1.0},
-        {GL_LUMINANCE, GL_LUMINANCE, GL_UNSIGNED_BYTE, 0.5, 0.5},
-        {GL_LUMINANCE, GL_LUMINANCE, GL_UNSIGNED_BYTE, 0.5, 0.5},
+        {GL_LUMINANCE, GL_LUMINANCE, GL_UNSIGNED_BYTE, 8, 8},
+        {GL_LUMINANCE, GL_LUMINANCE, GL_UNSIGNED_BYTE, 4, 4},
+        {GL_LUMINANCE, GL_LUMINANCE, GL_UNSIGNED_BYTE, 4, 4},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
     .s_uniforms = { "u_planes", "u_colorMatrix", NULL },
@@ -548,8 +548,8 @@ static const OpenGLConfig NV12 = {
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 2,
     .a_format   = {
-        {GL_LUMINANCE, GL_LUMINANCE, GL_UNSIGNED_BYTE, 1.0, 1.0},
-        {GL_LUMINANCE_ALPHA, GL_LUMINANCE_ALPHA, GL_UNSIGNED_BYTE, 0.5, 0.5},
+        {GL_LUMINANCE, GL_LUMINANCE, GL_UNSIGNED_BYTE, 8, 8},
+        {GL_LUMINANCE_ALPHA, GL_LUMINANCE_ALPHA, GL_UNSIGNED_BYTE, 4, 4},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
     .s_uniforms = { "u_planes", "u_colorMatrix", NULL },
@@ -561,8 +561,8 @@ static const OpenGLConfig NV12_RECT = {
     .e_target   = GL_TEXTURE_RECTANGLE_ARB,
     .n_textures = 2,
     .a_format   = {
-        {GL_LUMINANCE, GL_LUMINANCE, GL_UNSIGNED_BYTE, 1.0, 1.0},
-        {GL_LUMINANCE_ALPHA, GL_LUMINANCE_ALPHA, GL_UNSIGNED_BYTE, 0.5, 0.5},
+        {GL_LUMINANCE, GL_LUMINANCE, GL_UNSIGNED_BYTE, 8, 8},
+        {GL_LUMINANCE_ALPHA, GL_LUMINANCE_ALPHA, GL_UNSIGNED_BYTE, 4, 4},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
     .s_uniforms = { "u_planes", "u_colorMatrix", "u_resolution" },
@@ -579,7 +579,7 @@ static const OpenGLConfig YUV422p_APPLE = {
     .e_target   = GL_TEXTURE_RECTANGLE_ARB,
     .n_textures = 1,
     .a_format   = {
-        {GL_RGB, GL_YCBCR_422_APPLE, GL_UNSIGNED_SHORT_8_8_APPLE, 1.0, 1.0},
+        {GL_RGB, GL_YCBCR_422_APPLE, GL_UNSIGNED_SHORT_8_8_APPLE, 8, 8},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
     .s_uniforms = { "u_planes", NULL, "u_resolution" },
