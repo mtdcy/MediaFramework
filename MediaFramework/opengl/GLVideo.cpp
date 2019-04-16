@@ -628,7 +628,7 @@ static const OpenGLConfig NV12 = {
 
 static const OpenGLConfig NV21 = {
     .s_vsh      = vsh_yuv,
-    .s_fsh      = fsh_nv12,
+    .s_fsh      = fsh_nv21,
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 2,
     .a_format   = {
