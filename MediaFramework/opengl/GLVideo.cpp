@@ -604,7 +604,11 @@ struct GLVideo : public MediaOut {
     virtual ~GLVideo() { }
 
     virtual MediaError prepare(const sp<Message>& format, const sp<Message>& options) {
-        INFO("gl video => %s %s", format->string().c_str(), options->string().c_str());
+        CHECK_TRUE(format != NULL);
+        INFO("gl video => %s", format->string().c_str());
+        if (options != NULL) {
+            INFO("\t options: %s", options->string().c_str());
+        }
 
         int32_t width       = format->findInt32(kKeyWidth);
         int32_t height      = format->findInt32(kKeyHeight);

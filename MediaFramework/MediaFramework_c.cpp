@@ -159,14 +159,24 @@ eStateType MediaPlayerGetState(const MediaPlayerRef ref) {
     return mp->state();
 }
 
-MediaOutRef MediaOutCreate(eCodecType type) {
+MediaOutRef MediaOutCreate(eCodecType type, MessageRef format, MessageRef options) {
     Object<MediaOut> out = MediaOut::Create(type);
+    if (out->prepare(format, options) != kMediaNoError) {
+        return NULL;
+    }
     return (MediaOutRef)out->RetainObject();
 }
 
-MediaError MediaOutPrepare(MediaOutRef ref, MessageRef format, MessageRef options) {
-    Object<MediaOut> out = ref;
-    return out->prepare(format, options);
+MediaOutRef MediaOutCreateForImage(const ImageFormat * image, MessageRef options) {
+    Object<MediaOut> out = MediaOut::Create(kCodecTypeVideo);
+    Object<Message> format = new Message;
+    format->setInt32(kKeyFormat, image->format);
+    format->setInt32(kKeyWidth, image->width);
+    format->setInt32(kKeyHeight, image->height);
+    if (out->prepare(format, options) != kMediaNoError) {
+        return NULL;
+    }
+    return (MediaOutRef)out->RetainObject();
 }
 
 MediaError MediaOutWrite(MediaOutRef ref, MediaFrameRef frame) {
