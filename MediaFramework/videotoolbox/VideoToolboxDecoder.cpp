@@ -147,6 +147,33 @@ struct VTMediaFrame : public MediaFrame {
     FORCE_INLINE bool operator<(const VTMediaFrame& rhs) const {
         return pts < rhs.pts;
     }
+    
+    virtual sp<Buffer> getData(size_t index) const {
+        CVPixelBufferRef pixbuf = (CVPixelBufferRef)opaque;
+        sp<Buffer> plane;
+        CVReturn err = CVPixelBufferLockBaseAddress(pixbuf, kCVPixelBufferLock_ReadOnly);
+        if (err != kCVReturnSuccess) {
+            ERROR("Error locking the pixel buffer");
+            return NULL;
+        }
+        
+        if (CVPixelBufferIsPlanar(pixbuf)) {
+            size_t n = CVPixelBufferGetPlaneCount(pixbuf);
+            if (index < n) {
+                plane = new Buffer((const char *)CVPixelBufferGetBaseAddressOfPlane(pixbuf, index),
+                          CVPixelBufferGetBytesPerRowOfPlane(pixbuf, index) *
+                          CVPixelBufferGetHeightOfPlane(pixbuf, index));
+            }
+        } else {
+            if (index == 0) {
+                plane = new Buffer((const char *)CVPixelBufferGetBaseAddress(pixbuf),
+                              CVPixelBufferGetBytesPerRow(pixbuf) *
+                              CVPixelBufferGetHeight(pixbuf));
+            }
+        }
+        CVPixelBufferUnlockBaseAddress(pixbuf, kCVPixelBufferLock_ReadOnly);
+        return plane;
+    }
 };
 
 struct VTContext : public SharedObject {

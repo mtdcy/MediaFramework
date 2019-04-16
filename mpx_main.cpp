@@ -69,6 +69,32 @@ static double position = 0;
 static sp<MediaOut> g_out;
 static ImageFormat g_format;
 static sp<Clock> g_clock;
+static sp<MediaFrame> g_frame;  // keep ref current frame
+
+static void dumpCurrentFrameIntoFile() {
+    if (g_frame == NULL) {
+        ERROR("current frame is nil");
+        return;
+    }
+    
+    String desc = GetImageFrameString(g_frame);
+    INFO("%s", desc.c_str());
+    
+    String filename = String::format("%s/%s_%dx%d_%.3f.raw",
+                                     getenv("HOME"),
+                                     GetPixelFormatString(g_frame->v.format),
+                                     g_frame->v.width, g_frame->v.height,
+                                     g_frame->pts.seconds());
+    sp<Content> pipe = Content::Create(filename, abe::Content::Protocol::WRITE);
+    
+    size_t written = 0;
+    for (size_t i = 0; ; ++i) {
+        sp<Buffer> plane = g_frame->getData(i);
+        if (plane == NULL) break;
+        written += pipe->write(*plane);
+    }
+    INFO("written bytes %zu", written);
+}
 
 struct OnPlayerInfo : public PlayerInfoEvent {
     virtual void onEvent(const ePlayerInfoType& info) {
@@ -106,6 +132,7 @@ struct OnFrameUpdate : public MediaFrameEvent {
             CHECK_TRUE(g_out->prepare(format, options) == kMediaNoError);
         }
         
+        g_frame = frame;
         
         //glViewport(0, 0, 800, 480);
 #ifdef TEST_SCREEN
@@ -155,6 +182,9 @@ struct SDLRunnable : public Runnable {
                             int64_t pos = g_clock->get() + 5000000LL;
                             mp->prepare(pos);
                         } break;
+                        case SDLK_s:
+                            dumpCurrentFrameIntoFile();
+                            break;
                     }
                     break;
                 case SDL_WINDOWEVENT:

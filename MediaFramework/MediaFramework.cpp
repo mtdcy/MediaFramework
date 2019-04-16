@@ -56,6 +56,35 @@ eCodecType GetCodecType(eCodecFormat format) {
         return kCodecTypeUnknown;
 }
 
+const char * GetPixelFormatString(ePixelFormat pixel) {
+    switch (pixel) {
+            // planar yuv
+        case kPixelFormatYUV420P:           return "yuv420p";
+        case kPixelFormatYUV422P:           return "yuv422p";
+        case kPixelFormatYUV444P:           return "yuv444p";
+        case kPixelFormatNV12:              return "nv12";
+        case kPixelFormatNV21:              return "nv21";
+            
+            // packed yuv
+        case kPixelFormatYUYV422:           return "yuyv422";
+        case kPixelFormatUYVY422:           return "uyvy422";
+            
+            // rgb
+        case kPixelFormatRGB565:            return "rgb565";
+        case kPixelFormatRGB888:            return "rgb888";
+        case kPixelFormatARGB:              return "argb";
+        case kPixelFormatRGBA:              return "rgba";
+            
+        case kPixelFormatUnknown:           return "unknown";
+            
+        case kPixelFormatVideoToolbox:      return "mac-vt";
+            
+        default:
+            FATAL("FIXME: missing case for %d", pixel);
+            return "";
+    }
+}
+
 size_t GetPixelFormatBPP(ePixelFormat pixel) {
     switch (pixel) {
             // planar yuv
@@ -77,6 +106,8 @@ size_t GetPixelFormatBPP(ePixelFormat pixel) {
             
         case kPixelFormatUnknown:           return 0;
             
+        case kPixelFormatVideoToolbox:      return 0;
+            
         default:
             FATAL("FIXME: missing case for %d", pixel);
             return 0;
@@ -87,7 +118,9 @@ bool GetPixelFormatIsPlanar(ePixelFormat pixel) {
     switch (pixel) {
         case kPixelFormatYUV420P:
         case kPixelFormatYUV422P:
-        case kPixelFormatYUV444P:   return true;
+        case kPixelFormatYUV444P:
+        case kPixelFormatNV12:
+        case kPixelFormatNV21:      return true;
         default:                    return false;
     }
 }
@@ -256,6 +289,11 @@ MediaFrame::MediaFrame() : pts(kTimeInvalid), duration(kTimeInvalid) {
     opaque = NULL;
 }
 
+sp<Buffer> MediaFrame::getData(size_t index) const {
+    if (planes[index].data == NULL) return NULL;
+    return new Buffer((const char *)planes[index].data, planes[index].size);
+}
+
 struct _MediaFrame : public MediaFrame {
     // one continues buffer for all planes
     sp<Buffer> buffer;
@@ -298,6 +336,22 @@ String GetAudioFormatString(const AudioFormat& a) {
                           a.channels,
                           a.freq,
                           a.samples);
+}
+
+String GetImageFrameString(const sp<MediaFrame>& frame) {
+    String desc = String::format("image %s [%s %zu planes %zu bpp]: resolution %d x %d[%d, %d, %d, %d], pts %" PRId64 "/%" PRId64,
+                                 GetPixelFormatString(frame->v.format),
+                                 GetPixelFormatIsPlanar(frame->v.format) ? "planar" : "packed",
+                                 GetPixelFormatPlanes(frame->v.format),
+                                 GetPixelFormatBPP(frame->v.format),
+                                 frame->v.width, frame->v.height,
+                                 frame->v.rect.x, frame->v.rect.y, frame->v.rect.w, frame->v.rect.h,
+                                 frame->pts.value, frame->pts.timescale);
+    for (size_t i = 0; i < GetPixelFormatPlanes(frame->v.format); ++i) {
+        desc.append("\n");
+        desc.append(String::format("\t plane %zu: %p bytes %zu", i, frame->planes[i].data, frame->planes[i].size));
+    }
+    return desc;
 }
 
 sp<MediaFrame> MediaFrameCreate(const AudioFormat& a) {

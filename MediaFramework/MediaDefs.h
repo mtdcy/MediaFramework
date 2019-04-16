@@ -139,10 +139,12 @@ typedef enum ePixelFormat {
     kPixelFormatVideoToolbox    = 0x300,    ///< hardware frame from video toolbox
 } ePixelFormat;
 
-API_EXPORT size_t   GetPixelFormatBPP(ePixelFormat);
-API_EXPORT size_t   GetPixelFormatPlanes(ePixelFormat);
-API_EXPORT size_t   GetPixelFormatPlaneBPP(ePixelFormat, size_t);
-API_EXPORT bool     GetPixelFormatIsPlanar(ePixelFormat);
+// get information about pixel format
+API_EXPORT const char * GetPixelFormatString(ePixelFormat);
+API_EXPORT size_t       GetPixelFormatBPP(ePixelFormat);
+API_EXPORT size_t       GetPixelFormatPlanes(ePixelFormat);
+API_EXPORT size_t       GetPixelFormatPlaneBPP(ePixelFormat, size_t);
+API_EXPORT bool         GetPixelFormatIsPlanar(ePixelFormat);
 
 // FIXME: code sample infomation into format
 /**
@@ -382,6 +384,13 @@ struct API_EXPORT MediaFrame : public SharedObject {
 
     MediaFrame();
     virtual ~MediaFrame() { }
+    
+    /**
+     * read backend buffer of hwaccel frame
+     * @note should return NULL if plane is not exists
+     * @note default implementation: read directly from planes
+     */
+    virtual sp<Buffer> getData(size_t) const;
 };
 
 /**
@@ -397,6 +406,10 @@ API_EXPORT sp<MediaFrame>   MediaFrameCreate(const AudioFormat& );
 
 // AudioFormat
 API_EXPORT String   GetAudioFormatString(const AudioFormat& format);
+
+// get MediaFrame human readable string, for debug
+API_EXPORT String   GetAudioFrameString(const sp<MediaFrame>&);
+API_EXPORT String   GetImageFrameString(const sp<MediaFrame>&);
 
 __END_NAMESPACE_MPX
 
