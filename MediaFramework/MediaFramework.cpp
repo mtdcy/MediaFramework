@@ -332,6 +332,49 @@ sp<MediaFrame> MediaFrameCreate(const ImageFormat& image, const sp<Buffer>& buff
     return frame;
 }
 
+static FORCE_INLINE void swapPlanes(sp<MediaFrame>& image, size_t a, size_t b) {
+    uint8_t * tmp0 = image->planes[a].data;
+    size_t tmp1 = image->planes[a].size;
+    image->planes[a] = image->planes[b];
+    image->planes[b].data = tmp0;
+    image->planes[b].size = tmp1;
+}
+
+static FORCE_INLINE uint16_t swap16(uint16_t x) {
+    return (x >> 8) | (x << 8);
+}
+
+static FORCE_INLINE void swapBytes(sp<MediaFrame>& image, size_t index) {
+    uint16_t * data = (uint16_t *)image->planes[index].data;
+    for (size_t j = 0; j < image->planes[index].size / 2; ++j) {
+        *data = swap16(*data);
+        ++data;
+    }
+}
+
+MediaError MediaFrameSwapUVChroma(sp<MediaFrame>& image) {
+    switch (image->v.format) {
+        case kPixelFormatYUV420P:
+        case kPixelFormatYUV422P:
+        case kPixelFormatYUV444P:
+            swapPlanes(image, 1, 2);
+            return kMediaNoError;
+            
+        case kPixelFormatNV12:
+        case kPixelFormatNV21:
+            swapBytes(image, 1);
+            return kMediaNoError;
+            
+        case kPixelFormatYUYV422:
+        case kPixelFormatYUV444:
+            return kMediaErrorNotSupported;
+            
+        default:
+            break;
+    }
+    return kMediaErrorInvalidOperation;
+}
+
 String GetAudioFormatString(const AudioFormat& a) {
     return String::format("audio %s: ch %d, freq %d, samples %d",
                           GetSampleFormatString(a.format),

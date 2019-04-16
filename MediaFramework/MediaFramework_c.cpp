@@ -74,6 +74,11 @@ void * MediaFrameGetOpaque(MediaFrameRef ref) {
     return frame->opaque;
 }
 
+MediaError ImageFrameSwapUVChroma(MediaFrameRef ref) {
+    Object<MediaFrame> frame = ref;
+    return MediaFrameSwapUVChroma(frame);
+}
+
 struct UserFrameEvent : public MediaFrameEvent {
     void (*callback)(MediaFrameRef, void *);
     void * opaque;

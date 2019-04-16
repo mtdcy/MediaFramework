@@ -129,7 +129,7 @@ typedef enum ePixelFormat {
     // packed yuv
     kPixelFormatYUYV422     = 0x100,    ///< Packed YUV 4:2:2, 16bpp, Y0 Cb Y1 Cr
     kPixelFormatUYVY422,                ///< Packed YUV 4:2:2, 16bpp, Cb Y0 Cr Y1
-    kPixelFormatYUV444,                 ///< Packed YUV 4:4:4, 24bpp, 
+    kPixelFormatYUV444,                 ///< Packed YUV 4:4:4, 24bpp,
     // packed rgb
     kPixelFormatRGB565      = 0x200,    ///< packed RGB 5:6:5, 16 bpp
     kPixelFormatRGB888,                 ///< packed RGB 8:8:8, 24 bpp
@@ -399,6 +399,13 @@ struct API_EXPORT MediaFrame : public SharedObject {
  */
 API_EXPORT sp<MediaFrame>   MediaFrameCreate(const ImageFormat& );
 API_EXPORT sp<MediaFrame>   MediaFrameCreate(const ImageFormat&, const sp<Buffer>& buffer);
+
+/**
+ * keep luma component and swap two chroma components of YUV image
+ * @note return kMediaErrorInvalidOperation if source is not YUV
+ * @note return kMediaErrorNotSupported if no implementation
+ */
+API_EXPORT MediaError       MediaFrameSwapUVChroma(sp<MediaFrame>&);
 
 /**
  * create a audio frame backend by Buffer
