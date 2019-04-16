@@ -34,7 +34,7 @@ __BEGIN_DECLS
 __USING_NAMESPACE_MPX
 
 MediaFrameRef AudioFrameCreate(const AudioFormat * audio) {
-    Object<MediaFrame> frame = MediaFrameCreate(*audio);
+    Object<MediaFrame> frame = MediaFrame::Create(*audio);
     return (MediaFrameRef)frame->RetainObject();
 }
 
@@ -43,7 +43,7 @@ MediaFrameRef ImageFrameCreate(const ImageFormat * image) {
 }
 
 MediaFrameRef ImageFrameGenerate(const ImageFormat * image, BufferRef buffer) {
-    Object<MediaFrame> frame = MediaFrameCreate(*image, buffer);
+    Object<MediaFrame> frame = MediaFrame::Create(*image, buffer);
     return frame->RetainObject();
 }
 
@@ -76,7 +76,12 @@ void * MediaFrameGetOpaque(MediaFrameRef ref) {
 
 MediaError ImageFrameSwapUVChroma(MediaFrameRef ref) {
     Object<MediaFrame> frame = ref;
-    return MediaFrameSwapUVChroma(frame);
+    return frame->swapUVChroma();
+}
+
+MediaError ImageFrameReverseBytes(MediaFrameRef ref) {
+    Object<MediaFrame> frame = ref;
+    return frame->reverseBytes();
 }
 
 struct UserFrameEvent : public MediaFrameEvent {

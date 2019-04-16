@@ -244,7 +244,7 @@ struct AudioResamplerLinear : public AudioResampler {
         AudioFormat format = mOutput;
         format.samples = nb_samples;
         
-        Object<MediaFrame> output = MediaFrameCreate(format);
+        Object<MediaFrame> output = MediaFrame::Create(format);
         
         for (size_t i = 0; i < input->a.channels; ++i) {
             output->a.samples = resample1<FROM, TO, COEFFS_TYPE>()(mStates[i],

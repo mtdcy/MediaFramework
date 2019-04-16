@@ -382,9 +382,13 @@ struct API_EXPORT MediaFrame : public SharedObject {
         ImageFormat         v;
     };
     void                    *opaque;    ///< opaque
-
-    MediaFrame();
-    virtual ~MediaFrame() { }
+    
+    /**
+     * create a media frame backend by Buffer
+     */
+    static sp<MediaFrame>   Create(const ImageFormat&);
+    static sp<MediaFrame>   Create(const ImageFormat&, const sp<Buffer>&);
+    static sp<MediaFrame>   Create(const AudioFormat&);
     
     /**
      * read backend buffer of hwaccel frame
@@ -392,25 +396,26 @@ struct API_EXPORT MediaFrame : public SharedObject {
      * @note default implementation: read directly from planes
      */
     virtual sp<Buffer> getData(size_t) const;
+    
+    /**
+     * keep luma component and swap two chroma components of YUV image
+     * @note return kMediaErrorInvalidOperation if source is not YUV
+     * @note return kMediaErrorNotSupported if no implementation
+     */
+    virtual MediaError swapUVChroma();
+    
+    /**
+     * reverse pixel bytes, like rgba -> abgr
+     * @note return kMediaErrorInvalidOperation if source is planar
+     * @note return kMediaErrorNotSupported if no implementation
+     */
+    virtual MediaError reverseBytes();
+    
+    protected:
+        MediaFrame();
+        virtual ~MediaFrame() { }
+        sp<Buffer>  mBuffer;
 };
-
-/**
- * create a video frame backend by Buffer
- */
-API_EXPORT sp<MediaFrame>   MediaFrameCreate(const ImageFormat& );
-API_EXPORT sp<MediaFrame>   MediaFrameCreate(const ImageFormat&, const sp<Buffer>& buffer);
-
-/**
- * keep luma component and swap two chroma components of YUV image
- * @note return kMediaErrorInvalidOperation if source is not YUV
- * @note return kMediaErrorNotSupported if no implementation
- */
-API_EXPORT MediaError       MediaFrameSwapUVChroma(sp<MediaFrame>&);
-
-/**
- * create a audio frame backend by Buffer
- */
-API_EXPORT sp<MediaFrame>   MediaFrameCreate(const AudioFormat& );
 
 // AudioFormat
 API_EXPORT String   GetAudioFormatString(const AudioFormat& format);

@@ -542,7 +542,7 @@ sp<MediaFrame> readVideoToolboxFrame(CVPixelBufferRef pixbuf) {
         format.format = get_pix_format(CVPixelBufferGetPixelFormatType(pixbuf));
         format.width = CVPixelBufferGetBytesPerRowOfPlane(pixbuf, 0);
         format.height = CVPixelBufferGetHeight(pixbuf);
-        frame = MediaFrameCreate(format);
+        frame = MediaFrame::Create(format);
         DEBUGV("CVPixelBufferGetWidth %zu", CVPixelBufferGetWidth(pixbuf));
         DEBUGV("CVPixelBufferGetHeight %zu", CVPixelBufferGetHeight(pixbuf));
 
@@ -571,7 +571,7 @@ sp<MediaFrame> readVideoToolboxFrame(CVPixelBufferRef pixbuf) {
         format.format = get_pix_format(CVPixelBufferGetPixelFormatType(pixbuf));
         format.width = CVPixelBufferGetBytesPerRow(pixbuf);
         format.height = CVPixelBufferGetHeight(pixbuf);
-        frame = MediaFrameCreate(format);
+        frame = MediaFrame::Create(format);
         CHECK_LE(CVPixelBufferGetBytesPerRow(pixbuf) * CVPixelBufferGetHeight(pixbuf), frame->planes[0].size);
         frame->planes[0].size = CVPixelBufferGetBytesPerRow(pixbuf) * CVPixelBufferGetHeight(pixbuf);
         memcpy(frame->planes[0].data,

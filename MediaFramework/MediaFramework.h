@@ -66,6 +66,8 @@ API_EXPORT void *               MediaFrameGetOpaque(MediaFrameRef);
 
 API_EXPORT MediaError           ImageFrameSwapUVChroma(MediaFrameRef);
 
+API_EXPORT MediaError           ImageFrameReverseBytes(MediaFrameRef);
+
 // Clock, get a clock from MediaPlayerRef, used to update ui
 typedef SharedObjectRef         MediaClockRef;
 #define MediaClockRelease(x)    SharedObjectRelease((SharedObjectRef)x)

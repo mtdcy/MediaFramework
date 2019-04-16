@@ -189,27 +189,27 @@ static FORCE_INLINE Object<MediaFrame> unpack(AVFrame * frame) {
     switch (frame->format) {
         case AV_SAMPLE_FMT_U8:
             format.format = kSampleFormatU8;
-            out = MediaFrameCreate(format);
+            out = MediaFrame::Create(format);
             out->a.samples = unpack<uint8_t>(frame, out);
             break;
         case AV_SAMPLE_FMT_S16:
             format.format = kSampleFormatS16;
-            out = MediaFrameCreate(format);
+            out = MediaFrame::Create(format);
             out->a.samples = unpack<int16_t>(frame, out);
             break;
         case AV_SAMPLE_FMT_S32:
             format.format = kSampleFormatS32;
-            out = MediaFrameCreate(format);
+            out = MediaFrame::Create(format);
             out->a.samples = unpack<int32_t>(frame, out);
             break;
         case AV_SAMPLE_FMT_FLT:
             format.format = kSampleFormatFLT;
-            out = MediaFrameCreate(format);
+            out = MediaFrame::Create(format);
             out->a.samples = unpack<float>(frame, out);
             break;
         case AV_SAMPLE_FMT_DBL:
             format.format = kSampleFormatDBL;
-            out = MediaFrameCreate(format);
+            out = MediaFrame::Create(format);
             out->a.samples = unpack<double>(frame, out);
             break;
         default:

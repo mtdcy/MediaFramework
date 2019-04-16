@@ -296,26 +296,21 @@ sp<Buffer> MediaFrame::getData(size_t index) const {
     return new Buffer((const char *)planes[index].data, planes[index].size);
 }
 
-struct _MediaFrame : public MediaFrame {
-    // one continues buffer for all planes
-    sp<Buffer> buffer;
-};
-
-sp<MediaFrame> MediaFrameCreate(const ImageFormat& image) {
+sp<MediaFrame> MediaFrame::Create(const ImageFormat& image) {
     const size_t bytes = GetImageFormatBytes(&image);
     Object<Buffer> buffer = new Buffer(bytes);
-    return MediaFrameCreate(image, buffer);
+    return MediaFrame::Create(image, buffer);
 }
 
-sp<MediaFrame> MediaFrameCreate(const ImageFormat& image, const sp<Buffer>& buffer) {
+sp<MediaFrame> MediaFrame::Create(const ImageFormat& image, const sp<Buffer>& buffer) {
     const size_t bytes = GetImageFormatBytes(&image);
     if (buffer->capacity() < bytes) return NULL;
     
-    Object<_MediaFrame> frame = new _MediaFrame;
-    frame->buffer = buffer;
+    Object<MediaFrame> frame = new MediaFrame;
+    frame->mBuffer = buffer;
     
     if (GetPixelFormatIsPlanar(image.format)) {
-        uint8_t * next = (uint8_t*)frame->buffer->data();
+        uint8_t * next = (uint8_t*)frame->mBuffer->data();
         for (size_t i = 0; i < GetPixelFormatPlanes(image.format); ++i) {
             const size_t bpp = GetPixelFormatPlaneBPP(image.format, i);
             const size_t bytes = (image.width * image.height * bpp) / 8;
@@ -324,7 +319,7 @@ sp<MediaFrame> MediaFrameCreate(const ImageFormat& image, const sp<Buffer>& buff
             next += bytes;
         }
     } else {
-        frame->planes[0].data   = (uint8_t*)frame->buffer->data();
+        frame->planes[0].data   = (uint8_t*)frame->mBuffer->data();
         frame->planes[0].size   = bytes;
     }
     
@@ -332,7 +327,7 @@ sp<MediaFrame> MediaFrameCreate(const ImageFormat& image, const sp<Buffer>& buff
     return frame;
 }
 
-static FORCE_INLINE void swapPlanes(sp<MediaFrame>& image, size_t a, size_t b) {
+static FORCE_INLINE void swapPlanes(MediaFrame * image, size_t a, size_t b) {
     uint8_t * tmp0 = image->planes[a].data;
     size_t tmp1 = image->planes[a].size;
     image->planes[a] = image->planes[b];
@@ -340,11 +335,12 @@ static FORCE_INLINE void swapPlanes(sp<MediaFrame>& image, size_t a, size_t b) {
     image->planes[b].size = tmp1;
 }
 
+// TODO: borrow some code from ffmpeg
 static FORCE_INLINE uint16_t swap16(uint16_t x) {
     return (x >> 8) | (x << 8);
 }
 
-static FORCE_INLINE void swapBytes(sp<MediaFrame>& image, size_t index) {
+static FORCE_INLINE void swapBytes(MediaFrame * image, size_t index) {
     uint16_t * data = (uint16_t *)image->planes[index].data;
     for (size_t j = 0; j < image->planes[index].size / 2; ++j) {
         *data = swap16(*data);
@@ -352,27 +348,75 @@ static FORCE_INLINE void swapBytes(sp<MediaFrame>& image, size_t index) {
     }
 }
 
-MediaError MediaFrameSwapUVChroma(sp<MediaFrame>& image) {
-    switch (image->v.format) {
+MediaError MediaFrame::swapUVChroma() {
+    switch (v.format) {
         case kPixelFormatYUV420P:
         case kPixelFormatYUV422P:
         case kPixelFormatYUV444P:
-            swapPlanes(image, 1, 2);
+            swapPlanes(this, 1, 2);
             return kMediaNoError;
             
         case kPixelFormatNV12:
         case kPixelFormatNV21:
-            swapBytes(image, 1);
+            swapBytes(this, 1);
             return kMediaNoError;
             
-        case kPixelFormatYUYV422:
-        case kPixelFormatYUV444:
-            return kMediaErrorNotSupported;
+        case kPixelFormatRGB565:
+        case kPixelFormatRGB888:
+        case kPixelFormatRGBA:
+        case kPixelFormatARGB:
+            return kMediaErrorInvalidOperation;
             
         default:
             break;
     }
-    return kMediaErrorInvalidOperation;
+    return kMediaErrorNotSupported;
+}
+
+static FORCE_INLINE void reverse3(MediaFrame * image) {
+    uint8_t *u8 = image->planes[0].data;
+    CHECK_EQ(image->planes[0].size % 3, 0);
+    for (size_t i = 0; i < image->planes[0].size / 3; ++i) {
+        uint8_t tmp = u8[0];
+        u8[0] = u8[2];
+        u8[2] = tmp;
+        u8 += 3;
+    }
+}
+
+static FORCE_INLINE uint32_t reverse32(uint32_t x) {
+    return ((x >> 24) & 0xff) | ((x >> 8) & 0xff00) | ((x << 8) & 0xff0000) | ((x << 24) & 0xff000000);
+}
+static FORCE_INLINE void reverse4(MediaFrame * image) {
+    uint32_t *u32 = (uint32_t *)image->planes[0].data;
+    CHECK_EQ(image->planes[0].size % 4, 0);
+    for (size_t i = 0; i < image->planes[0].size / 4; ++i) {
+        *u32 = reverse32(*u32);
+        ++u32;
+    }
+}
+
+MediaError MediaFrame::reverseBytes() {
+    if (GetPixelFormatIsPlanar(v.format)) {
+        return kMediaErrorInvalidOperation;
+    }
+    
+    switch (v.format) {
+        case kPixelFormatRGB888:
+        case kPixelFormatYUV444:
+            reverse3(this);
+            return kMediaNoError;
+            
+        case kPixelFormatRGBA:
+        case kPixelFormatARGB:
+            reverse4(this);
+            return kMediaNoError;
+        
+        case kPixelFormatRGB565:
+        default:
+            break;
+    }
+    return kMediaErrorNotSupported;
 }
 
 String GetAudioFormatString(const AudioFormat& a) {
@@ -399,13 +443,13 @@ String GetImageFrameString(const sp<MediaFrame>& frame) {
     return desc;
 }
 
-sp<MediaFrame> MediaFrameCreate(const AudioFormat& a) {
+sp<MediaFrame> MediaFrame::Create(const AudioFormat& a) {
     const size_t bytes = GetSampleFormatBytes(a.format);
     const size_t total = bytes * a.channels * a.samples;
-    sp<_MediaFrame> frame = new _MediaFrame;
-    frame->buffer = new Buffer(total);
+    sp<MediaFrame> frame = new MediaFrame;
+    frame->mBuffer = new Buffer(total);
     
-    uint8_t * next = (uint8_t*)frame->buffer->data();
+    uint8_t * next = (uint8_t*)frame->mBuffer->data();
     for (size_t i = 0; i < a.channels; ++i) {
         frame->planes[i].size   = bytes * a.samples;
         frame->planes[i].data   = next;
@@ -471,7 +515,7 @@ sp<MediaFrame> ColorConvertor::convert(const sp<MediaFrame>& input) {
     
     ImageFormat format = input->v;
     format.format = mFormat;
-    sp<MediaFrame> out  = MediaFrameCreate(format);
+    sp<MediaFrame> out  = MediaFrame::Create(format);
     out->pts            = input->pts;
     out->duration       = input->duration;
 
