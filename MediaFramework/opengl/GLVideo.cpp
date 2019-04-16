@@ -61,7 +61,7 @@
 #include <GL/gl.h>
 #endif
 
-#if 1
+#if 0
 #define CHECK_GL_ERROR() 
 #else
 #define CHECK_GL_ERROR() do {   \
@@ -171,7 +171,7 @@ static GLuint initShader(GLenum type, const char *sl) {
     CHECK_NULL(sl);
     GLuint sh = glCreateShader(type);
     if (sh == 0) {
-        //ERROR("create shader of %d failed.", type);
+        ERROR("create shader of %d failed.", type);
         return 0;
     }
 
@@ -185,7 +185,7 @@ static GLuint initShader(GLenum type, const char *sl) {
         glGetShaderiv(sh, GL_INFO_LOG_LENGTH, &len);
         GLchar log[len];
         glGetShaderInfoLog(sh, len, NULL, log);
-        //ERROR("compile shader failed. %s", log);
+        ERROR("compile shader failed. %s", log);
         glDeleteShader(sh);
         return 0;
     }
@@ -197,7 +197,7 @@ static FORCE_INLINE GLuint initProgram(GLuint vsh, GLuint fsh) {
     CHECK_NE(fsh, 0);
     GLuint program = glCreateProgram();
     if (program == 0) {
-        //ERROR("create program failed.");
+        ERROR("create program failed.");
         return 0;
     }
 
@@ -320,8 +320,7 @@ static sp<OpenGLContext> initOpenGLContext(const OpenGLConfig *config) {
     return glc;
 }
 
-#ifdef __APPLE__
-static sp<OpenGLContext> initOpenGLContextForVideoToolbox(const OpenGLConfig *OpenGLConfig, GLint w, GLint h) {
+static sp<OpenGLContext> initOpenGLContextRect(const OpenGLConfig *OpenGLConfig, GLint w, GLint h) {
     sp<OpenGLContext> glc = initOpenGLContext(OpenGLConfig);
     if (glc == NULL) return NULL;
 
@@ -330,7 +329,6 @@ static sp<OpenGLContext> initOpenGLContextForVideoToolbox(const OpenGLConfig *Op
 
     return glc;
 }
-#endif
 
 static void drawFrame(const sp<OpenGLContext>& glc, const sp<MediaFrame>& frame) {
     uint8_t * planes[3] = {
@@ -482,6 +480,22 @@ static const char * fsh_yuv420p = SL(
         }
     );
 
+static const char * fsh_yuv444 = SL(
+         varying vec2 v_texcoord;
+         uniform sampler2D u_planes[1];
+         uniform mat3 u_colorMatrix;
+         void main(void)
+         {
+             vec3 yuv;
+             vec3 rgb;
+             yuv.x = texture2D(u_planes[0], v_texcoord).r;
+             yuv.y = texture2D(u_planes[0], v_texcoord).g - 0.5;
+             yuv.z = texture2D(u_planes[0], v_texcoord).b - 0.5;
+             rgb = yuv * u_colorMatrix;
+             gl_FragColor = vec4(rgb, 1.0);
+         }
+    );
+
 static const char * fsh_nv12 = SL(
         varying vec2 v_texcoord;
         uniform sampler2D u_planes[2];
@@ -493,6 +507,23 @@ static const char * fsh_nv12 = SL(
             yuv.x = texture2D(u_planes[0], v_texcoord).r;
             yuv.y = texture2D(u_planes[1], v_texcoord).r - 0.5;
             yuv.z = texture2D(u_planes[1], v_texcoord).a - 0.5;
+            rgb = yuv * u_colorMatrix;
+            gl_FragColor = vec4(rgb, 1.0);
+        }
+    );
+
+
+static const char * fsh_nv21 = SL(
+        varying vec2 v_texcoord;
+        uniform sampler2D u_planes[2];
+        uniform mat3 u_colorMatrix;
+        void main(void)
+        {
+            vec3 yuv;
+            vec3 rgb;
+            yuv.x = texture2D(u_planes[0], v_texcoord).r;
+            yuv.y = texture2D(u_planes[1], v_texcoord).a - 0.5;
+            yuv.z = texture2D(u_planes[1], v_texcoord).r - 0.5;
             rgb = yuv * u_colorMatrix;
             gl_FragColor = vec4(rgb, 1.0);
         }
@@ -528,7 +559,7 @@ static const char * fsh_nv12_rect = SL(
         }
     );
 
-static const OpenGLConfig YUV420p = {
+static const OpenGLConfig YUV420p = {   // 12 bpp
     .s_vsh      = vsh_yuv,
     .s_fsh      = fsh_yuv420p,
     .e_target   = GL_TEXTURE_2D,
@@ -542,7 +573,60 @@ static const OpenGLConfig YUV420p = {
     .s_uniforms = { "u_planes", "u_colorMatrix", NULL },
 };
 
+static const OpenGLConfig YUV422p = {   // 16 bpp
+    .s_vsh      = vsh_yuv,
+    .s_fsh      = fsh_yuv420p,
+    .e_target   = GL_TEXTURE_2D,
+    .n_textures = 3,
+    .a_format   = {
+        {GL_LUMINANCE, GL_LUMINANCE, GL_UNSIGNED_BYTE, 8, 8},
+        {GL_LUMINANCE, GL_LUMINANCE, GL_UNSIGNED_BYTE, 4, 8},
+        {GL_LUMINANCE, GL_LUMINANCE, GL_UNSIGNED_BYTE, 4, 8},
+    },
+    .s_attrs    = { "a_position", "a_texcoord" },
+    .s_uniforms = { "u_planes", "u_colorMatrix", NULL },
+};
+
+static const OpenGLConfig YUV444p = {   // 24 bpp
+    .s_vsh      = vsh_yuv,
+    .s_fsh      = fsh_yuv420p,
+    .e_target   = GL_TEXTURE_2D,
+    .n_textures = 3,
+    .a_format   = {
+        {GL_LUMINANCE, GL_LUMINANCE, GL_UNSIGNED_BYTE, 8, 8},
+        {GL_LUMINANCE, GL_LUMINANCE, GL_UNSIGNED_BYTE, 8, 8},
+        {GL_LUMINANCE, GL_LUMINANCE, GL_UNSIGNED_BYTE, 8, 8},
+    },
+    .s_attrs    = { "a_position", "a_texcoord" },
+    .s_uniforms = { "u_planes", "u_colorMatrix", NULL },
+};
+
+static const OpenGLConfig YUV444 = {   // 24 bpp
+    .s_vsh      = vsh_yuv,
+    .s_fsh      = fsh_yuv444,
+    .e_target   = GL_TEXTURE_2D,
+    .n_textures = 1,
+    .a_format   = {
+        {GL_RGB, GL_RGB, GL_UNSIGNED_BYTE, 8, 8},
+    },
+    .s_attrs    = { "a_position", "a_texcoord" },
+    .s_uniforms = { "u_planes", "u_colorMatrix", NULL },
+};
+
 static const OpenGLConfig NV12 = {
+    .s_vsh      = vsh_yuv,
+    .s_fsh      = fsh_nv12,
+    .e_target   = GL_TEXTURE_2D,
+    .n_textures = 2,
+    .a_format   = {
+        {GL_LUMINANCE, GL_LUMINANCE, GL_UNSIGNED_BYTE, 8, 8},
+        {GL_LUMINANCE_ALPHA, GL_LUMINANCE_ALPHA, GL_UNSIGNED_BYTE, 4, 4},
+    },
+    .s_attrs    = { "a_position", "a_texcoord" },
+    .s_uniforms = { "u_planes", "u_colorMatrix", NULL },
+};
+
+static const OpenGLConfig NV21 = {
     .s_vsh      = vsh_yuv,
     .s_fsh      = fsh_nv12,
     .e_target   = GL_TEXTURE_2D,
@@ -573,7 +657,7 @@ static const OpenGLConfig NV12_RECT = {
 // https://www.khronos.org/opengl/wiki/Rectangle_Texture
 // about yuv422
 // https://www.khronos.org/registry/OpenGL/extensions/APPLE/APPLE_ycbcr_422.txt
-static const OpenGLConfig YUV422p_APPLE = {
+static const OpenGLConfig YUV422_APPLE = {
     .s_vsh      = vsh_yuv,
     .s_fsh      = fsh_yuv422p_rect,
     .e_target   = GL_TEXTURE_RECTANGLE_ARB,
@@ -600,14 +684,25 @@ struct GLVideo : public MediaOut {
     virtual ~GLVideo() { }
     
     MediaError init(const ImageFormat& format) {
+        drawFunc = drawFrame;
         switch (format.format) {
             case kPixelFormatNV12:
                 mGLContext = initOpenGLContext(&NV12);
-                drawFunc = drawFrame;
+                break;
+            case kPixelFormatNV21:
+                mGLContext = initOpenGLContext(&NV21);
                 break;
             case kPixelFormatYUV420P:
                 mGLContext = initOpenGLContext(&YUV420p);
-                drawFunc = drawFrame;
+                break;
+            case kPixelFormatYUV422P:
+                mGLContext = initOpenGLContext(&YUV422p);
+                break;
+            case kPixelFormatYUV444P:
+                mGLContext = initOpenGLContext(&YUV444p);
+                break;
+            case kPixelFormatYUV444:
+                mGLContext = initOpenGLContext(&YUV444);
                 break;
 #ifdef __APPLE__
             case kPixelFormatVideoToolbox:
@@ -615,7 +710,7 @@ struct GLVideo : public MediaOut {
                 CHECK_NULL(CGLGetCurrentContext());
                 // kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
                 // TODO: defer init OpenGL, get real pixel format from data
-                mGLContext = initOpenGLContextForVideoToolbox(&NV12_RECT, format.width, format.height);
+                mGLContext = initOpenGLContextRect(&NV12_RECT, format.width, format.height);
                 drawFunc = drawVideoToolboxFrame;
                 break;
 #endif
@@ -623,7 +718,9 @@ struct GLVideo : public MediaOut {
                 FATAL("FIXME");
         }
         
-        CHECK_TRUE(mGLContext != NULL);
+        if (mGLContext == NULL) {
+            return kMediaErrorNotSupported;
+        }
         return kMediaNoError;
     }
 

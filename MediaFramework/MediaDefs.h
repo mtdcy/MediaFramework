@@ -129,6 +129,7 @@ typedef enum ePixelFormat {
     // packed yuv
     kPixelFormatYUYV422     = 0x100,    ///< Packed YUV 4:2:2, 16bpp, Y0 Cb Y1 Cr
     kPixelFormatUYVY422,                ///< Packed YUV 4:2:2, 16bpp, Cb Y0 Cr Y1
+    kPixelFormatYUV444,                 ///< Packed YUV 4:4:4, 24bpp, 
     // packed rgb
     kPixelFormatRGB565      = 0x200,    ///< packed RGB 5:6:5, 16 bpp
     kPixelFormatRGB888,                 ///< packed RGB 8:8:8, 24 bpp

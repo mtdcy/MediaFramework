@@ -68,6 +68,7 @@ const char * GetPixelFormatString(ePixelFormat pixel) {
             // packed yuv
         case kPixelFormatYUYV422:           return "yuyv422";
         case kPixelFormatUYVY422:           return "uyvy422";
+        case kPixelFormatYUV444:            return "yuv444";
             
             // rgb
         case kPixelFormatRGB565:            return "rgb565";
@@ -97,6 +98,7 @@ size_t GetPixelFormatBPP(ePixelFormat pixel) {
             // packed yuv
         case kPixelFormatYUYV422:           return 16;
         case kPixelFormatUYVY422:           return 16;
+        case kPixelFormatYUV444:            return 24;
             
             // rgb
         case kPixelFormatRGB565:            return 16;
