@@ -254,7 +254,8 @@ struct AVMediaFrame : public MediaFrame {
             v.rect.h        = avcc->height;
             for (size_t i = 0; frame->data[i] != NULL; ++i) {
                 planes[i].data  = frame->data[i];
-                planes[i].size  = frame->buf[i]->size; 
+                // frame->linesize[i] is wired, can not used to calc plane bytes
+                planes[i].size  = (v.width * v.height * GetPixelFormatPlaneBPP(v.format, i)) / 8;
             }
         } else {
             FATAL("FIXME");
