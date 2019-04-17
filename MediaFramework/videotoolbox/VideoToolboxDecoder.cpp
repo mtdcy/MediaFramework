@@ -91,7 +91,7 @@ struct {
     OSType          b;
 } kPixelMap[] = {
     {kPixelFormatYUV420P,       kCVPixelFormatType_420YpCbCr8Planar},
-    {kPixelFormatUYVY422,       kCVPixelFormatType_422YpCbCr8},
+    //{kPixelFormatUYVY422,       kCVPixelFormatType_422YpCbCr8},
     {kPixelFormatYUYV422,       kCVPixelFormatType_422YpCbCr8_yuvs},
 #ifdef kCFCoreFoundationVersionNumber10_7
     {kPixelFormatNV12,          kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange},

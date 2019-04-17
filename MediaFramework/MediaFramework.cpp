@@ -67,7 +67,7 @@ const char * GetPixelFormatString(ePixelFormat pixel) {
             
             // packed yuv
         case kPixelFormatYUYV422:           return "yuyv422";
-        case kPixelFormatUYVY422:           return "uyvy422";
+        case kPixelFormatYVYU422:           return "yvyu422";
         case kPixelFormatYUV444:            return "yuv444";
             
             // rgb
@@ -97,7 +97,7 @@ size_t GetPixelFormatBPP(ePixelFormat pixel) {
             
             // packed yuv
         case kPixelFormatYUYV422:           return 16;
-        case kPixelFormatUYVY422:           return 16;
+        case kPixelFormatYVYU422:           return 16;
         case kPixelFormatYUV444:            return 24;
             
             // rgb
@@ -124,6 +124,19 @@ bool GetPixelFormatIsPlanar(ePixelFormat pixel) {
         case kPixelFormatNV12:
         case kPixelFormatNV21:      return true;
         default:                    return false;
+    }
+}
+
+ePixelFormat GetPixelFormatPlanar(ePixelFormat pixel) {
+    if (GetPixelFormatIsPlanar(pixel)) return pixel;
+    switch (pixel) {
+        case kPixelFormatYUYV422:   return kPixelFormatYUV422P;
+        case kPixelFormatYVYU422:   return kPixelFormatYUV422P;
+        case kPixelFormatYUV444:    return kPixelFormatYUV444P;
+            
+        default:
+            ERROR("missing case for %d", pixel);
+            return kPixelFormatUnknown;
     }
 }
 
@@ -373,10 +386,9 @@ MediaError MediaFrame::swapUVChroma() {
     return kMediaErrorNotSupported;
 }
 
-static FORCE_INLINE void reverse3(MediaFrame * image) {
-    uint8_t *u8 = image->planes[0].data;
-    CHECK_EQ(image->planes[0].size % 3, 0);
-    for (size_t i = 0; i < image->planes[0].size / 3; ++i) {
+static FORCE_INLINE void reverse3(uint8_t * u8, size_t size) {
+    CHECK_EQ(size % 3, 0);
+    for (size_t i = 0; i < size / 3; ++i) {
         uint8_t tmp = u8[0];
         u8[0] = u8[2];
         u8[2] = tmp;
@@ -387,10 +399,10 @@ static FORCE_INLINE void reverse3(MediaFrame * image) {
 static FORCE_INLINE uint32_t reverse32(uint32_t x) {
     return ((x >> 24) & 0xff) | ((x >> 8) & 0xff00) | ((x << 8) & 0xff0000) | ((x << 24) & 0xff000000);
 }
-static FORCE_INLINE void reverse4(MediaFrame * image) {
-    uint32_t *u32 = (uint32_t *)image->planes[0].data;
-    CHECK_EQ(image->planes[0].size % 4, 0);
-    for (size_t i = 0; i < image->planes[0].size / 4; ++i) {
+static FORCE_INLINE void reverse4(uint8_t * u8, size_t size) {
+    uint32_t *u32 = (uint32_t *)u8;
+    CHECK_EQ(size % 4, 0);
+    for (size_t i = 0; i < size / 4; ++i) {
         *u32 = reverse32(*u32);
         ++u32;
     }
@@ -404,15 +416,55 @@ MediaError MediaFrame::reverseBytes() {
     switch (v.format) {
         case kPixelFormatRGB888:
         case kPixelFormatYUV444:
-            reverse3(this);
+            reverse3(planes[0].data, planes[0].size);
             return kMediaNoError;
             
         case kPixelFormatRGBA:
         case kPixelFormatARGB:
-            reverse4(this);
+        case kPixelFormatYUYV422:
+            reverse4(planes[0].data, planes[0].size);
             return kMediaNoError;
         
         case kPixelFormatRGB565:
+        default:
+            break;
+    }
+    return kMediaErrorNotSupported;
+}
+
+MediaError MediaFrame::planarization() {
+    INFO("planarization @ %s", GetPixelFormatString(v.format));
+    if (GetPixelFormatIsPlanar(v.format)) {
+        return kMediaNoError;
+    }
+    
+    switch (v.format) {
+        case kPixelFormatYVYU422:
+        case kPixelFormatYUYV422: {
+            const size_t plane0 = v.width * v.height;
+            sp<Buffer> dest = new Buffer(plane0 * 2);
+            CHECK_EQ(dest->capacity(), planes[0].size);
+
+            uint8_t * dst_y = (uint8_t *)dest->data();
+            uint8_t * dst_u = dst_y + plane0;
+            uint8_t * dst_v = dst_u + plane0 / 2;
+            libyuv::YUY2ToI422(planes[0].data, v.width * 2,
+                               dst_y, v.width,
+                               dst_u, v.width / 2,
+                               dst_v, v.width / 2,
+                               v.width, v.height);
+            
+            const bool uv   = v.format == kPixelFormatYVYU422;
+            planes[0].data  = dst_y;
+            planes[0].size  = plane0;
+            planes[1].data  = uv ? dst_v : dst_u;
+            planes[1].size  = plane0 / 2;
+            planes[2].data  = uv ? dst_u : dst_v;
+            planes[2].size  = plane0 / 2;
+            v.format        = kPixelFormatYUV422P;
+            mBuffer         = dest;
+            return kMediaNoError;
+        }
         default:
             break;
     }

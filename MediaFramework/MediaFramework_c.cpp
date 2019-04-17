@@ -84,6 +84,11 @@ MediaError ImageFrameReverseBytes(MediaFrameRef ref) {
     return frame->reverseBytes();
 }
 
+MediaError ImageFramePlanarization(MediaFrameRef ref) {
+    Object<MediaFrame> frame = ref;
+    return frame->planarization();
+}
+
 struct UserFrameEvent : public MediaFrameEvent {
     void (*callback)(MediaFrameRef, void *);
     void * opaque;

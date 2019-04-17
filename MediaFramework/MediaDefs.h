@@ -128,7 +128,7 @@ typedef enum ePixelFormat {
     kPixelFormatNV21,                   ///< same as nv12, but uv are swapped
     // packed yuv
     kPixelFormatYUYV422     = 0x100,    ///< Packed YUV 4:2:2, 16bpp, Y0 Cb Y1 Cr
-    kPixelFormatUYVY422,                ///< Packed YUV 4:2:2, 16bpp, Cb Y0 Cr Y1
+    kPixelFormatYVYU422,                ///< Packed YUV 4:2:2, 16bpp, Y0 Cr Y1 Cb
     kPixelFormatYUV444,                 ///< Packed YUV 4:4:4, 24bpp,
     // packed rgb
     kPixelFormatRGB565      = 0x200,    ///< packed RGB 5:6:5, 16 bpp
@@ -146,6 +146,7 @@ API_EXPORT size_t       GetPixelFormatBPP(ePixelFormat);
 API_EXPORT size_t       GetPixelFormatPlanes(ePixelFormat);
 API_EXPORT size_t       GetPixelFormatPlaneBPP(ePixelFormat, size_t);
 API_EXPORT bool         GetPixelFormatIsPlanar(ePixelFormat);
+API_EXPORT ePixelFormat GetPixelFormatPlanar(ePixelFormat);
 
 // FIXME: code sample infomation into format
 /**
@@ -392,24 +393,39 @@ struct API_EXPORT MediaFrame : public SharedObject {
     
     /**
      * read backend buffer of hwaccel frame
-     * @note should return NULL if plane is not exists
+     * @return should return NULL if plane is not exists
      * @note default implementation: read directly from planes
      */
     virtual sp<Buffer> getData(size_t) const;
     
     /**
      * keep luma component and swap two chroma components of YUV image
-     * @note return kMediaErrorInvalidOperation if source is not YUV
-     * @note return kMediaErrorNotSupported if no implementation
+     * @return return kMediaErrorInvalidOperation if source is not YUV
+     * @return return kMediaErrorNotSupported if no implementation
      */
     virtual MediaError swapUVChroma();
     
     /**
      * reverse pixel bytes, like rgba -> abgr
-     * @note return kMediaErrorInvalidOperation if source is planar
-     * @note return kMediaErrorNotSupported if no implementation
+     * @return return kMediaErrorInvalidOperation if source is planar
+     * @return return kMediaErrorNotSupported if no implementation
      */
     virtual MediaError reverseBytes();
+    
+    /**
+     * convert to planar pixel format
+     * @return return kMediaNoError on success or source is planar
+     * @return return kMediaErrorNotSupported if no implementation
+     * @note planarization may or may NOT be in place convert
+     */
+    virtual MediaError planarization();
+    
+    /**
+     * convert pixel format
+     * @return return NULL if not supported or no implementation
+     * @note the resolution and display rect remains
+     */
+    virtual sp<MediaFrame> convert(const ePixelFormat&) { return NULL; }    // TODO
     
     protected:
         MediaFrame();
@@ -567,6 +583,11 @@ __END_NAMESPACE_MPX
  * raw codec specific data
  */
 #define kKeyCodecSpecificData   "csd"   ///< Buffer
+
+/**
+ * for MediaOut
+ */
+#define kKeyAllowAltFormat      "allow-alt-format"
 
 #endif // _MEDIA_MODULES_MEDIADEFS_H
 

@@ -331,12 +331,6 @@ static sp<OpenGLContext> initOpenGLContextRect(const OpenGLConfig *OpenGLConfig,
 }
 
 static void drawFrame(const sp<OpenGLContext>& glc, const sp<MediaFrame>& frame) {
-    uint8_t * planes[3] = {
-        frame->planes[0].data,
-        frame->planes[1].data,
-        frame->planes[2].data,
-    };
-
     // x    y
     // 0,      1.0,
     // 1.0,    1.0,
@@ -380,7 +374,7 @@ static void drawFrame(const sp<OpenGLContext>& glc, const sp<MediaFrame>& frame)
                 0,
                 glc->config->a_format[i].format,
                 glc->config->a_format[i].type,
-                (const GLvoid*)planes[i]);
+                (const GLvoid*)frame->planes[i].data);
 
         index[i] = i;
     }
@@ -764,12 +758,14 @@ struct GLVideo : public MediaOut {
 #ifdef TEST_COLOR
     sp<ColorConvertor>  mConvertor;
 #endif
+    bool                mAllowAltFormat;
+    bool                mUsingAltFormat;
 
-    GLVideo() : MediaOut(), mGLContext(NULL) { }
+    GLVideo() : MediaOut(), mGLContext(NULL), mAllowAltFormat(false), mUsingAltFormat(false) { }
 
     virtual ~GLVideo() { }
     
-    MediaError init(const ImageFormat& format) {
+    void _init(const ImageFormat& format) {
         drawFunc = drawFrame;
         switch (format.format) {
             case kPixelFormatNV12:
@@ -815,12 +811,24 @@ struct GLVideo : public MediaOut {
             default:
                 break;
         }
+    }
+    
+    MediaError init(const ImageFormat& format) {
+        INFO("init @ %s %d x %d", GetPixelFormatString(format.format), format.width, format.height);
+        _init(format);
         
-        if (mGLContext == NULL) {
-            ERROR("pixel is not supported");
-            return kMediaErrorNotSupported;
+        if (mGLContext == NULL && mAllowAltFormat) {
+            ImageFormat alt = format;
+            alt.format = GetPixelFormatPlanar(format.format);
+            if (alt.format != format.format) {
+                INFO("init alt @ %s %d x %d", GetPixelFormatString(alt.format), alt.width, alt.height);
+                _init(alt);
+            }
+            
+            mUsingAltFormat = mGLContext != NULL;
         }
-        return kMediaNoError;
+        
+        return mGLContext != NULL ? kMediaNoError : kMediaErrorNotSupported;
     }
 
     virtual MediaError prepare(const sp<Message>& format, const sp<Message>& options) {
@@ -841,6 +849,9 @@ struct GLVideo : public MediaOut {
         mFormat.format      = TEST_COLOR;
         mConvertor          = new ColorConvertor(TEST_COLOR);
 #endif
+        if (options != NULL) {
+            mAllowAltFormat = options->findInt32(kKeyAllowAltFormat);
+        }
 
         return init(mFormat);
     }
@@ -886,6 +897,12 @@ struct GLVideo : public MediaOut {
             frame = mConvertor->convert(input);
         }
 #endif
+        
+        if (mUsingAltFormat) {
+            if (frame->planarization() != kMediaNoError) {
+                ERROR("alt format @ planarization failed");
+            }
+        }
 
         drawFunc(mGLContext, frame);
 
