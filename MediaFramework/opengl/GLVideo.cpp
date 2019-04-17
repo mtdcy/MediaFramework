@@ -813,10 +813,11 @@ struct GLVideo : public MediaOut {
                 break;
 #endif
             default:
-                FATAL("FIXME");
+                break;
         }
         
         if (mGLContext == NULL) {
+            ERROR("pixel is not supported");
             return kMediaErrorNotSupported;
         }
         return kMediaNoError;
@@ -841,8 +842,7 @@ struct GLVideo : public MediaOut {
         mConvertor          = new ColorConvertor(TEST_COLOR);
 #endif
 
-        init(mFormat);
-        return kMediaNoError;
+        return init(mFormat);
     }
 
     virtual String string() const {
@@ -873,7 +873,10 @@ struct GLVideo : public MediaOut {
         
         if (input->v != mFormat) {
             INFO("frame format changed, re-init opengl context");
-            init(input->v);
+            MediaError st = init(input->v);
+            if (st != kMediaNoError) {
+                return st;
+            }
             mFormat = input->v;
         }
 
