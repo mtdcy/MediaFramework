@@ -559,6 +559,45 @@ static const char * fsh_nv12_rect = SL(
         }
     );
 
+static const char * fsh_rgb = SL(
+        varying vec2 v_texcoord;
+        uniform sampler2D u_planes[1];
+        uniform mat3 u_colorMatrix;
+        void main(void)
+        {
+            vec4 rgb;
+            rgb = texture2D(u_planes[0], v_texcoord);
+            gl_FragColor = rgb;
+        }
+    );
+
+static const char * fsh_rgba = SL(
+        varying vec2 v_texcoord;
+        uniform sampler2D u_planes[1];
+        uniform mat3 u_colorMatrix;
+        void main(void)
+        {
+            vec4 rgba;
+            rgba = texture2D(u_planes[0], v_texcoord);
+            gl_FragColor = rgba;
+        }
+    );
+
+static const char * fsh_argb = SL(
+        varying vec2 v_texcoord;
+        uniform sampler2D u_planes[1];
+        uniform mat3 u_colorMatrix;
+        void main(void)
+        {
+            vec4 argb;
+            argb.a = texture2D(u_planes[0], v_texcoord).r;
+            argb.r = texture2D(u_planes[0], v_texcoord).g;
+            argb.g = texture2D(u_planes[0], v_texcoord).b;
+            argb.b = texture2D(u_planes[0], v_texcoord).a;
+            gl_FragColor = argb;
+        }
+    );
+
 static const OpenGLConfig YUV420p = {   // 12 bpp
     .s_vsh      = vsh_yuv,
     .s_fsh      = fsh_yuv420p,
@@ -670,6 +709,53 @@ static const OpenGLConfig YUV422_APPLE = {
 };
 #endif
 
+static const OpenGLConfig RGB565 = {
+    .s_vsh      = vsh_yuv,
+    .s_fsh      = fsh_rgb,
+    .e_target   = GL_TEXTURE_2D,
+    .n_textures = 1,
+    .a_format   = {
+        {GL_RGB, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, 8, 8},
+    },
+    .s_attrs    = { "a_position", "a_texcoord" },
+    .s_uniforms = { "u_planes", NULL, NULL },
+};
+
+static const OpenGLConfig RGB888 = {
+    .s_vsh      = vsh_yuv,
+    .s_fsh      = fsh_rgb,
+    .e_target   = GL_TEXTURE_2D,
+    .n_textures = 1,
+    .a_format   = {
+        {GL_RGB, GL_RGB, GL_UNSIGNED_BYTE, 8, 8},
+    },
+    .s_attrs    = { "a_position", "a_texcoord" },
+    .s_uniforms = { "u_planes", NULL, NULL },
+};
+
+static const OpenGLConfig RGBA = {
+    .s_vsh      = vsh_yuv,
+    .s_fsh      = fsh_rgba,
+    .e_target   = GL_TEXTURE_2D,
+    .n_textures = 1,
+    .a_format   = {
+        {GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, 8, 8},
+    },
+    .s_attrs    = { "a_position", "a_texcoord" },
+    .s_uniforms = { "u_planes", NULL, NULL },
+};
+
+static const OpenGLConfig ARGB = {
+    .s_vsh      = vsh_yuv,
+    .s_fsh      = fsh_argb,
+    .e_target   = GL_TEXTURE_2D,
+    .n_textures = 1,
+    .a_format   = {
+        {GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, 8, 8},
+    },
+    .s_attrs    = { "a_position", "a_texcoord" },
+    .s_uniforms = { "u_planes", NULL, NULL },
+};
 ////////////////////////////////////////////////////////////////////
 struct GLVideo : public MediaOut {
     ImageFormat         mFormat;
@@ -703,6 +789,18 @@ struct GLVideo : public MediaOut {
                 break;
             case kPixelFormatYUV444:
                 mGLContext = initOpenGLContext(&YUV444);
+                break;
+            case kPixelFormatRGB565:
+                mGLContext = initOpenGLContext(&RGB565);
+                break;
+            case kPixelFormatRGB888:
+                mGLContext = initOpenGLContext(&RGB888);
+                break;
+            case kPixelFormatRGBA:
+                mGLContext = initOpenGLContext(&RGBA);
+                break;
+            case kPixelFormatARGB:
+                mGLContext = initOpenGLContext(&ARGB);
                 break;
 #ifdef __APPLE__
             case kPixelFormatVideoToolbox:
