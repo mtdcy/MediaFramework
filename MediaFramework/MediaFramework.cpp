@@ -422,6 +422,7 @@ MediaError MediaFrame::reverseBytes() {
         case kPixelFormatRGBA:
         case kPixelFormatARGB:
         case kPixelFormatYUYV422:
+        case kPixelFormatYVYU422:
             reverse4(planes[0].data, planes[0].size);
             return kMediaNoError;
         
