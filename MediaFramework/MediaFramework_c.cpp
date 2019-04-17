@@ -42,7 +42,7 @@ MediaFrameRef ImageFrameCreate(const ImageFormat * image) {
     // TODO
 }
 
-MediaFrameRef ImageFrameGenerate(const ImageFormat * image, BufferRef buffer) {
+MediaFrameRef ImageFrameGenerate(const ImageFormat * image, BufferObjectRef buffer) {
     Object<MediaFrame> frame = MediaFrame::Create(*image, buffer);
     return frame->RetainObject();
 }
@@ -122,7 +122,7 @@ PlayerInfoEventRef PlayerInfoEventCreate(void (*callback)(ePlayerInfoType, void 
     return (PlayerInfoEventRef)event->RetainObject();
 }
 
-MediaPlayerRef MediaPlayerCreate(MessageRef media, MessageRef options) {
+MediaPlayerRef MediaPlayerCreate(MessageObjectRef media, MessageObjectRef options) {
     Object<IMediaPlayer> mp = IMediaPlayer::Create();
     mp->init(media, options);
     return mp->RetainObject();
@@ -135,11 +135,11 @@ MediaClockRef MediaPlayerGetClock(MediaPlayerRef ref) {
     else return (MediaClockRef)clock->RetainObject();
 }
 
-MessageRef MediaPlayerGetInfo(const MediaPlayerRef ref) {
+MessageObjectRef MediaPlayerGetInfo(const MediaPlayerRef ref) {
     const Object<IMediaPlayer> mp = ref;
     Object<Message> info = mp->info();
     if (info == NULL) return NULL;
-    else return (MessageRef)info->RetainObject();
+    else return (MessageObjectRef)info->RetainObject();
 }
 
 MediaError MediaPlayerPrepare(MediaPlayerRef ref, int64_t us) {
@@ -174,7 +174,7 @@ eStateType MediaPlayerGetState(const MediaPlayerRef ref) {
     return mp->state();
 }
 
-MediaOutRef MediaOutCreate(eCodecType type, MessageRef format, MessageRef options) {
+MediaOutRef MediaOutCreate(eCodecType type, MessageObjectRef format, MessageObjectRef options) {
     Object<MediaOut> out = MediaOut::Create(type);
     if (out->prepare(format, options) != kMediaNoError) {
         return NULL;
@@ -182,7 +182,7 @@ MediaOutRef MediaOutCreate(eCodecType type, MessageRef format, MessageRef option
     return (MediaOutRef)out->RetainObject();
 }
 
-MediaOutRef MediaOutCreateForImage(const ImageFormat * image, MessageRef options) {
+MediaOutRef MediaOutCreateForImage(const ImageFormat * image, MessageObjectRef options) {
     Object<MediaOut> out = MediaOut::Create(kCodecTypeVideo);
     Object<Message> format = new Message;
     format->setInt32(kKeyFormat, image->format);

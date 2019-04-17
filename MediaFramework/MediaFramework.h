@@ -55,7 +55,7 @@ API_EXPORT MediaFrameRef        AudioFrameCreate(const AudioFormat *);
 API_EXPORT MediaFrameRef        ImageFrameCreate(const ImageFormat *);
 #define MediaFrameRelease(x)    SharedObjectRelease((SharedObjectRef)x)
 
-API_EXPORT MediaFrameRef        ImageFrameGenerate(const ImageFormat *, BufferRef);
+API_EXPORT MediaFrameRef        ImageFrameGenerate(const ImageFormat *, BufferObjectRef);
 
 API_EXPORT uint8_t *            MediaFrameGetPlaneData(MediaFrameRef, size_t);
 API_EXPORT size_t               MediaFrameGetPlaneSize(MediaFrameRef, size_t);
@@ -80,14 +80,14 @@ API_EXPORT int64_t              MediaClockGetTime(MediaClockRef);
 // MediaPlayer
 typedef SharedObjectRef         MediaPlayerRef;
 
-API_EXPORT MediaPlayerRef       MediaPlayerCreate(MessageRef, MessageRef);
+API_EXPORT MediaPlayerRef       MediaPlayerCreate(MessageObjectRef, MessageObjectRef);
 API_EXPORT MediaError           MediaPlayerRelease(MediaPlayerRef);
 
 /**
  * @note remember to release after use
  */
 API_EXPORT MediaClockRef        MediaPlayerGetClock(const MediaPlayerRef);
-API_EXPORT MessageRef           MediaPlayerGetInfo(const MediaPlayerRef);
+API_EXPORT MessageObjectRef     MediaPlayerGetInfo(const MediaPlayerRef);
 
 API_EXPORT MediaError           MediaPlayerPrepare(MediaPlayerRef, int64_t);
 API_EXPORT MediaError           MediaPlayerStart(MediaPlayerRef);
@@ -108,8 +108,8 @@ API_EXPORT PlayerInfoEventRef   PlayerInfoEventCreate(void (*Callback)(ePlayerIn
 // MediaOut
 typedef SharedObjectRef         MediaOutRef;
 
-API_EXPORT MediaOutRef          MediaOutCreate(eCodecType, MessageRef, MessageRef);
-API_EXPORT MediaOutRef          MediaOutCreateForImage(const ImageFormat *, MessageRef);
+API_EXPORT MediaOutRef          MediaOutCreate(eCodecType, MessageObjectRef, MessageObjectRef);
+API_EXPORT MediaOutRef          MediaOutCreateForImage(const ImageFormat *, MessageObjectRef);
 #define MediaOutRelease(x)      SharedObjectRelease((SharedObjectRef)x)
 
 API_EXPORT MediaError           MediaOutWrite(MediaOutRef, MediaFrameRef);
