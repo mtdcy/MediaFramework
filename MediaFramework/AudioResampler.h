@@ -38,6 +38,7 @@
 #define _MPX_AUDIO_RESAMPLER_H
 
 #include <MediaFramework/MediaDefs.h>
+#include <MediaFramework/MediaFrame.h>
 
 #ifdef __cplusplus
 __BEGIN_NAMESPACE_MPX

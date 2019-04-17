@@ -36,6 +36,7 @@
 #define _MEDIA_MODULES_OUT_H
 
 #include <MediaFramework/MediaDefs.h>
+#include <MediaFramework/MediaFrame.h>
 
 __BEGIN_DECLS
 

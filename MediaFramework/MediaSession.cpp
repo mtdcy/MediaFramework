@@ -148,6 +148,11 @@ struct Decoder : public SharedObject {
 
         // always set mCodec to null, if create or initial faileds
         mCodec = MediaDecoder::Create(mID, mode);
+        if (mCodec == NULL) {
+            ERROR("codec is not supported");
+            return;
+        }
+        
         if (mCodec->init(format, options) != kMediaNoError) {
             ERROR("track %zu: create codec failed", mID);
             mCodec.clear();

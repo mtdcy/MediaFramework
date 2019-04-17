@@ -36,6 +36,7 @@
 #define _MEDIA_COLOR_CONVERTOR_H
 
 #include <MediaFramework/MediaDefs.h>
+#include <MediaFramework/MediaFrame.h>
 
 #ifdef __cplusplus
 __BEGIN_NAMESPACE_MPX

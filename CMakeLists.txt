@@ -23,7 +23,7 @@ set (CMAKE_C_EXTENSIONS OFF)    # no gnu extensions
 set (CMAKE_CXX_STANDARD 98)     # c++98
 set (CMAKE_CXX_EXTENSIONS OFF)  # no gnu extensions
 
-if (BUILD_WITH_FFMPEG)
+if (WITH_FFMPEG)
     add_definitions(-DWITH_FFMPEG)
 endif()
 
@@ -46,6 +46,7 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 # target source 
 set (SOURCE_FILES
     MediaFramework/MediaFramework.cpp
+    MediaFramework/MediaFrame.cpp
     MediaFramework/MediaClock.cpp
     MediaFramework/MediaPlayer.cpp
     MediaFramework/MediaSession.cpp

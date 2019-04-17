@@ -162,7 +162,8 @@ typedef enum eSampleFormat {
     kSampleFormatDBL,
 } eSampleFormat;
 
-API_EXPORT size_t GetSampleFormatBytes(eSampleFormat);
+API_EXPORT const char * GetSampleFormatString(eSampleFormat);
+API_EXPORT size_t       GetSampleFormatBytes(eSampleFormat);
 
 /**
  * read behavior modes
@@ -356,89 +357,6 @@ struct API_EXPORT MediaPacket : public SharedObject {
  */
 API_EXPORT sp<MediaPacket> MediaPacketCreate(size_t size);
 API_EXPORT sp<MediaPacket> MediaPacketCreate(sp<Buffer>&);
-
-/**
- * media frame structure for decompressed audio and video frames
- * the properties inside this structure have to make sure this
- * frame can be renderred properly without additional informations.
- */
-#define MEDIA_FRAME_NB_PLANES   (8)
-struct API_EXPORT MediaFrame : public SharedObject {
-    MediaTime               pts;        ///< display time in us
-    MediaTime               duration;   ///< duration of this frame
-    /**
-     * plane data struct.
-     * for planar frame, multi planes must exist. the backend memory may be
-     * or may not be continueslly.
-     * for packed frame, only one plane exists.
-     */
-    struct {
-        uint8_t *           data;       ///< plane data
-        size_t              size;       ///< data size in bytes
-    } planes[MEDIA_FRAME_NB_PLANES];    ///< for packed frame, only one plane exists
-
-    union {
-        int32_t             format;     ///< sample format, @see ePixelFormat, @see eSampleFormat
-        AudioFormat         a;
-        ImageFormat         v;
-    };
-    void                    *opaque;    ///< opaque
-    
-    /**
-     * create a media frame backend by Buffer
-     */
-    static sp<MediaFrame>   Create(const ImageFormat&);
-    static sp<MediaFrame>   Create(const ImageFormat&, const sp<Buffer>&);
-    static sp<MediaFrame>   Create(const AudioFormat&);
-    
-    /**
-     * read backend buffer of hwaccel frame
-     * @return should return NULL if plane is not exists
-     * @note default implementation: read directly from planes
-     */
-    virtual sp<Buffer> getData(size_t) const;
-    
-    /**
-     * keep luma component and swap two chroma components of YUV image
-     * @return return kMediaErrorInvalidOperation if source is not YUV
-     * @return return kMediaErrorNotSupported if no implementation
-     */
-    virtual MediaError swapUVChroma();
-    
-    /**
-     * reverse pixel bytes, like rgba -> abgr
-     * @return return kMediaErrorInvalidOperation if source is planar
-     * @return return kMediaErrorNotSupported if no implementation
-     */
-    virtual MediaError reverseBytes();
-    
-    /**
-     * convert to planar pixel format
-     * @return return kMediaNoError on success or source is planar
-     * @return return kMediaErrorNotSupported if no implementation
-     * @note planarization may or may NOT be in place convert
-     */
-    virtual MediaError planarization();
-    
-    /**
-     * convert pixel format
-     * @return return NULL if not supported or no implementation
-     * @note the resolution and display rect remains
-     */
-    virtual sp<MediaFrame> convert(const ePixelFormat&) { return NULL; }    // TODO
-    
-    protected:
-        MediaFrame();
-        virtual ~MediaFrame() { }
-        sp<Buffer>  mBuffer;
-};
-
-// AudioFormat
-API_EXPORT String   GetAudioFormatString(const AudioFormat& format);
-
-// get MediaFrame human readable string, for debug
-API_EXPORT String   GetAudioFrameString(const sp<MediaFrame>&);
-API_EXPORT String   GetImageFrameString(const sp<MediaFrame>&);
 
 __END_NAMESPACE_MPX
 

@@ -38,6 +38,7 @@
 #define _MPX_MEDIA_TRACK_H
 
 #include <MediaFramework/MediaDefs.h>
+#include <MediaFramework/MediaFrame.h>
 
 #ifdef __cplusplus
 __BEGIN_NAMESPACE_MPX

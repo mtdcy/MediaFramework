@@ -37,6 +37,7 @@
 
 // MediaFramework
 #include <MediaFramework/MediaDefs.h>
+#include <MediaFramework/MediaFrame.h>
 #include <MediaFramework/MediaExtractor.h>
 #include <MediaFramework/MediaDecoder.h>
 #include <MediaFramework/MediaOut.h>

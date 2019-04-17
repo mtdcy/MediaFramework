@@ -39,6 +39,7 @@
 
 #include <MediaFramework/MediaDefs.h>
 #include <MediaFramework/MediaClock.h>
+#include <MediaFramework/MediaFrame.h>
 
 __BEGIN_DECLS
 
