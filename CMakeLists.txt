@@ -1,5 +1,7 @@
 cmake_minimum_required (VERSION 2.8)
 
+set (WITH_FFMPEG  FALSE)
+
 project (MediaFramework)
 
 # https://gcc.gnu.org/onlinedocs/gcc/Warning-Options.html#Warning-Options
@@ -20,6 +22,10 @@ set (CMAKE_C_STANDARD   99)     # c98
 set (CMAKE_C_EXTENSIONS OFF)    # no gnu extensions
 set (CMAKE_CXX_STANDARD 98)     # c++98
 set (CMAKE_CXX_EXTENSIONS OFF)  # no gnu extensions
+
+if (BUILD_WITH_FFMPEG)
+    add_definitions(-DWITH_FFMPEG)
+endif()
 
 if (APPLE)
     set (CMAKE_MACOSX_RPATH TRUE)
@@ -57,12 +63,15 @@ set (SOURCE_FILES
     MediaFramework/mpeg4/Box.cpp
     MediaFramework/matroska/EBML.cpp
     MediaFramework/matroska/MatroskaFile.cpp
-    MediaFramework/lavc/LavcDecoder.cpp
     MediaFramework/sdl2/SDLAudio.cpp
     #MediaFramework/sdl2/SDLVideo.cpp
     MediaFramework/opengl/GLVideo.cpp
     MediaFramework/MediaFramework_c.cpp
     )
+
+if (WITH_FFMPEG)
+    list (APPEND SOURCE_FILES MediaFramework/lavc/LavcDecoder.cpp)
+endif()
 
 file (GLOB PUBLIC_HEADERS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "MediaFramework/*.h")
 
@@ -99,12 +108,14 @@ if (XCODE)
     message("ABE: ${ABE}")
     target_link_libraries(${PROJECT_NAME} ${ABE})
 
+    if (WITH_FFMPEG)
     # FFmpeg.framework
     find_library (FFMPEG NAMES FFmpeg PATHS ${CMAKE_INSTALL_PREFIX} NO_DEFAULT_PATH)
     message("FFMPEG: ${FFMPEG}")
     target_link_libraries(${PROJECT_NAME} ${FFMPEG})
     # ffmpeg header structure need this
     include_directories(${FFMPEG}/Headers)
+    endif()
 else()
     find_library (ABE 
         NAMES libABE.a libABE.so libABE.dylib libABE.dll
@@ -121,6 +132,7 @@ else()
     target_link_libraries(${PROJECT_NAME} ${ABE})
     include_directories(${ABE_HEADER})
 
+    if (WITH_FFMPEG)
     find_library (FFMPEG
         NAMES libFFmpeg.a libFFmpeg.so libFFmpeg.dylib libFFmpeg.dll
         PATHS ${CMAKE_INSTALL_PREFIX}/lib
@@ -136,7 +148,7 @@ else()
     target_link_libraries(${PROJECT_NAME} ${FFMPEG})
     # ffmpeg header in bad structure
     include_directories(${FFMPEG_HEADER}/FFmpeg)
-
+    endif()
 
     if (WIN32)
         target_link_libraries (${PROJECT_NAME} -lopengl32 -lglew32)

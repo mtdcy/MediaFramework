@@ -246,7 +246,9 @@ sp<MediaExtractor> MediaExtractor::Create(eFileFormat format) {
 sp<MediaDecoder> CreateVideoToolboxDecoder();
 bool IsVideoToolboxSupported(eCodecFormat format);
 #endif
+#ifdef WITH_FFMPEG
 sp<MediaDecoder> CreateLavcDecoder(eModeType mode);
+#endif
 
 sp<MediaDecoder> MediaDecoder::Create(eCodecFormat format, eModeType mode) {
     sp<MediaDecoder> codec;
@@ -263,7 +265,9 @@ sp<MediaDecoder> MediaDecoder::Create(eCodecFormat format, eModeType mode) {
     // FALL BACK TO SOFTWARE DECODER
 #endif
     if (codec == NULL) {
+#ifdef WITH_FFMPEG
         codec = CreateLavcDecoder(mode);
+#endif
     }
 
     return codec;
