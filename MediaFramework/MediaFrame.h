@@ -37,6 +37,7 @@
 
 #include <MediaFramework/MediaDefs.h>
 
+#ifdef __cplusplus
 __BEGIN_NAMESPACE_MPX
 
 /**
@@ -123,5 +124,6 @@ API_EXPORT String   GetAudioFrameString(const sp<MediaFrame>&);
 API_EXPORT String   GetImageFrameString(const sp<MediaFrame>&);
 
 __END_NAMESPACE_MPX
+#endif
 
 #endif // _MPX_MEDIA_FRAME_H
