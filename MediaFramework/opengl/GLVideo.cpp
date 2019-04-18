@@ -740,7 +740,7 @@ static const OpenGLConfig RGBA = {
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 1,
     .a_format   = {
-        {GL_RGBA, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, 8, 8},
+        {GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, 8, 8},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
     .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
@@ -753,7 +753,7 @@ static const OpenGLConfig ABGR = {  // RGBA in word-order
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 1,
     .a_format   = {
-        {GL_RGBA, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV, 8, 8},
+        {GL_RGBA, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, 8, 8},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
     .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
@@ -773,21 +773,14 @@ static const OpenGLConfig ARGB = {
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 1,
     .a_format   = {
-        {GL_RGBA, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, 8, 8},
+        {GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, 8, 8},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
     .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
     .u_matrix   = MAT_ARGB2RGBA,
 };
 
-static const GLfloat MAT_BGRA2RGBA[16] = {
-    // b, g, r, a
-    0,      0,      1.0,    0,      // r
-    0,      1.0,    0,      0,      // g
-    1.0,    0,      0,      0,      // b
-    0,      0,      0,      1.0,    // a
-};
-static const OpenGLConfig BGRA = {
+static const OpenGLConfig BGRA = {  // ARGB in word-order
     .s_vsh      = vsh_yuv,
     .s_fsh      = fsh_rgb,
     .e_target   = GL_TEXTURE_2D,
@@ -797,7 +790,7 @@ static const OpenGLConfig BGRA = {
     },
     .s_attrs    = { "a_position", "a_texcoord" },
     .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
-    .u_matrix   = MAT_BGRA2RGBA,
+    .u_matrix   = MAT_ARGB2RGBA,
 };
 
 static const OpenGLConfig * getOpenGLConfig(const ePixelFormat& pixel) {
