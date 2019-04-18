@@ -83,24 +83,43 @@ sp<MediaFrame> MediaFrame::Create(const ImageFormat& image, const sp<Buffer>& bu
     return frame;
 }
 
-static FORCE_INLINE void swapPlanes(MediaFrame * image, size_t a, size_t b) {
-    uint8_t * tmp0 = image->planes[a].data;
-    size_t tmp1 = image->planes[a].size;
-    image->planes[a] = image->planes[b];
-    image->planes[b].data = tmp0;
-    image->planes[b].size = tmp1;
-}
-
 // TODO: borrow some code from ffmpeg
-static FORCE_INLINE uint16_t swap16(uint16_t x) {
+static FORCE_INLINE uint16_t _swap16(uint16_t x) {
     return (x >> 8) | (x << 8);
 }
+static FORCE_INLINE void swap16(uint8_t * u8, size_t size) {
+    uint16_t * u16 = (uint16_t *)u8;
+    CHECK_EQ(size % 2, 0);
+    for (size_t j = 0; j < size / 2; ++j) {
+        uint16_t x = *u16;
+        *u16++ = _swap16(x);
+    }
+}
 
-static FORCE_INLINE void swapBytes(MediaFrame * image, size_t index) {
-    uint16_t * data = (uint16_t *)image->planes[index].data;
-    for (size_t j = 0; j < image->planes[index].size / 2; ++j) {
-        *data = swap16(*data);
-        ++data;
+// aabbccdd -> ddccbbaa
+static FORCE_INLINE uint32_t _swap32(uint32_t x) {
+    return ((x >> 24) & 0xff) | ((x >> 8) & 0xff00) | ((x << 8) & 0xff0000) | ((x << 24) & 0xff000000);
+}
+static FORCE_INLINE void swap32(uint8_t * u8, size_t size) {
+    uint32_t *u32 = (uint32_t *)u8;
+    CHECK_EQ(size % 4, 0);
+    for (size_t i = 0; i < size / 4; ++i) {
+        *u32 = _swap32(*u32);
+        ++u32;
+    }
+}
+
+// only swap low bytes of uint32_t
+// aabbccdd -> aaddccbb
+static FORCE_INLINE uint32_t _swap32l(uint32_t x) {
+    return (x & 0xff000000) | (x & 0xff00) | ((x >> 16) & 0xff) | ((x << 16) & 0xff0000);
+}
+static FORCE_INLINE void swap32l(uint8_t * u8, size_t size) {
+    uint32_t *u32 = (uint32_t *)u8;
+    CHECK_EQ(size % 4, 0);
+    for (size_t i = 0; i < size / 4; ++i) {
+        *u32 = _swap32l(*u32);
+        ++u32;
     }
 }
 
@@ -108,16 +127,29 @@ MediaError MediaFrame::swapUVChroma() {
     switch (v.format) {
         case kPixelFormatYUV420P:
         case kPixelFormatYUV422P:
-        case kPixelFormatYUV444P:
-            swapPlanes(this, 1, 2);
-            return kMediaNoError;
+        case kPixelFormatYUV444P: {
+            // swap u & v planes
+            uint8_t * tmp0  = planes[1].data;
+            size_t tmp1     = planes[1].size;
+            planes[1]       = planes[2];
+            planes[2].data  = tmp0;
+            planes[2].size  = tmp1;
+        } return kMediaNoError;
             
         case kPixelFormatNV12:
         case kPixelFormatNV21:
-            swapBytes(this, 1);
+            // swap hi & low bytes of uv plane
+            swap16(planes[1].data, planes[1].size);
+            return kMediaNoError;
+            
+        case kPixelFormatYUYV422:
+        case kPixelFormatYVYU422:
+            // swap u & v bytes
+            swap32l(planes[0].data, planes[0].size);
             return kMediaNoError;
             
         case kPixelFormatRGB565:
+        case kPixelFormatBGR565:
         case kPixelFormatRGB:
         case kPixelFormatBGR:
         case kPixelFormatRGBA:
@@ -132,7 +164,8 @@ MediaError MediaFrame::swapUVChroma() {
     return kMediaErrorNotSupported;
 }
 
-static FORCE_INLINE void reverse3(uint8_t * u8, size_t size) {
+// aabbcc -> ccbbaa
+static FORCE_INLINE void swap24(uint8_t * u8, size_t size) {
     CHECK_EQ(size % 3, 0);
     for (size_t i = 0; i < size / 3; ++i) {
         uint8_t tmp = u8[0];
@@ -142,19 +175,7 @@ static FORCE_INLINE void reverse3(uint8_t * u8, size_t size) {
     }
 }
 
-static FORCE_INLINE uint32_t reverse32(uint32_t x) {
-    return ((x >> 24) & 0xff) | ((x >> 8) & 0xff00) | ((x << 8) & 0xff0000) | ((x << 24) & 0xff000000);
-}
-static FORCE_INLINE void reverse4(uint8_t * u8, size_t size) {
-    uint32_t *u32 = (uint32_t *)u8;
-    CHECK_EQ(size % 4, 0);
-    for (size_t i = 0; i < size / 4; ++i) {
-        *u32 = reverse32(*u32);
-        ++u32;
-    }
-}
-
-MediaError MediaFrame::reverseBytes() {
+MediaError MediaFrame::reversePixel() {
     if (GetPixelFormatIsPlanar(v.format)) {
         return kMediaErrorInvalidOperation;
     }
@@ -163,7 +184,7 @@ MediaError MediaFrame::reverseBytes() {
         case kPixelFormatRGB:
         case kPixelFormatBGR:
         case kPixelFormatYUV444:
-            reverse3(planes[0].data, planes[0].size);
+            swap24(planes[0].data, planes[0].size);
             return kMediaNoError;
             
         case kPixelFormatRGBA:
@@ -172,7 +193,7 @@ MediaError MediaFrame::reverseBytes() {
         case kPixelFormatBGRA:
         case kPixelFormatYUYV422:
         case kPixelFormatYVYU422:
-            reverse4(planes[0].data, planes[0].size);
+            swap32(planes[0].data, planes[0].size);
             return kMediaNoError;
             
         case kPixelFormatRGB565:
@@ -245,6 +266,8 @@ MediaError MediaFrame::planarization() {
         default:
             break;
     }
+    
+    // no implementation for rgb
     return kMediaErrorNotSupported;
 }
 
@@ -257,7 +280,7 @@ MediaError MediaFrame::yuv2rgb(const eConvertionMatrix& matrix) {
             sp<Buffer> rgb = new Buffer(plane0 * 4);
             
             // LIBYUV USING word-order
-            libyuv::I420ToARGB(planes[0].data, v.width,
+            libyuv::I420ToABGR(planes[0].data, v.width,
                                 planes[1].data, (v.width * GetPixelFormatPlaneBPP(v.format, 1)) / 4,
                                 planes[2].data, (v.width * GetPixelFormatPlaneBPP(v.format, 2)) / 4,
                                 (uint8_t *)rgb->data(), v.width * 4,
@@ -269,11 +292,32 @@ MediaError MediaFrame::yuv2rgb(const eConvertionMatrix& matrix) {
             planes[1].size  = 0;
             planes[2].data  = NULL;
             planes[2].size  = 0;
-            v.format        = kPixelFormatARGB;
+            v.format        = kPixelFormatRGBA;
             mBuffer         = rgb;
             return kMediaNoError;
         } break;
+        
+        case kPixelFormatYUV444P: {
+            const size_t plane0 = v.width * v.height;
+            sp<Buffer> rgb = new Buffer(plane0 * 4);
             
+            // LIBYUV USING word-order
+            libyuv::I444ToABGR(planes[0].data, v.width,
+                               planes[1].data, v.width,
+                               planes[2].data, v.width,
+                               (uint8_t *)rgb->data(), v.width * 4,
+                               v.width, v.height);
+            
+            planes[0].data  = (uint8_t *)rgb->data();
+            planes[0].size  = plane0 * 4;
+            planes[1].data  = NULL;
+            planes[1].size  = 0;
+            planes[2].data  = NULL;
+            planes[2].size  = 0;
+            v.format        = kPixelFormatRGBA;
+            mBuffer         = rgb;
+            return kMediaNoError;
+        } break;
         default:
             break;
     }

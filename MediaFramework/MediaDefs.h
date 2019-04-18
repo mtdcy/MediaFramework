@@ -118,10 +118,11 @@ API_EXPORT eCodecType GetCodecType(eCodecFormat format);
 
 /**
  * about byte-order and word-order of pixels:
- * @note we use letters to represet byte-order instead of word-order
+ * @note we use letters to represent byte-order instead of word-order
  * @note byte-order is commonly used in files & network & opengl
  * @note word-order is commonly used in os and libraries for rgb
- * @note both libyuv & ffmpeg using word-order pixels
+ * @note libyuv using word-order pixels
+ * @note ffmpeg using byte-order pixels
  * @note yuv pixels usually in byte-order
  * https://en.wikipedia.org/wiki/RGBA_color_space
  */

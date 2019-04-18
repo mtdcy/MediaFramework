@@ -93,7 +93,7 @@ struct API_EXPORT MediaFrame : public SharedObject {
      * @return return kMediaErrorInvalidOperation if source is planar
      * @return return kMediaErrorNotSupported if no implementation
      */
-    virtual MediaError reverseBytes();
+    virtual MediaError reversePixel();
     
     /**
      * convert to planar pixel format
@@ -108,7 +108,8 @@ struct API_EXPORT MediaFrame : public SharedObject {
      * convert yuv -> rgb
      * @return return kMediaErrorInvalidOperation if source is rgb
      * @return return kMediaErrorNotSupported if no implementation
-     * @return target pixel is argb by default, but no guarentee.
+     * @return target pixel is rgba by default, but no guarentee.
+     * @note TODO: set target pixel to os preferred
      */
     enum eConvertionMatrix { };
     virtual MediaError yuv2rgb(const eConvertionMatrix&);

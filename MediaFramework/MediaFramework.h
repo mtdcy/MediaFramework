@@ -67,7 +67,7 @@ API_EXPORT void *               MediaFrameGetOpaque(MediaFrameRef);
 
 API_EXPORT MediaError           ImageFrameSwapUVChroma(MediaFrameRef);
 
-API_EXPORT MediaError           ImageFrameReverseBytes(MediaFrameRef);
+API_EXPORT MediaError           ImageFrameReversePixel(MediaFrameRef);
 
 API_EXPORT MediaError           ImageFramePlanarization(MediaFrameRef);
 

@@ -79,9 +79,9 @@ MediaError ImageFrameSwapUVChroma(MediaFrameRef ref) {
     return frame->swapUVChroma();
 }
 
-MediaError ImageFrameReverseBytes(MediaFrameRef ref) {
+MediaError ImageFrameReversePixel(MediaFrameRef ref) {
     Object<MediaFrame> frame = ref;
-    return frame->reverseBytes();
+    return frame->reversePixel();
 }
 
 MediaError ImageFramePlanarization(MediaFrameRef ref) {
