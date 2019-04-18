@@ -318,6 +318,35 @@ MediaError MediaFrame::yuv2rgb(const eConvertionMatrix& matrix) {
             mBuffer         = rgb;
             return kMediaNoError;
         } break;
+            
+        case kPixelFormatNV12:
+        case kPixelFormatNV21: {
+            const size_t plane0 = v.width * v.height;
+            sp<Buffer> rgb = new Buffer(plane0 * 4);
+            
+            // LIBYUV USING word-order
+            if (v.format == kPixelFormatNV12)
+                libyuv::NV12ToABGR(planes[0].data, v.width,
+                                   planes[1].data, v.width,
+                                   (uint8_t *)rgb->data(), v.width * 4,
+                                   v.width, v.height);
+            else
+                libyuv::NV21ToABGR(planes[0].data, v.width,
+                                   planes[1].data, v.width,
+                                   (uint8_t *)rgb->data(), v.width * 4,
+                                   v.width, v.height);
+            
+            planes[0].data  = (uint8_t *)rgb->data();
+            planes[0].size  = plane0 * 4;
+            planes[1].data  = NULL;
+            planes[1].size  = 0;
+            planes[2].data  = NULL;
+            planes[2].size  = 0;
+            v.format        = kPixelFormatRGBA;
+            mBuffer         = rgb;
+            return kMediaNoError;
+        } break;
+            
         default:
             break;
     }
