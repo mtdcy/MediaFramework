@@ -116,17 +116,6 @@ size_t GetPixelFormatBPP(ePixelFormat pixel) {
     }
 }
 
-bool GetPixelFormatIsPlanar(ePixelFormat pixel) {
-    switch (pixel) {
-        case kPixelFormatYUV420P:
-        case kPixelFormatYUV422P:
-        case kPixelFormatYUV444P:
-        case kPixelFormatNV12:
-        case kPixelFormatNV21:      return true;
-        default:                    return false;
-    }
-}
-
 ePixelFormat GetPixelFormatPlanar(ePixelFormat pixel) {
     if (GetPixelFormatIsPlanar(pixel)) return pixel;
     switch (pixel) {
@@ -148,16 +137,13 @@ size_t GetPixelFormatPlanes(ePixelFormat pixel) {
         case kPixelFormatYUV444P:   return 3;
         case kPixelFormatNV12:
         case kPixelFormatNV21:      return 2;
-        case kPixelFormatUnknown:   return 0;
         default:                    break;
     }
-    
-    if (GetPixelFormatIsPlanar(pixel) == false) {
-        return 1;
-    } else {
-        FATAL("FIXME: missing case for %d", pixel);
-        return 0;
-    }
+    return 1;   // assume 1 plane
+}
+
+bool GetPixelFormatIsPlanar(ePixelFormat pixel) {
+    return GetPixelFormatPlanes(pixel) > 1;
 }
 
 size_t GetPixelFormatPlaneBPP(ePixelFormat pixel, size_t plane) {
