@@ -73,8 +73,8 @@ const char * GetPixelFormatString(ePixelFormat pixel) {
             // rgb
         case kPixelFormatRGB565:            return "rgb565";
         case kPixelFormatBGR565:            return "bgr565";
-        case kPixelFormatRGB:               return "rgb32";
-        case kPixelFormatBGR:               return "bgr32";
+        case kPixelFormatRGB:               return "rgb24";
+        case kPixelFormatBGR:               return "bgr24";
         case kPixelFormatARGB:              return "argb";
         case kPixelFormatBGRA:              return "bgra";
         case kPixelFormatRGBA:              return "rgba";
