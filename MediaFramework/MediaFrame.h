@@ -79,7 +79,7 @@ struct API_EXPORT MediaFrame : public SharedObject {
      * @return should return NULL if plane is not exists
      * @note default implementation: read directly from planes
      */
-    virtual sp<Buffer> getData(size_t) const;
+    virtual sp<Buffer> readPlane(size_t) const;
     
     /**
      * keep luma component and swap two chroma components of YUV image
@@ -100,15 +100,20 @@ struct API_EXPORT MediaFrame : public SharedObject {
      * @return return kMediaNoError on success or source is planar
      * @return return kMediaErrorNotSupported if no implementation
      * @note planarization may or may NOT be in place convert
+     * @note target pixel format is variant based on the implementation
      */
     virtual MediaError planarization();
     
     /**
-     * convert pixel format
-     * @return return NULL if not supported or no implementation
-     * @note the resolution and display rect remains
+     * convert yuv -> rgb
+     * @return return kMediaErrorInvalidOperation if source is rgb
+     * @return return kMediaErrorNotSupported if no implementation
+     * @return target pixel is argb by default, but no guarentee.
      */
-    virtual sp<MediaFrame> convert(const ePixelFormat&) { return NULL; }    // TODO
+    enum eConvertionMatrix { };
+    virtual MediaError yuv2rgb(const eConvertionMatrix&);
+    
+    
     
 protected:
     MediaFrame();

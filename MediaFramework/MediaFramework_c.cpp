@@ -89,6 +89,11 @@ MediaError ImageFramePlanarization(MediaFrameRef ref) {
     return frame->planarization();
 }
 
+MediaError ImageFrameToRGB(MediaFrameRef ref) {
+    Object<MediaFrame> frame = ref;
+    return frame->yuv2rgb((MediaFrame::eConvertionMatrix)0);
+}
+
 struct UserFrameEvent : public MediaFrameEvent {
     void (*callback)(MediaFrameRef, void *);
     void * opaque;

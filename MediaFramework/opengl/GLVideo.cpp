@@ -84,7 +84,7 @@ enum {
 
 enum {
     UNIFORM_PLANES = 0,
-    UNIFORM_COLOR_MATRIX,
+    UNIFORM_MATRIX,
     UNIFORM_RESOLUTION,
     UNIFORM_MAX
 };
@@ -109,13 +109,14 @@ struct TextureFormat {
 };
 
 struct OpenGLConfig {
-    const char *            s_vsh;          // vertex sl source
-    const char *            s_fsh;          // fragment sl source
-    const GLenum            e_target;       // texture target
-    const GLsizei           n_textures;     // n texture for n planes
-    const TextureFormat     a_format[4];    // texture format for each plane
+    const char *            s_vsh;                      // vertex sl source
+    const char *            s_fsh;                      // fragment sl source
+    const GLenum            e_target;                   // texture target
+    const GLsizei           n_textures;                 // n texture for n planes
+    const TextureFormat     a_format[4];                // texture format for each plane
     const char *            s_attrs[ATTR_MAX];          // attribute names to get
     const char *            s_uniforms[UNIFORM_MAX];    // uniform names to get
+    const GLfloat *         u_matrix;                   // 4x4 matrix
 };
 
 struct OpenGLContext : public SharedObject {
@@ -243,30 +244,6 @@ static FORCE_INLINE size_t initTextures(size_t n, GLenum target, GLuint *texture
     return n;
 }
 
-/**
- // SDTV with BT.601
- // y,   u,          v
- 1,      0,          1.13983,
- 1,      -0.39465,   -0.58060,
- 1,      2.03211,    0
- // HDTV with BT.709
- //
- 1,     0,          1.28033,
- 1,     -0.21482,   -0.38059,
- 1,     2.12798,    0
- // JPEG/JFIF
- 1,     0,          1.402,
- 1,     -0.34414,   -0.71414,
- 1,     1.772,      0
- */
-
-static const GLfloat color_matrix_JFIF[] = {
-    // y,   u,  v
-    1,     0,          1.402,
-    1,     -0.344,     -0.714,
-    1,     1.772,      0
-};
-
 static sp<OpenGLContext> initOpenGLContext(const OpenGLConfig *config) {
     sp<OpenGLContext> glc = new OpenGLContext;
 
@@ -307,9 +284,9 @@ static sp<OpenGLContext> initOpenGLContext(const OpenGLConfig *config) {
         CHECK_GL_ERROR();
     }
 
-    if (glc->uniforms[UNIFORM_COLOR_MATRIX] >= 0) {
+    if (glc->uniforms[UNIFORM_MATRIX] >= 0) {
         // default value
-        glUniformMatrix3fv(glc->uniforms[UNIFORM_COLOR_MATRIX], 1, GL_FALSE, color_matrix_JFIF);
+        glUniformMatrix4fv(glc->uniforms[UNIFORM_MATRIX], 1, GL_FALSE, config->u_matrix);
         CHECK_GL_ERROR();
     }
 
@@ -458,68 +435,59 @@ static const char * vsh_yuv = SL(
         }
     );
 
-static const char * fsh_yuv420p = SL(
+static const char * fsh_yuv = SL(
         varying vec2 v_texcoord;
         uniform sampler2D u_planes[3];
-        uniform mat3 u_colorMatrix;
+        uniform mat4 u_TransformMatrix;
         void main(void)
         {
             vec3 yuv;
-            vec3 rgb;
             yuv.x = texture2D(u_planes[0], v_texcoord).r;
             yuv.y = texture2D(u_planes[1], v_texcoord).r - 0.5;
             yuv.z = texture2D(u_planes[2], v_texcoord).r - 0.5;
-            rgb = yuv * u_colorMatrix;
-            gl_FragColor = vec4(rgb, 1.0);
+            gl_FragColor = vec4(yuv, 1.0) * u_TransformMatrix;
         }
-    );
-
-static const char * fsh_yuv444 = SL(
-         varying vec2 v_texcoord;
-         uniform sampler2D u_planes[1];
-         uniform mat3 u_colorMatrix;
-         void main(void)
-         {
-             vec3 yuv;
-             vec3 rgb;
-             yuv.x = texture2D(u_planes[0], v_texcoord).r;
-             yuv.y = texture2D(u_planes[0], v_texcoord).g - 0.5;
-             yuv.z = texture2D(u_planes[0], v_texcoord).b - 0.5;
-             rgb = yuv * u_colorMatrix;
-             gl_FragColor = vec4(rgb, 1.0);
-         }
     );
 
 static const char * fsh_nv12 = SL(
         varying vec2 v_texcoord;
         uniform sampler2D u_planes[2];
-        uniform mat3 u_colorMatrix;
+        uniform mat4 u_TransformMatrix;
         void main(void)
         {
             vec3 yuv;
-            vec3 rgb;
             yuv.x = texture2D(u_planes[0], v_texcoord).r;
             yuv.y = texture2D(u_planes[1], v_texcoord).r - 0.5;
             yuv.z = texture2D(u_planes[1], v_texcoord).a - 0.5;
-            rgb = yuv * u_colorMatrix;
-            gl_FragColor = vec4(rgb, 1.0);
+            gl_FragColor = vec4(yuv, 1.0) * u_TransformMatrix;
         }
     );
-
 
 static const char * fsh_nv21 = SL(
         varying vec2 v_texcoord;
         uniform sampler2D u_planes[2];
-        uniform mat3 u_colorMatrix;
+        uniform mat4 u_TransformMatrix;
         void main(void)
         {
             vec3 yuv;
-            vec3 rgb;
             yuv.x = texture2D(u_planes[0], v_texcoord).r;
             yuv.y = texture2D(u_planes[1], v_texcoord).a - 0.5;
             yuv.z = texture2D(u_planes[1], v_texcoord).r - 0.5;
-            rgb = yuv * u_colorMatrix;
-            gl_FragColor = vec4(rgb, 1.0);
+            gl_FragColor = vec4(yuv, 1.0) * u_TransformMatrix;
+        }
+    );
+
+static const char * fsh_yuv_packed = SL(
+        varying vec2 v_texcoord;
+        uniform sampler2D u_planes[1];
+        uniform mat4 u_TransformMatrix;
+        void main(void)
+        {
+            vec3 yuv;
+            yuv.x = texture2D(u_planes[0], v_texcoord).r;
+            yuv.y = texture2D(u_planes[0], v_texcoord).g - 0.5;
+            yuv.z = texture2D(u_planes[0], v_texcoord).b - 0.5;
+            gl_FragColor = vec4(yuv, 1.0) * u_TransformMatrix;
         }
     );
 
@@ -527,7 +495,7 @@ static const char * fsh_nv21 = SL(
 static const char * fsh_yuv422p_rect = SL(
         varying vec2 v_texcoord;
         uniform sampler2DRect u_planes[1];
-        //uniform mat3 u_colorMatrix;
+        //uniform mat4 u_TransformMatrix;
         uniform vec2 u_resolution;
         void main(void)
         {
@@ -538,77 +506,74 @@ static const char * fsh_yuv422p_rect = SL(
 static const char * fsh_nv12_rect = SL(
         varying vec2 v_texcoord;
         uniform sampler2DRect u_planes[2];
-        uniform mat3 u_colorMatrix;
+        uniform mat4 u_TransformMatrix;
         uniform vec2 u_resolution;
         void main(void)
         {
             vec3 yuv;
-            vec3 rgb;
             vec2 coord = v_texcoord * u_resolution;
             yuv.x = texture2DRect(u_planes[0], coord).r;
             yuv.y = texture2DRect(u_planes[1], coord * 0.5).r - 0.5;
             yuv.z = texture2DRect(u_planes[1], coord * 0.5).a - 0.5;
-            rgb = yuv * u_colorMatrix;
-            gl_FragColor = vec4(rgb, 1.0);
+            gl_FragColor = vec4(yuv, 1.0) * u_TransformMatrix;
         }
     );
 
 static const char * fsh_rgb = SL(
         varying vec2 v_texcoord;
         uniform sampler2D u_planes[1];
-        uniform mat3 u_colorMatrix;
+        uniform mat4 u_TransformMatrix;
         void main(void)
         {
-            vec4 rgb;
-            rgb = texture2D(u_planes[0], v_texcoord);
-            gl_FragColor = rgb;
+            vec4 rgb = texture2D(u_planes[0], v_texcoord);
+            gl_FragColor = rgb * u_TransformMatrix;
         }
     );
 
-static const char * fsh_rgba = SL(
-        varying vec2 v_texcoord;
-        uniform sampler2D u_planes[1];
-        uniform mat3 u_colorMatrix;
-        void main(void)
-        {
-            vec4 rgba;
-            rgba = texture2D(u_planes[0], v_texcoord);
-            gl_FragColor = rgba;
-        }
-    );
+static const GLfloat MAT_I4[16] = {
+    // r, g, b, a
+    1.0,    0,      0,      0,      // r
+    0,      1.0,    0,      0,      // g
+    0,      0,      1.0,    0,      // b
+    0,      0,      0,      1.0,    // a
+};
 
-static const char * fsh_argb = SL(
-        varying vec2 v_texcoord;
-        uniform sampler2D u_planes[1];
-        uniform mat3 u_colorMatrix;
-        void main(void)
-        {
-            vec4 argb;
-            argb.a = texture2D(u_planes[0], v_texcoord).r;
-            argb.r = texture2D(u_planes[0], v_texcoord).g;
-            argb.g = texture2D(u_planes[0], v_texcoord).b;
-            argb.b = texture2D(u_planes[0], v_texcoord).a;
-            gl_FragColor = argb;
-        }
-    );
+// https://en.wikipedia.org/wiki/YCbCr#ITU-R_BT.601_conversion
+// TODO: fix for BT601
+static const GLfloat MAT_ITU_R_BT601[16] = {    // SDTV
+    // y, u, v, a
+    1.0,    0,          1.13983,    0,      // r
+    1.0,    -0.39465,   -0.58060,   0,      // g
+    1.0,    2.03211,    0,          0,      // b
+    0,      0,          0,          1.0     // a
+};
+
+static const GLfloat MAT_JFIF[16] = {
+    // y, u, v, a
+    1,      0,          1.402,      0,      // r
+    1,  -0.344136,     -0.714136,   0,      // g
+    1,      1.772,      0,          0,      // b
+    0,      0,          0,          1.0     // a
+};
 
 static const OpenGLConfig YUV420p = {   // 12 bpp
     .s_vsh      = vsh_yuv,
-    .s_fsh      = fsh_yuv420p,
+    .s_fsh      = fsh_yuv,
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 3,
     .a_format   = {
-        {GL_LUMINANCE, GL_LUMINANCE, GL_UNSIGNED_BYTE, 8, 8},
-        {GL_LUMINANCE, GL_LUMINANCE, GL_UNSIGNED_BYTE, 4, 4},
-        {GL_LUMINANCE, GL_LUMINANCE, GL_UNSIGNED_BYTE, 4, 4},
+        {GL_RED, GL_RED, GL_UNSIGNED_BYTE, 8, 8},
+        {GL_RED, GL_RED, GL_UNSIGNED_BYTE, 4, 4},
+        {GL_RED, GL_RED, GL_UNSIGNED_BYTE, 4, 4},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
-    .s_uniforms = { "u_planes", "u_colorMatrix", NULL },
+    .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
+    .u_matrix   = MAT_JFIF,
 };
 
 static const OpenGLConfig YUV422p = {   // 16 bpp
     .s_vsh      = vsh_yuv,
-    .s_fsh      = fsh_yuv420p,
+    .s_fsh      = fsh_yuv,
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 3,
     .a_format   = {
@@ -617,12 +582,13 @@ static const OpenGLConfig YUV422p = {   // 16 bpp
         {GL_LUMINANCE, GL_LUMINANCE, GL_UNSIGNED_BYTE, 4, 8},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
-    .s_uniforms = { "u_planes", "u_colorMatrix", NULL },
+    .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
+    .u_matrix   = MAT_JFIF,
 };
 
 static const OpenGLConfig YUV444p = {   // 24 bpp
     .s_vsh      = vsh_yuv,
-    .s_fsh      = fsh_yuv420p,
+    .s_fsh      = fsh_yuv,
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 3,
     .a_format   = {
@@ -631,19 +597,21 @@ static const OpenGLConfig YUV444p = {   // 24 bpp
         {GL_LUMINANCE, GL_LUMINANCE, GL_UNSIGNED_BYTE, 8, 8},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
-    .s_uniforms = { "u_planes", "u_colorMatrix", NULL },
+    .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
+    .u_matrix   = MAT_JFIF,
 };
 
 static const OpenGLConfig YUV444 = {   // 24 bpp
     .s_vsh      = vsh_yuv,
-    .s_fsh      = fsh_yuv444,
+    .s_fsh      = fsh_yuv_packed,
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 1,
     .a_format   = {
         {GL_RGB, GL_RGB, GL_UNSIGNED_BYTE, 8, 8},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
-    .s_uniforms = { "u_planes", "u_colorMatrix", NULL },
+    .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
+    .u_matrix   = MAT_JFIF,
 };
 
 static const OpenGLConfig NV12 = {
@@ -656,7 +624,8 @@ static const OpenGLConfig NV12 = {
         {GL_LUMINANCE_ALPHA, GL_LUMINANCE_ALPHA, GL_UNSIGNED_BYTE, 4, 4},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
-    .s_uniforms = { "u_planes", "u_colorMatrix", NULL },
+    .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
+    .u_matrix   = MAT_JFIF,
 };
 
 static const OpenGLConfig NV21 = {
@@ -669,7 +638,8 @@ static const OpenGLConfig NV21 = {
         {GL_LUMINANCE_ALPHA, GL_LUMINANCE_ALPHA, GL_UNSIGNED_BYTE, 4, 4},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
-    .s_uniforms = { "u_planes", "u_colorMatrix", NULL },
+    .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
+    .u_matrix   = MAT_JFIF,
 };
 
 static const OpenGLConfig NV12_RECT = {
@@ -682,7 +652,8 @@ static const OpenGLConfig NV12_RECT = {
         {GL_LUMINANCE_ALPHA, GL_LUMINANCE_ALPHA, GL_UNSIGNED_BYTE, 4, 4},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
-    .s_uniforms = { "u_planes", "u_colorMatrix", "u_resolution" },
+    .s_uniforms = { "u_planes", "u_TransformMatrix", "u_resolution" },
+    .u_matrix   = MAT_ITU_R_BT601,
 };
 
 #ifdef __APPLE__
@@ -700,6 +671,7 @@ static const OpenGLConfig YUV422_APPLE = {
     },
     .s_attrs    = { "a_position", "a_texcoord" },
     .s_uniforms = { "u_planes", NULL, "u_resolution" },
+    .u_matrix   = MAT_ITU_R_BT601,
 };
 #endif
 
@@ -709,13 +681,27 @@ static const OpenGLConfig RGB565 = {
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 1,
     .a_format   = {
+        {GL_RGB, GL_RGB, GL_UNSIGNED_SHORT_5_6_5_REV, 8, 8},
+    },
+    .s_attrs    = { "a_position", "a_texcoord" },
+    .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
+    .u_matrix   = MAT_I4,
+};
+
+static const OpenGLConfig BGR565 = {
+    .s_vsh      = vsh_yuv,
+    .s_fsh      = fsh_rgb,
+    .e_target   = GL_TEXTURE_2D,
+    .n_textures = 1,
+    .a_format   = {
         {GL_RGB, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, 8, 8},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
-    .s_uniforms = { "u_planes", NULL, NULL },
+    .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
+    .u_matrix   = MAT_I4,
 };
 
-static const OpenGLConfig RGB888 = {
+static const OpenGLConfig RGB = {
     .s_vsh      = vsh_yuv,
     .s_fsh      = fsh_rgb,
     .e_target   = GL_TEXTURE_2D,
@@ -724,32 +710,127 @@ static const OpenGLConfig RGB888 = {
         {GL_RGB, GL_RGB, GL_UNSIGNED_BYTE, 8, 8},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
-    .s_uniforms = { "u_planes", NULL, NULL },
+    .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
+    .u_matrix   = MAT_I4,
+};
+
+static const GLfloat MAT_BGR2RGB[16] = {
+    // b,g,r,a
+    0,      0,      1.0,    0,      // r
+    0,      1.0,    0,      0,      // g
+    1.0,    0,      0,      0,      // b
+    0,      0,      0,      1.0,    // a
+};
+static const OpenGLConfig BGR = {
+    .s_vsh      = vsh_yuv,
+    .s_fsh      = fsh_rgb,
+    .e_target   = GL_TEXTURE_2D,
+    .n_textures = 1,
+    .a_format   = {
+        {GL_RGB, GL_RGB, GL_UNSIGNED_BYTE, 8, 8},
+    },
+    .s_attrs    = { "a_position", "a_texcoord" },
+    .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
+    .u_matrix   = MAT_BGR2RGB,
 };
 
 static const OpenGLConfig RGBA = {
     .s_vsh      = vsh_yuv,
-    .s_fsh      = fsh_rgba,
+    .s_fsh      = fsh_rgb,
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 1,
     .a_format   = {
-        {GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, 8, 8},
+        {GL_RGBA, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, 8, 8},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
-    .s_uniforms = { "u_planes", NULL, NULL },
+    .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
+    .u_matrix   = MAT_I4,
 };
 
-static const OpenGLConfig ARGB = {
+static const OpenGLConfig ABGR = {  // RGBA in word-order
     .s_vsh      = vsh_yuv,
-    .s_fsh      = fsh_argb,
+    .s_fsh      = fsh_rgb,
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 1,
     .a_format   = {
-        {GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, 8, 8},
+        {GL_RGBA, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV, 8, 8},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
-    .s_uniforms = { "u_planes", NULL, NULL },
+    .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
+    .u_matrix   = MAT_I4,
 };
+
+static const GLfloat MAT_ARGB2RGBA[16] = {
+    // a, r, g, b
+    0,      1.0,    0,      0,      // r
+    0,      0,      1.0,    0,      // g
+    0,      0,      0,      1.0,    // b
+    1.0,    0,      0,      0,      // a
+};
+static const OpenGLConfig ARGB = {
+    .s_vsh      = vsh_yuv,
+    .s_fsh      = fsh_rgb,
+    .e_target   = GL_TEXTURE_2D,
+    .n_textures = 1,
+    .a_format   = {
+        {GL_RGBA, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, 8, 8},
+    },
+    .s_attrs    = { "a_position", "a_texcoord" },
+    .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
+    .u_matrix   = MAT_ARGB2RGBA,
+};
+
+static const GLfloat MAT_BGRA2RGBA[16] = {
+    // b, g, r, a
+    0,      0,      1.0,    0,      // r
+    0,      1.0,    0,      0,      // g
+    1.0,    0,      0,      0,      // b
+    0,      0,      0,      1.0,    // a
+};
+static const OpenGLConfig BGRA = {
+    .s_vsh      = vsh_yuv,
+    .s_fsh      = fsh_rgb,
+    .e_target   = GL_TEXTURE_2D,
+    .n_textures = 1,
+    .a_format   = {
+        {GL_RGBA, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, 8, 8},  // -> argb [byte-order]
+    },
+    .s_attrs    = { "a_position", "a_texcoord" },
+    .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
+    .u_matrix   = MAT_BGRA2RGBA,
+};
+
+static const OpenGLConfig * getOpenGLConfig(const ePixelFormat& pixel) {
+    struct {
+        ePixelFormat            pixel;
+        const OpenGLConfig *    config;
+    } kMap[] = {
+        { kPixelFormatNV12,     &NV12       },
+        { kPixelFormatNV21,     &NV21       },
+        { kPixelFormatYUV420P,  &YUV420p    },
+        { kPixelFormatYUV422P,  &YUV422p    },
+        { kPixelFormatYUV444P,  &YUV444p    },
+        { kPixelFormatYUV444,   &YUV444     },
+        { kPixelFormatRGB565,   &RGB565     },
+        { kPixelFormatBGR565,   &BGR565     },
+        { kPixelFormatRGB,      &RGB        },
+        { kPixelFormatBGR,      &BGR        },
+        { kPixelFormatARGB,     &ARGB       },
+        { kPixelFormatBGRA,     &BGRA       },
+        { kPixelFormatRGBA,     &RGBA       },
+        { kPixelFormatABGR,     &ABGR       },
+    };
+#define NELEM(x)    (sizeof(x) / sizeof(x[0]))
+    
+    for (size_t i = 0; i < NELEM(kMap); ++i) {
+        if (kMap[i].pixel == pixel) {
+            return  kMap[i].config;
+        }
+    }
+    ERROR("no open gl config for pixel %s", GetPixelFormatString(pixel));
+    return NULL;
+}
+
 ////////////////////////////////////////////////////////////////////
 struct GLVideo : public MediaOut {
     ImageFormat         mFormat;
@@ -767,49 +848,19 @@ struct GLVideo : public MediaOut {
     
     void _init(const ImageFormat& format) {
         drawFunc = drawFrame;
-        switch (format.format) {
-            case kPixelFormatNV12:
-                mGLContext = initOpenGLContext(&NV12);
-                break;
-            case kPixelFormatNV21:
-                mGLContext = initOpenGLContext(&NV21);
-                break;
-            case kPixelFormatYUV420P:
-                mGLContext = initOpenGLContext(&YUV420p);
-                break;
-            case kPixelFormatYUV422P:
-                mGLContext = initOpenGLContext(&YUV422p);
-                break;
-            case kPixelFormatYUV444P:
-                mGLContext = initOpenGLContext(&YUV444p);
-                break;
-            case kPixelFormatYUV444:
-                mGLContext = initOpenGLContext(&YUV444);
-                break;
-            case kPixelFormatRGB565:
-                mGLContext = initOpenGLContext(&RGB565);
-                break;
-            case kPixelFormatRGB888:
-                mGLContext = initOpenGLContext(&RGB888);
-                break;
-            case kPixelFormatRGBA:
-                mGLContext = initOpenGLContext(&RGBA);
-                break;
-            case kPixelFormatARGB:
-                mGLContext = initOpenGLContext(&ARGB);
-                break;
+
+        const OpenGLConfig * config = getOpenGLConfig(format.format);
+        if (config) {
+            mGLContext = initOpenGLContext(config);
+        } else if (format.format == kPixelFormatVideoToolbox) {
 #ifdef __APPLE__
-            case kPixelFormatVideoToolbox:
-                // client have to prepare gl context for current thread
-                CHECK_NULL(CGLGetCurrentContext());
-                // kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
-                // TODO: defer init OpenGL, get real pixel format from data
-                mGLContext = initOpenGLContextRect(&NV12_RECT, format.width, format.height);
-                drawFunc = drawVideoToolboxFrame;
-                break;
+            // client have to prepare gl context for current thread
+            CHECK_NULL(CGLGetCurrentContext());
+            // kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
+            // TODO: defer init OpenGL, get real pixel format from data
+            mGLContext = initOpenGLContextRect(&NV12_RECT, format.width, format.height);
+            drawFunc = drawVideoToolboxFrame;
 #endif
-            default:
-                break;
         }
     }
     

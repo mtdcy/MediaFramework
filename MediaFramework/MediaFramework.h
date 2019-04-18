@@ -71,6 +71,8 @@ API_EXPORT MediaError           ImageFrameReverseBytes(MediaFrameRef);
 
 API_EXPORT MediaError           ImageFramePlanarization(MediaFrameRef);
 
+API_EXPORT MediaError           ImageFrameToRGB(MediaFrameRef);
+
 // Clock, get a clock from MediaPlayerRef, used to update ui
 typedef SharedObjectRef         MediaClockRef;
 #define MediaClockRelease(x)    SharedObjectRelease((SharedObjectRef)x)

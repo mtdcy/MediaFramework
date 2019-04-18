@@ -47,7 +47,7 @@ MediaFrame::MediaFrame() : pts(kTimeInvalid), duration(kTimeInvalid) {
     opaque = NULL;
 }
 
-sp<Buffer> MediaFrame::getData(size_t index) const {
+sp<Buffer> MediaFrame::readPlane(size_t index) const {
     if (planes[index].data == NULL) return NULL;
     return new Buffer((const char *)planes[index].data, planes[index].size);
 }
@@ -118,9 +118,12 @@ MediaError MediaFrame::swapUVChroma() {
             return kMediaNoError;
             
         case kPixelFormatRGB565:
-        case kPixelFormatRGB888:
+        case kPixelFormatRGB:
+        case kPixelFormatBGR:
         case kPixelFormatRGBA:
+        case kPixelFormatABGR:
         case kPixelFormatARGB:
+        case kPixelFormatBGRA:
             return kMediaErrorInvalidOperation;
             
         default:
@@ -157,19 +160,23 @@ MediaError MediaFrame::reverseBytes() {
     }
     
     switch (v.format) {
-        case kPixelFormatRGB888:
+        case kPixelFormatRGB:
+        case kPixelFormatBGR:
         case kPixelFormatYUV444:
             reverse3(planes[0].data, planes[0].size);
             return kMediaNoError;
             
         case kPixelFormatRGBA:
+        case kPixelFormatABGR:
         case kPixelFormatARGB:
+        case kPixelFormatBGRA:
         case kPixelFormatYUYV422:
         case kPixelFormatYVYU422:
             reverse4(planes[0].data, planes[0].size);
             return kMediaNoError;
             
         case kPixelFormatRGB565:
+        case kPixelFormatBGR565:
         default:
             break;
     }
@@ -208,10 +215,69 @@ MediaError MediaFrame::planarization() {
             v.format        = kPixelFormatYUV422P;
             mBuffer         = dest;
             return kMediaNoError;
-        }
+        } break;
+        
+        case kPixelFormatYUV444: {
+            const size_t plane0 = v.width * v.height;
+            sp<Buffer> dest = new Buffer(plane0 * 3);
+            CHECK_EQ(dest->capacity(), planes[0].size);
+            
+            uint8_t * dst_y = (uint8_t *)dest->data();
+            uint8_t * dst_u = dst_y + plane0;
+            uint8_t * dst_v = dst_u + plane0;
+            libyuv::SplitRGBPlane(planes[0].data, v.width * 3,
+                                  dst_y, v.width,
+                                  dst_u, v.width,
+                                  dst_v, v.width,
+                                  v.width, v.height);
+            
+            planes[0].data  = dst_y;
+            planes[0].size  = plane0;
+            planes[1].data  = dst_u;
+            planes[1].size  = plane0;
+            planes[2].data  = dst_v;
+            planes[2].size  = plane0;
+            v.format        = kPixelFormatYUV444P;
+            mBuffer         = dest;
+            return kMediaNoError;
+        } break;
+        
         default:
             break;
     }
+    return kMediaErrorNotSupported;
+}
+
+MediaError MediaFrame::yuv2rgb(const eConvertionMatrix& matrix) {
+    
+    switch (v.format) {
+        case kPixelFormatYUV420P:
+        case kPixelFormatYUV422P: {
+            const size_t plane0 = v.width * v.height;
+            sp<Buffer> rgb = new Buffer(plane0 * 4);
+            
+            // LIBYUV USING word-order
+            libyuv::I420ToARGB(planes[0].data, v.width,
+                                planes[1].data, (v.width * GetPixelFormatPlaneBPP(v.format, 1)) / 4,
+                                planes[2].data, (v.width * GetPixelFormatPlaneBPP(v.format, 2)) / 4,
+                                (uint8_t *)rgb->data(), v.width * 4,
+                                v.width, v.height);
+            
+            planes[0].data  = (uint8_t *)rgb->data();
+            planes[0].size  = plane0 * 4;
+            planes[1].data  = NULL;
+            planes[1].size  = 0;
+            planes[2].data  = NULL;
+            planes[2].size  = 0;
+            v.format        = kPixelFormatARGB;
+            mBuffer         = rgb;
+            return kMediaNoError;
+        } break;
+            
+        default:
+            break;
+    }
+    
     return kMediaErrorNotSupported;
 }
 

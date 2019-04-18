@@ -116,6 +116,15 @@ typedef enum eCodecType {
 
 API_EXPORT eCodecType GetCodecType(eCodecFormat format);
 
+/**
+ * about byte-order and word-order of pixels:
+ * @note we use letters to represet byte-order instead of word-order
+ * @note byte-order is commonly used in files & network & opengl
+ * @note word-order is commonly used in os and libraries for rgb
+ * @note both libyuv & ffmpeg using word-order pixels
+ * @note yuv pixels usually in byte-order
+ * https://en.wikipedia.org/wiki/RGBA_color_space
+ */
 typedef enum ePixelFormat {
     kPixelFormatUnknown     = 0,        ///< Unknown
 
@@ -131,10 +140,14 @@ typedef enum ePixelFormat {
     kPixelFormatYVYU422,                ///< Packed YUV 4:2:2, 16bpp, Y0 Cr Y1 Cb
     kPixelFormatYUV444,                 ///< Packed YUV 4:4:4, 24bpp,
     // packed rgb
-    kPixelFormatRGB565      = 0x200,    ///< packed RGB 5:6:5, 16 bpp
-    kPixelFormatRGB888,                 ///< packed RGB 8:8:8, 24 bpp
-    kPixelFormatARGB,                   ///< packed ARGB, 32 bpp, AARRGGBB
-    kPixelFormatRGBA,                   ///< packed RGBA, 32 bpp, RRGGBBAA
+    kPixelFormatRGB565      = 0x200,    ///< packed RGB 5:6:5, 16 bpp,
+    kPixelFormatBGR565,                 ///< packed BGR 5:6:5, 16 bpp, RGB565 in word-order
+    kPixelFormatRGB,                    ///< packed RGB 8:8:8, 24 bpp, byte-order
+    kPixelFormatBGR,                    ///< packed BGR 8:8:8, 24 bpp, RGB in word-order
+    kPixelFormatARGB,                   ///< packed ARGB, 32 bpp, AARRGGBB, byte-order
+    kPixelFormatBGRA,                   ///< packed BGRA, 32 bpp, BBGGRRAA, ARGB in word-order
+    kPixelFormatRGBA,                   ///< packed RGBA, 32 bpp, RRGGBBAA, byte-order
+    kPixelFormatABGR,                   ///< packed ABGR, 32 bpp, AABBGGRR, RGBA in word-order
     
     // hardware pixel format
     kPixelFormatVideoToolbox    = 0x300,    ///< hardware frame from video toolbox
