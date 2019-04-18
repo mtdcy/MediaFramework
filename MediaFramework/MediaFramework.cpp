@@ -59,30 +59,30 @@ eCodecType GetCodecType(eCodecFormat format) {
 const char * GetPixelFormatString(ePixelFormat pixel) {
     switch (pixel) {
             // planar yuv
-        case kPixelFormat420YpCbCrPlanar:       return "yuv420p";
-        case kPixelFormat422YpCbCrPlanar:       return "yuv422p";
-        case kPixelFormat444YpCbCrPlanar:       return "yuv444p";
+        case kPixelFormat420YpCbCrPlanar:       return "420p";
+        case kPixelFormat422YpCbCrPlanar:       return "422p";
+        case kPixelFormat444YpCbCrPlanar:       return "444p";
         case kPixelFormat420YpCbCrSemiPlanar:   return "nv12";
         case kPixelFormat420YpCrCbSemiPlanar:   return "nv21";
             
             // packed yuv
-        case kPixelFormat422YpCbCr:             return "yuyv422";
-        case kPixelFormat422YpCrCb:             return "yvyu422";
+        case kPixelFormat422YpCbCr:             return "yuv422";
+        case kPixelFormat422YpCrCb:             return "yvu422";
         case kPixelFormat444YpCbCr:             return "yuv444";
             
             // rgb
-        case kPixelFormatRGB565:                return "rgb565";
-        case kPixelFormatBGR565:                return "bgr565";
-        case kPixelFormatRGB:                   return "rgb24";
-        case kPixelFormatBGR:                   return "bgr24";
-        case kPixelFormatARGB:                  return "argb";
-        case kPixelFormatBGRA:                  return "bgra";
-        case kPixelFormatRGBA:                  return "rgba";
-        case kPixelFormatABGR:                  return "abgr";
+        case kPixelFormatRGB565:                return "RGB565";
+        case kPixelFormatBGR565:                return "BGR565";
+        case kPixelFormatRGB:                   return "RGB24";
+        case kPixelFormatBGR:                   return "BGR24";
+        case kPixelFormatARGB:                  return "ARGB";
+        case kPixelFormatBGRA:                  return "BGRA";
+        case kPixelFormatRGBA:                  return "RGBA";
+        case kPixelFormatABGR:                  return "ABGR";
             
         case kPixelFormatUnknown:               return "unknown";
             
-        case kPixelFormatVideoToolbox:          return "mac-vt";
+        case kPixelFormatVideoToolbox:          return "VT";
             
         default:
             FATAL("FIXME: missing case for %d", pixel);
