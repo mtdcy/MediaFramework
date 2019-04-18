@@ -1,6 +1,7 @@
 cmake_minimum_required (VERSION 2.8)
 
-set (WITH_FFMPEG  FALSE)
+set (WITH_FFMPEG    FALSE)
+set (WITH_SDL       FALSE)
 
 project (MediaFramework)
 
@@ -25,6 +26,9 @@ set (CMAKE_CXX_EXTENSIONS OFF)  # no gnu extensions
 
 if (WITH_FFMPEG)
     add_definitions(-DWITH_FFMPEG)
+endif()
+if (WITH_SDL)
+    add_definitions(-DWITH_SDL)
 endif()
 
 if (APPLE)
@@ -63,7 +67,6 @@ set (SOURCE_FILES
     MediaFramework/mpeg4/Box.cpp
     MediaFramework/matroska/EBML.cpp
     MediaFramework/matroska/MatroskaFile.cpp
-    MediaFramework/sdl2/SDLAudio.cpp
     #MediaFramework/sdl2/SDLVideo.cpp
     MediaFramework/opengl/GLVideo.cpp
     MediaFramework/MediaFramework_c.cpp
@@ -71,6 +74,9 @@ set (SOURCE_FILES
 
 if (WITH_FFMPEG)
     list (APPEND SOURCE_FILES MediaFramework/lavc/LavcDecoder.cpp)
+endif()
+if (WITH_SDL)
+    list (APPEND SOURCE_FILES MediaFramework/sdl2/SDLAudio.cpp)
 endif()
 
 file (GLOB PUBLIC_HEADERS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "MediaFramework/*.h")
@@ -88,11 +94,13 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/MediaFramework)
 target_link_libraries(${PROJECT_NAME} z)
 
 # link shared
+if (WITH_SDL)
 find_package (SDL2 REQUIRED)
 message(${SDL2_INCLUDE_DIR})
 message(${SDL2_LIBRARY})
 include_directories(${SDL2_INCLUDE_DIR})
 target_link_libraries(${PROJECT_NAME} ${SDL2_LIBRARY})
+endif()
 
 if (APPLE)
     # VideoToolbox

@@ -286,12 +286,17 @@ sp<MediaPacketizer> MediaPacketizer::Create(eCodecFormat format) {
 }
 
 sp<MediaOut> CreateGLVideo();
+#ifdef WITH_SDL
 sp<MediaOut> CreateSDLAudio();
-
+#endif
 sp<MediaOut> MediaOut::Create(eCodecType type) {
     switch (type) {
         case kCodecTypeAudio:
+#ifdef WITH_SDL
             return CreateSDLAudio();
+#else
+            return NULL;
+#endif
         case kCodecTypeVideo:
             return CreateGLVideo();
         default:
