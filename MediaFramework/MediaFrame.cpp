@@ -125,9 +125,9 @@ static FORCE_INLINE void swap32l(uint8_t * u8, size_t size) {
 
 MediaError MediaFrame::swapUVChroma() {
     switch (v.format) {
-        case kPixelFormatYUV420P:
-        case kPixelFormatYUV422P:
-        case kPixelFormatYUV444P: {
+        case kPixelFormat420YpCbCrPlanar:
+        case kPixelFormat422YpCbCrPlanar:
+        case kPixelFormat444YpCbCrPlanar: {
             // swap u & v planes
             uint8_t * tmp0  = planes[1].data;
             size_t tmp1     = planes[1].size;
@@ -136,14 +136,14 @@ MediaError MediaFrame::swapUVChroma() {
             planes[2].size  = tmp1;
         } return kMediaNoError;
             
-        case kPixelFormatNV12:
-        case kPixelFormatNV21:
+        case kPixelFormat420YpCbCrSemiPlanar:
+        case kPixelFormat420YpCrCbSemiPlanar:
             // swap hi & low bytes of uv plane
             swap16(planes[1].data, planes[1].size);
             return kMediaNoError;
             
-        case kPixelFormatYUYV422:
-        case kPixelFormatYVYU422:
+        case kPixelFormat422YpCbCr:
+        case kPixelFormat422YpCrCb:
             // swap u & v bytes
             swap32l(planes[0].data, planes[0].size);
             return kMediaNoError;
@@ -183,7 +183,7 @@ MediaError MediaFrame::reversePixel() {
     switch (v.format) {
         case kPixelFormatRGB:
         case kPixelFormatBGR:
-        case kPixelFormatYUV444:
+        case kPixelFormat444YpCbCr:
             swap24(planes[0].data, planes[0].size);
             return kMediaNoError;
             
@@ -191,8 +191,8 @@ MediaError MediaFrame::reversePixel() {
         case kPixelFormatABGR:
         case kPixelFormatARGB:
         case kPixelFormatBGRA:
-        case kPixelFormatYUYV422:
-        case kPixelFormatYVYU422:
+        case kPixelFormat422YpCbCr:
+        case kPixelFormat422YpCrCb:
             swap32(planes[0].data, planes[0].size);
             return kMediaNoError;
             
@@ -211,8 +211,8 @@ MediaError MediaFrame::planarization() {
     }
     
     switch (v.format) {
-        case kPixelFormatYVYU422:
-        case kPixelFormatYUYV422: {
+        case kPixelFormat422YpCrCb:
+        case kPixelFormat422YpCbCr: {
             const size_t plane0 = v.width * v.height;
             sp<Buffer> dest = new Buffer(plane0 * 2);
             CHECK_EQ(dest->capacity(), planes[0].size);
@@ -226,19 +226,19 @@ MediaError MediaFrame::planarization() {
                                dst_v, v.width / 2,
                                v.width, v.height);
             
-            const bool uv   = v.format == kPixelFormatYVYU422;
+            const bool uv   = v.format == kPixelFormat422YpCrCb;
             planes[0].data  = dst_y;
             planes[0].size  = plane0;
             planes[1].data  = uv ? dst_v : dst_u;
             planes[1].size  = plane0 / 2;
             planes[2].data  = uv ? dst_u : dst_v;
             planes[2].size  = plane0 / 2;
-            v.format        = kPixelFormatYUV422P;
+            v.format        = kPixelFormat422YpCbCrPlanar;
             mBuffer         = dest;
             return kMediaNoError;
         } break;
         
-        case kPixelFormatYUV444: {
+        case kPixelFormat444YpCbCr: {
             const size_t plane0 = v.width * v.height;
             sp<Buffer> dest = new Buffer(plane0 * 3);
             CHECK_EQ(dest->capacity(), planes[0].size);
@@ -258,7 +258,7 @@ MediaError MediaFrame::planarization() {
             planes[1].size  = plane0;
             planes[2].data  = dst_v;
             planes[2].size  = plane0;
-            v.format        = kPixelFormatYUV444P;
+            v.format        = kPixelFormat444YpCbCrPlanar;
             mBuffer         = dest;
             return kMediaNoError;
         } break;
@@ -274,8 +274,8 @@ MediaError MediaFrame::planarization() {
 MediaError MediaFrame::yuv2rgb(const eConvertionMatrix& matrix) {
     
     switch (v.format) {
-        case kPixelFormatYUV420P:
-        case kPixelFormatYUV422P: {
+        case kPixelFormat420YpCbCrPlanar:
+        case kPixelFormat422YpCbCrPlanar: {
             const size_t plane0 = v.width * v.height;
             sp<Buffer> rgb = new Buffer(plane0 * 4);
             
@@ -297,7 +297,7 @@ MediaError MediaFrame::yuv2rgb(const eConvertionMatrix& matrix) {
             return kMediaNoError;
         } break;
         
-        case kPixelFormatYUV444P: {
+        case kPixelFormat444YpCbCrPlanar: {
             const size_t plane0 = v.width * v.height;
             sp<Buffer> rgb = new Buffer(plane0 * 4);
             
@@ -319,13 +319,13 @@ MediaError MediaFrame::yuv2rgb(const eConvertionMatrix& matrix) {
             return kMediaNoError;
         } break;
             
-        case kPixelFormatNV12:
-        case kPixelFormatNV21: {
+        case kPixelFormat420YpCbCrSemiPlanar:
+        case kPixelFormat420YpCrCbSemiPlanar: {
             const size_t plane0 = v.width * v.height;
             sp<Buffer> rgb = new Buffer(plane0 * 4);
             
             // LIBYUV USING word-order
-            if (v.format == kPixelFormatNV12)
+            if (v.format == kPixelFormat420YpCbCrSemiPlanar)
                 libyuv::NV12ToABGR(planes[0].data, v.width,
                                    planes[1].data, v.width,
                                    (uint8_t *)rgb->data(), v.width * 4,

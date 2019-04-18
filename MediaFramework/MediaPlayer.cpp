@@ -214,7 +214,7 @@ struct MPContext : public SharedObject {
                     sp<MediaFrameEvent> video = media->findObject("VideoFrameEvent");
                     options->setObject("MediaFrameEvent", video);
                 }
-                options->setInt32(kKeyRequestFormat, kPixelFormatNV12);
+                options->setInt32(kKeyRequestFormat, kPixelFormat420YpCbCrSemiPlanar);
             } else if (type == kCodecTypeAudio) {
                 if (media->contains("AudioFrameEvent")) {
                     sp<MediaFrameEvent> audio = media->findObject("AudioFrameEvent");

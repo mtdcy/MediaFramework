@@ -103,17 +103,17 @@ struct {
     ePixelFormat    a;
     AVPixelFormat   b;
 } kPixelMap[] = {
-    {kPixelFormatYUV420P,       AV_PIX_FMT_YUV420P},
-    {kPixelFormatNV12,          AV_PIX_FMT_NV12},
-    {kPixelFormatNV21,          AV_PIX_FMT_NV21},
-    {kPixelFormatRGB565,        AV_PIX_FMT_RGB565},
-    {kPixelFormatRGB888,        AV_PIX_FMT_RGB24},
+    {kPixelFormat420YpCbCrPlanar,       AV_PIX_FMT_YUV420P},
+    {kPixelFormat420YpCbCrSemiPlanar,   AV_PIX_FMT_NV12},
+    {kPixelFormat420YpCrCbSemiPlanar,   AV_PIX_FMT_NV21},
+    {kPixelFormatRGB565,                AV_PIX_FMT_RGB565},
+    {kPixelFormatRGB888,                AV_PIX_FMT_RGB24},
     // Hardware accel
 #ifdef __APPLE__
-    {kPixelFormatNV12,          AV_PIX_FMT_VIDEOTOOLBOX},
+    {kPixelFormat420YpCbCrSemiPlanar,   AV_PIX_FMT_VIDEOTOOLBOX},
 #endif
     // END OF LIST
-    {kPixelFormatUnknown,       AV_PIX_FMT_NONE}
+    {kPixelFormatUnknown,               AV_PIX_FMT_NONE}
 };
 
 static ePixelFormat get_pix_format(AVPixelFormat b) {
@@ -560,7 +560,7 @@ MediaError openVideo(AVCodecContext * avcc, eModeType mode, const sp<Message>& f
     
     // find best pixel format
     AVPixelFormat best_match = AV_PIX_FMT_YUV420P;
-    AVPixelFormat pix_fmt   = get_av_pix_format((ePixelFormat)options->findInt32(kKeyRequestFormat, kPixelFormatYUV420P));
+    AVPixelFormat pix_fmt   = get_av_pix_format((ePixelFormat)options->findInt32(kKeyRequestFormat, kPixelFormat420YpCbCrPlanar));
     if (avcc->codec->pix_fmts) {
         best_match = avcc->codec->pix_fmts[0];
         for (size_t i = 0; avcc->codec->pix_fmts[i] != AV_PIX_FMT_NONE; ++i) {

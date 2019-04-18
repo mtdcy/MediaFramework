@@ -59,30 +59,30 @@ eCodecType GetCodecType(eCodecFormat format) {
 const char * GetPixelFormatString(ePixelFormat pixel) {
     switch (pixel) {
             // planar yuv
-        case kPixelFormatYUV420P:           return "yuv420p";
-        case kPixelFormatYUV422P:           return "yuv422p";
-        case kPixelFormatYUV444P:           return "yuv444p";
-        case kPixelFormatNV12:              return "nv12";
-        case kPixelFormatNV21:              return "nv21";
+        case kPixelFormat420YpCbCrPlanar:       return "yuv420p";
+        case kPixelFormat422YpCbCrPlanar:       return "yuv422p";
+        case kPixelFormat444YpCbCrPlanar:       return "yuv444p";
+        case kPixelFormat420YpCbCrSemiPlanar:   return "nv12";
+        case kPixelFormat420YpCrCbSemiPlanar:   return "nv21";
             
             // packed yuv
-        case kPixelFormatYUYV422:           return "yuyv422";
-        case kPixelFormatYVYU422:           return "yvyu422";
-        case kPixelFormatYUV444:            return "yuv444";
+        case kPixelFormat422YpCbCr:             return "yuyv422";
+        case kPixelFormat422YpCrCb:             return "yvyu422";
+        case kPixelFormat444YpCbCr:             return "yuv444";
             
             // rgb
-        case kPixelFormatRGB565:            return "rgb565";
-        case kPixelFormatBGR565:            return "bgr565";
-        case kPixelFormatRGB:               return "rgb24";
-        case kPixelFormatBGR:               return "bgr24";
-        case kPixelFormatARGB:              return "argb";
-        case kPixelFormatBGRA:              return "bgra";
-        case kPixelFormatRGBA:              return "rgba";
-        case kPixelFormatABGR:              return "abgr";
+        case kPixelFormatRGB565:                return "rgb565";
+        case kPixelFormatBGR565:                return "bgr565";
+        case kPixelFormatRGB:                   return "rgb24";
+        case kPixelFormatBGR:                   return "bgr24";
+        case kPixelFormatARGB:                  return "argb";
+        case kPixelFormatBGRA:                  return "bgra";
+        case kPixelFormatRGBA:                  return "rgba";
+        case kPixelFormatABGR:                  return "abgr";
             
-        case kPixelFormatUnknown:           return "unknown";
+        case kPixelFormatUnknown:               return "unknown";
             
-        case kPixelFormatVideoToolbox:      return "mac-vt";
+        case kPixelFormatVideoToolbox:          return "mac-vt";
             
         default:
             FATAL("FIXME: missing case for %d", pixel);
@@ -93,30 +93,30 @@ const char * GetPixelFormatString(ePixelFormat pixel) {
 size_t GetPixelFormatBPP(ePixelFormat pixel) {
     switch (pixel) {
             // planar yuv
-        case kPixelFormatYUV420P:           return 12;
-        case kPixelFormatYUV422P:           return 16;
-        case kPixelFormatYUV444P:           return 24;
-        case kPixelFormatNV12:              return 12;
-        case kPixelFormatNV21:              return 12;
+        case kPixelFormat420YpCbCrPlanar:       return 12;
+        case kPixelFormat422YpCbCrPlanar:       return 16;
+        case kPixelFormat444YpCbCrPlanar:       return 24;
+        case kPixelFormat420YpCbCrSemiPlanar:   return 12;
+        case kPixelFormat420YpCrCbSemiPlanar:   return 12;
             
             // packed yuv
-        case kPixelFormatYUYV422:           return 16;
-        case kPixelFormatYVYU422:           return 16;
-        case kPixelFormatYUV444:            return 24;
+        case kPixelFormat422YpCbCr:             return 16;
+        case kPixelFormat422YpCrCb:             return 16;
+        case kPixelFormat444YpCbCr:             return 24;
             
             // rgb
-        case kPixelFormatRGB565:            return 16;
-        case kPixelFormatBGR565:            return 16;
-        case kPixelFormatRGB:               return 24;
-        case kPixelFormatBGR:               return 24;
-        case kPixelFormatARGB:              return 32;
-        case kPixelFormatBGRA:              return 32;
-        case kPixelFormatRGBA:              return 32;
-        case kPixelFormatABGR:              return 32;
+        case kPixelFormatRGB565:                return 16;
+        case kPixelFormatBGR565:                return 16;
+        case kPixelFormatRGB:                   return 24;
+        case kPixelFormatBGR:                   return 24;
+        case kPixelFormatARGB:                  return 32;
+        case kPixelFormatBGRA:                  return 32;
+        case kPixelFormatRGBA:                  return 32;
+        case kPixelFormatABGR:                  return 32;
             
-        case kPixelFormatUnknown:           return 0;
+        case kPixelFormatUnknown:               return 0;
             
-        case kPixelFormatVideoToolbox:      return 0;
+        case kPixelFormatVideoToolbox:          return 0;
             
         default:
             FATAL("FIXME: missing case for %d", pixel);
@@ -127,9 +127,9 @@ size_t GetPixelFormatBPP(ePixelFormat pixel) {
 ePixelFormat GetPixelFormatPlanar(ePixelFormat pixel) {
     if (GetPixelFormatIsPlanar(pixel)) return pixel;
     switch (pixel) {
-        case kPixelFormatYUYV422:   return kPixelFormatYUV422P;
-        case kPixelFormatYVYU422:   return kPixelFormatYUV422P;
-        case kPixelFormatYUV444:    return kPixelFormatYUV444P;
+        case kPixelFormat422YpCbCr:     return kPixelFormat422YpCbCrPlanar;
+        case kPixelFormat422YpCrCb:     return kPixelFormat422YpCbCrPlanar;
+        case kPixelFormat444YpCbCr:     return kPixelFormat444YpCbCrPlanar;
             
         default:
             ERROR("missing case for %d", pixel);
@@ -140,11 +140,11 @@ ePixelFormat GetPixelFormatPlanar(ePixelFormat pixel) {
 size_t GetPixelFormatPlanes(ePixelFormat pixel) {
     switch (pixel) {
             // planar yuv
-        case kPixelFormatYUV420P:
-        case kPixelFormatYUV422P:
-        case kPixelFormatYUV444P:   return 3;
-        case kPixelFormatNV12:
-        case kPixelFormatNV21:      return 2;
+        case kPixelFormat420YpCbCrPlanar:
+        case kPixelFormat422YpCbCrPlanar:
+        case kPixelFormat444YpCbCrPlanar:       return 3;
+        case kPixelFormat420YpCbCrSemiPlanar:
+        case kPixelFormat420YpCrCbSemiPlanar:   return 2;
         default:                    break;
     }
     return 1;   // assume 1 plane
@@ -161,11 +161,11 @@ size_t GetPixelFormatPlaneBPP(ePixelFormat pixel, size_t plane) {
     }
     
     switch (pixel) {
-        case kPixelFormatYUV420P:   return plane == 0 ? 8 : 2;
-        case kPixelFormatYUV422P:   return plane == 0 ? 8 : 4;
-        case kPixelFormatYUV444P:   return 8;
-        case kPixelFormatNV12:      return plane == 0 ? 8 : 4;
-        case kPixelFormatNV21:      return plane == 0 ? 8 : 4;
+        case kPixelFormat420YpCbCrPlanar:       return plane == 0 ? 8 : 2;
+        case kPixelFormat422YpCbCrPlanar:       return plane == 0 ? 8 : 4;
+        case kPixelFormat444YpCbCrPlanar:       return 8;
+        case kPixelFormat420YpCbCrSemiPlanar:   return plane == 0 ? 8 : 4;
+        case kPixelFormat420YpCrCbSemiPlanar:   return plane == 0 ? 8 : 4;
 
         case kPixelFormatUnknown:   return 0;
             
@@ -335,7 +335,7 @@ struct {
     ePixelFormat    a;
     uint32_t        b;
 } kMap[] = {
-    { kPixelFormatNV12,     libyuv::FOURCC_NV12 },
+    { kPixelFormat420YpCbCrSemiPlanar,      libyuv::FOURCC_NV12 },
     // END OF LIST
     { kPixelFormatUnknown,  0}
 };
@@ -357,9 +357,9 @@ sp<MediaFrame> ColorConvertor::convert(const sp<MediaFrame>& input) {
     out->pts            = input->pts;
     out->duration       = input->duration;
 
-    if (mFormat == kPixelFormatYUV420P) {
+    if (mFormat == kPixelFormat420YpCbCrPlanar) {
         switch (input->v.format) {
-            case kPixelFormatNV12:
+            case kPixelFormat420YpCbCrSemiPlanar:
                 {
                     libyuv::NV12ToI420(
                             input->planes[0].data,  input->v.width,

@@ -125,21 +125,22 @@ API_EXPORT eCodecType GetCodecType(eCodecFormat format);
  * @note ffmpeg using byte-order pixels
  * @note yuv pixels usually in byte-order
  * https://en.wikipedia.org/wiki/RGBA_color_space
+ * https://en.wikipedia.org/wiki/YCbCr
  */
 typedef enum ePixelFormat {
     kPixelFormatUnknown     = 0,        ///< Unknown
 
-    // about yuv: http://www.fourcc.org/yuv.php
-    // planar yuv
-    kPixelFormatYUV420P,                ///< Planar YUV 4:2:0, 12bpp, 3 planes Y/U/V
-    kPixelFormatYUV422P,                ///< Planar YUV 4:2:2, 16bpp, 3 planes Y/U/V
-    kPixelFormatYUV444P,                ///< Planar YUV 4:4:4, 24bpp, 3 planes Y/U/V
-    kPixelFormatNV12,                   ///< Planar YUV 4:2:0, 12bpp, 2 planes Y/UV(interleaved)
-    kPixelFormatNV21,                   ///< same as nv12, but uv are swapped
-    // packed yuv
-    kPixelFormatYUYV422     = 0x100,    ///< Packed YUV 4:2:2, 16bpp, Y0 Cb Y1 Cr
-    kPixelFormatYVYU422,                ///< Packed YUV 4:2:2, 16bpp, Y0 Cr Y1 Cb
-    kPixelFormatYUV444,                 ///< Packed YUV 4:4:4, 24bpp,
+    // planar Y'CbCr
+    kPixelFormat420YpCbCrPlanar,        ///< Planar Y'CbCr 8-bit 4:2:0, 12bpp, 3 planes: Y'/Cb/Cr
+    kPixelFormat422YpCbCrPlanar,        ///< Planar Y'CrCb 8-bit 4:2:2, 16bpp, 3 planes: Y'/Cb/Cr
+    kPixelFormat444YpCbCrPlanar,        ///< Planar Y'CrCb 8-bit 4:4:4, 24bpp, 3 planes: Y'/Cb/Cr
+    // bi-planar Y'CbCr
+    kPixelFormat420YpCbCrSemiPlanar,    ///< Planar Y'CbCr 8-bit 4:2:0, 12bpp, 2 planes: Y'/CbCr(interleaved), aka nv12
+    kPixelFormat420YpCrCbSemiPlanar,    ///< Planar Y'CrCb 8-bit 4:2:0, 12bpp, 2 planes: Y'/CrCb(interleaved), aka nv21
+    // packed Y'CbCr
+    kPixelFormat422YpCbCr     = 0x100,  ///< Packed Y'CrCb 8-bit 4:2:2, 16bpp, Y'0 Cb Y'1 Cr
+    kPixelFormat422YpCrCb,              ///< Packed Y'CrCb 8-bit 4:2:2, 16bpp, Y'0 Cr Y'1 Cb
+    kPixelFormat444YpCbCr,              ///< Packed Y'CrCb 8-bit 4:4:4, 24bpp,
     // packed rgb
     kPixelFormatRGB565      = 0x200,    ///< packed RGB 5:6:5, 16 bpp,
     kPixelFormatBGR565,                 ///< packed BGR 5:6:5, 16 bpp, RGB565 in word-order

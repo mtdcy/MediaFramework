@@ -45,7 +45,7 @@
 
 #define SL(x)   #x
 
-//#define TEST_COLOR  kPixelFormatYUV420P
+//#define TEST_COLOR  kPixelFormat420YpCbCrPlanar
 #ifdef TEST_COLOR
 #include <MediaFramework/ColorConvertor.h>
 #endif
@@ -798,20 +798,20 @@ static const OpenGLConfig * getOpenGLConfig(const ePixelFormat& pixel) {
         ePixelFormat            pixel;
         const OpenGLConfig *    config;
     } kMap[] = {
-        { kPixelFormatNV12,     &NV12       },
-        { kPixelFormatNV21,     &NV21       },
-        { kPixelFormatYUV420P,  &YUV420p    },
-        { kPixelFormatYUV422P,  &YUV422p    },
-        { kPixelFormatYUV444P,  &YUV444p    },
-        { kPixelFormatYUV444,   &YUV444     },
-        { kPixelFormatRGB565,   &RGB565     },
-        { kPixelFormatBGR565,   &BGR565     },
-        { kPixelFormatRGB,      &RGB        },
-        { kPixelFormatBGR,      &BGR        },
-        { kPixelFormatARGB,     &ARGB       },
-        { kPixelFormatBGRA,     &BGRA       },
-        { kPixelFormatRGBA,     &RGBA       },
-        { kPixelFormatABGR,     &ABGR       },
+        { kPixelFormat420YpCbCrSemiPlanar,  &NV12       },
+        { kPixelFormat420YpCrCbSemiPlanar,  &NV21       },
+        { kPixelFormat420YpCbCrPlanar,      &YUV420p    },
+        { kPixelFormat422YpCbCrPlanar,      &YUV422p    },
+        { kPixelFormat444YpCbCrPlanar,      &YUV444p    },
+        { kPixelFormat444YpCbCr,            &YUV444     },
+        { kPixelFormatRGB565,               &RGB565     },
+        { kPixelFormatBGR565,               &BGR565     },
+        { kPixelFormatRGB,                  &RGB        },
+        { kPixelFormatBGR,                  &BGR        },
+        { kPixelFormatARGB,                 &ARGB       },
+        { kPixelFormatBGRA,                 &BGRA       },
+        { kPixelFormatRGBA,                 &RGBA       },
+        { kPixelFormatABGR,                 &ABGR       },
     };
 #define NELEM(x)    (sizeof(x) / sizeof(x[0]))
     

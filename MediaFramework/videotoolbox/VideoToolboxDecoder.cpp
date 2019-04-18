@@ -90,11 +90,11 @@ struct {
     ePixelFormat    a;
     OSType          b;
 } kPixelMap[] = {
-    {kPixelFormatYUV420P,       kCVPixelFormatType_420YpCbCr8Planar},
-    //{kPixelFormatUYVY422,       kCVPixelFormatType_422YpCbCr8},
-    {kPixelFormatYUYV422,       kCVPixelFormatType_422YpCbCr8_yuvs},
+    {kPixelFormat420YpCbCrPlanar,       kCVPixelFormatType_420YpCbCr8Planar},
+    //{kPixelFormatUYVY422,             kCVPixelFormatType_422YpCbCr8},
+    {kPixelFormat422YpCbCr,             kCVPixelFormatType_422YpCbCr8_yuvs},
 #ifdef kCFCoreFoundationVersionNumber10_7
-    {kPixelFormatNV12,          kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange},
+    {kPixelFormat420YpCbCrSemiPlanar,   kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange},
 #endif
     // END OF LIST
     {kPixelFormatUnknown,       0},
