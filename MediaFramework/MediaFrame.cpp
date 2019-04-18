@@ -123,7 +123,7 @@ static FORCE_INLINE void swap32l(uint8_t * u8, size_t size) {
     }
 }
 
-MediaError MediaFrame::swapUVChroma() {
+MediaError MediaFrame::swapCbCr() {
     switch (v.format) {
         case kPixelFormat420YpCbCrPlanar:
         case kPixelFormat422YpCbCrPlanar:

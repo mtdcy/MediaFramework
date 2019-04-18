@@ -74,9 +74,9 @@ void * MediaFrameGetOpaque(MediaFrameRef ref) {
     return frame->opaque;
 }
 
-MediaError ImageFrameSwapUVChroma(MediaFrameRef ref) {
+MediaError ImageFrameSwapCbCr(MediaFrameRef ref) {
     Object<MediaFrame> frame = ref;
-    return frame->swapUVChroma();
+    return frame->swapCbCr();
 }
 
 MediaError ImageFrameReversePixel(MediaFrameRef ref) {

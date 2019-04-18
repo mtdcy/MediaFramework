@@ -137,6 +137,8 @@ typedef enum ePixelFormat {
     // bi-planar Y'CbCr
     kPixelFormat420YpCbCrSemiPlanar,    ///< Planar Y'CbCr 8-bit 4:2:0, 12bpp, 2 planes: Y'/CbCr(interleaved), aka nv12
     kPixelFormat420YpCrCbSemiPlanar,    ///< Planar Y'CrCb 8-bit 4:2:0, 12bpp, 2 planes: Y'/CrCb(interleaved), aka nv21
+    // 10-bit planar Y'CbCr
+    kPixelFormat420YpCbCr10Planar,      ///< Planar Y'CbCr 10-bit 4:2:0, 15bpp, 3 planes: Y'/Cb/Cr
     // packed Y'CbCr
     kPixelFormat422YpCbCr     = 0x100,  ///< Packed Y'CrCb 8-bit 4:2:2, 16bpp, Y'0 Cb Y'1 Cr
     kPixelFormat422YpCrCb,              ///< Packed Y'CrCb 8-bit 4:2:2, 16bpp, Y'0 Cr Y'1 Cb

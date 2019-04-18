@@ -82,11 +82,11 @@ struct API_EXPORT MediaFrame : public SharedObject {
     virtual sp<Buffer> readPlane(size_t) const;
     
     /**
-     * keep luma component and swap two chroma components of YUV image
-     * @return return kMediaErrorInvalidOperation if source is not YUV
+     * keep luma component and swap two chroma components of Y'CbCr image
+     * @return return kMediaErrorInvalidOperation if source is not Y'CbCr
      * @return return kMediaErrorNotSupported if no implementation
      */
-    virtual MediaError swapUVChroma();
+    virtual MediaError swapCbCr();
     
     /**
      * reverse pixel bytes, like rgba -> abgr
