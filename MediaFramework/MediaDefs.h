@@ -129,7 +129,7 @@ API_EXPORT eCodecType GetCodecType(eCodecFormat format);
  *
  * about full range & video range
  * @note Y'CbCr full range luma=[0, 255], chroma=[1, 255]
- * @note Y'CbCr video range luma=[16, 234], chroma=[16,240]
+ * @note Y'CbCr video range luma=[16, 234], chroma=[16,240], ITU-R BT.601
  * @note don't put range infomation into pixel format
  */
 typedef enum ePixelFormat {
@@ -151,9 +151,11 @@ typedef enum ePixelFormat {
     /** Y'CbCr 444 family **/
     kPixelFormat444YpCbCrPlanar = 0x120,    ///< Planar Y'CbCr 8-bit 4:4:4, 24bpp, 3 planes: Y'/Cb/Cr
     kPixelFormat444YpCbCr,                  ///< Packed Y'CbCr 8-bit 4:4:4, 24bpp,
+    
+    /** Y'CbCr others **/
 
     /** Y'CbCr 10-bit family **/
-    kPixelFormat420YpCbCr10Planar,          ///< Planar Y'CbCr 10-bit 4:2:0, 15bpp, 3 planes: Y'/Cb/Cr
+    kPixelFormat420YpCbCr10Planar = 0x140,  ///< Planar Y'CbCr 10-bit 4:2:0, 15bpp, 3 planes: Y'/Cb/Cr
     
     /** RGB color space section **/
     kPixelFormatRGB565 = 0x200,             ///< packed RGB 5:6:5, 16 bpp,
@@ -197,6 +199,17 @@ typedef struct PixelDescriptor {
 // get information about pixel format
 API_EXPORT const PixelDescriptor *  GetPixelFormatDescriptor(ePixelFormat);
 
+/*
+ * about full range & video range
+ * @note Y'CbCr full range luma=[0, 255], chroma=[1, 255]
+ * @note Y'CbCr video range luma=[16, 234], chroma=[16,240], ITU-R BT.601
+ * @note don't put range infomation into pixel format
+ */
+typedef enum eYpCbCrRange {
+    kYpCbCrFullRange    = 0,
+    kYpCbCrVideoRange   = 1,
+} eYpCbCrRange;
+
 // FIXME: code sample infomation into format
 /**
  * we always use planar data instead of interleaved,
@@ -209,7 +222,16 @@ typedef enum eSampleFormat {
     kSampleFormatS32,
     kSampleFormatFLT,
     kSampleFormatDBL,
+    kSampleFormatLast = 0x100 - 1   ///< make sure: audio sample format < pixel format
 } eSampleFormat;
+
+typedef struct SampleDescriptor {
+    const char *    name;
+    eSampleFormat   format;
+    
+} SampleDescriptor;
+
+API_EXPORT const SampleDescriptor * GetSampleFormatDescriptor(eSampleFormat);
 
 API_EXPORT const char * GetSampleFormatString(eSampleFormat);
 API_EXPORT size_t       GetSampleFormatBytes(eSampleFormat);
