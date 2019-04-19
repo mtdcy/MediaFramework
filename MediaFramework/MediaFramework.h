@@ -41,7 +41,6 @@
 #include <MediaFramework/MediaExtractor.h>
 #include <MediaFramework/MediaDecoder.h>
 #include <MediaFramework/MediaOut.h>
-#include <MediaFramework/ColorConvertor.h>
 #include <MediaFramework/MediaClock.h>
 #include <MediaFramework/MediaSession.h>
 #include <MediaFramework/MediaPlayer.h>

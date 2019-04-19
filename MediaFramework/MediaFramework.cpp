@@ -34,7 +34,6 @@
 
 #define LOG_TAG "MediaFramework"
 #include "MediaDefs.h"
-#include "ColorConvertor.h"
 #include "MediaDecoder.h"
 #include "MediaExtractor.h"
 #include "MediaPacketizer.h"
@@ -198,62 +197,4 @@ sp<MediaPacket> MediaPacketCreate(sp<Buffer>& data) {
     return packet;
 }
 
-ColorConvertor::ColorConvertor(ePixelFormat pixel) :
-    mFormat(pixel)
-{
-    INFO("=> %#x", pixel);
-}
-
-ColorConvertor::~ColorConvertor() {
-}
-
-struct {
-    ePixelFormat    a;
-    uint32_t        b;
-} kMap[] = {
-    { kPixelFormat420YpCbCrSemiPlanar,      libyuv::FOURCC_NV12 },
-    // END OF LIST
-    { kPixelFormatUnknown,  0}
-};
-
-uint32_t get_libyuv_pixel_format(ePixelFormat a) {
-    for (size_t i = 0; kMap[i].a != kPixelFormatUnknown; ++i) {
-        if (kMap[i].a == a) return kMap[i].b;
-    }
-    FATAL("FIXME");
-    return libyuv::FOURCC_ANY;
-}
-
-sp<MediaFrame> ColorConvertor::convert(const sp<MediaFrame>& input) {
-    if (input->v.format == mFormat) return input;
-    
-    ImageFormat format = input->v;
-    format.format = mFormat;
-    sp<MediaFrame> out  = MediaFrame::Create(format);
-    out->pts            = input->pts;
-    out->duration       = input->duration;
-
-    if (mFormat == kPixelFormat420YpCbCrPlanar) {
-        switch (input->v.format) {
-            case kPixelFormat420YpCbCrSemiPlanar:
-                {
-                    libyuv::NV12ToI420(
-                            input->planes[0].data,  input->v.width,
-                            input->planes[1].data, input->v.width,
-                            out->planes[0].data,  out->v.width,
-                            out->planes[1].data,  out->v.width / 2,
-                            out->planes[2].data,  out->v.width / 2,
-                            input->v.width,
-                            input->v.height
-                            );
-                } break;
-            default:
-                FATAL("FIXME");
-                break;
-        }
-    } else {
-        FATAL("FIXME");
-    }
-    return out;
-}
 __END_NAMESPACE_MPX

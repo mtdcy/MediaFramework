@@ -127,10 +127,6 @@ API_EXPORT eCodecType GetCodecType(eCodecFormat format);
  * https://en.wikipedia.org/wiki/RGBA_color_space
  * https://en.wikipedia.org/wiki/YCbCr
  *
- * about full range & video range
- * @note Y'CbCr full range luma=[0, 255], chroma=[1, 255]
- * @note Y'CbCr video range luma=[16, 234], chroma=[16,240], ITU-R BT.601
- * @note don't put range infomation into pixel format
  */
 typedef enum ePixelFormat {
     kPixelFormatUnknown     = 0,            ///< Unknown
@@ -201,14 +197,28 @@ API_EXPORT const PixelDescriptor *  GetPixelFormatDescriptor(ePixelFormat);
 
 /*
  * about full range & video range
- * @note Y'CbCr full range luma=[0, 255], chroma=[1, 255]
- * @note Y'CbCr video range luma=[16, 234], chroma=[16,240], ITU-R BT.601
+ * @note Y'CbCr full range luma=[0, 255], chroma=[1, 255], JFIF
+ * @note Y'CbCr video range luma=[16, 235], chroma=[16,240], ITU-R BT.601
  * @note don't put range infomation into pixel format
  */
 typedef enum eYpCbCrRange {
     kYpCbCrFullRange    = 0,
     kYpCbCrVideoRange   = 1,
 } eYpCbCrRange;
+
+typedef struct ImageRect {
+    int32_t             x;
+    int32_t             y;
+    int32_t             w;
+    int32_t             h;
+} ImageRect;
+
+typedef struct ImageFormat {
+    ePixelFormat        format;         ///< image pixel format
+    int32_t             width;          ///< plane width
+    int32_t             height;         ///< plane height
+    ImageRect           rect;           ///< display rectangle
+} ImageFormat;
 
 // FIXME: code sample infomation into format
 /**
@@ -284,20 +294,6 @@ typedef struct AudioFormat {
     int32_t             freq;           ///< audio sample rate
     int32_t             samples;        ///< samples per channel
 } AudioFormat;
-
-typedef struct ImageRect {
-    int32_t             x;
-    int32_t             y;
-    int32_t             w;
-    int32_t             h;
-} ImageRect;
-
-typedef struct ImageFormat {
-    ePixelFormat        format;         ///< image pixel format
-    int32_t             width;          ///< plane width
-    int32_t             height;         ///< plane height
-    ImageRect           rect;           ///< display rectangle
-} ImageFormat;
 
 #define kTimeValueBegin     (0)
 #define kTimeValueInvalid   (-1)

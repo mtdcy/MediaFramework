@@ -37,7 +37,6 @@
 #include "MediaSession.h"
 #include "MediaDecoder.h"
 #include "MediaOut.h"
-#include "ColorConvertor.h"
 #include "MediaClock.h"
 #include "MediaPlayer.h"
 
@@ -387,7 +386,6 @@ struct Renderer : public SharedObject {
     sp<FrameReadyEvent>     mFrameReadyEvent;
     sp<MediaFrameEvent>     mMediaFrameEvent;
     sp<MediaOut>            mOut;
-    sp<ColorConvertor>      mColorConvertor;
     sp<Clock>               mClock;
     int64_t                 mLatency;
 
@@ -413,7 +411,7 @@ struct Renderer : public SharedObject {
         mFrameRequestEvent(NULL), mID(kCodecFormatUnknown), mInfoEvent(NULL),
         // internal static context
         mFrameReadyEvent(NULL),
-        mOut(NULL), mColorConvertor(NULL), mClock(NULL), mLatency(0),
+        mOut(NULL), mClock(NULL), mLatency(0),
         // render context
         mGeneration(0),
         mPresentFrame(new PresentRunnable()), mState(kRenderInitialized), mOutputEOS(false),
@@ -470,7 +468,7 @@ struct Renderer : public SharedObject {
                 ePixelFormat pixel = (ePixelFormat)raw->findInt32(kKeyFormat);
                 ePixelFormat accpeted = (ePixelFormat)mOut->formats()->findInt32(kKeyFormat);// color convert
                 if (accpeted != pixel) {
-                    mColorConvertor = new ColorConvertor(accpeted);
+                    FATAL("FIXME");
                 }
             } else if (type == kCodecTypeAudio) {
                 mLatency = mOut->formats()->findInt32(kKeyLatency);
@@ -549,12 +547,8 @@ struct Renderer : public SharedObject {
                     mLastFrameTime.seconds());
         }
 
-        if (mColorConvertor != NULL) {
-            // XXX: convert here or just before render????
-            mOutputQueue.push(mColorConvertor->convert(frame));
-        } else {
-            mOutputQueue.push(frame);
-        }
+
+        mOutputQueue.push(frame);
 
         // request more frames
         requestFrame();
