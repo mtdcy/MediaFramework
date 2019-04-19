@@ -166,11 +166,9 @@ else()
 endif()
 
 # link static
-find_package (Libyuv REQUIRED)
-message(${YUV_INCLUDE_DIRS})
-message(${YUV_LIBRARIES})
-include_directories(${YUV_INCLUDE_DIRS})
-target_link_libraries(${PROJECT_NAME} ${YUV_LIBRARIES_STATIC})
+add_subdirectory(external/libyuv    EXCLUDE_FROM_ALL)
+target_link_libraries (${PROJECT_NAME}  yuv)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/libyuv/include)
 
 # install targets and headers
 if (XCODE)
