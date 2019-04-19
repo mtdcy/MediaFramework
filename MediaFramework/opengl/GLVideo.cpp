@@ -577,9 +577,9 @@ static const OpenGLConfig YUV422p = {   // 16 bpp
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 3,
     .a_format   = {
-        {GL_LUMINANCE, GL_LUMINANCE, GL_UNSIGNED_BYTE, 8, 8},
-        {GL_LUMINANCE, GL_LUMINANCE, GL_UNSIGNED_BYTE, 4, 8},
-        {GL_LUMINANCE, GL_LUMINANCE, GL_UNSIGNED_BYTE, 4, 8},
+        {GL_RED, GL_RED, GL_UNSIGNED_BYTE, 8, 8},
+        {GL_RED, GL_RED, GL_UNSIGNED_BYTE, 8, 4},
+        {GL_RED, GL_RED, GL_UNSIGNED_BYTE, 8, 4},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
     .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
@@ -794,6 +794,8 @@ static const OpenGLConfig BGRA = {  // ARGB in word-order
 };
 
 static const OpenGLConfig * getOpenGLConfig(const ePixelFormat& pixel) {
+    const PixelDescriptor * desc = GetPixelFormatDescriptor(pixel);
+    
     struct {
         ePixelFormat            pixel;
         const OpenGLConfig *    config;
@@ -820,7 +822,7 @@ static const OpenGLConfig * getOpenGLConfig(const ePixelFormat& pixel) {
             return  kMap[i].config;
         }
     }
-    ERROR("no open gl config for pixel %s", GetPixelFormatString(pixel));
+    ERROR("no open gl config for pixel %s", desc ? desc->name : "????");
     return NULL;
 }
 
@@ -858,19 +860,19 @@ struct GLVideo : public MediaOut {
     }
     
     MediaError init(const ImageFormat& format) {
-        INFO("init @ %s %d x %d", GetPixelFormatString(format.format), format.width, format.height);
         _init(format);
         
+#if 0
         if (mGLContext == NULL && mAllowAltFormat) {
             ImageFormat alt = format;
             alt.format = GetPixelFormatPlanar(format.format);
             if (alt.format != format.format) {
-                INFO("init alt @ %s %d x %d", GetPixelFormatString(alt.format), alt.width, alt.height);
                 _init(alt);
             }
             
             mUsingAltFormat = mGLContext != NULL;
         }
+#endif
         
         return mGLContext != NULL ? kMediaNoError : kMediaErrorNotSupported;
     }
@@ -926,6 +928,7 @@ struct GLVideo : public MediaOut {
             return kMediaNoError;
         }
         
+        INFO("write : %s", GetImageFrameString(input).c_str());
         if (input->v != mFormat) {
             INFO("frame format changed, re-init opengl context");
             MediaError st = init(input->v);

@@ -75,6 +75,13 @@ struct API_EXPORT MediaFrame : public SharedObject {
     static sp<MediaFrame>   Create(const AudioFormat&);
     
     /**
+     * for debug
+     */
+    //virtual String      string() const;
+    
+    /** features below is not designed for realtime playback **/
+    
+    /**
      * read backend buffer of hwaccel frame
      * @return should return NULL if plane is not exists
      * @note default implementation: read directly from planes
@@ -89,7 +96,7 @@ struct API_EXPORT MediaFrame : public SharedObject {
     virtual MediaError swapCbCr();
     
     /**
-     * reverse pixel bytes, like rgba -> abgr
+     * convert pixel bytes-order <-> word-order, like rgba -> abgr
      * @return return kMediaErrorInvalidOperation if source is planar
      * @return return kMediaErrorNotSupported if no implementation
      */
@@ -106,15 +113,19 @@ struct API_EXPORT MediaFrame : public SharedObject {
     
     /**
      * convert yuv -> rgb
-     * @return return kMediaErrorInvalidOperation if source is rgb
+     * @return return kMediaErrorInvalidOperation if source is rgb or target is not rgb
      * @return return kMediaErrorNotSupported if no implementation
      * @return target pixel is rgba by default, but no guarentee.
-     * @note TODO: set target pixel to os preferred
      */
-    enum eConvertionMatrix { };
-    virtual MediaError yuv2rgb(const eConvertionMatrix&);
+    enum eConversion { kBT601, kBT709, kJFIF };
+    virtual MediaError yuv2rgb(const ePixelFormat& = kPixelFormatRGBA, const eConversion& = kBT601);
     
-    
+    /**
+     * rotate image
+     * @return kMediaErrorNotSupported if no implementation
+     */
+    enum eRotation { kRotate0, kRotate90, kRotate180, kRotate270 };
+    virtual MediaError rotate(const eRotation&) { return kMediaErrorNotSupported; }
     
 protected:
     MediaFrame();
@@ -122,12 +133,16 @@ protected:
     sp<Buffer>  mBuffer;
 };
 
+// ePixelFormat
+API_EXPORT String   GetPixelFormatString(const ePixelFormat&);
+API_EXPORT String   GetImageFormatString(const ImageFormat&);
+API_EXPORT String   GetImageFrameString(const sp<MediaFrame>&);
+
 // AudioFormat
-API_EXPORT String   GetAudioFormatString(const AudioFormat& format);
+API_EXPORT String   GetAudioFormatString(const AudioFormat&);
 
 // get MediaFrame human readable string, for debug
 API_EXPORT String   GetAudioFrameString(const sp<MediaFrame>&);
-API_EXPORT String   GetImageFrameString(const sp<MediaFrame>&);
 
 __END_NAMESPACE_MPX
 #endif

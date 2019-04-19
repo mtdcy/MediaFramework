@@ -48,6 +48,7 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 # target source 
 set (SOURCE_FILES
+    MediaFramework/PixelFormatDescriptor.cpp
     MediaFramework/MediaFramework.cpp
     MediaFramework/MediaFrame.cpp
     MediaFramework/MediaClock.cpp

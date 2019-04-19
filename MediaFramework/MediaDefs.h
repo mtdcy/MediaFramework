@@ -153,17 +153,37 @@ typedef enum ePixelFormat {
     kPixelFormatRGBA,                   ///< packed RGBA, 32 bpp, RRGGBBAA, byte-order
     kPixelFormatABGR,                   ///< packed ABGR, 32 bpp, AABBGGRR, RGBA in word-order
     
+    // alias
+    // TODO: set alias to platform preferred
+    kPixelFormatRGB16   = kPixelFormatRGB565,
+    KPixelFormatRGB24   = kPixelFormatRGB,
+    kPixelFormatRGB32   = kPixelFormatRGBA,
+    
     // hardware pixel format
     kPixelFormatVideoToolbox    = 0x300,    ///< hardware frame from video toolbox
 } ePixelFormat;
 
+typedef enum eColorSpace {
+    kColorUnknown,
+    kColorYpCbCr,
+    kColorRGB
+} eColorSpace;
+
+typedef struct PixelDescriptor {
+    const char *        name;       ///< pixel format name
+    ePixelFormat        format;     ///< pixel format value
+    eColorSpace         color;      ///< color space
+    size_t              bpp;        ///< pixel bpp => image size
+    size_t              planes;     ///< number planes => image size
+    struct {
+        size_t          bpp;        ///< plane bpp => plane size
+        size_t          hss;        ///< horizontal subsampling => stride width
+        size_t          vss;        ///< vertical subsampling => slice height
+    } plane[4];
+} PixelDescriptor;
+
 // get information about pixel format
-API_EXPORT const char * GetPixelFormatString(ePixelFormat);
-API_EXPORT size_t       GetPixelFormatBPP(ePixelFormat);
-API_EXPORT size_t       GetPixelFormatPlanes(ePixelFormat);
-API_EXPORT size_t       GetPixelFormatPlaneBPP(ePixelFormat, size_t);
-API_EXPORT bool         GetPixelFormatIsPlanar(ePixelFormat);
-API_EXPORT ePixelFormat GetPixelFormatPlanar(ePixelFormat);
+API_EXPORT const PixelDescriptor *  GetPixelFormatDescriptor(ePixelFormat);
 
 // FIXME: code sample infomation into format
 /**
@@ -244,8 +264,6 @@ typedef struct ImageFormat {
     int32_t             height;         ///< plane height
     ImageRect           rect;           ///< display rectangle
 } ImageFormat;
-
-API_EXPORT size_t GetImageFormatBytes(const ImageFormat *);
 
 #define kTimeValueBegin     (0)
 #define kTimeValueInvalid   (-1)

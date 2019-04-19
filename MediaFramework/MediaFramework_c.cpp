@@ -91,7 +91,7 @@ MediaError ImageFramePlanarization(MediaFrameRef ref) {
 
 MediaError ImageFrameToRGB(MediaFrameRef ref) {
     Object<MediaFrame> frame = ref;
-    return frame->yuv2rgb((MediaFrame::eConvertionMatrix)0);
+    return frame->yuv2rgb();
 }
 
 struct UserFrameEvent : public MediaFrameEvent {
