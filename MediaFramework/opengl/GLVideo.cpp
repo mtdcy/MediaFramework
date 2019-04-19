@@ -74,13 +74,14 @@ __BEGIN_NAMESPACE_MPX
 enum {
     ATTR_VERTEX = 0,
     ATTR_TEXTURE,
+    ATTR_ROTATE,
     ATTR_MAX
 };
 
 enum {
     UNIFORM_PLANES = 0,
-    UNIFORM_MATRIX,
-    UNIFORM_RESOLUTION,
+    UNIFORM_MATRIX,         // mat4, for transform
+    UNIFORM_RESOLUTION,     // vec2: width, height
     UNIFORM_MAX
 };
 
@@ -109,7 +110,48 @@ struct OpenGLConfig {
     const TextureFormat     a_format[4];                // texture format for each plane
     const char *            s_attrs[ATTR_MAX];          // attribute names to get
     const char *            s_uniforms[UNIFORM_MAX];    // uniform names to get
-    const GLfloat *         u_matrix;                   // 4x4 matrix
+};
+
+// color space conversion
+#define UNIFORM_CSC_BIAS         "u_csc_bias"
+#define UNIFORM_CSC_MATRIX   "u_csc_matrix"
+static GLfloat VEC4_FullRangeBias[4] = {
+    0,      0.5,    0.5,    0
+};
+
+// https://en.wikipedia.org/wiki/YCbCr#ITU-R_BT.601_conversion
+/**
+ * ITU-R BT.601 for video range YpCbCr -> RGB
+ * @note default matrix
+ */
+static GLfloat VEC4_BT601_VideoRangeBias[4] = {
+    0.062745,   0.5,    0.5,    0
+};
+static const GLfloat MAT4_BT601_VideoRange[16] = {    // SDTV
+    // y, u, v, a
+    1.164384,   0,          1.13983,    0,      // r
+    1.164384,   -0.39465,   -0.58060,   0,      // g
+    1.164384,   2.03211,    0,          0,      // b
+    0,          0,          0,          1.0     // a
+};
+
+/**
+ * ITU-R BT.601 for full range YpCbCr -> RGB
+ * @note JFIF JPEG: using full range
+ */
+static const GLfloat MAT4_BT601_FullRange[16] = {
+    // y, u, v, a
+    1,      0,          1.402,      0,      // r
+    1,  -0.344136,     -0.714136,   0,      // g
+    1,      1.772,      0,          0,      // b
+    0,      0,          0,          1.0     // a
+};
+
+static const GLfloat MAT4_Identity[16] = {
+    1, 0, 0, 0,
+    0, 1, 0, 0,
+    0, 0, 1, 0,
+    0, 0, 0, 1
 };
 
 struct OpenGLContext : public SharedObject {
@@ -279,22 +321,33 @@ static sp<OpenGLContext> initOpenGLContext(const ImageFormat& image, const OpenG
             continue;
         }
         glc->uniforms[i] = glGetUniformLocation(glc->objs[OBJ_PROGRAM], config->s_uniforms[i]);
-        CHECK_GE(glc->uniforms[i], 0);
         CHECK_GL_ERROR();
+        CHECK_GE(glc->uniforms[i], 0);
     }
 
     if (glc->uniforms[UNIFORM_MATRIX] >= 0) {
-        // default value
-        glUniformMatrix4fv(glc->uniforms[UNIFORM_MATRIX], 1, GL_FALSE, config->u_matrix);
+        glUniformMatrix4fv(glc->uniforms[UNIFORM_MATRIX], 1, GL_FALSE, MAT4_Identity);
         CHECK_GL_ERROR();
     }
 
+    if (glc->uniforms[UNIFORM_RESOLUTION] >= 0) {
+        glUniform2f(glc->uniforms[UNIFORM_RESOLUTION], (GLfloat)image.width, (GLfloat)image.height);
+        CHECK_GL_ERROR();
+    }
+    
+    // set YpCbCr -> RGB conversion
+    if (glc->desc->color == kColorYpCbCr) {
+        GLint u = glGetUniformLocation(glc->objs[OBJ_PROGRAM], UNIFORM_CSC_BIAS);
+        CHECK_GE(u, 0);
+        glUniform4fv(u, 1, VEC4_BT601_VideoRangeBias);
+        u = glGetUniformLocation(glc->objs[OBJ_PROGRAM], UNIFORM_CSC_MATRIX);
+        CHECK_GE(u, 0);
+        glUniformMatrix4fv(u, 1, GL_FALSE, MAT4_BT601_VideoRange);
+    }
+    
     size_t n = initTextures(config->n_textures, config->e_target, &glc->objs[OBJ_TEXTURE0]);
     CHECK_EQ(n, config->n_textures);
 
-    if (glc->uniforms[UNIFORM_RESOLUTION] >= 0) {
-        glUniform2f(glc->uniforms[UNIFORM_RESOLUTION], (GLfloat)image.width, (GLfloat)image.height);
-    }
     return glc;
 }
 
@@ -429,42 +482,45 @@ static const char * vsh = SL(
 static const char * fsh_yuv1 = SL(
         varying vec2 v_texcoord;
         uniform sampler2D u_planes[1];
+        uniform vec4 u_csc_bias;
+        uniform mat4 u_csc_matrix;
         uniform mat4 u_matrix;
         void main(void)
         {
             vec3 yuv;
-            yuv.x = texture2D(u_planes[0], v_texcoord).r;
-            yuv.y = texture2D(u_planes[0], v_texcoord).g - 0.5;
-            yuv.z = texture2D(u_planes[0], v_texcoord).b - 0.5;
-            gl_FragColor = vec4(yuv, 1.0) * u_matrix;
+            yuv.xyz = texture2D(u_planes[0], v_texcoord).rgb;
+            gl_FragColor = (vec4(yuv, 1.0) - u_csc_bias) * u_csc_matrix * u_matrix;
         }
     );
 
 static const char * fsh_yuv2 = SL(
         varying vec2 v_texcoord;
         uniform sampler2D u_planes[2];
+        uniform vec4 u_csc_bias;
+        uniform mat4 u_csc_matrix;
         uniform mat4 u_matrix;
         void main(void)
         {
             vec3 yuv;
             yuv.x = texture2D(u_planes[0], v_texcoord).r;
-            yuv.y = texture2D(u_planes[1], v_texcoord).r - 0.5;
-            yuv.z = texture2D(u_planes[1], v_texcoord).g - 0.5;
-            gl_FragColor = vec4(yuv, 1.0) * u_matrix;
+            yuv.yz = texture2D(u_planes[1], v_texcoord).rg;
+            gl_FragColor = (vec4(yuv, 1.0) - u_csc_bias) * u_csc_matrix * u_matrix;
         }
     );
 
 static const char * fsh_yuv3 = SL(
         varying vec2 v_texcoord;
         uniform sampler2D u_planes[3];
+        uniform vec4 u_csc_bias;
+        uniform mat4 u_csc_matrix;
         uniform mat4 u_matrix;
         void main(void)
         {
             vec3 yuv;
             yuv.x = texture2D(u_planes[0], v_texcoord).r;
-            yuv.y = texture2D(u_planes[1], v_texcoord).r - 0.5;
-            yuv.z = texture2D(u_planes[2], v_texcoord).r - 0.5;
-            gl_FragColor = vec4(yuv, 1.0) * u_matrix;
+            yuv.y = texture2D(u_planes[1], v_texcoord).r;
+            yuv.z = texture2D(u_planes[2], v_texcoord).r;
+            gl_FragColor = (vec4(yuv, 1.0) - u_csc_bias) * u_csc_matrix * u_matrix;
         }
     );
 
@@ -479,32 +535,6 @@ static const char * fsh_rgb = SL(
         }
     );
 
-static const GLfloat MAT_I4[16] = {
-    // r, g, b, a
-    1.0,    0,      0,      0,      // r
-    0,      1.0,    0,      0,      // g
-    0,      0,      1.0,    0,      // b
-    0,      0,      0,      1.0,    // a
-};
-
-// https://en.wikipedia.org/wiki/YCbCr#ITU-R_BT.601_conversion
-// TODO: fix for BT601
-static const GLfloat MAT_ITU_R_BT601[16] = {    // SDTV
-    // y, u, v, a
-    1.0,    0,          1.13983,    0,      // r
-    1.0,    -0.39465,   -0.58060,   0,      // g
-    1.0,    2.03211,    0,          0,      // b
-    0,      0,          0,          1.0     // a
-};
-
-static const GLfloat MAT_JFIF[16] = {
-    // y, u, v, a
-    1,      0,          1.402,      0,      // r
-    1,  -0.344136,     -0.714136,   0,      // g
-    1,      1.772,      0,          0,      // b
-    0,      0,          0,          1.0     // a
-};
-
 static const OpenGLConfig YpCbCrPlanar = {  // tri-planar
     .s_vsh      = vsh,
     .s_fsh      = fsh_yuv3,
@@ -517,7 +547,6 @@ static const OpenGLConfig YpCbCrPlanar = {  // tri-planar
     },
     .s_attrs    = { "a_position", "a_texcoord" },
     .s_uniforms = { "u_planes", "u_matrix", NULL },
-    .u_matrix   = MAT_JFIF,
 };
 
 static const OpenGLConfig YpCbCrSemiPlanar = {  // bi-planar
@@ -531,7 +560,6 @@ static const OpenGLConfig YpCbCrSemiPlanar = {  // bi-planar
     },
     .s_attrs    = { "a_position", "a_texcoord" },
     .s_uniforms = { "u_planes", "u_matrix", NULL },
-    .u_matrix   = MAT_JFIF,
 };
 
 static const OpenGLConfig YpCrCbSemiPlanar = {  // TODO: implement uv swap
@@ -545,7 +573,6 @@ static const OpenGLConfig YpCrCbSemiPlanar = {  // TODO: implement uv swap
     },
     .s_attrs    = { "a_position", "a_texcoord" },
     .s_uniforms = { "u_planes", "u_matrix", NULL },
-    .u_matrix   = MAT_JFIF,
 };
 
 static const OpenGLConfig YpCbCr = {        // packed
@@ -558,7 +585,6 @@ static const OpenGLConfig YpCbCr = {        // packed
     },
     .s_attrs    = { "a_position", "a_texcoord" },
     .s_uniforms = { "u_planes", "u_matrix", NULL },
-    .u_matrix   = MAT_JFIF,
 };
 
 static const OpenGLConfig RGB565 = {
@@ -570,8 +596,7 @@ static const OpenGLConfig RGB565 = {
         {GL_RGB, GL_RGB, GL_UNSIGNED_SHORT_5_6_5_REV},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
-    .s_uniforms = { "u_planes", "u_matrix", NULL },
-    .u_matrix   = MAT_I4,
+    .s_uniforms = { "u_planes", "u_matrix", NULL, },
 };
 
 static const OpenGLConfig BGR565 = {
@@ -583,8 +608,7 @@ static const OpenGLConfig BGR565 = {
         {GL_RGB, GL_RGB, GL_UNSIGNED_SHORT_5_6_5},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
-    .s_uniforms = { "u_planes", "u_matrix", NULL },
-    .u_matrix   = MAT_I4,
+    .s_uniforms = { "u_planes", "u_matrix", NULL, },
 };
 
 static const OpenGLConfig RGB = {
@@ -596,8 +620,7 @@ static const OpenGLConfig RGB = {
         {GL_RGB, GL_RGB, GL_UNSIGNED_BYTE},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
-    .s_uniforms = { "u_planes", "u_matrix", NULL },
-    .u_matrix   = MAT_I4,
+    .s_uniforms = { "u_planes", "u_matrix", NULL, },
 };
 
 static const OpenGLConfig BGR = {   // read as bytes -> GL_BGR
@@ -609,8 +632,7 @@ static const OpenGLConfig BGR = {   // read as bytes -> GL_BGR
         {GL_RGB, GL_BGR, GL_UNSIGNED_BYTE},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
-    .s_uniforms = { "u_planes", "u_matrix", NULL },
-    .u_matrix   = MAT_I4,
+    .s_uniforms = { "u_planes", "u_matrix", NULL, },
 };
 
 static const OpenGLConfig RGBA = {  // read as bytes -> GL_RGBA
@@ -622,8 +644,7 @@ static const OpenGLConfig RGBA = {  // read as bytes -> GL_RGBA
         {GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
-    .s_uniforms = { "u_planes", "u_matrix", NULL },
-    .u_matrix   = MAT_I4,
+    .s_uniforms = { "u_planes", "u_matrix", NULL, },
 };
 
 static const OpenGLConfig ABGR = {  // RGBA in word-order, so read as int
@@ -635,8 +656,7 @@ static const OpenGLConfig ABGR = {  // RGBA in word-order, so read as int
         {GL_RGBA, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
-    .s_uniforms = { "u_planes", "u_matrix", NULL },
-    .u_matrix   = MAT_I4,
+    .s_uniforms = { "u_planes", "u_matrix", NULL, },
 };
 
 static const OpenGLConfig ARGB = {  // read as int -> GL_BGRA
@@ -648,8 +668,7 @@ static const OpenGLConfig ARGB = {  // read as int -> GL_BGRA
         {GL_RGBA, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
-    .s_uniforms = { "u_planes", "u_matrix", NULL },
-    .u_matrix   = MAT_I4,
+    .s_uniforms = { "u_planes", "u_matrix", NULL, },
 };
 
 static const OpenGLConfig BGRA = {  // read as byte -> GL_BGRA
@@ -661,8 +680,7 @@ static const OpenGLConfig BGRA = {  // read as byte -> GL_BGRA
         {GL_RGBA, GL_BGRA, GL_UNSIGNED_BYTE},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
-    .s_uniforms = { "u_planes", "u_matrix", NULL },
-    .u_matrix   = MAT_I4,
+    .s_uniforms = { "u_planes", "u_matrix", NULL, },
 };
 
 #ifdef __APPLE__
@@ -674,11 +692,11 @@ static const OpenGLConfig BGRA = {  // read as byte -> GL_BGRA
 static const char * fsh_YpCbCr422_APPLE = SL(
         varying vec2 v_texcoord;
         uniform sampler2DRect u_planes[1];
-        //uniform mat4 u_matrix;
+        uniform mat4 u_matrix;
         uniform vec2 u_resolution;
         void main(void)
         {
-            gl_FragColor = texture2DRect(u_planes[0], v_texcoord * u_resolution);
+            gl_FragColor = texture2DRect(u_planes[0], v_texcoord * u_resolution) * u_matrix;
         }
     );
 
@@ -691,22 +709,24 @@ static const OpenGLConfig YpCbCr422_APPLE = {
         {GL_RGB, GL_YCBCR_422_APPLE, GL_UNSIGNED_SHORT_8_8_APPLE},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
-    .s_uniforms = { "u_planes", NULL, "u_resolution" },
+    .s_uniforms = { "u_planes", "u_matrix", "u_resolution", },
 };
 
 static const char * fsh_YpCbCrSemiPlanar_APPLE = SL(
         varying vec2 v_texcoord;
         uniform sampler2DRect u_planes[2];
+        uniform vec4 u_csc_bias;
+        uniform mat4 u_csc_matrix;
         uniform mat4 u_matrix;
         uniform vec2 u_resolution;
+        uniform vec4 u_bias;
         void main(void)
         {
             vec3 yuv;
             vec2 coord = v_texcoord * u_resolution;
             yuv.x = texture2DRect(u_planes[0], coord).r;
-            yuv.y = texture2DRect(u_planes[1], coord * 0.5).r - 0.5;
-            yuv.z = texture2DRect(u_planes[1], coord * 0.5).g - 0.5;
-            gl_FragColor = vec4(yuv, 1.0) * u_matrix;
+            yuv.yz = texture2DRect(u_planes[1], coord * 0.5).rg;
+            gl_FragColor = (vec4(yuv, 1.0) - u_bias) * u_csc_matrix * u_matrix;
         }
     );
 
@@ -720,8 +740,7 @@ static const OpenGLConfig YpCbCrSemiPlanar_APPLE = {
         {GL_RG, GL_RG, GL_UNSIGNED_BYTE},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
-    .s_uniforms = { "u_planes", "u_matrix", "u_resolution" },
-    .u_matrix   = MAT_JFIF,
+    .s_uniforms = { "u_planes", "u_matrix", "u_resolution", },
 };
 #endif
 
