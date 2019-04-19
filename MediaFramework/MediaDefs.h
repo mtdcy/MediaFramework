@@ -126,41 +126,53 @@ API_EXPORT eCodecType GetCodecType(eCodecFormat format);
  * @note yuv pixels usually in byte-order
  * https://en.wikipedia.org/wiki/RGBA_color_space
  * https://en.wikipedia.org/wiki/YCbCr
+ *
+ * about full range & video range
+ * @note Y'CbCr full range luma=[0, 255], chroma=[1, 255]
+ * @note Y'CbCr video range luma=[16, 234], chroma=[16,240]
+ * @note don't put range infomation into pixel format
  */
 typedef enum ePixelFormat {
-    kPixelFormatUnknown     = 0,        ///< Unknown
+    kPixelFormatUnknown     = 0,            ///< Unknown
 
-    // planar Y'CbCr
-    kPixelFormat420YpCbCrPlanar,        ///< Planar Y'CbCr 8-bit 4:2:0, 12bpp, 3 planes: Y'/Cb/Cr
-    kPixelFormat422YpCbCrPlanar,        ///< Planar Y'CrCb 8-bit 4:2:2, 16bpp, 3 planes: Y'/Cb/Cr
-    kPixelFormat444YpCbCrPlanar,        ///< Planar Y'CrCb 8-bit 4:4:4, 24bpp, 3 planes: Y'/Cb/Cr
-    // bi-planar Y'CbCr
-    kPixelFormat420YpCbCrSemiPlanar,    ///< Planar Y'CbCr 8-bit 4:2:0, 12bpp, 2 planes: Y'/CbCr(interleaved), aka nv12
-    kPixelFormat420YpCrCbSemiPlanar,    ///< Planar Y'CrCb 8-bit 4:2:0, 12bpp, 2 planes: Y'/CrCb(interleaved), aka nv21
-    // 10-bit planar Y'CbCr
-    kPixelFormat420YpCbCr10Planar,      ///< Planar Y'CbCr 10-bit 4:2:0, 15bpp, 3 planes: Y'/Cb/Cr
-    // packed Y'CbCr
-    kPixelFormat422YpCbCr     = 0x100,  ///< Packed Y'CrCb 8-bit 4:2:2, 16bpp, Y'0 Cb Y'1 Cr
-    kPixelFormat422YpCrCb,              ///< Packed Y'CrCb 8-bit 4:2:2, 16bpp, Y'0 Cr Y'1 Cb
-    kPixelFormat444YpCbCr,              ///< Packed Y'CrCb 8-bit 4:4:4, 24bpp,
-    // packed rgb
-    kPixelFormatRGB565      = 0x200,    ///< packed RGB 5:6:5, 16 bpp,
-    kPixelFormatBGR565,                 ///< packed BGR 5:6:5, 16 bpp, RGB565 in word-order
-    kPixelFormatRGB,                    ///< packed RGB 8:8:8, 24 bpp, byte-order
-    kPixelFormatBGR,                    ///< packed BGR 8:8:8, 24 bpp, RGB in word-order
-    kPixelFormatARGB,                   ///< packed ARGB, 32 bpp, AARRGGBB, byte-order
-    kPixelFormatBGRA,                   ///< packed BGRA, 32 bpp, BBGGRRAA, ARGB in word-order
-    kPixelFormatRGBA,                   ///< packed RGBA, 32 bpp, RRGGBBAA, byte-order
-    kPixelFormatABGR,                   ///< packed ABGR, 32 bpp, AABBGGRR, RGBA in word-order
+    /** Y'CbCr color space section **/
+    /** Y'CbCr 420 family **/
+    kPixelFormat420YpCbCrPlanar = 0x100,    ///< Planar Y'CbCr 8-bit 4:2:0, 12bpp, 3 planes: Y'/Cb/Cr,
+    kPixelFormat420YpCrCbPlanar,            ///< Planar Y'CbCr 8-bit 4:2:0, 12bpp, 3 planes: Y'/Cr/Cb, aka yv12
+    kPixelFormat420YpCbCrSemiPlanar,        ///< Planar Y'CbCr 8-bit 4:2:0, 12bpp, 2 planes: Y'/Cb&Cr(interleaved), aka nv12
+    kPixelFormat420YpCrCbSemiPlanar,        ///< Planar Y'CbCr 8-bit 4:2:0, 12bpp, 2 planes: Y'/Cr&Cb(interleaved), aka nv21
     
-    // alias
-    // TODO: set alias to platform preferred
+    /** Y'CbCr 422 family **/
+    kPixelFormat422YpCbCrPlanar = 0x110,    ///< Planar Y'CbCr 8-bit 4:2:2, 16bpp, 3 planes: Y'/Cb/Cr
+    kPixelFormat422YpCrCbPlanar,            ///< Planar Y'CbCr 8-bit 4:2:2, 16bpp, 3 planes: Y'/Cr/Cb
+    kPixelFormat422YpCbCr,                  ///< Packed Y'CbCr 8-bit 4:2:2, 16bpp, Y'0 Cb Y'1 Cr
+    kPixelFormat422YpCrCb,                  ///< Packed Y'CbCr 8-bit 4:2:2, 16bpp, Y'0 Cr Y'1 Cb
+    
+    /** Y'CbCr 444 family **/
+    kPixelFormat444YpCbCrPlanar = 0x120,    ///< Planar Y'CbCr 8-bit 4:4:4, 24bpp, 3 planes: Y'/Cb/Cr
+    kPixelFormat444YpCbCr,                  ///< Packed Y'CbCr 8-bit 4:4:4, 24bpp,
+
+    /** Y'CbCr 10-bit family **/
+    kPixelFormat420YpCbCr10Planar,          ///< Planar Y'CbCr 10-bit 4:2:0, 15bpp, 3 planes: Y'/Cb/Cr
+    
+    /** RGB color space section **/
+    kPixelFormatRGB565 = 0x200,             ///< packed RGB 5:6:5, 16 bpp,
+    kPixelFormatBGR565,                     ///< packed BGR 5:6:5, 16 bpp, RGB565 in word-order
+    kPixelFormatRGB,                        ///< packed RGB 8:8:8, 24 bpp, byte-order
+    kPixelFormatBGR,                        ///< packed BGR 8:8:8, 24 bpp, RGB in word-order
+    kPixelFormatARGB,                       ///< packed ARGB, 32 bpp, AARRGGBB, byte-order
+    kPixelFormatBGRA,                       ///< packed BGRA, 32 bpp, BBGGRRAA, ARGB in word-order
+    kPixelFormatRGBA,                       ///< packed RGBA, 32 bpp, RRGGBBAA, byte-order
+    kPixelFormatABGR,                       ///< packed ABGR, 32 bpp, AABBGGRR, RGBA in word-order
+    
+    /** hardware pixel format section **/
+    kPixelFormatVideoToolbox = 0x300,       ///< hardware frame from video toolbox
+    
+    /** alias section. TODO: set alias to platform preferred **/
     kPixelFormatRGB16   = kPixelFormatRGB565,
     KPixelFormatRGB24   = kPixelFormatRGB,
     kPixelFormatRGB32   = kPixelFormatRGBA,
     
-    // hardware pixel format
-    kPixelFormatVideoToolbox    = 0x300,    ///< hardware frame from video toolbox
 } ePixelFormat;
 
 typedef enum eColorSpace {
