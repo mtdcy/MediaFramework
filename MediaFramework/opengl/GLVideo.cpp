@@ -45,11 +45,6 @@
 
 #define SL(x)   #x
 
-//#define TEST_COLOR  kPixelFormat420YpCbCrPlanar
-#ifdef TEST_COLOR
-#include <MediaFramework/ColorConvertor.h>
-#endif
-
 #ifdef __APPLE__
 #include <OpenGL/gl.h>
 #include <CoreVideo/CoreVideo.h>
@@ -244,8 +239,12 @@ static FORCE_INLINE size_t initTextures(size_t n, GLenum target, GLuint *texture
     return n;
 }
 
-static sp<OpenGLContext> initOpenGLContext(const OpenGLConfig *config) {
+static sp<OpenGLContext> initOpenGLContext(const ImageFormat& image, const OpenGLConfig *config) {
     sp<OpenGLContext> glc = new OpenGLContext;
+    glc->desc = GetPixelFormatDescriptor(image.format);
+    glc->config = config;
+    CHECK_NULL(glc->desc);
+    CHECK_NULL(glc->config);
 
     glc->objs[OBJ_VERTEX_SHADER]    = initShader(GL_VERTEX_SHADER, config->s_vsh);
     glc->objs[OBJ_FRAGMENT_SHADER]  = initShader(GL_FRAGMENT_SHADER, config->s_fsh);
@@ -293,17 +292,9 @@ static sp<OpenGLContext> initOpenGLContext(const OpenGLConfig *config) {
     size_t n = initTextures(config->n_textures, config->e_target, &glc->objs[OBJ_TEXTURE0]);
     CHECK_EQ(n, config->n_textures);
 
-    glc->config = config;
-    return glc;
-}
-
-static sp<OpenGLContext> initOpenGLContextRect(const OpenGLConfig *OpenGLConfig, GLint w, GLint h) {
-    sp<OpenGLContext> glc = initOpenGLContext(OpenGLConfig);
-    if (glc == NULL) return NULL;
-
-    CHECK_GE(glc->uniforms[UNIFORM_RESOLUTION], 0);
-    glUniform2f(glc->uniforms[UNIFORM_RESOLUTION], (GLfloat)w, (GLfloat)h);
-
+    if (glc->uniforms[UNIFORM_RESOLUTION] >= 0) {
+        glUniform2f(glc->uniforms[UNIFORM_RESOLUTION], (GLfloat)image.width, (GLfloat)image.height);
+    }
     return glc;
 }
 
@@ -424,7 +415,7 @@ static void drawVideoToolboxFrame(const sp<OpenGLContext>& glc, const sp<MediaFr
 #endif
 
 // https://github.com/wshxbqq/GLSL-Card
-static const char * vsh_yuv = SL(
+static const char * vsh = SL(
         attribute vec4 a_position;
         attribute vec2 a_texcoord;
         varying vec2 v_texcoord;
@@ -435,84 +426,56 @@ static const char * vsh_yuv = SL(
         }
     );
 
-static const char * fsh_yuv = SL(
-        varying vec2 v_texcoord;
-        uniform sampler2D u_planes[3];
-        uniform mat4 u_TransformMatrix;
-        void main(void)
-        {
-            vec3 yuv;
-            yuv.x = texture2D(u_planes[0], v_texcoord).r;
-            yuv.y = texture2D(u_planes[1], v_texcoord).r - 0.5;
-            yuv.z = texture2D(u_planes[2], v_texcoord).r - 0.5;
-            gl_FragColor = vec4(yuv, 1.0) * u_TransformMatrix;
-        }
-    );
-
-static const char * fsh_nv12 = SL(
-        varying vec2 v_texcoord;
-        uniform sampler2D u_planes[2];
-        uniform mat4 u_TransformMatrix;
-        void main(void)
-        {
-            vec3 yuv;
-            yuv.x = texture2D(u_planes[0], v_texcoord).r;
-            yuv.y = texture2D(u_planes[1], v_texcoord).r - 0.5;
-            yuv.z = texture2D(u_planes[1], v_texcoord).a - 0.5;
-            gl_FragColor = vec4(yuv, 1.0) * u_TransformMatrix;
-        }
-    );
-
-static const char * fsh_yuv_packed = SL(
+static const char * fsh_yuv1 = SL(
         varying vec2 v_texcoord;
         uniform sampler2D u_planes[1];
-        uniform mat4 u_TransformMatrix;
+        uniform mat4 u_matrix;
         void main(void)
         {
             vec3 yuv;
             yuv.x = texture2D(u_planes[0], v_texcoord).r;
             yuv.y = texture2D(u_planes[0], v_texcoord).g - 0.5;
             yuv.z = texture2D(u_planes[0], v_texcoord).b - 0.5;
-            gl_FragColor = vec4(yuv, 1.0) * u_TransformMatrix;
+            gl_FragColor = vec4(yuv, 1.0) * u_matrix;
         }
     );
 
-// xxx: WHY NO COLOR MATRIX NEED HERE?
-static const char * fsh_yuv422p_rect = SL(
+static const char * fsh_yuv2 = SL(
         varying vec2 v_texcoord;
-        uniform sampler2DRect u_planes[1];
-        //uniform mat4 u_TransformMatrix;
-        uniform vec2 u_resolution;
-        void main(void)
-        {
-            gl_FragColor = texture2DRect(u_planes[0], v_texcoord * u_resolution);
-        }
-    );
-
-static const char * fsh_nv12_rect = SL(
-        varying vec2 v_texcoord;
-        uniform sampler2DRect u_planes[2];
-        uniform mat4 u_TransformMatrix;
-        uniform vec2 u_resolution;
+        uniform sampler2D u_planes[2];
+        uniform mat4 u_matrix;
         void main(void)
         {
             vec3 yuv;
-            vec2 coord = v_texcoord * u_resolution;
-            yuv.x = texture2DRect(u_planes[0], coord).r;
-            yuv.y = texture2DRect(u_planes[1], coord * 0.5).r - 0.5;
-            yuv.z = texture2DRect(u_planes[1], coord * 0.5).a - 0.5;
-            gl_FragColor = vec4(yuv, 1.0) * u_TransformMatrix;
+            yuv.x = texture2D(u_planes[0], v_texcoord).r;
+            yuv.y = texture2D(u_planes[1], v_texcoord).r - 0.5;
+            yuv.z = texture2D(u_planes[1], v_texcoord).g - 0.5;
+            gl_FragColor = vec4(yuv, 1.0) * u_matrix;
+        }
+    );
+
+static const char * fsh_yuv3 = SL(
+        varying vec2 v_texcoord;
+        uniform sampler2D u_planes[3];
+        uniform mat4 u_matrix;
+        void main(void)
+        {
+            vec3 yuv;
+            yuv.x = texture2D(u_planes[0], v_texcoord).r;
+            yuv.y = texture2D(u_planes[1], v_texcoord).r - 0.5;
+            yuv.z = texture2D(u_planes[2], v_texcoord).r - 0.5;
+            gl_FragColor = vec4(yuv, 1.0) * u_matrix;
         }
     );
 
 static const char * fsh_rgb = SL(
         varying vec2 v_texcoord;
         uniform sampler2D u_planes[1];
-        uniform mat4 u_TransformMatrix;
+        uniform mat4 u_matrix;
         void main(void)
         {
             vec4 rgb = texture2D(u_planes[0], v_texcoord);
-            gl_FragColor = rgb * u_TransformMatrix;
+            gl_FragColor = rgb * u_matrix;
         }
     );
 
@@ -543,8 +506,8 @@ static const GLfloat MAT_JFIF[16] = {
 };
 
 static const OpenGLConfig YpCbCrPlanar = {  // tri-planar
-    .s_vsh      = vsh_yuv,
-    .s_fsh      = fsh_yuv,
+    .s_vsh      = vsh,
+    .s_fsh      = fsh_yuv3,
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 3,
     .a_format   = {
@@ -553,86 +516,53 @@ static const OpenGLConfig YpCbCrPlanar = {  // tri-planar
         {GL_RED, GL_RED, GL_UNSIGNED_BYTE},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
-    .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
+    .s_uniforms = { "u_planes", "u_matrix", NULL },
     .u_matrix   = MAT_JFIF,
 };
 
 static const OpenGLConfig YpCbCrSemiPlanar = {  // bi-planar
-    .s_vsh      = vsh_yuv,
-    .s_fsh      = fsh_nv12,
+    .s_vsh      = vsh,
+    .s_fsh      = fsh_yuv2,
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 2,
     .a_format   = {
-        {GL_LUMINANCE, GL_LUMINANCE, GL_UNSIGNED_BYTE},
-        {GL_LUMINANCE_ALPHA, GL_LUMINANCE_ALPHA, GL_UNSIGNED_BYTE},
+        {GL_RED, GL_RED, GL_UNSIGNED_BYTE},
+        {GL_RG, GL_RG, GL_UNSIGNED_BYTE},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
-    .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
+    .s_uniforms = { "u_planes", "u_matrix", NULL },
     .u_matrix   = MAT_JFIF,
 };
 
 static const OpenGLConfig YpCrCbSemiPlanar = {  // TODO: implement uv swap
-    .s_vsh      = vsh_yuv,
-    .s_fsh      = fsh_nv12,
+    .s_vsh      = vsh,
+    .s_fsh      = fsh_yuv2,
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 2,
     .a_format   = {
-        {GL_LUMINANCE, GL_LUMINANCE, GL_UNSIGNED_BYTE},
-        {GL_LUMINANCE_ALPHA, GL_LUMINANCE_ALPHA, GL_UNSIGNED_SHORT},
+        {GL_RED, GL_RED, GL_UNSIGNED_BYTE},
+        {GL_RG, GL_RG, GL_UNSIGNED_SHORT},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
-    .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
+    .s_uniforms = { "u_planes", "u_matrix", NULL },
     .u_matrix   = MAT_JFIF,
 };
 
 static const OpenGLConfig YpCbCr = {        // packed
-    .s_vsh      = vsh_yuv,
-    .s_fsh      = fsh_yuv_packed,
+    .s_vsh      = vsh,
+    .s_fsh      = fsh_yuv1,
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 1,
     .a_format   = {
         {GL_RGB, GL_RGB, GL_UNSIGNED_BYTE},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
-    .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
+    .s_uniforms = { "u_planes", "u_matrix", NULL },
     .u_matrix   = MAT_JFIF,
 };
-
-static const OpenGLConfig NV12_RECT = {
-    .s_vsh      = vsh_yuv,
-    .s_fsh      = fsh_nv12_rect,
-    .e_target   = GL_TEXTURE_RECTANGLE_ARB,
-    .n_textures = 2,
-    .a_format   = {
-        {GL_LUMINANCE, GL_LUMINANCE, GL_UNSIGNED_BYTE},
-        {GL_LUMINANCE_ALPHA, GL_LUMINANCE_ALPHA, GL_UNSIGNED_BYTE},
-    },
-    .s_attrs    = { "a_position", "a_texcoord" },
-    .s_uniforms = { "u_planes", "u_TransformMatrix", "u_resolution" },
-    .u_matrix   = MAT_JFIF,
-};
-
-#ifdef __APPLE__
-// about rectangle texture
-// https://www.khronos.org/opengl/wiki/Rectangle_Texture
-// about yuv422
-// https://www.khronos.org/registry/OpenGL/extensions/APPLE/APPLE_ycbcr_422.txt
-static const OpenGLConfig YUV422_APPLE = {
-    .s_vsh      = vsh_yuv,
-    .s_fsh      = fsh_yuv422p_rect,
-    .e_target   = GL_TEXTURE_RECTANGLE_ARB,
-    .n_textures = 1,
-    .a_format   = {
-        {GL_RGB, GL_YCBCR_422_APPLE, GL_UNSIGNED_SHORT_8_8_APPLE},
-    },
-    .s_attrs    = { "a_position", "a_texcoord" },
-    .s_uniforms = { "u_planes", NULL, "u_resolution" },
-    .u_matrix   = MAT_JFIF,
-};
-#endif
 
 static const OpenGLConfig RGB565 = {
-    .s_vsh      = vsh_yuv,
+    .s_vsh      = vsh,
     .s_fsh      = fsh_rgb,
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 1,
@@ -640,12 +570,12 @@ static const OpenGLConfig RGB565 = {
         {GL_RGB, GL_RGB, GL_UNSIGNED_SHORT_5_6_5_REV},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
-    .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
+    .s_uniforms = { "u_planes", "u_matrix", NULL },
     .u_matrix   = MAT_I4,
 };
 
 static const OpenGLConfig BGR565 = {
-    .s_vsh      = vsh_yuv,
+    .s_vsh      = vsh,
     .s_fsh      = fsh_rgb,
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 1,
@@ -653,12 +583,12 @@ static const OpenGLConfig BGR565 = {
         {GL_RGB, GL_RGB, GL_UNSIGNED_SHORT_5_6_5},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
-    .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
+    .s_uniforms = { "u_planes", "u_matrix", NULL },
     .u_matrix   = MAT_I4,
 };
 
 static const OpenGLConfig RGB = {
-    .s_vsh      = vsh_yuv,
+    .s_vsh      = vsh,
     .s_fsh      = fsh_rgb,
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 1,
@@ -666,32 +596,25 @@ static const OpenGLConfig RGB = {
         {GL_RGB, GL_RGB, GL_UNSIGNED_BYTE},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
-    .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
+    .s_uniforms = { "u_planes", "u_matrix", NULL },
     .u_matrix   = MAT_I4,
 };
 
-static const GLfloat MAT_BGR2RGB[16] = {
-    // b,g,r,a
-    0,      0,      1.0,    0,      // r
-    0,      1.0,    0,      0,      // g
-    1.0,    0,      0,      0,      // b
-    0,      0,      0,      1.0,    // a
-};
-static const OpenGLConfig BGR = {
-    .s_vsh      = vsh_yuv,
+static const OpenGLConfig BGR = {   // read as bytes -> GL_BGR
+    .s_vsh      = vsh,
     .s_fsh      = fsh_rgb,
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 1,
     .a_format   = {
-        {GL_RGB, GL_RGB, GL_UNSIGNED_BYTE},
+        {GL_RGB, GL_BGR, GL_UNSIGNED_BYTE},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
-    .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
-    .u_matrix   = MAT_BGR2RGB,
+    .s_uniforms = { "u_planes", "u_matrix", NULL },
+    .u_matrix   = MAT_I4,
 };
 
-static const OpenGLConfig RGBA = {
-    .s_vsh      = vsh_yuv,
+static const OpenGLConfig RGBA = {  // read as bytes -> GL_RGBA
+    .s_vsh      = vsh,
     .s_fsh      = fsh_rgb,
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 1,
@@ -699,12 +622,12 @@ static const OpenGLConfig RGBA = {
         {GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
-    .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
+    .s_uniforms = { "u_planes", "u_matrix", NULL },
     .u_matrix   = MAT_I4,
 };
 
-static const OpenGLConfig ABGR = {  // RGBA in word-order
-    .s_vsh      = vsh_yuv,
+static const OpenGLConfig ABGR = {  // RGBA in word-order, so read as int
+    .s_vsh      = vsh,
     .s_fsh      = fsh_rgb,
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 1,
@@ -712,42 +635,95 @@ static const OpenGLConfig ABGR = {  // RGBA in word-order
         {GL_RGBA, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
-    .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
+    .s_uniforms = { "u_planes", "u_matrix", NULL },
     .u_matrix   = MAT_I4,
 };
 
-static const GLfloat MAT_ARGB2RGBA[16] = {
-    // a, r, g, b
-    0,      1.0,    0,      0,      // r
-    0,      0,      1.0,    0,      // g
-    0,      0,      0,      1.0,    // b
-    1.0,    0,      0,      0,      // a
-};
-static const OpenGLConfig ARGB = {
-    .s_vsh      = vsh_yuv,
+static const OpenGLConfig ARGB = {  // read as int -> GL_BGRA
+    .s_vsh      = vsh,
     .s_fsh      = fsh_rgb,
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 1,
     .a_format   = {
-        {GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE},
+        {GL_RGBA, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
-    .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
-    .u_matrix   = MAT_ARGB2RGBA,
+    .s_uniforms = { "u_planes", "u_matrix", NULL },
+    .u_matrix   = MAT_I4,
 };
 
-static const OpenGLConfig BGRA = {  // ARGB in word-order
-    .s_vsh      = vsh_yuv,
+static const OpenGLConfig BGRA = {  // read as byte -> GL_BGRA
+    .s_vsh      = vsh,
     .s_fsh      = fsh_rgb,
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 1,
     .a_format   = {
-        {GL_RGBA, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8},  // -> argb [byte-order]
+        {GL_RGBA, GL_BGRA, GL_UNSIGNED_BYTE},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
-    .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
-    .u_matrix   = MAT_ARGB2RGBA,
+    .s_uniforms = { "u_planes", "u_matrix", NULL },
+    .u_matrix   = MAT_I4,
 };
+
+#ifdef __APPLE__
+// about rectangle texture
+// https://www.khronos.org/opengl/wiki/Rectangle_Texture
+// about yuv422
+// https://www.khronos.org/registry/OpenGL/extensions/APPLE/APPLE_ycbcr_422.txt
+// xxx: WHY NO COLOR MATRIX NEED HERE?
+static const char * fsh_YpCbCr422_APPLE = SL(
+        varying vec2 v_texcoord;
+        uniform sampler2DRect u_planes[1];
+        //uniform mat4 u_matrix;
+        uniform vec2 u_resolution;
+        void main(void)
+        {
+            gl_FragColor = texture2DRect(u_planes[0], v_texcoord * u_resolution);
+        }
+    );
+
+static const OpenGLConfig YpCbCr422_APPLE = {
+    .s_vsh      = vsh,
+    .s_fsh      = fsh_YpCbCr422_APPLE,
+    .e_target   = GL_TEXTURE_RECTANGLE_ARB,
+    .n_textures = 1,
+    .a_format   = {
+        {GL_RGB, GL_YCBCR_422_APPLE, GL_UNSIGNED_SHORT_8_8_APPLE},
+    },
+    .s_attrs    = { "a_position", "a_texcoord" },
+    .s_uniforms = { "u_planes", NULL, "u_resolution" },
+};
+
+static const char * fsh_YpCbCrSemiPlanar_APPLE = SL(
+        varying vec2 v_texcoord;
+        uniform sampler2DRect u_planes[2];
+        uniform mat4 u_matrix;
+        uniform vec2 u_resolution;
+        void main(void)
+        {
+            vec3 yuv;
+            vec2 coord = v_texcoord * u_resolution;
+            yuv.x = texture2DRect(u_planes[0], coord).r;
+            yuv.y = texture2DRect(u_planes[1], coord * 0.5).r - 0.5;
+            yuv.z = texture2DRect(u_planes[1], coord * 0.5).g - 0.5;
+            gl_FragColor = vec4(yuv, 1.0) * u_matrix;
+        }
+    );
+
+static const OpenGLConfig YpCbCrSemiPlanar_APPLE = {
+    .s_vsh      = vsh,
+    .s_fsh      = fsh_YpCbCrSemiPlanar_APPLE,
+    .e_target   = GL_TEXTURE_RECTANGLE_ARB,
+    .n_textures = 2,
+    .a_format   = {
+        {GL_RED, GL_RED, GL_UNSIGNED_BYTE},
+        {GL_RG, GL_RG, GL_UNSIGNED_BYTE},
+    },
+    .s_attrs    = { "a_position", "a_texcoord" },
+    .s_uniforms = { "u_planes", "u_matrix", "u_resolution" },
+    .u_matrix   = MAT_JFIF,
+};
+#endif
 
 static const OpenGLConfig * getOpenGLConfig(const ePixelFormat& pixel) {
     struct {
@@ -755,10 +731,11 @@ static const OpenGLConfig * getOpenGLConfig(const ePixelFormat& pixel) {
         const OpenGLConfig *    config;
     } kMap[] = {
         { kPixelFormat420YpCbCrSemiPlanar,  &YpCbCrSemiPlanar   },
-        { kPixelFormat420YpCrCbSemiPlanar,  &YpCbCrSemiPlanar   },
+        { kPixelFormat420YpCrCbSemiPlanar,  &YpCrCbSemiPlanar   },
         { kPixelFormat420YpCbCrPlanar,      &YpCbCrPlanar       },
         { kPixelFormat422YpCbCrPlanar,      &YpCbCrPlanar       },
         { kPixelFormat444YpCbCrPlanar,      &YpCbCrPlanar       },
+        { kPixelFormat422YpCbCrPlanar,      NULL                },  // not available now
         { kPixelFormat444YpCbCr,            &YpCbCr             },
         { kPixelFormatRGB565,               &RGB565             },
         { kPixelFormatBGR565,               &BGR565             },
@@ -768,10 +745,14 @@ static const OpenGLConfig * getOpenGLConfig(const ePixelFormat& pixel) {
         { kPixelFormatBGRA,                 &BGRA               },
         { kPixelFormatRGBA,                 &RGBA               },
         { kPixelFormatABGR,                 &ABGR               },
+#ifdef __APPLE__
+        { kPixelFormatVideoToolbox,     &YpCbCrSemiPlanar_APPLE },
+#endif
+        { kPixelFormatUnknown,              NULL                }
     };
-#define NELEM(x)    (sizeof(x) / sizeof(x[0]))
     
-    for (size_t i = 0; i < NELEM(kMap); ++i) {
+    for (size_t i = 0; ; ++i) {
+        if (kMap[i].pixel == kPixelFormatUnknown) break;
         if (kMap[i].pixel == pixel) {
             return  kMap[i].config;
         }
@@ -784,58 +765,31 @@ struct GLVideo : public MediaOut {
     ImageFormat         mFormat;
     sp<OpenGLContext>   mGLContext;
     void (*drawFunc)(const sp<OpenGLContext>&, const sp<MediaFrame>&);
-#ifdef TEST_COLOR
-    sp<ColorConvertor>  mConvertor;
-#endif
-    bool                mAllowAltFormat;
-    bool                mUsingAltFormat;
-
-    GLVideo() : MediaOut(), mGLContext(NULL), mAllowAltFormat(false), mUsingAltFormat(false) { }
-
-    virtual ~GLVideo() { }
     
-    void _init(const ImageFormat& format) {
-        const PixelDescriptor * desc = GetPixelFormatDescriptor(format.format);
-        
+    GLVideo() : MediaOut(), mGLContext(NULL) { }
+    
+    MediaError init() {
+        mGLContext.clear();
         drawFunc = drawFrame;
-
-        const OpenGLConfig * config = getOpenGLConfig(format.format);
-        if (config) {
-            mGLContext = initOpenGLContext(config);
-        } else if (format.format == kPixelFormatVideoToolbox) {
+        
 #ifdef __APPLE__
-            // client have to prepare gl context for current thread
-            CHECK_NULL(CGLGetCurrentContext());
-            // kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
-            // TODO: defer init OpenGL, get real pixel format from data
-            mGLContext = initOpenGLContextRect(&NV12_RECT, format.width, format.height);
-            drawFunc = drawVideoToolboxFrame;
+        CHECK_NULL(CGLGetCurrentContext());
 #endif
+        
+        const OpenGLConfig * config = getOpenGLConfig(mFormat.format);
+        if (config == NULL) {
+            return kMediaErrorNotSupported;
         }
         
-        if (!mGLContext.isNIL()) {
-            mGLContext->desc = desc;
+#ifdef __APPLE__
+        if (mFormat.format == kPixelFormatVideoToolbox) {
+            drawFunc    = drawVideoToolboxFrame;
         }
+#endif
+        mGLContext = initOpenGLContext(mFormat, config);
+        return mGLContext.isNIL() ? kMediaErrorUnknown : kMediaNoError;
     }
     
-    MediaError init(const ImageFormat& format) {
-        _init(format);
-        
-#if 0
-        if (mGLContext == NULL && mAllowAltFormat) {
-            ImageFormat alt = format;
-            alt.format = GetPixelFormatPlanar(format.format);
-            if (alt.format != format.format) {
-                _init(alt);
-            }
-            
-            mUsingAltFormat = mGLContext != NULL;
-        }
-#endif
-        
-        return mGLContext != NULL ? kMediaNoError : kMediaErrorNotSupported;
-    }
-
     virtual MediaError prepare(const sp<Message>& format, const sp<Message>& options) {
         CHECK_TRUE(format != NULL);
         INFO("gl video => %s", format->string().c_str());
@@ -850,15 +804,8 @@ struct GLVideo : public MediaOut {
         mFormat.format      = pixel;
         mFormat.width       = width;
         mFormat.height      = height;
-#ifdef TEST_COLOR
-        mFormat.format      = TEST_COLOR;
-        mConvertor          = new ColorConvertor(TEST_COLOR);
-#endif
-        if (options != NULL) {
-            mAllowAltFormat = options->findInt32(kKeyAllowAltFormat);
-        }
 
-        return init(mFormat);
+        return init();
     }
 
     virtual String string() const {
@@ -887,30 +834,17 @@ struct GLVideo : public MediaOut {
             return kMediaNoError;
         }
         
-        INFO("write : %s", GetImageFrameString(input).c_str());
+        DEBUG("write : %s", GetImageFrameString(input).c_str());
         if (input->v != mFormat) {
             INFO("frame format changed, re-init opengl context");
-            MediaError st = init(input->v);
-            if (st != kMediaNoError) {
-                return st;
+            mFormat = input->v;
+            if (init() != kMediaNoError) {
+                return kMediaErrorUnknown;
             }
             mFormat = input->v;
         }
-
-        sp<MediaFrame> frame = input;
-#ifdef TEST_COLOR
-        if (input->v.format != TEST_COLOR) {
-            frame = mConvertor->convert(input);
-        }
-#endif
         
-        if (mUsingAltFormat) {
-            if (frame->planarization() != kMediaNoError) {
-                ERROR("alt format @ planarization failed");
-            }
-        }
-
-        drawFunc(mGLContext, frame);
+        drawFunc(mGLContext, input);
 
         return kMediaNoError;
     }
