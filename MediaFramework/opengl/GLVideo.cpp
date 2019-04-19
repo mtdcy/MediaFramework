@@ -104,8 +104,6 @@ struct TextureFormat {
     const GLint     internalformat;
     const GLenum    format;
     const GLenum    type;
-    const GLsizei   width;  // bpp of width
-    const GLsizei   height; // bpp of height
 };
 
 struct OpenGLConfig {
@@ -122,6 +120,8 @@ struct OpenGLConfig {
 struct OpenGLContext : public SharedObject {
     // gl context
     const OpenGLConfig *    config;
+    const PixelDescriptor * desc;
+    
     GLuint                  objs[OBJ_MAX];
     GLint                   attrs[ATTR_MAX];
     GLint                   uniforms[UNIFORM_MAX];
@@ -346,8 +346,8 @@ static void drawFrame(const sp<OpenGLContext>& glc, const sp<MediaFrame>& frame)
 
         glTexImage2D(glc->config->e_target, 0,
                 glc->config->a_format[i].internalformat,
-                (GLsizei)(frame->v.width * glc->config->a_format[i].width) / 8,
-                (GLsizei)(frame->v.height * glc->config->a_format[i].height) / 8,
+                (GLsizei)(frame->v.width / glc->desc->plane[i].hss),
+                (GLsizei)(frame->v.height / glc->desc->plane[i].vss),
                 0,
                 glc->config->a_format[i].format,
                 glc->config->a_format[i].type,
@@ -398,8 +398,8 @@ static void drawVideoToolboxFrame(const sp<OpenGLContext>& glc, const sp<MediaFr
         CGLError err = CGLTexImageIOSurface2D(CGLGetCurrentContext(),
                 glc->config->e_target,
                 glc->config->a_format[i].internalformat,
-                (GLsizei)(w * glc->config->a_format[i].width) / 8,
-                (GLsizei)(h * glc->config->a_format[i].height) / 8,
+                (GLsizei)(w * glc->desc->plane[i].hss),
+                (GLsizei)(h * glc->desc->plane[i].vss),
                 glc->config->a_format[i].format,
                 glc->config->a_format[i].type,
                 iosurface, i);
@@ -459,20 +459,6 @@ static const char * fsh_nv12 = SL(
             yuv.x = texture2D(u_planes[0], v_texcoord).r;
             yuv.y = texture2D(u_planes[1], v_texcoord).r - 0.5;
             yuv.z = texture2D(u_planes[1], v_texcoord).a - 0.5;
-            gl_FragColor = vec4(yuv, 1.0) * u_TransformMatrix;
-        }
-    );
-
-static const char * fsh_nv21 = SL(
-        varying vec2 v_texcoord;
-        uniform sampler2D u_planes[2];
-        uniform mat4 u_TransformMatrix;
-        void main(void)
-        {
-            vec3 yuv;
-            yuv.x = texture2D(u_planes[0], v_texcoord).r;
-            yuv.y = texture2D(u_planes[1], v_texcoord).a - 0.5;
-            yuv.z = texture2D(u_planes[1], v_texcoord).r - 0.5;
             gl_FragColor = vec4(yuv, 1.0) * u_TransformMatrix;
         }
     );
@@ -556,86 +542,56 @@ static const GLfloat MAT_JFIF[16] = {
     0,      0,          0,          1.0     // a
 };
 
-static const OpenGLConfig YUV420p = {   // 12 bpp
+static const OpenGLConfig YpCbCrPlanar = {  // tri-planar
     .s_vsh      = vsh_yuv,
     .s_fsh      = fsh_yuv,
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 3,
     .a_format   = {
-        {GL_RED, GL_RED, GL_UNSIGNED_BYTE, 8, 8},
-        {GL_RED, GL_RED, GL_UNSIGNED_BYTE, 4, 4},
-        {GL_RED, GL_RED, GL_UNSIGNED_BYTE, 4, 4},
+        {GL_RED, GL_RED, GL_UNSIGNED_BYTE},
+        {GL_RED, GL_RED, GL_UNSIGNED_BYTE},
+        {GL_RED, GL_RED, GL_UNSIGNED_BYTE},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
     .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
     .u_matrix   = MAT_JFIF,
 };
 
-static const OpenGLConfig YUV422p = {   // 16 bpp
-    .s_vsh      = vsh_yuv,
-    .s_fsh      = fsh_yuv,
-    .e_target   = GL_TEXTURE_2D,
-    .n_textures = 3,
-    .a_format   = {
-        {GL_RED, GL_RED, GL_UNSIGNED_BYTE, 8, 8},
-        {GL_RED, GL_RED, GL_UNSIGNED_BYTE, 8, 4},
-        {GL_RED, GL_RED, GL_UNSIGNED_BYTE, 8, 4},
-    },
-    .s_attrs    = { "a_position", "a_texcoord" },
-    .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
-    .u_matrix   = MAT_JFIF,
-};
-
-static const OpenGLConfig YUV444p = {   // 24 bpp
-    .s_vsh      = vsh_yuv,
-    .s_fsh      = fsh_yuv,
-    .e_target   = GL_TEXTURE_2D,
-    .n_textures = 3,
-    .a_format   = {
-        {GL_LUMINANCE, GL_LUMINANCE, GL_UNSIGNED_BYTE, 8, 8},
-        {GL_LUMINANCE, GL_LUMINANCE, GL_UNSIGNED_BYTE, 8, 8},
-        {GL_LUMINANCE, GL_LUMINANCE, GL_UNSIGNED_BYTE, 8, 8},
-    },
-    .s_attrs    = { "a_position", "a_texcoord" },
-    .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
-    .u_matrix   = MAT_JFIF,
-};
-
-static const OpenGLConfig YUV444 = {   // 24 bpp
-    .s_vsh      = vsh_yuv,
-    .s_fsh      = fsh_yuv_packed,
-    .e_target   = GL_TEXTURE_2D,
-    .n_textures = 1,
-    .a_format   = {
-        {GL_RGB, GL_RGB, GL_UNSIGNED_BYTE, 8, 8},
-    },
-    .s_attrs    = { "a_position", "a_texcoord" },
-    .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
-    .u_matrix   = MAT_JFIF,
-};
-
-static const OpenGLConfig NV12 = {
+static const OpenGLConfig YpCbCrSemiPlanar = {  // bi-planar
     .s_vsh      = vsh_yuv,
     .s_fsh      = fsh_nv12,
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 2,
     .a_format   = {
-        {GL_LUMINANCE, GL_LUMINANCE, GL_UNSIGNED_BYTE, 8, 8},
-        {GL_LUMINANCE_ALPHA, GL_LUMINANCE_ALPHA, GL_UNSIGNED_BYTE, 4, 4},
+        {GL_LUMINANCE, GL_LUMINANCE, GL_UNSIGNED_BYTE},
+        {GL_LUMINANCE_ALPHA, GL_LUMINANCE_ALPHA, GL_UNSIGNED_BYTE},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
     .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
     .u_matrix   = MAT_JFIF,
 };
 
-static const OpenGLConfig NV21 = {
+static const OpenGLConfig YpCrCbSemiPlanar = {  // TODO: implement uv swap
     .s_vsh      = vsh_yuv,
-    .s_fsh      = fsh_nv21,
+    .s_fsh      = fsh_nv12,
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 2,
     .a_format   = {
-        {GL_LUMINANCE, GL_LUMINANCE, GL_UNSIGNED_BYTE, 8, 8},
-        {GL_LUMINANCE_ALPHA, GL_LUMINANCE_ALPHA, GL_UNSIGNED_BYTE, 4, 4},
+        {GL_LUMINANCE, GL_LUMINANCE, GL_UNSIGNED_BYTE},
+        {GL_LUMINANCE_ALPHA, GL_LUMINANCE_ALPHA, GL_UNSIGNED_SHORT},
+    },
+    .s_attrs    = { "a_position", "a_texcoord" },
+    .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
+    .u_matrix   = MAT_JFIF,
+};
+
+static const OpenGLConfig YpCbCr = {        // packed
+    .s_vsh      = vsh_yuv,
+    .s_fsh      = fsh_yuv_packed,
+    .e_target   = GL_TEXTURE_2D,
+    .n_textures = 1,
+    .a_format   = {
+        {GL_RGB, GL_RGB, GL_UNSIGNED_BYTE},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
     .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
@@ -648,12 +604,12 @@ static const OpenGLConfig NV12_RECT = {
     .e_target   = GL_TEXTURE_RECTANGLE_ARB,
     .n_textures = 2,
     .a_format   = {
-        {GL_LUMINANCE, GL_LUMINANCE, GL_UNSIGNED_BYTE, 8, 8},
-        {GL_LUMINANCE_ALPHA, GL_LUMINANCE_ALPHA, GL_UNSIGNED_BYTE, 4, 4},
+        {GL_LUMINANCE, GL_LUMINANCE, GL_UNSIGNED_BYTE},
+        {GL_LUMINANCE_ALPHA, GL_LUMINANCE_ALPHA, GL_UNSIGNED_BYTE},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
     .s_uniforms = { "u_planes", "u_TransformMatrix", "u_resolution" },
-    .u_matrix   = MAT_ITU_R_BT601,
+    .u_matrix   = MAT_JFIF,
 };
 
 #ifdef __APPLE__
@@ -667,11 +623,11 @@ static const OpenGLConfig YUV422_APPLE = {
     .e_target   = GL_TEXTURE_RECTANGLE_ARB,
     .n_textures = 1,
     .a_format   = {
-        {GL_RGB, GL_YCBCR_422_APPLE, GL_UNSIGNED_SHORT_8_8_APPLE, 8, 8},
+        {GL_RGB, GL_YCBCR_422_APPLE, GL_UNSIGNED_SHORT_8_8_APPLE},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
     .s_uniforms = { "u_planes", NULL, "u_resolution" },
-    .u_matrix   = MAT_ITU_R_BT601,
+    .u_matrix   = MAT_JFIF,
 };
 #endif
 
@@ -681,7 +637,7 @@ static const OpenGLConfig RGB565 = {
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 1,
     .a_format   = {
-        {GL_RGB, GL_RGB, GL_UNSIGNED_SHORT_5_6_5_REV, 8, 8},
+        {GL_RGB, GL_RGB, GL_UNSIGNED_SHORT_5_6_5_REV},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
     .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
@@ -694,7 +650,7 @@ static const OpenGLConfig BGR565 = {
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 1,
     .a_format   = {
-        {GL_RGB, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, 8, 8},
+        {GL_RGB, GL_RGB, GL_UNSIGNED_SHORT_5_6_5},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
     .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
@@ -707,7 +663,7 @@ static const OpenGLConfig RGB = {
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 1,
     .a_format   = {
-        {GL_RGB, GL_RGB, GL_UNSIGNED_BYTE, 8, 8},
+        {GL_RGB, GL_RGB, GL_UNSIGNED_BYTE},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
     .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
@@ -727,7 +683,7 @@ static const OpenGLConfig BGR = {
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 1,
     .a_format   = {
-        {GL_RGB, GL_RGB, GL_UNSIGNED_BYTE, 8, 8},
+        {GL_RGB, GL_RGB, GL_UNSIGNED_BYTE},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
     .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
@@ -740,7 +696,7 @@ static const OpenGLConfig RGBA = {
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 1,
     .a_format   = {
-        {GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, 8, 8},
+        {GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
     .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
@@ -753,7 +709,7 @@ static const OpenGLConfig ABGR = {  // RGBA in word-order
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 1,
     .a_format   = {
-        {GL_RGBA, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, 8, 8},
+        {GL_RGBA, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
     .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
@@ -773,7 +729,7 @@ static const OpenGLConfig ARGB = {
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 1,
     .a_format   = {
-        {GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, 8, 8},
+        {GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE},
     },
     .s_attrs    = { "a_position", "a_texcoord" },
     .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
@@ -786,7 +742,7 @@ static const OpenGLConfig BGRA = {  // ARGB in word-order
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 1,
     .a_format   = {
-        {GL_RGBA, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, 8, 8},  // -> argb [byte-order]
+        {GL_RGBA, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8},  // -> argb [byte-order]
     },
     .s_attrs    = { "a_position", "a_texcoord" },
     .s_uniforms = { "u_planes", "u_TransformMatrix", NULL },
@@ -794,26 +750,24 @@ static const OpenGLConfig BGRA = {  // ARGB in word-order
 };
 
 static const OpenGLConfig * getOpenGLConfig(const ePixelFormat& pixel) {
-    const PixelDescriptor * desc = GetPixelFormatDescriptor(pixel);
-    
     struct {
         ePixelFormat            pixel;
         const OpenGLConfig *    config;
     } kMap[] = {
-        { kPixelFormat420YpCbCrSemiPlanar,  &NV12       },
-        { kPixelFormat420YpCrCbSemiPlanar,  &NV21       },
-        { kPixelFormat420YpCbCrPlanar,      &YUV420p    },
-        { kPixelFormat422YpCbCrPlanar,      &YUV422p    },
-        { kPixelFormat444YpCbCrPlanar,      &YUV444p    },
-        { kPixelFormat444YpCbCr,            &YUV444     },
-        { kPixelFormatRGB565,               &RGB565     },
-        { kPixelFormatBGR565,               &BGR565     },
-        { kPixelFormatRGB,                  &RGB        },
-        { kPixelFormatBGR,                  &BGR        },
-        { kPixelFormatARGB,                 &ARGB       },
-        { kPixelFormatBGRA,                 &BGRA       },
-        { kPixelFormatRGBA,                 &RGBA       },
-        { kPixelFormatABGR,                 &ABGR       },
+        { kPixelFormat420YpCbCrSemiPlanar,  &YpCbCrSemiPlanar   },
+        { kPixelFormat420YpCrCbSemiPlanar,  &YpCbCrSemiPlanar   },
+        { kPixelFormat420YpCbCrPlanar,      &YpCbCrPlanar       },
+        { kPixelFormat422YpCbCrPlanar,      &YpCbCrPlanar       },
+        { kPixelFormat444YpCbCrPlanar,      &YpCbCrPlanar       },
+        { kPixelFormat444YpCbCr,            &YpCbCr             },
+        { kPixelFormatRGB565,               &RGB565             },
+        { kPixelFormatBGR565,               &BGR565             },
+        { kPixelFormatRGB,                  &RGB                },
+        { kPixelFormatBGR,                  &BGR                },
+        { kPixelFormatARGB,                 &ARGB               },
+        { kPixelFormatBGRA,                 &BGRA               },
+        { kPixelFormatRGBA,                 &RGBA               },
+        { kPixelFormatABGR,                 &ABGR               },
     };
 #define NELEM(x)    (sizeof(x) / sizeof(x[0]))
     
@@ -822,7 +776,6 @@ static const OpenGLConfig * getOpenGLConfig(const ePixelFormat& pixel) {
             return  kMap[i].config;
         }
     }
-    ERROR("no open gl config for pixel %s", desc ? desc->name : "????");
     return NULL;
 }
 
@@ -842,6 +795,8 @@ struct GLVideo : public MediaOut {
     virtual ~GLVideo() { }
     
     void _init(const ImageFormat& format) {
+        const PixelDescriptor * desc = GetPixelFormatDescriptor(format.format);
+        
         drawFunc = drawFrame;
 
         const OpenGLConfig * config = getOpenGLConfig(format.format);
@@ -856,6 +811,10 @@ struct GLVideo : public MediaOut {
             mGLContext = initOpenGLContextRect(&NV12_RECT, format.width, format.height);
             drawFunc = drawVideoToolboxFrame;
 #endif
+        }
+        
+        if (!mGLContext.isNIL()) {
+            mGLContext->desc = desc;
         }
     }
     
