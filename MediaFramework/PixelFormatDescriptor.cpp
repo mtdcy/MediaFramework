@@ -46,8 +46,8 @@ static PixelDescriptor pixel420YpCbCrPlanar = {
     .planes         = 3,
     .plane          = {
         {   8,      1,      1 },
-        {   2,      2,      2 },
-        {   2,      2,      2 },
+        {   2,      2,      2 },    // subsampling horizontal & vertical
+        {   2,      2,      2 },    // subsampling horizontal & vertical
     }
 };
 
@@ -59,8 +59,8 @@ static PixelDescriptor pixel422YpCbCrPlanar = {
     .planes         = 3,
     .plane          = {
         {   8,      1,      1 },
-        {   4,      2,      1 },
-        {   4,      2,      1 },
+        {   4,      2,      1 },    // only subsampling horizontal
+        {   4,      2,      1 },    // only subsampling horizontal
     }
 };
 
@@ -85,7 +85,7 @@ static PixelDescriptor pixel420YpCbCrSemiPlanar = {
     .planes         = 2,
     .plane          = {
         {   8,      1,      1 },
-        {   4,      1,      2 },    // u & v
+        {   4,      2,      2 },    // u & v
     }
 };
 
@@ -97,7 +97,7 @@ static PixelDescriptor pixel420YpCrCbSemiPlanar = {
     .planes         = 2,
     .plane          = {
         {   8,      1,      1 },
-        {   4,      1,      2 },    // v & u
+        {   4,      2,      2 },    // v & u
     }
 };
 
