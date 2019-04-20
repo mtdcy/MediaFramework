@@ -118,7 +118,7 @@ struct API_EXPORT MediaFrame : public SharedObject {
      * @return target pixel is rgba by default, but no guarentee.
      */
     enum eConversion { kBT601, kBT709, kJFIF };
-    virtual MediaError yuv2rgb(const ePixelFormat& = kPixelFormatRGBA, const eConversion& = kBT601);
+    virtual MediaError yuv2rgb(const ePixelFormat& = kPixelFormatRGB32, const eConversion& = kBT601);
     
     /**
      * rotate image

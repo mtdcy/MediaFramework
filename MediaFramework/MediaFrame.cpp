@@ -214,17 +214,18 @@ MediaError MediaFrame::reversePixel() {
     return kMediaErrorNotSupported;
 }
 
-static struct {
-    ePixelFormat    packed;
-    ePixelFormat    planar;
-} kMap[] = {
-    { kPixelFormat422YpCbCr,        kPixelFormat422YpCbCrPlanar     },
-    { kPixelFormat422YpCrCb,        kPixelFormat422YpCrCbPlanar     },
-    { kPixelFormat444YpCbCr,        kPixelFormat444YpCbCrPlanar     },
-    // END OF LIST
-    { kPixelFormatUnknown }
-};
 static ePixelFormat GetPlanar(ePixelFormat packed) {
+    static struct {
+        ePixelFormat    packed;
+        ePixelFormat    planar;
+    } kMap[] = {
+        { kPixelFormat422YpCbCr,        kPixelFormat422YpCbCrPlanar     },
+        { kPixelFormat422YpCrCb,        kPixelFormat422YpCrCbPlanar     },
+        { kPixelFormat444YpCbCr,        kPixelFormat444YpCbCrPlanar     },
+        // END OF LIST
+        { kPixelFormatUnknown }
+    };
+    
     for (size_t i = 0; kMap[i].packed != kPixelFormatUnknown; ++i) {
         if (kMap[i].packed == packed) return kMap[i].planar;
     }
@@ -308,26 +309,96 @@ typedef int (*Packed2Packed_t)(const uint8_t *src, int src_stride,
                             uint8_t *dst, int dst_stride,
                             int width, int height);
 
-static Planar2Packed_t get321(ePixelFormat pixel, ePixelFormat target) {
-    if (target == kPixelFormatRGBA) {
-        if (pixel == kPixelFormat420YpCbCrPlanar)       return libyuv::I420ToABGR;
-        else if (pixel == kPixelFormat422YpCbCrPlanar)  return libyuv::I422ToABGR;
-        else                                            return libyuv::I444ToABGR;
+static Planar2Packed_t get321(ePixelFormat source, ePixelFormat target) {
+    static struct {
+        ePixelFormat    source;
+        ePixelFormat    target;
+        Planar2Packed_t hnd;
+    } kMap[] = {
+        // YpCbCrPlanar -> RGBA
+        { kPixelFormat420YpCbCrPlanar,      kPixelFormatRGBA,       libyuv::I420ToABGR  },
+        { kPixelFormat422YpCbCrPlanar,      kPixelFormatRGBA,       libyuv::I422ToABGR  },
+        { kPixelFormat444YpCbCrPlanar,      kPixelFormatRGBA,       libyuv::I444ToABGR  },
+        // YpCbCrPlanar -> ABGR (RGBA in word-order)
+        { kPixelFormat420YpCbCrPlanar,      kPixelFormatABGR,       libyuv::I420ToRGBA  },
+        { kPixelFormat422YpCbCrPlanar,      kPixelFormatABGR,       libyuv::I422ToRGBA  },
+        { kPixelFormat444YpCbCrPlanar,      kPixelFormatABGR,       NULL                },
+        // YpCbCrPlanar -> ARGB
+        { kPixelFormat420YpCbCrPlanar,      kPixelFormatARGB,       libyuv::I420ToBGRA  },
+        { kPixelFormat422YpCbCrPlanar,      kPixelFormatARGB,       libyuv::I422ToBGRA  },
+        { kPixelFormat444YpCbCrPlanar,      kPixelFormatARGB,       NULL                },
+        // YpCbCrPlanar -> BGRA (ARGB in word-order)
+        { kPixelFormat420YpCbCrPlanar,      kPixelFormatBGRA,       libyuv::I420ToARGB  },
+        { kPixelFormat422YpCbCrPlanar,      kPixelFormatBGRA,       libyuv::I422ToARGB  },
+        { kPixelFormat444YpCbCrPlanar,      kPixelFormatBGRA,       libyuv::I444ToARGB  },
+        // YpCbCrPlanar -> BGR (RGB in word-order)
+        { kPixelFormat420YpCbCrPlanar,      kPixelFormatBGR,        libyuv::I420ToRGB24 },
+        { kPixelFormat422YpCbCrPlanar,      kPixelFormatBGR,        NULL                },
+        { kPixelFormat444YpCbCrPlanar,      kPixelFormatBGR,        NULL                },
+        // YpCbCrPlanar -> BGR565 (RGB in word-order)
+        { kPixelFormat420YpCbCrPlanar,      kPixelFormatBGR565,     libyuv::I420ToRGB565},
+        { kPixelFormat422YpCbCrPlanar,      kPixelFormatBGR565,     libyuv::I422ToRGB565},
+        { kPixelFormat444YpCbCrPlanar,      kPixelFormatBGR565,     NULL                },
+        // END OF LIST
+        { kPixelFormatUnknown }
+    };
+    
+    for (size_t i = 0; kMap[i].source != kPixelFormatUnknown; ++i) {
+        if (kMap[i].source == source && kMap[i].target == target) {
+            return kMap[i].hnd;
+        }
+    }
+    
+    return NULL;
+}
+
+static SemiPlanar2Packed_t get221(ePixelFormat source, ePixelFormat target) {
+    static struct {
+        ePixelFormat        source;
+        ePixelFormat        target;
+        SemiPlanar2Packed_t hnd;
+    } kMap[] = {
+        // YpCbCrPlanar -> BGRA (ARGB in word-order)
+        { kPixelFormat420YpCbCrSemiPlanar,  kPixelFormatBGRA,   libyuv::NV12ToARGB  },
+        { kPixelFormat420YpCrCbSemiPlanar,  kPixelFormatBGRA,   libyuv::NV12ToARGB  },
+        // YpCbCrPlanar -> ARGB (BGRA in word-order)
+        { kPixelFormat420YpCbCrSemiPlanar,  kPixelFormatARGB,   NULL                },
+        { kPixelFormat420YpCrCbSemiPlanar,  kPixelFormatARGB,   NULL                },
+        // YpCbCrPlanar -> RGBA (ABGR in word-order)
+        { kPixelFormat420YpCbCrSemiPlanar,  kPixelFormatRGBA,   libyuv::NV12ToABGR  },
+        { kPixelFormat420YpCrCbSemiPlanar,  kPixelFormatRGBA,   libyuv::NV12ToABGR  },
+        // YpCbCrPlanar -> ARGB (BGRA in word-order)
+        { kPixelFormat420YpCbCrSemiPlanar,  kPixelFormatARGB,   NULL                },
+        { kPixelFormat420YpCrCbSemiPlanar,  kPixelFormatARGB,   NULL                },
+        // END OF LIST
+        { kPixelFormatUnknown }
+    };
+    
+    for (size_t i = 0; kMap[i].source != kPixelFormatUnknown; ++i) {
+        if (kMap[i].source == source && kMap[i].target == target) {
+            return kMap[i].hnd;
+        }
     }
     return NULL;
 }
 
-static SemiPlanar2Packed_t get221(ePixelFormat pixel, ePixelFormat target) {
-    if (target == kPixelFormatRGBA) {
-        if (pixel == kPixelFormat420YpCbCrSemiPlanar)   return libyuv::NV12ToABGR;
-        else                                            return libyuv::NV21ToABGR;
-    }
-    return NULL;
-}
-
-static Packed2Packed_t get121(ePixelFormat pixel, ePixelFormat target) {
-    if (target == kPixelFormatRGBA) {
-        // no YpCbCr -> RGBA in libyuv
+static Packed2Packed_t get121(ePixelFormat source, ePixelFormat target) {
+    static struct {
+        ePixelFormat        source;
+        ePixelFormat        target;
+        Packed2Packed_t     hnd;
+    } kMap[] = {
+        // YpCbCrPlanar -> BGRA (ARGB in word-order)
+        { kPixelFormat422YpCbCr,            kPixelFormatBGRA,   libyuv::YUY2ToARGB  },
+        { kPixelFormat422YpCrCb,            kPixelFormatBGRA,   libyuv::UYVYToARGB  },
+        // END OF LIST
+        { kPixelFormatUnknown }
+    };
+    
+    for (size_t i = 0; kMap[i].source != kPixelFormatUnknown; ++i) {
+        if (kMap[i].source == source && kMap[i].target == target) {
+            return kMap[i].hnd;
+        }
     }
     return NULL;
 }

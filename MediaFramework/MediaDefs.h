@@ -167,10 +167,9 @@ typedef enum ePixelFormat {
     kPixelFormatVideoToolbox = 0x300,       ///< hardware frame from video toolbox
     
     /** alias section. TODO: set alias to platform preferred **/
-    kPixelFormatRGB16   = kPixelFormatRGB565,
-    KPixelFormatRGB24   = kPixelFormatRGB,
-    kPixelFormatRGB32   = kPixelFormatRGBA,
-    
+    kPixelFormatRGB16   = kPixelFormatBGR565,
+    KPixelFormatRGB24   = kPixelFormatBGR,
+    kPixelFormatRGB32   = kPixelFormatBGRA, ///< ARGB in word-order, application usally using this
 } ePixelFormat;
 
 typedef enum eColorSpace {
