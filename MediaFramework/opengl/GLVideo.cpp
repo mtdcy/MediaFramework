@@ -442,8 +442,8 @@ static void drawVideoToolboxFrame(const sp<OpenGLContext>& glc, const sp<MediaFr
         CGLError err = CGLTexImageIOSurface2D(CGLGetCurrentContext(),
                 glc->config->e_target,
                 glc->config->a_format[i].internalformat,
-                (GLsizei)(w * glc->desc->plane[i].hss),
-                (GLsizei)(h * glc->desc->plane[i].vss),
+                (GLsizei)(w / glc->desc->plane[i].hss),
+                (GLsizei)(h / glc->desc->plane[i].vss),
                 glc->config->a_format[i].format,
                 glc->config->a_format[i].type,
                 iosurface, i);
@@ -869,6 +869,9 @@ struct GLVideo : public MediaOut {
     }
 
     virtual MediaError flush() {
+        glClearColor(0, 0, 0, 0);
+        glClear(GL_COLOR_BUFFER_BIT);
+        glFlush();
         return kMediaNoError;
     }
 };
