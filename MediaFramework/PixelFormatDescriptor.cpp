@@ -38,6 +38,23 @@
 
 __BEGIN_DECLS
 
+#define PLANE_VALUE_SS1x1   { .bpp = 8,  .hss = 1, .vss = 1 }
+#define PLANE_VALUE_SS2x2   { .bpp = 8,  .hss = 2, .vss = 2 }   // 2x2 subsampling, subsample both horizontal & vertical
+#define PLANE_VALUE_SS2x1   { .bpp = 8,  .hss = 2, .vss = 1 }   // 2x1 subsampling, subsample only horizontal
+#define PLANE_VALUE_SS1x2   { .bpp = 8,  .hss = 1, .vss = 2 }   // 1x2 subsampling, subsample only vertical
+
+// 2 chroma in one plane
+#define PLANE_VALUE_SS1x1_2 { .bpp = 16, .hss = 1, .vss = 1 }
+#define PLANE_VALUE_SS2x2_2 { .bpp = 16, .hss = 2, .vss = 2 }
+#define PLANE_VALUE_SS2x1_2 { .bpp = 16, .hss = 1, .vss = 2 }
+#define PLANE_VALUE_SS1x2_1 { .bpp = 16, .hss = 2, .vss = 1 }
+
+// 3 chroma in one plane
+#define PLANE_VALUE_SS1x1_3 { .bpp = 24, .hss = 1, .vss = 1 }
+
+// 4 chroma in one plane
+#define PLANE_VALUE_SS1x1_4 { .bpp = 32, .hss = 1, .vss = 1 }
+
 static PixelDescriptor pixel420YpCbCrPlanar = {
     .name           = "420p",
     .format         = kPixelFormat420YpCbCrPlanar,
@@ -45,9 +62,9 @@ static PixelDescriptor pixel420YpCbCrPlanar = {
     .bpp            = 12,
     .planes         = 3,
     .plane          = {
-        {   8,      1,      1 },
-        {   2,      2,      2 },    // subsampling horizontal & vertical
-        {   2,      2,      2 },    // subsampling horizontal & vertical
+        PLANE_VALUE_SS1x1,
+        PLANE_VALUE_SS2x2,
+        PLANE_VALUE_SS2x2,
     }
 };
 
@@ -58,9 +75,9 @@ static PixelDescriptor pixel422YpCbCrPlanar = {
     .bpp            = 16,
     .planes         = 3,
     .plane          = {
-        {   8,      1,      1 },
-        {   4,      2,      1 },    // only subsampling horizontal
-        {   4,      2,      1 },    // only subsampling horizontal
+        PLANE_VALUE_SS1x1,
+        PLANE_VALUE_SS2x1,
+        PLANE_VALUE_SS2x1,
     }
 };
 
@@ -71,9 +88,9 @@ static PixelDescriptor pixel444YpCbCrPlanar = {
     .bpp            = 24,
     .planes         = 3,
     .plane          = {
-        {   8,      1,      1 },
-        {   8,      1,      1 },
-        {   8,      1,      1 },
+        PLANE_VALUE_SS1x1,
+        PLANE_VALUE_SS1x1,
+        PLANE_VALUE_SS1x1,
     }
 };
 
@@ -84,8 +101,8 @@ static PixelDescriptor pixel420YpCbCrSemiPlanar = {
     .bpp            = 12,
     .planes         = 2,
     .plane          = {
-        {   8,      1,      1 },
-        {   4,      2,      2 },    // u & v
+        PLANE_VALUE_SS1x1,
+        PLANE_VALUE_SS2x2_2,    // u & v
     }
 };
 
@@ -96,8 +113,8 @@ static PixelDescriptor pixel420YpCrCbSemiPlanar = {
     .bpp            = 12,
     .planes         = 2,
     .plane          = {
-        {   8,      1,      1 },
-        {   4,      2,      2 },    // v & u
+        PLANE_VALUE_SS1x1,
+        PLANE_VALUE_SS2x2_2,    // v & u
     }
 };
 
@@ -108,7 +125,7 @@ static PixelDescriptor pixel422YpCbCr = {
     .bpp            = 16,
     .planes         = 1,
     .plane          = {
-        {   16,     1,      1 },
+        PLANE_VALUE_SS1x1_2,
     }
 };
 
@@ -119,7 +136,7 @@ static PixelDescriptor pixel422YpCrCb = {
     .bpp            = 16,
     .planes         = 1,
     .plane          = {
-        {   16,     1,      1 },
+        PLANE_VALUE_SS1x1_2,
     }
 };
 
@@ -130,7 +147,7 @@ static PixelDescriptor pixel444YpCbCr = {
     .bpp            = 24,
     .planes         = 1,
     .plane          = {
-        {   24,     1,      1 },
+        PLANE_VALUE_SS1x1_3,
     }
 };
 
@@ -141,7 +158,7 @@ static PixelDescriptor pixelRGB565 = {
     .bpp            = 16,
     .planes         = 1,
     .plane          = {
-        {   16,     1,      1 },
+        PLANE_VALUE_SS1x1_2,
     }
 };
 
@@ -152,7 +169,7 @@ static PixelDescriptor pixelBGR565 = {
     .bpp            = 16,
     .planes         = 1,
     .plane          = {
-        {   16,     1,      1 },
+        PLANE_VALUE_SS1x1_2,
     }
 };
 
@@ -163,7 +180,7 @@ static PixelDescriptor pixelRGB = {
     .bpp            = 24,
     .planes         = 1,
     .plane          = {
-        {   24,     1,      1 },
+        PLANE_VALUE_SS1x1_3,
     }
 };
 
@@ -174,7 +191,7 @@ static PixelDescriptor pixelBGR = {
     .bpp            = 24,
     .planes         = 1,
     .plane          = {
-        {   24,     1,      1 },
+        PLANE_VALUE_SS1x1_3,
     }
 };
 
@@ -185,7 +202,7 @@ static PixelDescriptor pixelARGB = {
     .bpp            = 32,
     .planes         = 1,
     .plane          = {
-        {   32,     1,      1 },
+        PLANE_VALUE_SS1x1_4,
     }
 };
 
@@ -196,7 +213,7 @@ static PixelDescriptor pixelBGRA = {
     .bpp            = 32,
     .planes         = 1,
     .plane          = {
-        {   32,     1,      1 },
+        PLANE_VALUE_SS1x1_4,
     }
 };
 
@@ -207,7 +224,7 @@ static PixelDescriptor pixelRGBA = {
     .bpp            = 32,
     .planes         = 1,
     .plane          = {
-        {   32,     1,      1 },
+        PLANE_VALUE_SS1x1_4,
     }
 };
 
@@ -218,7 +235,7 @@ static PixelDescriptor pixelABGR = {
     .bpp            = 32,
     .planes         = 1,
     .plane          = {
-        {   32,     1,      1 },
+        PLANE_VALUE_SS1x1_4,
     }
 };
 

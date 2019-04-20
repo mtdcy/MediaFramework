@@ -74,7 +74,8 @@ sp<MediaFrame> MediaFrame::Create(const ImageFormat& image, const sp<Buffer>& bu
     if (desc->planes > 1) {
         uint8_t * next = (uint8_t*)frame->mBuffer->data();
         for (size_t i = 0; i < desc->planes; ++i) {
-            const size_t bytes = (image.width * image.height * desc->plane[i].bpp) / 8;
+            const size_t bytes = (image.width * image.height * desc->plane[i].bpp) /
+                                 (8 * desc->plane[i].hss * desc->plane[i].vss);
             frame->planes[i].data   = next;
             frame->planes[i].size   = bytes;
             next += bytes;
@@ -265,17 +266,17 @@ MediaError MediaFrame::planarization() {
     
     const size_t plane0 = v.width * v.height;
     sp<Buffer> dest = new Buffer((plane0 * b->bpp) / 8);
-    const size_t size_y = (plane0 * b->plane[0].bpp) / 8;
+    const size_t size_y = (plane0 * b->plane[0].bpp) / (8 * b->plane[0].hss * b->plane[0].vss);
     uint8_t * dst_y     = (uint8_t *)dest->data();
-    const size_t size_u = (plane0 * b->plane[1].bpp) / 8;
+    const size_t size_u = (plane0 * b->plane[1].bpp) / (8 * b->plane[1].hss * b->plane[1].vss);
     uint8_t * dst_u     = dst_y + size_y;
-    const size_t size_v = (plane0 * b->plane[2].bpp) / 8;
+    const size_t size_v = (plane0 * b->plane[2].bpp) / (8 * b->plane[2].hss * b->plane[2].vss);
     uint8_t * dst_v     = dst_u + size_u;
     
     hnd((const uint8_t *)planes[0].data, (v.width * a->bpp) / 8,
-        dst_y, v.width / b->plane[0].hss,
-        dst_u, v.width / b->plane[1].hss,
-        dst_v, v.width / b->plane[2].hss,
+        dst_y, (v.width * b->plane[0].bpp) / (8 * b->plane[0].hss),
+        dst_u, (v.width * b->plane[1].bpp) / (8 * b->plane[1].hss),
+        dst_v, (v.width * b->plane[2].bpp) / (8 * b->plane[2].hss),
         v.width, v.height);
     
     const bool vu = v.format == kPixelFormat422YpCrCb;
@@ -309,8 +310,9 @@ typedef int (*Packed2Packed_t)(const uint8_t *src, int src_stride,
 
 static Planar2Packed_t get321(ePixelFormat pixel, ePixelFormat target) {
     if (target == kPixelFormatRGBA) {
-        if (pixel == kPixelFormat444YpCbCrPlanar)   return libyuv::I444ToABGR;
-        else                                        return libyuv::I420ToABGR;
+        if (pixel == kPixelFormat420YpCbCrPlanar)       return libyuv::I420ToABGR;
+        else if (pixel == kPixelFormat422YpCbCrPlanar)  return libyuv::I422ToABGR;
+        else                                            return libyuv::I444ToABGR;
     }
     return NULL;
 }
@@ -325,7 +327,7 @@ static SemiPlanar2Packed_t get221(ePixelFormat pixel, ePixelFormat target) {
 
 static Packed2Packed_t get121(ePixelFormat pixel, ePixelFormat target) {
     if (target == kPixelFormatRGBA) {
-        if (pixel == kPixelFormat422YpCbCr)         return libyuv::YUY2ToARGB;
+        // no YpCbCr -> RGBA in libyuv
     }
     return NULL;
 }
@@ -350,9 +352,9 @@ MediaError MediaFrame::yuv2rgb(const ePixelFormat& target, const eConversion&) {
             const size_t plane0 = v.width * v.height;
             sp<Buffer> rgb = new Buffer((plane0 * b->bpp) / 8);
             
-            hnd(planes[0].data, v.width / a->plane[0].hss,
-                planes[1].data, v.width / a->plane[1].hss,
-                planes[2].data, v.width / a->plane[2].hss,
+            hnd(planes[0].data, (v.width * a->plane[0].bpp) / (8 * a->plane[0].hss),
+                planes[1].data, (v.width * a->plane[1].bpp) / (8 * a->plane[1].hss),
+                planes[2].data, (v.width * a->plane[2].bpp) / (8 * a->plane[2].hss),
                 (uint8_t *)rgb->data(), (v.width * b->bpp) / 8,
                 v.width, v.height);
             
@@ -373,8 +375,8 @@ MediaError MediaFrame::yuv2rgb(const ePixelFormat& target, const eConversion&) {
             const size_t plane0 = v.width * v.height;
             sp<Buffer> rgb = new Buffer((plane0 * b->bpp) / 8);
             
-            hnd(planes[0].data, v.width / a->plane[0].hss,
-                planes[1].data, v.width / a->plane[1].hss,
+            hnd(planes[0].data, (v.width * a->plane[0].bpp) / (8 * a->plane[0].hss),
+                planes[1].data, (v.width * a->plane[1].bpp) / (8 * a->plane[1].hss),
                 (uint8_t *)rgb->data(), (v.width * b->bpp) / 8,
                 v.width, v.height);
             
@@ -393,7 +395,7 @@ MediaError MediaFrame::yuv2rgb(const ePixelFormat& target, const eConversion&) {
             const size_t plane0 = v.width * v.height;
             sp<Buffer> rgb = new Buffer((plane0 * b->bpp) / 8);
             
-            hnd(planes[0].data, v.width / a->plane[0].hss,
+            hnd(planes[0].data, (v.width * a->bpp) / 8,
                 (uint8_t *)rgb->data(), (v.width * b->bpp) / 8,
                 v.width, v.height);
             

@@ -183,12 +183,12 @@ typedef struct PixelDescriptor {
     const char *        name;       ///< pixel format name
     ePixelFormat        format;     ///< pixel format value
     eColorSpace         color;      ///< color space
-    size_t              bpp;        ///< pixel bpp => image size
+    size_t              bpp;        ///< avg pixel bpp => image size
     size_t              planes;     ///< number planes => image size
     struct {
-        size_t          bpp;        ///< plane bpp => plane size
-        size_t          hss;        ///< horizontal subsampling => stride width
-        size_t          vss;        ///< vertical subsampling => slice height
+        size_t          bpp;        ///< plane pixel bpp
+        size_t          hss;        ///< horizontal subsampling
+        size_t          vss;        ///< vertical subsampling
     } plane[4];
 } PixelDescriptor;
 
