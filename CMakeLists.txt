@@ -69,6 +69,7 @@ set (SOURCE_FILES
     MediaFramework/matroska/EBML.cpp
     MediaFramework/matroska/MatroskaFile.cpp
     #MediaFramework/sdl2/SDLVideo.cpp
+    MediaFramework/opengl/OpenGLObject.cpp
     MediaFramework/opengl/GLVideo.cpp
     MediaFramework/MediaFramework_c.cpp
     )
