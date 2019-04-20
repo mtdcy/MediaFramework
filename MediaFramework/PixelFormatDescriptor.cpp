@@ -254,6 +254,7 @@ const PixelDescriptor * GetPixelFormatDescriptor(ePixelFormat pixel) {
             return desc;
         }
     }
+    ERROR("missing pixel descriptor for %#x", pixel);
     return NULL;
 }
 

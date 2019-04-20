@@ -213,71 +213,82 @@ MediaError MediaFrame::reversePixel() {
     return kMediaErrorNotSupported;
 }
 
-MediaError MediaFrame::planarization() {
-    DEBUG("planarization: %s", GetImageFrameString(this).c_str());
-    if (planes[1].data) {   // is planar
-        return kMediaNoError;
+static struct {
+    ePixelFormat    packed;
+    ePixelFormat    planar;
+} kMap[] = {
+    { kPixelFormat422YpCbCr,        kPixelFormat422YpCbCrPlanar     },
+    { kPixelFormat422YpCrCb,        kPixelFormat422YpCrCbPlanar     },
+    { kPixelFormat444YpCbCr,        kPixelFormat444YpCbCrPlanar     },
+    // END OF LIST
+    { kPixelFormatUnknown }
+};
+static ePixelFormat GetPlanar(ePixelFormat packed) {
+    for (size_t i = 0; kMap[i].packed != kPixelFormatUnknown; ++i) {
+        if (kMap[i].packed == packed) return kMap[i].planar;
     }
-    
+    return packed;
+}
+
+typedef int (*Packed2Planar_t)(const uint8_t* src,
+                                int src_stride,
+                                uint8_t* dst_y,
+                                int dst_stride_y,
+                                uint8_t* dst_u,
+                                int dst_stride_u,
+                                uint8_t* dst_v,
+                                int dst_stride_v,
+                                int width,
+                                int height);
+
+MediaError MediaFrame::planarization() {
+    ePixelFormat planar = GetPlanar(v.format);
+    if (v.format == planar) return kMediaNoError;
+    const PixelDescriptor * a = GetPixelFormatDescriptor(v.format);
+    const PixelDescriptor * b = GetPixelFormatDescriptor(planar);
+    Packed2Planar_t hnd = NULL;
     switch (v.format) {
         case kPixelFormat422YpCrCb:
-        case kPixelFormat422YpCbCr: {
-            const size_t plane0 = v.width * v.height;
-            sp<Buffer> dest = new Buffer(plane0 * 2);
-            CHECK_EQ(dest->capacity(), planes[0].size);
-            
-            uint8_t * dst_y = (uint8_t *)dest->data();
-            uint8_t * dst_u = dst_y + plane0;
-            uint8_t * dst_v = dst_u + plane0 / 2;
-            libyuv::YUY2ToI422(planes[0].data, v.width * 2,
-                               dst_y, v.width,
-                               dst_u, v.width / 2,
-                               dst_v, v.width / 2,
-                               v.width, v.height);
-            
-            const bool uv   = v.format == kPixelFormat422YpCrCb;
-            planes[0].data  = dst_y;
-            planes[0].size  = plane0;
-            planes[1].data  = uv ? dst_v : dst_u;
-            planes[1].size  = plane0 / 2;
-            planes[2].data  = uv ? dst_u : dst_v;
-            planes[2].size  = plane0 / 2;
-            v.format        = kPixelFormat422YpCbCrPlanar;
-            mBuffer         = dest;
-            return kMediaNoError;
-        } break;
-        
-        case kPixelFormat444YpCbCr: {
-            const size_t plane0 = v.width * v.height;
-            sp<Buffer> dest = new Buffer(plane0 * 3);
-            CHECK_EQ(dest->capacity(), planes[0].size);
-            
-            uint8_t * dst_y = (uint8_t *)dest->data();
-            uint8_t * dst_u = dst_y + plane0;
-            uint8_t * dst_v = dst_u + plane0;
-            libyuv::SplitRGBPlane(planes[0].data, v.width * 3,
-                                  dst_y, v.width,
-                                  dst_u, v.width,
-                                  dst_v, v.width,
-                                  v.width, v.height);
-            
-            planes[0].data  = dst_y;
-            planes[0].size  = plane0;
-            planes[1].data  = dst_u;
-            planes[1].size  = plane0;
-            planes[2].data  = dst_v;
-            planes[2].size  = plane0;
-            v.format        = kPixelFormat444YpCbCrPlanar;
-            mBuffer         = dest;
-            return kMediaNoError;
-        } break;
-        
+        case kPixelFormat422YpCbCr:
+            hnd = libyuv::YUY2ToI422;
+            break;
+        case kPixelFormat444YpCbCr:
+            hnd = (Packed2Planar_t)libyuv::SplitRGBPlane;
+            break;
         default:
             break;
     }
     
-    // no implementation for rgb
-    return kMediaErrorNotSupported;
+    if (hnd == NULL) {
+        return kMediaErrorNotSupported;
+    }
+    
+    const size_t plane0 = v.width * v.height;
+    sp<Buffer> dest = new Buffer((plane0 * b->bpp) / 8);
+    const size_t size_y = (plane0 * b->plane[0].bpp) / 8;
+    uint8_t * dst_y     = (uint8_t *)dest->data();
+    const size_t size_u = (plane0 * b->plane[1].bpp) / 8;
+    uint8_t * dst_u     = dst_y + size_y;
+    const size_t size_v = (plane0 * b->plane[2].bpp) / 8;
+    uint8_t * dst_v     = dst_u + size_u;
+    
+    hnd((const uint8_t *)planes[0].data, (v.width * a->bpp) / 8,
+        dst_y, v.width / b->plane[0].hss,
+        dst_u, v.width / b->plane[1].hss,
+        dst_v, v.width / b->plane[2].hss,
+        v.width, v.height);
+    
+    const bool vu = v.format == kPixelFormat422YpCrCb;
+    planes[0].data  = dst_y;
+    planes[0].size  = size_y;
+    planes[1].data  = vu ? dst_v : dst_u;
+    planes[1].size  = vu ? size_v : size_u;
+    planes[2].data  = vu ? dst_u : dst_v;
+    planes[2].size  = vu ? size_u : size_v;
+    v.format        = b->format;
+    mBuffer         = dest;
+    
+    return kMediaNoError;
 }
 
 typedef int (*Planar2Packed_t)(const uint8_t *src_y, int src_stride_y,
@@ -323,71 +334,77 @@ MediaError MediaFrame::yuv2rgb(const ePixelFormat& target, const eConversion&) {
     DEBUG("yuv2rgb: %s", GetImageFrameString(this).c_str());
     const PixelDescriptor * a = GetPixelFormatDescriptor(v.format);
     const PixelDescriptor * b = GetPixelFormatDescriptor(target);
-    if (a->color != kColorYpCbCr || b->color == kColorRGB) {
+    if (a->color != kColorYpCbCr || b->color != kColorRGB) {
+        ERROR("invalid yuv2rgb operation: %s -> %s", a->name, b->name);
         return kMediaErrorInvalidOperation;
     }
+    CHECK_EQ(b->planes, 1);
     
-    if (a->planes == 3) {
-        // tri-planar -> rgb
-        // LIBYUV USING word-order
-        Planar2Packed_t hnd = get321(v.format, target);
-        if (hnd == NULL)    return kMediaErrorNotSupported;;
-        
-        const size_t plane0 = v.width * v.height;
-        sp<Buffer> rgb = new Buffer((plane0 * b->bpp) / 8);
-        
-        hnd(planes[0].data, (v.width * a->plane[0].bpp) / (8 * a->plane[0].hss),
-            planes[1].data, (v.width * a->plane[1].bpp) / (8 * a->plane[1].hss),
-            planes[2].data, (v.width * a->plane[2].bpp) / (8 * a->plane[2].hss),
-            (uint8_t *)rgb->data(), (v.width * b->bpp) / 8,
-            v.width, v.height);
-        
-        planes[0].data  = (uint8_t *)rgb->data();
-        planes[0].size  = rgb->capacity();
-        planes[1].data  = NULL;
-        planes[1].size  = 0;
-        planes[2].data  = NULL;
-        planes[2].size  = 0;
-        v.format        = target;
-        mBuffer         = rgb;
-        return kMediaNoError;
-    } else if (a->planes == 2) {
-        SemiPlanar2Packed_t hnd = get221(v.format, target);
-        if (hnd == NULL)    return kMediaErrorNotSupported;;
-        
-        const size_t plane0 = v.width * v.height;
-        sp<Buffer> rgb = new Buffer((plane0 * b->bpp) / 8);
-        
-        hnd(planes[0].data, (v.width * a->plane[0].bpp) / (8 * a->plane[0].hss),
-            planes[1].data, (v.width * a->plane[1].bpp) / (8 * a->plane[1].hss),
-            (uint8_t *)rgb->data(), (v.width * b->bpp) / 8,
-            v.width, v.height);
-        
-        planes[0].data  = (uint8_t *)rgb->data();
-        planes[0].size  = rgb->capacity();
-        planes[1].data  = NULL;
-        planes[1].size  = 0;
-        v.format        = target;
-        mBuffer         = rgb;
-        return kMediaNoError;
-    } else {
-        Packed2Packed_t hnd = get121(v.format, target);
-        if (hnd == NULL)    return kMediaErrorNotSupported;;
-        
-        const size_t plane0 = v.width * v.height;
-        sp<Buffer> rgb = new Buffer((plane0 * b->bpp) / 8);
-        
-        hnd(planes[0].data, (v.width * a->bpp) / 8,
-            (uint8_t *)rgb->data(), (v.width * b->bpp) / 8,
-            v.width, v.height);
-        
-        planes[0].data  = (uint8_t *)rgb->data();
-        planes[0].size  = rgb->capacity();
-        v.format        = target;
-        mBuffer         = rgb;
-        return kMediaNoError;
+    switch (a->planes) {
+        case 3: {
+            // tri-planar -> rgb
+            // LIBYUV USING word-order
+            Planar2Packed_t hnd = get321(v.format, target);
+            if (hnd == NULL) break;
+            
+            const size_t plane0 = v.width * v.height;
+            sp<Buffer> rgb = new Buffer((plane0 * b->bpp) / 8);
+            
+            hnd(planes[0].data, v.width / a->plane[0].hss,
+                planes[1].data, v.width / a->plane[1].hss,
+                planes[2].data, v.width / a->plane[2].hss,
+                (uint8_t *)rgb->data(), (v.width * b->bpp) / 8,
+                v.width, v.height);
+            
+            planes[0].data  = (uint8_t *)rgb->data();
+            planes[0].size  = rgb->capacity();
+            planes[1].data  = NULL;
+            planes[1].size  = 0;
+            planes[2].data  = NULL;
+            planes[2].size  = 0;
+            v.format        = target;
+            mBuffer         = rgb;
+        } return kMediaNoError;
+
+        case 2: {
+            SemiPlanar2Packed_t hnd = get221(v.format, target);
+            if (hnd == NULL) break;
+            
+            const size_t plane0 = v.width * v.height;
+            sp<Buffer> rgb = new Buffer((plane0 * b->bpp) / 8);
+            
+            hnd(planes[0].data, v.width / a->plane[0].hss,
+                planes[1].data, v.width / a->plane[1].hss,
+                (uint8_t *)rgb->data(), (v.width * b->bpp) / 8,
+                v.width, v.height);
+            
+            planes[0].data  = (uint8_t *)rgb->data();
+            planes[0].size  = rgb->capacity();
+            planes[1].data  = NULL;
+            planes[1].size  = 0;
+            v.format        = target;
+            mBuffer         = rgb;
+        } return kMediaNoError;
+    
+        default: {
+            Packed2Packed_t hnd = get121(v.format, target);
+            if (hnd == NULL) break;
+            
+            const size_t plane0 = v.width * v.height;
+            sp<Buffer> rgb = new Buffer((plane0 * b->bpp) / 8);
+            
+            hnd(planes[0].data, v.width / a->plane[0].hss,
+                (uint8_t *)rgb->data(), (v.width * b->bpp) / 8,
+                v.width, v.height);
+            
+            planes[0].data  = (uint8_t *)rgb->data();
+            planes[0].size  = rgb->capacity();
+            v.format        = target;
+            mBuffer         = rgb;
+        } return kMediaNoError;
     }
     
+    ERROR("yuv2rgb is not supported: %s -> %s", a->name, b->name);
     return kMediaErrorNotSupported;
 }
 
