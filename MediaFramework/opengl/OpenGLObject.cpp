@@ -103,6 +103,13 @@ static const GLfloat MAT4_Identity[16] = {
     0, 0, 0, 1
 };
 
+static const GLfloat MAT4_Rotate_180[16] = {
+    1, 0, 0, 0,
+    0, -1, 0, 0,
+    0, 0, -1, 0,
+    0, 0, 0, 1
+};
+
 static const GLfloat VERTEX_COORD[] = {
     // x    y
     -1.0,   -1.0,
@@ -132,221 +139,6 @@ struct OpenGLConfig {
     const GLsizei           n_textures;                 // n texture for n planes
     const TextureFormat     a_format[4];                // texture format for each plane
 };
-
-struct OpenGLContext : public SharedObject {
-    const OpenGLConfig *    mOpenGLConfig;
-    const PixelDescriptor * mPixelDescriptor;
-    // opengl obj
-    GLuint          mVertexShader;
-    GLuint          mFragShader;
-    GLuint          mProgram;
-    GLuint          mTextures[4];
-    // opengl attribute, only load once for 2D, should remove
-    GLint           mVertexCoord;       // vec4
-    GLint           mTextureCoord;      // vec2
-    // opengl uniform
-    GLint           mMVPMatrix;         // mat4
-    GLint           mTextureLocation;   // sampler2D array
-    GLint           mFragMatrix;        // mat4
-    GLint           mColorBias;         // vec4
-    GLint           mColorMatrix;       // mat4
-    
-    // special
-    GLint           mResolution;        // vec2: width, height
-    
-    ~OpenGLContext() {
-        glDeleteTextures(mOpenGLConfig->n_textures, mTextures);
-        glDeleteShader(mVertexShader); mVertexShader = 0;
-        glDeleteShader(mFragShader); mFragShader = 0;
-        glDeleteProgram(mProgram);
-    }
-    
-    OpenGLContext() :SharedObject(), mVertexShader(0), mFragShader(0), mProgram(0) {
-        for (size_t i = 0; i < 4; ++i) mTextures[i] = 0;
-    }
-};
-
-static GLuint initShader(GLenum type, const char *sl) {
-    CHECK_NULL(sl);
-    GLuint sh = glCreateShader(type);
-    if (sh == 0) {
-        ERROR("create shader of %d failed.", type);
-        return 0;
-    }
-    
-    glShaderSource(sh, 1, &sl, NULL);
-    glCompileShader(sh);
-    
-    GLint ok;
-    glGetShaderiv(sh, GL_COMPILE_STATUS, &ok);
-    if (!ok) {
-        GLint len;
-        glGetShaderiv(sh, GL_INFO_LOG_LENGTH, &len);
-        GLchar log[len];
-        glGetShaderInfoLog(sh, len, NULL, log);
-        ERROR("compile shader failed. %s", log);
-        glDeleteShader(sh);
-        return 0;
-    }
-    return sh;
-}
-
-static FORCE_INLINE GLuint initProgram(GLuint vsh, GLuint fsh) {
-    CHECK_NE(vsh, 0);
-    CHECK_NE(fsh, 0);
-    GLuint program = glCreateProgram();
-    if (program == 0) {
-        ERROR("create program failed.");
-        return 0;
-    }
-    
-    glAttachShader(program, vsh);
-    glAttachShader(program, fsh);
-    glLinkProgram(program);
-    CHECK_GL_ERROR();
-    
-    GLint ok;
-    glGetProgramiv(program, GL_LINK_STATUS, &ok);
-    if (!ok) {
-        GLint len;
-        glGetProgramiv(program, GL_INFO_LOG_LENGTH, &len);
-        GLchar log[len];
-        glGetProgramInfoLog(program, len, NULL, log);
-        //ERROR("program link failed. %s", log);
-        
-        glDeleteProgram(program);
-        return 0;
-    }
-    
-    return program;
-}
-
-static FORCE_INLINE size_t initTextures(size_t n, GLenum target, GLuint *textures) {
-    glGenTextures(n, textures);
-    for (size_t i = 0; i < n; ++i) {
-        glBindTexture(target, textures[i]);
-#if 0  //def __APPLE__
-        // do we need this???
-        if (target == GL_TEXTURE_RECTANGLE_ARB) {
-            glTexParameteri(target, GL_TEXTURE_STORAGE_HINT_APPLE, GL_STORAGE_CACHED_APPLE);
-        }
-#endif
-        glTexParameterf(target, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameterf(target, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(target, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(target, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        CHECK_GL_ERROR();
-        
-        glBindTexture(target, 0);
-    }
-    return n;
-}
-
-static sp<OpenGLContext> initOpenGLContext(const ImageFormat& image, const OpenGLConfig * config) {
-    sp<OpenGLContext> glc = new OpenGLContext;
-    glc->mOpenGLConfig = config;
-    glc->mPixelDescriptor = GetPixelFormatDescriptor(image.format);
-    CHECK_NULL(glc->mPixelDescriptor);
-    CHECK_NULL(glc->mOpenGLConfig);
-    
-    glc->mVertexShader = initShader(GL_VERTEX_SHADER, config->s_vsh);
-    glc->mFragShader = initShader(GL_FRAGMENT_SHADER, config->s_fsh);
-    if (glc->mVertexShader == 0 || glc->mFragShader == 0) return NULL;
-    
-    glc->mProgram = initProgram(glc->mVertexShader, glc->mFragShader);
-    if (glc->mProgram == 0) return NULL;
-    
-    glUseProgram(glc->mProgram);
-    CHECK_GL_ERROR();
-    
-    size_t n = initTextures(config->n_textures, config->e_target, glc->mTextures);
-    CHECK_EQ(n, config->n_textures);
-    
-    // attribute of vertex shader
-    glc->mVertexCoord = glGetAttribLocation(glc->mProgram, "a_position");
-    glc->mTextureCoord = glGetAttribLocation(glc->mProgram, "a_texcoord");
-    CHECK_GL_ERROR();
-    CHECK_GE(glc->mVertexCoord, 0);
-    CHECK_GE(glc->mTextureCoord, 0);
-    
-    // uniform of vertex shader
-    glc->mMVPMatrix = glGetUniformLocation(glc->mProgram, "u_mvp");
-    CHECK_GE(glc->mMVPMatrix, 0);
-    
-    // uniform of fragment shader
-    glc->mTextureLocation = glGetUniformLocation(glc->mProgram, "u_planes");
-    glc->mFragMatrix = glGetUniformLocation(glc->mProgram, "u_matrix");
-    CHECK_GE(glc->mFragMatrix, 0);
-    
-    // optional
-    glc->mColorBias  = glGetUniformLocation(glc->mProgram, "u_color_bias");
-    glc->mColorMatrix = glGetUniformLocation(glc->mProgram, "u_color_matrix");
-    glc->mResolution = glGetUniformLocation(glc->mProgram, "u_resolution");
-    
-    // setup default value
-    glVertexAttribPointer(glc->mVertexCoord, 2, GL_FLOAT, 0, 0, VERTEX_COORD);
-    glEnableVertexAttribArray(glc->mVertexCoord);
-    CHECK_GL_ERROR();
-    
-    glVertexAttribPointer(glc->mTextureCoord, 2, GL_FLOAT, 0, 0, TEXTURE_COORD);
-    glEnableVertexAttribArray(glc->mTextureCoord);
-    CHECK_GL_ERROR();
-    
-    glUniformMatrix4fv(glc->mMVPMatrix, 1, GL_FALSE, MAT4_Identity);
-    CHECK_GL_ERROR();
-    
-    glUniformMatrix4fv(glc->mFragMatrix, 1, GL_FALSE, MAT4_Identity);
-    CHECK_GL_ERROR();
-    
-    if (glc->mColorBias >= 0) {
-        glUniform4fv(glc->mColorBias, 1, VEC4_BT601_VideoRangeBias);
-        CHECK_GL_ERROR();
-    }
-    
-    if (glc->mColorMatrix >= 0) {
-        glUniformMatrix4fv(glc->mColorMatrix, 1, GL_FALSE, MAT4_BT601_VideoRange);
-        CHECK_GL_ERROR();
-    }
-    
-    if (glc->mResolution >= 0) {
-        glUniform2f(glc->mResolution, (GLfloat)image.width, (GLfloat)image.height);
-        CHECK_GL_ERROR();
-    }
-    
-    return glc;
-}
-
-static MediaError drawFrame(const sp<OpenGLContext>& glc, const sp<MediaFrame>& frame) {
-    GLint index[glc->mOpenGLConfig->n_textures];
-    for (size_t i = 0; i < glc->mOpenGLConfig->n_textures; ++i) {
-        glActiveTexture(GL_TEXTURE0 + i);
-        glBindTexture(glc->mOpenGLConfig->e_target, glc->mTextures[i]);
-        CHECK_GL_ERROR();
-        
-        glTexImage2D(glc->mOpenGLConfig->e_target, 0,
-                     glc->mOpenGLConfig->a_format[i].internalformat,
-                     (GLsizei)(frame->v.width / glc->mPixelDescriptor->plane[i].hss),
-                     (GLsizei)(frame->v.height / glc->mPixelDescriptor->plane[i].vss),
-                     0,
-                     glc->mOpenGLConfig->a_format[i].format,
-                     glc->mOpenGLConfig->a_format[i].type,
-                     (const GLvoid *)frame->planes[i].data);
-        index[i] = i;
-    }
-    
-    glUniform1iv(glc->mTextureLocation, glc->mOpenGLConfig->n_textures, index);
-    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-    CHECK_GL_ERROR();
-
-#ifdef __APPLE__
-    glSwapAPPLE();
-#else
-    glFlush();  // always assume single buffer here, let client handle swap buffers
-#endif
-    CHECK_GL_ERROR();
-    
-    return kMediaNoError;
-}
 
 static const char * vsh = SL(
         uniform mat4 u_mvp;
@@ -632,6 +424,221 @@ static const OpenGLConfig * getOpenGLConfig(const ePixelFormat& pixel) {
         }
     }
     return NULL;
+}
+
+struct OpenGLContext : public SharedObject {
+    const OpenGLConfig *    mOpenGLConfig;
+    const PixelDescriptor * mPixelDescriptor;
+    // opengl obj
+    GLuint          mVertexShader;
+    GLuint          mFragShader;
+    GLuint          mProgram;
+    GLuint          mTextures[4];
+    // opengl attribute, only load once for 2D, should remove
+    GLint           mVertexCoord;       // vec4
+    GLint           mTextureCoord;      // vec2
+    // opengl uniform
+    GLint           mMVPMatrix;         // mat4
+    GLint           mTextureLocation;   // sampler2D array
+    GLint           mFragMatrix;        // mat4
+    GLint           mColorBias;         // vec4
+    GLint           mColorMatrix;       // mat4
+    
+    // special
+    GLint           mResolution;        // vec2: width, height
+    
+    ~OpenGLContext() {
+        glDeleteTextures(mOpenGLConfig->n_textures, mTextures);
+        glDeleteShader(mVertexShader); mVertexShader = 0;
+        glDeleteShader(mFragShader); mFragShader = 0;
+        glDeleteProgram(mProgram);
+    }
+    
+    OpenGLContext() :SharedObject(), mVertexShader(0), mFragShader(0), mProgram(0) {
+        for (size_t i = 0; i < 4; ++i) mTextures[i] = 0;
+    }
+};
+
+static GLuint initShader(GLenum type, const char *sl) {
+    CHECK_NULL(sl);
+    GLuint sh = glCreateShader(type);
+    if (sh == 0) {
+        ERROR("create shader of %d failed.", type);
+        return 0;
+    }
+    
+    glShaderSource(sh, 1, &sl, NULL);
+    glCompileShader(sh);
+    
+    GLint ok;
+    glGetShaderiv(sh, GL_COMPILE_STATUS, &ok);
+    if (!ok) {
+        GLint len;
+        glGetShaderiv(sh, GL_INFO_LOG_LENGTH, &len);
+        GLchar log[len];
+        glGetShaderInfoLog(sh, len, NULL, log);
+        ERROR("compile shader failed. %s", log);
+        glDeleteShader(sh);
+        return 0;
+    }
+    return sh;
+}
+
+static FORCE_INLINE GLuint initProgram(GLuint vsh, GLuint fsh) {
+    CHECK_NE(vsh, 0);
+    CHECK_NE(fsh, 0);
+    GLuint program = glCreateProgram();
+    if (program == 0) {
+        ERROR("create program failed.");
+        return 0;
+    }
+    
+    glAttachShader(program, vsh);
+    glAttachShader(program, fsh);
+    glLinkProgram(program);
+    CHECK_GL_ERROR();
+    
+    GLint ok;
+    glGetProgramiv(program, GL_LINK_STATUS, &ok);
+    if (!ok) {
+        GLint len;
+        glGetProgramiv(program, GL_INFO_LOG_LENGTH, &len);
+        GLchar log[len];
+        glGetProgramInfoLog(program, len, NULL, log);
+        //ERROR("program link failed. %s", log);
+        
+        glDeleteProgram(program);
+        return 0;
+    }
+    
+    return program;
+}
+
+static FORCE_INLINE size_t initTextures(size_t n, GLenum target, GLuint *textures) {
+    glGenTextures(n, textures);
+    for (size_t i = 0; i < n; ++i) {
+        glBindTexture(target, textures[i]);
+#if 0  //def __APPLE__
+        // do we need this???
+        if (target == GL_TEXTURE_RECTANGLE_ARB) {
+            glTexParameteri(target, GL_TEXTURE_STORAGE_HINT_APPLE, GL_STORAGE_CACHED_APPLE);
+        }
+#endif
+        glTexParameterf(target, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameterf(target, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(target, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(target, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        CHECK_GL_ERROR();
+        
+        glBindTexture(target, 0);
+    }
+    return n;
+}
+
+static sp<OpenGLContext> initOpenGLContext(const ImageFormat& image, const OpenGLConfig * config) {
+    sp<OpenGLContext> glc = new OpenGLContext;
+    glc->mOpenGLConfig = config;
+    glc->mPixelDescriptor = GetPixelFormatDescriptor(image.format);
+    CHECK_NULL(glc->mPixelDescriptor);
+    CHECK_NULL(glc->mOpenGLConfig);
+    
+    glc->mVertexShader = initShader(GL_VERTEX_SHADER, config->s_vsh);
+    glc->mFragShader = initShader(GL_FRAGMENT_SHADER, config->s_fsh);
+    if (glc->mVertexShader == 0 || glc->mFragShader == 0) return NULL;
+    
+    glc->mProgram = initProgram(glc->mVertexShader, glc->mFragShader);
+    if (glc->mProgram == 0) return NULL;
+    
+    glUseProgram(glc->mProgram);
+    CHECK_GL_ERROR();
+    
+    size_t n = initTextures(config->n_textures, config->e_target, glc->mTextures);
+    CHECK_EQ(n, config->n_textures);
+    
+    // attribute of vertex shader
+    glc->mVertexCoord = glGetAttribLocation(glc->mProgram, "a_position");
+    glc->mTextureCoord = glGetAttribLocation(glc->mProgram, "a_texcoord");
+    CHECK_GL_ERROR();
+    CHECK_GE(glc->mVertexCoord, 0);
+    CHECK_GE(glc->mTextureCoord, 0);
+    
+    // uniform of vertex shader
+    glc->mMVPMatrix = glGetUniformLocation(glc->mProgram, "u_mvp");
+    CHECK_GE(glc->mMVPMatrix, 0);
+    
+    // uniform of fragment shader
+    glc->mTextureLocation = glGetUniformLocation(glc->mProgram, "u_planes");
+    glc->mFragMatrix = glGetUniformLocation(glc->mProgram, "u_matrix");
+    CHECK_GE(glc->mFragMatrix, 0);
+    
+    // optional
+    glc->mColorBias  = glGetUniformLocation(glc->mProgram, "u_color_bias");
+    glc->mColorMatrix = glGetUniformLocation(glc->mProgram, "u_color_matrix");
+    glc->mResolution = glGetUniformLocation(glc->mProgram, "u_resolution");
+    
+    // setup default value
+    glVertexAttribPointer(glc->mVertexCoord, 2, GL_FLOAT, 0, 0, VERTEX_COORD);
+    glEnableVertexAttribArray(glc->mVertexCoord);
+    CHECK_GL_ERROR();
+    
+    glVertexAttribPointer(glc->mTextureCoord, 2, GL_FLOAT, 0, 0, TEXTURE_COORD);
+    glEnableVertexAttribArray(glc->mTextureCoord);
+    CHECK_GL_ERROR();
+    
+    glUniformMatrix4fv(glc->mMVPMatrix, 1, GL_FALSE, MAT4_Identity);
+    CHECK_GL_ERROR();
+    
+    glUniformMatrix4fv(glc->mFragMatrix, 1, GL_FALSE, MAT4_Identity);
+    CHECK_GL_ERROR();
+    
+    if (glc->mColorBias >= 0) {
+        glUniform4fv(glc->mColorBias, 1, VEC4_BT601_VideoRangeBias);
+        CHECK_GL_ERROR();
+    }
+    
+    if (glc->mColorMatrix >= 0) {
+        glUniformMatrix4fv(glc->mColorMatrix, 1, GL_FALSE, MAT4_BT601_VideoRange);
+        CHECK_GL_ERROR();
+    }
+    
+    if (glc->mResolution >= 0) {
+        glUniform2f(glc->mResolution, (GLfloat)image.width, (GLfloat)image.height);
+        CHECK_GL_ERROR();
+    }
+    
+    return glc;
+}
+
+static MediaError drawFrame(const sp<OpenGLContext>& glc, const sp<MediaFrame>& frame) {
+    GLint index[glc->mOpenGLConfig->n_textures];
+    for (size_t i = 0; i < glc->mOpenGLConfig->n_textures; ++i) {
+        glActiveTexture(GL_TEXTURE0 + i);
+        glBindTexture(glc->mOpenGLConfig->e_target, glc->mTextures[i]);
+        CHECK_GL_ERROR();
+        
+        glTexImage2D(glc->mOpenGLConfig->e_target, 0,
+                     glc->mOpenGLConfig->a_format[i].internalformat,
+                     (GLsizei)(frame->v.width / glc->mPixelDescriptor->plane[i].hss),
+                     (GLsizei)(frame->v.height / glc->mPixelDescriptor->plane[i].vss),
+                     0,
+                     glc->mOpenGLConfig->a_format[i].format,
+                     glc->mOpenGLConfig->a_format[i].type,
+                     (const GLvoid *)frame->planes[i].data);
+        index[i] = i;
+    }
+    
+    glUniform1iv(glc->mTextureLocation, glc->mOpenGLConfig->n_textures, index);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    CHECK_GL_ERROR();
+
+#ifdef __APPLE__
+    glSwapAPPLE();
+#else
+    glFlush();  // always assume single buffer here, let client handle swap buffers
+#endif
+    CHECK_GL_ERROR();
+    
+    return kMediaNoError;
 }
 
 MediaError OpenGLObject::init(const ImageFormat& image, bool offscreen) {
