@@ -72,6 +72,7 @@ static GLfloat VEC4_FullRangeBias[4] = {
 /**
  * ITU-R BT.601 for video range YpCbCr -> RGB
  * @note default matrix
+ * @note these are row matrix
  */
 static GLfloat VEC4_BT601_VideoRangeBias[4] = {
     0.062745,   0.5,    0.5,    0
@@ -87,6 +88,7 @@ static const GLfloat MAT4_BT601_VideoRange[16] = {    // SDTV
 /**
  * ITU-R BT.601 for full range YpCbCr -> RGB
  * @note JFIF JPEG: using full range
+ * @note these are row matrix
  */
 static const GLfloat MAT4_BT601_FullRange[16] = {
     // y, u, v, a
@@ -110,20 +112,23 @@ static const GLfloat MAT4_Rotate_180[16] = {
     0, 0, 0, 1
 };
 
-static const GLfloat VERTEX_COORD[] = {
-    // x    y
-    -1.0,   -1.0,
-    1.0,    -1.0,
-    -1.0,    1.0,
-    1.0,    1.0,
+// 2D rectangle vertices : vec4
+// 4 points in 2-space with point in row vector
+static const GLfloat RECT_VERTICES_2D[8] = {
+    // x,y
+    -1.0,   -1.0,   // left bottom
+    1.0,    -1.0,   // right botton
+    -1.0,   1.0,    // left top
+    1.0,    1.0,    // right top
 };
 
-static const GLfloat TEXTURE_COORD[] = {
-    // x    y
-    0,      1.0,
-    1.0,    1.0,
-    0,      0,
-    1.0,    0
+// 2D rectangle texture : vec2
+// 4 points in 2-space with point in row vector
+static const GLfloat RECT_TEXTURE_2D[8] = {
+    0.0,    1.0,    // top left
+    1.0,    1.0,    // top right
+    0.0,    0.0,    // bottom left
+    1.0,    0.0     // bottom right
 };
 
 struct TextureFormat {
@@ -142,8 +147,8 @@ struct OpenGLConfig {
 
 static const char * vsh = SL(
         uniform mat4 u_mvp;
-        attribute vec4 a_position;
-        attribute vec2 a_texcoord;
+        attribute vec4 a_position;              // each point in a column vector
+        attribute vec2 a_texcoord;              // each point in a row vector
         varying vec2 v_texcoord;
         void main(void)
         {
@@ -158,12 +163,10 @@ static const char * fsh_yuv1 = SL(
         uniform sampler2D u_planes[1];
         uniform vec4 u_color_bias;
         uniform mat4 u_color_matrix;
-        uniform mat4 u_matrix;
         void main(void)
         {
-            vec3 yuv;
-            yuv.xyz = texture2D(u_planes[0], v_texcoord).rgb;
-            gl_FragColor = (vec4(yuv, 1.0) - u_color_bias) * u_color_matrix * u_matrix;
+            vec4 yuv = texture2D(u_planes[0], v_texcoord);
+            gl_FragColor = (yuv - u_color_bias) * u_color_matrix;
         }
     );
 
@@ -172,13 +175,12 @@ static const char * fsh_yuv2 = SL(
         uniform sampler2D u_planes[2];
         uniform vec4 u_color_bias;
         uniform mat4 u_color_matrix;
-        uniform mat4 u_matrix;
         void main(void)
         {
             vec3 yuv;
             yuv.x = texture2D(u_planes[0], v_texcoord).r;
             yuv.yz = texture2D(u_planes[1], v_texcoord).rg;
-            gl_FragColor = (vec4(yuv, 1.0) - u_color_bias) * u_color_matrix * u_matrix;
+            gl_FragColor = (vec4(yuv, 1.0) - u_color_bias) * u_color_matrix;
         }
     );
 
@@ -187,25 +189,13 @@ static const char * fsh_yuv3 = SL(
         uniform sampler2D u_planes[3];
         uniform vec4 u_color_bias;
         uniform mat4 u_color_matrix;
-        uniform mat4 u_matrix;
         void main(void)
         {
             vec3 yuv;
             yuv.x = texture2D(u_planes[0], v_texcoord).r;
             yuv.y = texture2D(u_planes[1], v_texcoord).r;
             yuv.z = texture2D(u_planes[2], v_texcoord).r;
-            gl_FragColor = (vec4(yuv, 1.0) - u_color_bias) * u_color_matrix * u_matrix;
-        }
-    );
-
-static const char * fsh_rgb = SL(
-        varying vec2 v_texcoord;
-        uniform sampler2D u_planes[1];
-        uniform mat4 u_matrix;
-        void main(void)
-        {
-            vec4 rgb = texture2D(u_planes[0], v_texcoord);
-            gl_FragColor = rgb * u_matrix;
+            gl_FragColor = (vec4(yuv, 1.0) - u_color_bias) * u_color_matrix;
         }
     );
 
@@ -255,7 +245,7 @@ static const OpenGLConfig YpCbCr = {        // packed
 
 static const OpenGLConfig RGB565 = {
     .s_vsh      = vsh,
-    .s_fsh      = fsh_rgb,
+    .s_fsh      = fsh_yuv1,
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 1,
     .a_format   = {
@@ -265,7 +255,7 @@ static const OpenGLConfig RGB565 = {
 
 static const OpenGLConfig BGR565 = {
     .s_vsh      = vsh,
-    .s_fsh      = fsh_rgb,
+    .s_fsh      = fsh_yuv1,
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 1,
     .a_format   = {
@@ -275,7 +265,7 @@ static const OpenGLConfig BGR565 = {
 
 static const OpenGLConfig RGB = {
     .s_vsh      = vsh,
-    .s_fsh      = fsh_rgb,
+    .s_fsh      = fsh_yuv1,
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 1,
     .a_format   = {
@@ -285,7 +275,7 @@ static const OpenGLConfig RGB = {
 
 static const OpenGLConfig BGR = {   // read as bytes -> GL_BGR
     .s_vsh      = vsh,
-    .s_fsh      = fsh_rgb,
+    .s_fsh      = fsh_yuv1,
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 1,
     .a_format   = {
@@ -295,7 +285,7 @@ static const OpenGLConfig BGR = {   // read as bytes -> GL_BGR
 
 static const OpenGLConfig RGBA = {  // read as bytes -> GL_RGBA
     .s_vsh      = vsh,
-    .s_fsh      = fsh_rgb,
+    .s_fsh      = fsh_yuv1,
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 1,
     .a_format   = {
@@ -305,7 +295,7 @@ static const OpenGLConfig RGBA = {  // read as bytes -> GL_RGBA
 
 static const OpenGLConfig ABGR = {  // RGBA in word-order, so read as int
     .s_vsh      = vsh,
-    .s_fsh      = fsh_rgb,
+    .s_fsh      = fsh_yuv1,
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 1,
     .a_format   = {
@@ -315,7 +305,7 @@ static const OpenGLConfig ABGR = {  // RGBA in word-order, so read as int
 
 static const OpenGLConfig ARGB = {  // read as int -> GL_BGRA
     .s_vsh      = vsh,
-    .s_fsh      = fsh_rgb,
+    .s_fsh      = fsh_yuv1,
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 1,
     .a_format   = {
@@ -325,7 +315,7 @@ static const OpenGLConfig ARGB = {  // read as int -> GL_BGRA
 
 static const OpenGLConfig BGRA = {  // read as byte -> GL_BGRA
     .s_vsh      = vsh,
-    .s_fsh      = fsh_rgb,
+    .s_fsh      = fsh_yuv1,
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 1,
     .a_format   = {
@@ -343,11 +333,12 @@ static const OpenGLConfig BGRA = {  // read as byte -> GL_BGRA
 static const char * fsh_YpCbCr422_APPLE = SL(
         varying vec2 v_texcoord;
         uniform sampler2DRect u_planes[1];
-        uniform mat4 u_matrix;
+        uniform vec4 u_color_bias;
+        uniform mat4 u_color_matrix;
         uniform vec2 u_resolution;
         void main(void)
         {
-            gl_FragColor = texture2DRect(u_planes[0], v_texcoord * u_resolution) * u_matrix;
+            gl_FragColor = texture2DRect(u_planes[0], v_texcoord * u_resolution);
         }
     );
 
@@ -366,16 +357,14 @@ static const char * fsh_YpCbCrSemiPlanar_APPLE = SL(
         uniform sampler2DRect u_planes[2];
         uniform vec4 u_color_bias;
         uniform mat4 u_color_matrix;
-        uniform mat4 u_matrix;
         uniform vec2 u_resolution;
-        uniform vec4 u_bias;
         void main(void)
         {
             vec3 yuv;
             vec2 coord = v_texcoord * u_resolution;
             yuv.x = texture2DRect(u_planes[0], coord).r;
             yuv.yz = texture2DRect(u_planes[1], coord * 0.5).rg;
-            gl_FragColor = (vec4(yuv, 1.0) - u_bias) * u_color_matrix * u_matrix;
+            gl_FragColor = (vec4(yuv, 1.0) - u_color_bias) * u_color_matrix;
         }
     );
 
@@ -434,13 +423,12 @@ struct OpenGLContext : public SharedObject {
     GLuint          mFragShader;
     GLuint          mProgram;
     GLuint          mTextures[4];
-    // opengl attribute, only load once for 2D, should remove
+    // opengl attribute
     GLint           mVertexCoord;       // vec4
     GLint           mTextureCoord;      // vec2
     // opengl uniform
     GLint           mMVPMatrix;         // mat4
     GLint           mTextureLocation;   // sampler2D array
-    GLint           mFragMatrix;        // mat4
     GLint           mColorBias;         // vec4
     GLint           mColorMatrix;       // mat4
     
@@ -539,6 +527,12 @@ static sp<OpenGLContext> initOpenGLContext(const ImageFormat& image, const OpenG
     sp<OpenGLContext> glc = new OpenGLContext;
     glc->mOpenGLConfig = config;
     glc->mPixelDescriptor = GetPixelFormatDescriptor(image.format);
+#ifdef __APPLE__
+    if (image.format == kPixelFormatVideoToolbox) {
+        // TODO: get real pixel format from CVPixelBufferRef
+        glc->mPixelDescriptor = GetPixelFormatDescriptor(kPixelFormat420YpCbCrSemiPlanar);
+    }
+#endif
     CHECK_NULL(glc->mPixelDescriptor);
     CHECK_NULL(glc->mOpenGLConfig);
     
@@ -568,38 +562,34 @@ static sp<OpenGLContext> initOpenGLContext(const ImageFormat& image, const OpenG
     
     // uniform of fragment shader
     glc->mTextureLocation = glGetUniformLocation(glc->mProgram, "u_planes");
-    glc->mFragMatrix = glGetUniformLocation(glc->mProgram, "u_matrix");
-    CHECK_GE(glc->mFragMatrix, 0);
+    CHECK_GE(glc->mTextureLocation, 0);
+    glc->mColorBias  = glGetUniformLocation(glc->mProgram, "u_color_bias");
+    CHECK_GE(glc->mColorBias, 0);
+    glc->mColorMatrix = glGetUniformLocation(glc->mProgram, "u_color_matrix");
+    CHECK_GE(glc->mColorMatrix, 0);
     
     // optional
-    glc->mColorBias  = glGetUniformLocation(glc->mProgram, "u_color_bias");
-    glc->mColorMatrix = glGetUniformLocation(glc->mProgram, "u_color_matrix");
     glc->mResolution = glGetUniformLocation(glc->mProgram, "u_resolution");
     
     // setup default value
-    glVertexAttribPointer(glc->mVertexCoord, 2, GL_FLOAT, 0, 0, VERTEX_COORD);
+    glVertexAttribPointer(glc->mVertexCoord, 2, GL_FLOAT, 0, 0, RECT_VERTICES_2D);
     glEnableVertexAttribArray(glc->mVertexCoord);
     CHECK_GL_ERROR();
     
-    glVertexAttribPointer(glc->mTextureCoord, 2, GL_FLOAT, 0, 0, TEXTURE_COORD);
+    glVertexAttribPointer(glc->mTextureCoord, 2, GL_FLOAT, 0, 0, RECT_TEXTURE_2D);
     glEnableVertexAttribArray(glc->mTextureCoord);
     CHECK_GL_ERROR();
     
     glUniformMatrix4fv(glc->mMVPMatrix, 1, GL_FALSE, MAT4_Identity);
     CHECK_GL_ERROR();
     
-    glUniformMatrix4fv(glc->mFragMatrix, 1, GL_FALSE, MAT4_Identity);
-    CHECK_GL_ERROR();
-    
-    if (glc->mColorBias >= 0) {
+    if (glc->mPixelDescriptor->color == kColorYpCbCr) {
         glUniform4fv(glc->mColorBias, 1, VEC4_BT601_VideoRangeBias);
-        CHECK_GL_ERROR();
-    }
-    
-    if (glc->mColorMatrix >= 0) {
         glUniformMatrix4fv(glc->mColorMatrix, 1, GL_FALSE, MAT4_BT601_VideoRange);
-        CHECK_GL_ERROR();
+    } else {
+        glUniformMatrix4fv(glc->mColorMatrix, 1, GL_FALSE, MAT4_Identity);
     }
+    CHECK_GL_ERROR();
     
     if (glc->mResolution >= 0) {
         glUniform2f(glc->mResolution, (GLfloat)image.width, (GLfloat)image.height);
@@ -609,27 +599,106 @@ static sp<OpenGLContext> initOpenGLContext(const ImageFormat& image, const OpenG
     return glc;
 }
 
-static MediaError drawFrame(const sp<OpenGLContext>& glc, const sp<MediaFrame>& frame) {
+#ifdef __APPLE__
+static void drawVideoToolboxFrame(const sp<OpenGLContext>& glc, const sp<MediaFrame>& frame) {
+    CHECK_TRUE(frame->v.format == kPixelFormatVideoToolbox);
+    CHECK_NULL(frame->opaque);
+    CVPixelBufferRef pixbuf = (CVPixelBufferRef)frame->opaque;
+    CHECK_NULL(pixbuf);
+    
+    OSType pixtype = CVPixelBufferGetPixelFormatType(pixbuf);
+    if (CVPixelBufferIsPlanar(pixbuf)) {
+        CHECK_EQ(CVPixelBufferGetPlaneCount(pixbuf), glc->mOpenGLConfig->n_textures);
+    } else {
+        CHECK_EQ(1, glc->mOpenGLConfig->n_textures);
+    }
+    //CHECK_TRUE(pixtype == kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange); // nv12
+    
+    IOSurfaceRef iosurface = CVPixelBufferGetIOSurface(pixbuf);
+    CHECK_NULL(iosurface);
+    CHECK_NULL(CGLGetCurrentContext());
+    
     GLint index[glc->mOpenGLConfig->n_textures];
     for (size_t i = 0; i < glc->mOpenGLConfig->n_textures; ++i) {
         glActiveTexture(GL_TEXTURE0 + i);
         glBindTexture(glc->mOpenGLConfig->e_target, glc->mTextures[i]);
         CHECK_GL_ERROR();
         
-        glTexImage2D(glc->mOpenGLConfig->e_target, 0,
-                     glc->mOpenGLConfig->a_format[i].internalformat,
-                     (GLsizei)(frame->v.width / glc->mPixelDescriptor->plane[i].hss),
-                     (GLsizei)(frame->v.height / glc->mPixelDescriptor->plane[i].vss),
-                     0,
-                     glc->mOpenGLConfig->a_format[i].format,
-                     glc->mOpenGLConfig->a_format[i].type,
-                     (const GLvoid *)frame->planes[i].data);
+        CGLError err = CGLTexImageIOSurface2D(CGLGetCurrentContext(),
+                                              glc->mOpenGLConfig->e_target,
+                                              glc->mOpenGLConfig->a_format[i].internalformat,
+                                              (GLsizei)(frame->v.width / glc->mPixelDescriptor->plane[i].hss),
+                                              (GLsizei)(frame->v.height / glc->mPixelDescriptor->plane[i].vss),
+                                              glc->mOpenGLConfig->a_format[i].format,
+                                              glc->mOpenGLConfig->a_format[i].type,
+                                              iosurface, i);
+        
+        if (err != kCGLNoError) {
+            ERROR("CGLTexImageIOSurface2D failed. %d|%s", err, CGLErrorString(err));
+        }
+        
         index[i] = i;
     }
     
     glUniform1iv(glc->mTextureLocation, glc->mOpenGLConfig->n_textures, index);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     CHECK_GL_ERROR();
+}
+#endif
+static MediaError drawFrame(const sp<OpenGLContext>& glc, const sp<MediaFrame>& frame) {
+    
+    // setting up texture rectangle
+    GLfloat x = 0;
+    GLfloat y = 0;
+    GLfloat w = frame->v.width;
+    GLfloat h = frame->v.height;
+    
+    if (frame->v.rect.w || frame->v.rect.h) {
+        x = frame->v.rect.x;
+        y = frame->v.rect.y;
+        w = frame->v.rect.w;
+        h = frame->v.rect.h;
+    }
+    
+    x /= frame->v.width;
+    w /= frame->v.width;
+    y /= frame->v.height;
+    h /= frame->v.height;
+    
+    // texture rectangle, vec2, each point in a row vector
+    const GLfloat rect[8] = {
+        x,      y + h,      // top left,
+        x + w,  y + h,      // top right
+        x,      y,          // bottom left
+        x + w,  y           // bottom right
+    };
+    
+    glVertexAttribPointer(glc->mTextureCoord, 2, GL_FLOAT, 0, 0, rect);
+    
+    if (frame->v.format == kPixelFormatVideoToolbox) {
+        drawVideoToolboxFrame(glc, frame);
+    } else {
+        GLint index[glc->mOpenGLConfig->n_textures];
+        for (size_t i = 0; i < glc->mOpenGLConfig->n_textures; ++i) {
+            glActiveTexture(GL_TEXTURE0 + i);
+            glBindTexture(glc->mOpenGLConfig->e_target, glc->mTextures[i]);
+            CHECK_GL_ERROR();
+            
+            glTexImage2D(glc->mOpenGLConfig->e_target, 0,
+                         glc->mOpenGLConfig->a_format[i].internalformat,
+                         (GLsizei)(frame->v.width / glc->mPixelDescriptor->plane[i].hss),
+                         (GLsizei)(frame->v.height / glc->mPixelDescriptor->plane[i].vss),
+                         0,
+                         glc->mOpenGLConfig->a_format[i].format,
+                         glc->mOpenGLConfig->a_format[i].type,
+                         (const GLvoid *)frame->planes[i].data);
+            index[i] = i;
+        }
+        
+        glUniform1iv(glc->mTextureLocation, glc->mOpenGLConfig->n_textures, index);
+        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+        CHECK_GL_ERROR();
+    }
 
 #ifdef __APPLE__
     glSwapAPPLE();
@@ -654,6 +723,10 @@ MediaError OpenGLObject::init(const ImageFormat& image, bool offscreen) {
 }
 
 MediaError OpenGLObject::draw(const Object<MediaFrame>& frame) {
+    // clear before draw
+    glClearColor(0, 0, 0, 0);
+    glClear(GL_COLOR_BUFFER_BIT);
+    
     return drawFrame(mOpenGL, frame);
 }
 
