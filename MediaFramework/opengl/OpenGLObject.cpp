@@ -64,6 +64,14 @@
 
 __BEGIN_NAMESPACE_MPX
 
+#define printMAT4(x) do {               \
+    for (size_t i = 0; i < 4; ++i) {    \
+        INFO("{ %f, %f, %f, %f }",      \
+            x[i][0], x[i][1],           \
+            x[i][2], x[i][3]);          \
+    }                                   \
+} while(0)
+
 static GLfloat VEC4_FullRangeBias[4] = {
     0,      0.5,    0.5,    0
 };
@@ -102,13 +110,6 @@ static const GLfloat MAT4_Identity[16] = {
     1, 0, 0, 0,
     0, 1, 0, 0,
     0, 0, 1, 0,
-    0, 0, 0, 1
-};
-
-static const GLfloat MAT4_Rotate_180[16] = {
-    1, 0, 0, 0,
-    0, -1, 0, 0,
-    0, 0, -1, 0,
     0, 0, 0, 1
 };
 
@@ -418,6 +419,13 @@ static const OpenGLConfig * getOpenGLConfig(const ePixelFormat& pixel) {
 struct OpenGLContext : public SharedObject {
     const OpenGLConfig *    mOpenGLConfig;
     const PixelDescriptor * mPixelDescriptor;
+    
+    // local context
+    Matrix<GLfloat, 4>  mModelMatrix;
+    Matrix<GLfloat, 4>  mViewMatrix;
+    Matrix<GLfloat, 4>  mProjectionMatrix;
+    
+    // opengl context
     // opengl obj
     GLuint          mVertexShader;
     GLuint          mFragShader;
@@ -444,6 +452,13 @@ struct OpenGLContext : public SharedObject {
     
     OpenGLContext() :SharedObject(), mVertexShader(0), mFragShader(0), mProgram(0) {
         for (size_t i = 0; i < 4; ++i) mTextures[i] = 0;
+    }
+    
+    MediaError applyMVP() {
+        Matrix<GLfloat, 4> mvp = mModelMatrix * mViewMatrix.transpose() * mProjectionMatrix.transpose();
+        glUniformMatrix4fv(mMVPMatrix, 1, GL_FALSE, &mvp[0][0]);
+        CHECK_GL_ERROR();
+        return kMediaNoError;
     }
 };
 
@@ -730,4 +745,66 @@ MediaError OpenGLObject::draw(const Object<MediaFrame>& frame) {
     return drawFrame(mOpenGL, frame);
 }
 
+MediaError OpenGLObject::setModelMatrix(const Matrix<float, 4>& matrix) {
+    mOpenGL->mModelMatrix = matrix;
+    return mOpenGL->applyMVP();
+}
+
+MediaError OpenGLObject::setViewMatrix(const Matrix<float, 4>& matrix) {
+    mOpenGL->mViewMatrix = matrix;
+    return mOpenGL->applyMVP();
+}
+
+MediaError OpenGLObject::setProjectionMatrix(const Matrix<float, 4>& matrix) {
+    mOpenGL->mProjectionMatrix = matrix;
+    return mOpenGL->applyMVP();
+}
+
+static const GLfloat MAT4_ROTATE_90[] = {
+    0, -1, 0, 0,
+    1, 0, 0, 0,
+    0, 0, 1, 0,
+    0, 0, 0, 1
+};
+
+static const GLfloat MAT4_ROTATE_180[] = {
+    -1, 0, 0, 0,
+    0, -1, 0, 0,
+    0, 0, 1, 0,
+    0, 0, 0, 1
+};
+
+static const GLfloat MAT4_ROTATE_270[] = {
+    0, 1, 0, 0,
+    -1, 0, 0, 0,
+    0, 0, 1, 0,
+    0, 0, 0, 1
+};
+MediaError OpenGLObject::rotate(eRotate angle) {
+    const GLfloat * matrix = MAT4_Identity;
+    if (angle == kRotate90)         matrix = MAT4_ROTATE_90;
+    else if (angle == kRotate180)   matrix = MAT4_ROTATE_180;
+    else if (angle == kRotate270)   matrix = MAT4_ROTATE_270;
+    
+    mOpenGL->mModelMatrix = mOpenGL->mModelMatrix * Matrix<GLfloat, 4>(matrix).transpose();
+    return mOpenGL->applyMVP();
+}
+
+MediaError OpenGLObject::scale(float factor) {
+    if (factor < 0) factor = 0;
+    else if (factor > 1) factor = 1;
+    Matrix<GLfloat, 4> matrix;
+    for (size_t i = 0; i < 4; ++i) matrix[i][i] = factor;
+    mOpenGL->mModelMatrix = mOpenGL->mModelMatrix * matrix.transpose();
+    return mOpenGL->applyMVP();
+}
+
+MediaError OpenGLObject::translation(float x, float y) {
+    Matrix<GLfloat, 4> matrix;
+    matrix[0][3] = x;
+    matrix[1][3] = y;
+    printMAT4(matrix);
+    mOpenGL->mModelMatrix = mOpenGL->mModelMatrix * matrix.transpose();
+    return mOpenGL->applyMVP();
+}
 __END_NAMESPACE_MPX

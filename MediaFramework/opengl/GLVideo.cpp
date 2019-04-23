@@ -90,6 +90,10 @@ struct GLVideo : public MediaOut {
     }
 
     virtual MediaError configure(const sp<Message> &options) {
+        if (options->contains(kKeyRotate)) {
+            eRotate angle = (eRotate)options->findInt32(kKeyRotate);
+            mOpenGL->rotate(angle);
+        }
         return kMediaErrorInvalidOperation;
     }
 

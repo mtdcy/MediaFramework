@@ -115,6 +115,7 @@ API_EXPORT MediaOutRef          MediaOutCreateForImage(const ImageFormat *, Mess
 
 API_EXPORT MediaError           MediaOutWrite(MediaOutRef, MediaFrameRef);
 API_EXPORT MediaError           MediaOutFlush(MediaOutRef);
+API_EXPORT MediaError           MediaOutConfigure(MediaOutRef, MessageObjectRef);
 
 __END_DECLS
 

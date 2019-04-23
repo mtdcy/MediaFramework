@@ -44,39 +44,6 @@
 
 __BEGIN_NAMESPACE_MPX
 
-
-template <typename TYPE, size_t N> struct Matrix {
-    TYPE    value[N][N];
-    
-    Matrix();
-    
-    void        reset();
-    
-    Matrix      operator-(const Matrix&);
-    Matrix      operator+(const Matrix&);
-    Matrix      operator*(const Matrix&);
-    Matrix      operator/(const Matrix&);
-};
-
-template <typename TYPE, size_t N> Matrix<TYPE, N>::Matrix() {
-    reset();
-}
-
-template <typename TYPE, size_t N> void Matrix<TYPE, N>::reset() {
-    for (size_t i = 0; i < N; ++i) {
-        for (size_t j = 0; j < N; ++j)  value[i][j] = 0;
-        value[i][i] = 1;
-    }
-}
-
-template <typename TYPE, size_t N>
-Matrix<TYPE, N> Matrix<TYPE, N>::operator+(const Matrix& rhs) {
-    
-    for (size_t i = 0; i < N; ++i) {
-        //for (size_t j = 0; j < N; ++j)
-    }
-}
-
 struct OpenGLContext;
 struct OpenGLObject : public SharedObject {
     
@@ -84,10 +51,23 @@ struct OpenGLObject : public SharedObject {
     
     MediaError init(const ImageFormat&, bool offscreen = true);
     
-    //MediaError setTransformMatrix();
+    MediaError setModelMatrix(const Matrix<float, 4>&);
+    
+    MediaError setViewMatrix(const Matrix<float, 4>&);
+    
+    MediaError setProjectionMatrix(const Matrix<float, 4>&);
     
     MediaError draw(const sp<MediaFrame>&);
     
+    /**
+     * some easy routine for alt model matrix
+     * @note these routines will accumulate, reset using @setModelMatrix
+     */
+    MediaError rotate(eRotate);             ///< @see eRotate
+    MediaError scale(float);                ///< range: (0, 1.0]
+    MediaError translation(float, float);   ///< range: [-1.0, 1.0]
+    
+private:
     sp<OpenGLContext> mOpenGL;
 };
 

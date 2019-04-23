@@ -209,6 +209,12 @@ MediaError MediaOutFlush(MediaOutRef ref) {
     return out->flush();
 }
 
+MediaError MediaOutConfigure(MediaOutRef ref, MessageObjectRef options) {
+    if (options == NULL) return kMediaErrorBadValue;
+    Object<MediaOut> out = ref;
+    return out->configure(options);
+}
+
 int64_t MediaClockGetTime(MediaClockRef ref) {
     Object<Clock> clock = ref;
     return clock->get();

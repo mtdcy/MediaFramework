@@ -205,6 +205,13 @@ typedef enum eYpCbCrRange {
     kYpCbCrVideoRange   = 1,
 } eYpCbCrRange;
 
+typedef enum eRotate {
+    kRotate0,
+    kRotate90,
+    kRotate180,
+    kRotate270
+} eRotate;
+
 typedef struct ImageRect {
     int32_t             x;
     int32_t             y;
@@ -569,7 +576,7 @@ __END_NAMESPACE_MPX
 /**
  * for MediaOut
  */
-#define kKeyAllowAltFormat      "allow-alt-format"
+#define kKeyRotate              "rotate"    // eRotate
 
 #endif // _MEDIA_MODULES_MEDIADEFS_H
 
