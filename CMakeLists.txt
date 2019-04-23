@@ -1,7 +1,8 @@
 cmake_minimum_required (VERSION 2.8)
 
-set (WITH_FFMPEG    FALSE)
-set (WITH_SDL       FALSE)
+option (WITH_FFMPEG     "Build with ffmpeg"     OFF)
+option (WITH_SDL        "Build with SDL"        OFF)
+option (WITH_OPENJPEG   "Build with OpenJPEG"   ON)
 
 project (MediaFramework)
 
@@ -171,6 +172,9 @@ endif()
 add_subdirectory(external/libyuv    EXCLUDE_FROM_ALL)
 target_link_libraries (${PROJECT_NAME}  yuv)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/libyuv/include)
+add_subdirectory(external/openjpeg  EXCLUDE_FROM_ALL)
+target_link_libraries (${PROJECT_NAME}  openjp2_static)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/openjpeg/src/lib/openjp2)
 
 # install targets and headers
 if (XCODE)

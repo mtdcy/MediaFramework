@@ -1,3 +1,6 @@
 [submodule "external/libyuv"]
 	path = external/libyuv
     url = https://github.com/mtdcy/libyuv.git
+[submodule "external/openjpeg"]
+	path = external/openjpeg
+	url = https://github.com/mtdcy/openjpeg
