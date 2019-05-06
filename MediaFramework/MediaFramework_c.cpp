@@ -33,6 +33,15 @@ __BEGIN_DECLS
 
 __USING_NAMESPACE_MPX
 
+ImageFileRef ImageFileOpen(ContentObjectRef ref) {
+    Object<Content> pipe = ref;
+    Object<ImageFile> file = ImageFile::Create(kFileFormatJPEG);
+    if (file->init(pipe, NULL) == kMediaNoError) {
+        return file->RetainObject();
+    }
+    return NULL;
+}
+
 MediaFrameRef AudioFrameCreate(const AudioFormat * audio) {
     Object<MediaFrame> frame = MediaFrame::Create(*audio);
     return (MediaFrameRef)frame->RetainObject();

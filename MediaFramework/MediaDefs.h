@@ -69,6 +69,8 @@ typedef enum eFileFormat {
     kFileFormatAVI,
     kFileFormatMKV,
     kFileFormatAAC,
+    // image files
+    kFileFormatJPEG,
 } eFileFormat;
 
 typedef enum eCodecFormat {

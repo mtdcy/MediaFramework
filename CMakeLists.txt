@@ -91,6 +91,7 @@ set (SOURCE_FILES
     MediaFramework/opengl/GLVideo.cpp
     MediaFramework/jpeg/JIF.cpp
     MediaFramework/jpeg/JFIF.cpp
+    MediaFramework/jpeg/Exif.cpp
     MediaFramework/jpeg/JPEG.cpp
     MediaFramework/MediaFramework_c.cpp
     )
@@ -194,6 +195,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/libyuv/include)
 if (WITH_LIBJEPG)
 target_link_libraries (${PROJECT_NAME} jpeg-static)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/libjpeg-turbo)
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/external/libjpeg-turbo) # jconfig.h
 endif()
 if (WITH_OPENJPEG)
 target_link_libraries (${PROJECT_NAME}  openjp2_static)
@@ -222,8 +224,8 @@ else()
 endif()
 
 # example/test code, NO build or install by default
-add_executable(mpx mpx_main.cpp)
+add_executable(mpx EXCLUDE_FROM_ALL mpx_main.cpp)
 target_link_libraries(mpx MediaFramework)
-set_target_properties(mpx PROPERTIES
-    EXCLUDE_FROM_ALL TRUE
-    EXCLUDE_FROM_DEFAULT_BUILD TRUE)
+
+add_executable(files EXCLUDE_FROM_ALL file_main.cpp)
+target_link_libraries(files MediaFramework)

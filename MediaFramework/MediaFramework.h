@@ -38,6 +38,7 @@
 // MediaFramework
 #include <MediaFramework/MediaDefs.h>
 #include <MediaFramework/MediaFrame.h>
+#include <MediaFramework/ImageFile.h>
 #include <MediaFramework/MediaExtractor.h>
 #include <MediaFramework/MediaDecoder.h>
 #include <MediaFramework/MediaOut.h>
@@ -46,6 +47,10 @@
 #include <MediaFramework/MediaPlayer.h>
 
 __BEGIN_DECLS
+
+// ImageFile
+typedef SharedObjectRef         ImageFileRef;
+API_EXPORT ImageFileRef         ImageFileOpen(ContentObjectRef);
 
 // MediaFrame
 typedef SharedObjectRef         MediaFrameRef;

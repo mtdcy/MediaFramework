@@ -38,6 +38,7 @@
 #include "MediaExtractor.h"
 #include "MediaPacketizer.h"
 #include "MediaOut.h"
+#include "ImageFile.h"
 #include <libyuv.h>
 
 __BEGIN_DECLS
@@ -150,6 +151,16 @@ sp<MediaPacketizer> MediaPacketizer::Create(eCodecFormat format) {
             return CreateMp3Packetizer();
         default:
             INFO("no packetizer for codec %d", format);
+            return NULL;
+    }
+}
+
+sp<ImageFile> CreateJPEG();
+sp<ImageFile> ImageFile::Create(eFileFormat format) {
+    switch (format) {
+        case kFileFormatJPEG:
+            return CreateJPEG();
+        default:
             return NULL;
     }
 }
