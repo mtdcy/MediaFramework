@@ -455,7 +455,7 @@ struct OpenGLContext : public SharedObject {
     }
     
     MediaError applyMVP() {
-        Matrix<GLfloat, 4> mvp = mModelMatrix * mViewMatrix.transpose() * mProjectionMatrix.transpose();
+        Matrix<GLfloat, 4> mvp = mModelMatrix * mViewMatrix * mProjectionMatrix;
         glUniformMatrix4fv(mMVPMatrix, 1, GL_FALSE, &mvp[0][0]);
         CHECK_GL_ERROR();
         return kMediaNoError;
@@ -786,7 +786,7 @@ MediaError OpenGLObject::rotate(eRotate angle) {
     else if (angle == kRotate180)   matrix = MAT4_ROTATE_180;
     else if (angle == kRotate270)   matrix = MAT4_ROTATE_270;
     
-    mOpenGL->mModelMatrix = mOpenGL->mModelMatrix * Matrix<GLfloat, 4>(matrix).transpose();
+    mOpenGL->mModelMatrix = mOpenGL->mModelMatrix * Matrix<GLfloat, 4>(matrix);
     return mOpenGL->applyMVP();
 }
 
@@ -795,7 +795,7 @@ MediaError OpenGLObject::scale(float factor) {
     else if (factor > 1) factor = 1;
     Matrix<GLfloat, 4> matrix;
     for (size_t i = 0; i < 4; ++i) matrix[i][i] = factor;
-    mOpenGL->mModelMatrix = mOpenGL->mModelMatrix * matrix.transpose();
+    mOpenGL->mModelMatrix = mOpenGL->mModelMatrix * matrix;
     return mOpenGL->applyMVP();
 }
 
@@ -804,7 +804,7 @@ MediaError OpenGLObject::translation(float x, float y) {
     matrix[0][3] = x;
     matrix[1][3] = y;
     printMAT4(matrix);
-    mOpenGL->mModelMatrix = mOpenGL->mModelMatrix * matrix.transpose();
+    mOpenGL->mModelMatrix = mOpenGL->mModelMatrix * matrix;
     return mOpenGL->applyMVP();
 }
 __END_NAMESPACE_MPX
