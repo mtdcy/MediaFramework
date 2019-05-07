@@ -64,8 +64,8 @@ enum eMarker {
     SOS     = 0xFFDA,   // Start Of Scan. payload: variable
     RST0    = 0xFFD0,   // multi value: [0xFFD0, 0xFFD7]. payload: none
     APP0    = 0xFFE0,   // Application specific. payload: variable
-    APP1    = 0XFFE1,
-    APP2    = 0XFFE2,
+    APP1    = 0XFFE1,   // Exif APP1 & ...
+    APP2    = 0XFFE2,   // Exif Flashpix Extension & ...
     COM     = 0xFFFE,   // a text comment. payload: variable
     EOI     = 0xFFD9,   // End Of Image. payload: none
 };
@@ -164,15 +164,30 @@ struct ScanHeader : public Segment {
 };
 
 /**
- * BitReader without marker & length
+ * BitReader without marker
  */
-sp<FrameHeader> readFrameHeader(const BitReader&);
-sp<ScanHeader> readScanHeader(const BitReader&);
-sp<HuffmanTable> readHuffmanTable(const BitReader&);
-sp<QuantizationTable> readQuantizationTable(const BitReader&);
-sp<RestartInterval> readRestartInterval(const BitReader&);
+sp<FrameHeader> readFrameHeader(const BitReader&, size_t);
+sp<ScanHeader> readScanHeader(const BitReader&, size_t);
+sp<HuffmanTable> readHuffmanTable(const BitReader&, size_t);
+sp<QuantizationTable> readQuantizationTable(const BitReader&, size_t);
+sp<RestartInterval> readRestartInterval(const BitReader&, size_t);
+
+struct JIFObject : public SharedObject {
+    List<sp<HuffmanTable> >         mHuffmanTables;         // DHT
+    List<sp<QuantizationTable> >    mQuantizationTables;    // DQT
+    sp<FrameHeader>                 mFrameHeader;           // SOF
+    sp<ScanHeader>                  mScanHeader;            // SOS
+    sp<RestartInterval>             mRestartInterval;       // DRI
+    sp<Buffer>                      mData;                  // Compressed Data
+};
+
+/**
+ * BitReader with full JIF
+ */
+sp<JIFObject> readJIF(const BitReader&, size_t);
 
 __END_NAMESPACE(JPEG)
+
 __END_NAMESPACE_MPX
 
 #endif // _MEDIA_JPEG_H

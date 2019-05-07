@@ -36,38 +36,219 @@
 #define LOG_NDEBUG 0
 #include "Exif.h"
 
-
 __BEGIN_NAMESPACE_MPX
 __BEGIN_NAMESPACE(EXIF)
 
-
-sp<AttributeInformation> readAttributeInformation(const BitReader& br) {
+const char * ExifTagName(TIFF::eTag tag) {
+    switch (tag) {
+        case kExifExposureTime:     return "ExifExposureTime";
+        case kExifFNumber:          return "ExifFNumber";
+        case kExifIFD:              return "ExifIFD";
+        case kExifExposureProgram:  return "ExifExposureProgram";
+        case kExifGPSIFD:           return "ExifGPSIFD";
+        case kExifSpectralSensitivity:  return "ExifSpectralSensitivity";
+        case kExifISOSpeedRatings:  return "ExifISOSpeedRatings";
+        case kExifOECF:             return "ExifOECF";
+            
+        case kExifVersion:          return "ExifVersion";
+        case kExifDateTimeOriginal: return "ExifDateTimeOriginal";
+        case kExifDateTimeDigitized:return "ExifDateTimeDigitized";
+        case kExifComponentsConfiguration:  return "ExifComponentsConfiguration";
+        case kExifCompressedBitsPerPixel:   return "ExifCompressedBitsPerPixel";
+            
+        case kExifShutterSpeedValue:    return "ExifShutterSpeedValue";
+        case kExifApertureValue    :    return "ExifApertureValue";
+        case kExifBrightnessValue  :    return "ExifBrightnessValue";
+        case kExifExposureBiasValue:    return "ExifExposureBiasValue";
+        case kExifMaxApertureValue :    return "ExifMaxApertureValue";
+        case kExifSubjectDistance  :    return "ExifSubjectDistance";
+        case kExifMeteringMode     :    return "ExifMeteringMode";
+        case kExifLightSource      :    return "ExifLightSource";
+        case kExifFlash            :    return "ExifFlash";
+        case kExifFocalLength      :    return "ExifFocalLength";
+        case kExifFlashEnergy      :    return "ExifFlashEnergy";
+        case kExifSubjectArea      :    return "ExifSubjectArea";
+            
+        case kExifMakerNote:            return "ExifMakerNote";
+        case kExifUserComment:          return "ExifUserComment";
+            
+        case kExifSubsecTime:           return "ExifSubsecTime";
+        case kExifSubsecTimeOriginal:   return "ExifSubsecTimeOriginal";
+        case kExifSubsecTimeDigitized:  return "ExifSubsecTimeDigitized";
+            
+        case kExifFlashpixVersion:  return "ExifFlashpixVersion";
+        case kExifColorSpace:       return "ExifColorSpace";
+        case kExifPixelXDimension:  return "ExifPixelXDimension";
+        case kExifPixelYDimension:  return "ExifPixelYDimension";
+        case kExifInteroperability: return "ExifInteroperability";
+        case kExifRelatedSoundFile: return "ExifRelatedSoundFile";
+            
+        case kExifSpatialFrequencyResponse:     return "ExifSpatialFrequencyResponse";
+        case kExifFocalPlaneXResolution:        return "ExifFocalPlaneXResolution";
+        case kExifFocalPlaneYResolution:        return "ExifFocalPlaneYResolution";
+        case kExifFocalPlaneResolutionUnit:     return "ExifFocalPlaneResolutionUnit";
+        case kExifSubjectLocation:              return "ExifSubjectLocation";
+        case kExifExposureIndex:                return "ExifExposureIndex";
+        case kExifSensingMethod:                return "ExifSensingMethod";
+        case kExifFileSource:                   return "ExifFileSource";
+        case kExifSceneType:                    return "ExifSceneType";
+        case kExifCFAPattern:                   return "ExifCFAPattern";
+        case kExifCustomRendered:               return "ExifCustomRendered";
+        case kExifExposureMode:                 return "ExifExposureMode";
+        case kExifWhiteBalance:                 return "ExifWhiteBalance";
+        case kExifDigitalZoomRatio:             return "ExifDigitalZoomRatio";
+        case kExifFocalLengthIn35mmFilm:        return "ExifFocalLengthIn35mmFilm";
+        case kExifSceneCaptureType:             return "ExifSceneCaptureType";
+        case kExifGainControl:                  return "ExifGainControl";
+        case kExifContrast:                     return "ExifContrast";
+        case kExifSaturation:                   return "ExifSaturation";
+        case kExifSharpness:                    return "ExifSharpness";
+        case kExifDeviceSettingDescription:     return "ExifDeviceSettingDescription";
+        case kExifSubjectDistanceRange:         return "ExifSubjectDistanceRange";
+        case kExifImageUniqueID:                return "ExifImageUniqueID";
+            
+        case kExifCameraOwnerName:      return "ExifCameraOwnerName";
+        case kExifBodySerialNumber:     return "ExifBodySerialNumber";
+        case kExifLensSpecification:    return "ExifLensSpecification";
+        case kExifLensMake:             return "ExifLensMake";
+        case kExifLensSerialNumber:     return "ExifLensSerialNumber";
+        case kExifLensModel:            return "ExifLensModel";
+            
+        default:                        break;
+    }
     
+    return TIFF::TagName(tag);
+}
+
+const char * GPSTagName(TIFF::eTag tag) {
+    switch (tag) {
+        case kGPSVersionID:         return "gps.VersionID";
+        case kGPSLatitudeRef:       return "gps.LatitudeRef";
+        case kGPSLatitude:          return "gps.Latitude";
+        case kGPSLongtitudeRef:     return "gps.LongtitudeRef";
+        case kGPSLongtitude:        return "gps.Longtitude";
+        case kGPSAltitudeRef:       return "gps.AltitudeRef";
+        case kGPSAltitude:          return "gps.Altitude";
+        case kGPSTimeStamp:         return "gps.TimeStamp";
+        case kGPSSatellites:        return "gps.Satellites";
+        case kGPSStatus:            return "gps.Status";
+        case kGPSMeasureMode:       return "gps.MeasureMode";
+        case kGPSDOP:               return "gps.DOP";
+        case kGPSSpeedRef:          return "gps.SpeedRef";
+        case kGPSSpeed:             return "gps.Speed";
+        case kGPSTrackRef:          return "gps.TrackRef";
+        case kGPSTrack:             return "gps.Track";
+        case kGPSImgDirectionRef:   return "gps.ImgDirectionRef";
+        case kGPSImgDirection:      return "gps.ImgDirection";
+        case kGPSMapDatum:          return "gps.MapDatum";
+        case kGPSDestLatitudeRef:   return "gps.DestLatitudeRef";
+        case kGPSDestLatitude:      return "gps.DestLatitude";
+        case kGPSDestLongitudeRef:  return "gps.DestLongitudeRef";
+        case kGPSDestLongitude:     return "gps.DestLongitude";
+        case kGPSDestBearingRef:    return "gps.DestBearingRef";
+        case kGPSDestBearing:       return "gps.DestBearing";
+        case kGPSDestDistanceRef:   return "gps.DestDistanceRef";
+        case kGPSDestDistance:      return "gps.DestDistance";
+        case kGPSProcessingMethod:  return "gps.ProcessingMethod";
+        case kGPSAreaInformation:   return "gps.AreaInformation";
+        case kGPSDateStamp:         return "gps.DateStamp";
+        case kGPSDifferential:      return "gps.Differential";
+        case kGPSHPositioningError: return "gps.HPositioningError";
+        default:                    return NULL;
+    }
+}
+
+// http://www.exif.org/Exif2-2.PDF
+sp<AttributeInformation> readAttributeInformation(const BitReader& br, size_t length) {
+    sp<AttributeInformation> attr = new AttributeInformation;
+    
+    // Exif
     if (br.readS(6) != "Exif") {
         ERROR("bad Exif Attribute Information");
         return NIL;
     }
     
     // TIFF Header
-    String id           = br.readS(2);
-    uint32_t version    = br.rb32();
-    uint32_t offset     = br.rb32();    // offset of first image
+    const size_t start  = br.offset() / 8;
+    String id           = br.readS(2);  // 'II' - intel byte order, 'MM' - motorola byte order
+    if (id == "II")     br.setByteOrder(BitReader::Little);
+    else                br.setByteOrder(BitReader::Big);
+
+    uint16_t version    = br.r16();     //
+    uint32_t offset     = br.r32();     // offset of first image directory
     DEBUG("id %s, version %#x, offset %u", id.c_str(), version, offset);
     
-    // IFDs (Image File Directory)
-    while (br.numBitsLeft() > 18 * 8) {
-        uint32_t fields = br.rb16();    // number of fields
-        uint16_t tag    = br.rb16();
-        uint16_t type   = br.rb16();
-        uint32_t count  = br.rb32();
-        uint32_t offset = br.rb32();    // value offset
-        uint32_t next   = br.rb32();    // offset to next IFD
-        DEBUG("%u fields, tag %u, type %u, count %u, offset %u, next %u",
-              fields, tag, type, count, offset, next);
-        
+    br.seekBytes(start + offset);
+    
+    size_t next = 0;
+    attr->IFD0 = TIFF::readImageFileDirectory(br, &next);
+    
+    if (next) {
+        br.seekBytes(start + next);
+        attr->IFD1 = TIFF::readImageFileDirectory(br);
     }
     
-    return NIL;
+    List<TIFF::Entry *>::iterator it = attr->IFD0->mEntries.begin();
+    for (; it != attr->IFD0->mEntries.end(); ++it) {
+        TIFF::Entry * e = *it;
+        if (e->offset != 0) {
+            br.seekBytes(start + e->offset);
+            TIFF::fillEntry(e, br);
+        }
+        
+        if (e->tag == kExifIFD) {
+            br.seekBytes(start + e->value[0].u32);
+            attr->Exif = TIFF::readImageFileDirectory(br);
+        } else if (e->tag == kExifGPSIFD) {
+            br.seekBytes(start + e->value[0].u32);
+            attr->GPS = TIFF::readImageFileDirectory(br);
+        }
+    }
+    
+    if (attr->IFD1 != NIL) {
+        uint32_t jif = 0;
+        uint32_t jifLength = 0;
+        List<TIFF::Entry *>::iterator it = attr->IFD1->mEntries.begin();
+        for (; it != attr->IFD1->mEntries.end(); ++it) {
+            TIFF::Entry * e = *it;
+            if (e->offset != 0) {
+                br.seekBytes(start + e->offset);
+                TIFF::fillEntry(e, br);
+            }
+            
+            if (e->tag == TIFF::kJPEGInterchangeFormat) {
+                jif = e->value[0].u32;
+            } else if (e->tag == TIFF::kJPEGInterchangeFormatLength) {
+                jifLength = e->value[0].u32;
+            }
+        }
+        
+        if (jif && jifLength) {
+            DEBUG("thumbnail @ %zu, length %zu", start + jif, jifLength);
+            br.seekBytes(start + jif);
+            CHECK_GE(br.numBitsLeft() / 8, jifLength);
+            attr->Thumb = JPEG::readJIF(br, jifLength);
+        }
+    }
+    
+    DEBUG("offset - %u @ %u", br.offset() / 8, br.size());
+    
+    DEBUG("IFD0 For Primary Image Data:");
+    TIFF::printImageFileDirectory(attr->IFD0, ExifTagName);
+    if (attr->Exif != NIL) {
+        DEBUG("Exif IFD:");
+        TIFF::printImageFileDirectory(attr->Exif, ExifTagName);
+    }
+    if (attr->GPS != NIL) {
+        DEBUG("GPS IFD:");
+        TIFF::printImageFileDirectory(attr->GPS, GPSTagName);
+    }
+    if (attr->IFD1 != NIL) {
+        DEBUG("IFD1 For Thumbnail Data:");
+        TIFF::printImageFileDirectory(attr->IFD1);
+    }
+    
+    return attr;
 }
 
 __END_NAMESPACE(EXIF)

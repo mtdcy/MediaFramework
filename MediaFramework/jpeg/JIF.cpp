@@ -40,7 +40,7 @@
 __BEGIN_NAMESPACE_MPX
 __BEGIN_NAMESPACE(JPEG)
 
-sp<FrameHeader> readFrameHeader(const BitReader& br) {
+sp<FrameHeader> readFrameHeader(const BitReader& br, size_t length) {
     sp<FrameHeader> header = new FrameHeader;
     
     header->bpp     = br.r8();
@@ -65,7 +65,7 @@ sp<FrameHeader> readFrameHeader(const BitReader& br) {
     return header;
 }
 
-sp<ScanHeader> readScanHeader(const BitReader& br) {
+sp<ScanHeader> readScanHeader(const BitReader& br, size_t length) {
     sp<ScanHeader> header = new ScanHeader;
     
     header->components  = br.r8();
@@ -84,11 +84,11 @@ sp<ScanHeader> readScanHeader(const BitReader& br) {
     return header;
 }
 
-sp<HuffmanTable> readHuffmanTable(const BitReader& br) {
+sp<HuffmanTable> readHuffmanTable(const BitReader& br, size_t length) {
     sp<HuffmanTable> huff = new HuffmanTable;
     huff->type  = br.read(4);
     huff->id    = br.read(4);
-    huff->table = br.readB();
+    huff->table = br.readB(length - 1);
     
     DEBUG("DHT: %s, id %u, table length %zu",
           huff->type ? "AC" : "DC", huff->id, huff->table->size());
@@ -96,23 +96,72 @@ sp<HuffmanTable> readHuffmanTable(const BitReader& br) {
     return huff;
 }
 
-sp<QuantizationTable> readQuantizationTable(const BitReader& br) {
+sp<QuantizationTable> readQuantizationTable(const BitReader& br, size_t length) {
     sp<QuantizationTable> quan = new QuantizationTable;
     quan->precision = br.read(4);
     quan->id        = br.read(4);
-    quan->table     = br.readB();
+    quan->table     = br.readB(length - 1);
     
     DEBUG("DHT: precision %u bit, id %u, table length %zu",
           quan->precision ? 16u : 8u, quan->id, quan->table->size());
     return quan;
 }
 
-sp<RestartInterval> readRestartInterval(const BitReader& br) {
+sp<RestartInterval> readRestartInterval(const BitReader& br, size_t length) {
     sp<RestartInterval> ri = new RestartInterval;
     ri->interval    = br.rb16();
     
     DEBUG("DRI: interval %u", ri->interval);
     return ri;
+}
+
+sp<JIFObject> readJIF(const BitReader& br, size_t length) {
+    const size_t start = br.offset() / 8;
+    eMarker marker = (eMarker)br.r16();
+    if (marker != SOI) {
+        ERROR("missing JIF SOI segment, unexpected marker %s", JPEG::MarkerName(SOI));
+        return NIL;
+    }
+    
+    sp<JIFObject> JIF = new JIFObject;
+    while ((marker = (eMarker)br.r16()) != EOI) {
+        if ((marker & 0xff00) != 0xff00) {
+            ERROR("JIF bad marker %#x", marker);
+            break;
+        }
+        
+        size_t size = br.r16();
+        DEBUG("JIF %s: length %zu", MarkerName(marker), size);
+        
+        size -= 2;
+        if (marker == SOF0) {
+            JIF->mFrameHeader = readFrameHeader(br, size);
+        } else if (marker == DHT) {
+            JIF->mHuffmanTables.push(readHuffmanTable(br, size));
+        } else if (marker == DQT) {
+            JIF->mQuantizationTables.push(readQuantizationTable(br, size));
+        } else if (marker == DRI) {
+            JIF->mRestartInterval = readRestartInterval(br, size);
+        } else if (marker == SOS) {
+            JIF->mScanHeader = readScanHeader(br, size);
+            JIF->mData = br.readB(length - 2 - (br.offset() / 8 - start));
+            break;
+        } else {
+            INFO("ignore marker %#x", marker);
+            br.skipBytes(size);
+        }
+    }
+    
+    if (JIF->mData == NIL) {
+        ERROR("missing SOS");
+        return NIL;
+    }
+    
+    marker = (eMarker)br.r16();
+    if (marker != EOI) {
+        ERROR("JIF missing EOI, image may be broken");
+    }
+    return JIF;
 }
 
 __END_NAMESPACE(JPEG)

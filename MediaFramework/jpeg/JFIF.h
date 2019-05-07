@@ -74,12 +74,16 @@ struct AppHeaderExt : public SharedObject {
 /**
  * BitReader: without marker & length
  */
-sp<AppHeader>   readAppHeader(const BitReader&);
+sp<AppHeader>   readAppHeader(const BitReader&, size_t);
 
 __END_NAMESPACE(JFIF)
 
+/**
+ * Object for JPEG/JFIF & JPEG/Exif
+ */
 struct JFIFObject : public SharedObject {
-    sp<JFIF::AppHeader>                 mAppHeader;
+    sp<JFIF::AppHeader>                 mAppHeader;             ///< JFIF APP0
+    sp<EXIF::AttributeInformation>      mAttributeInformation;  ///< Exif APP1
     sp<JPEG::FrameHeader>               mFrameHeader;
     List<sp<JPEG::HuffmanTable> >       mHuffmanTables;
     List<sp<JPEG::QuantizationTable> >  mQuantizationTables;

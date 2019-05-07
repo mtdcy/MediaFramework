@@ -90,6 +90,7 @@ set (SOURCE_FILES
     MediaFramework/opengl/OpenGLObject.cpp
     MediaFramework/opengl/GLVideo.cpp
     MediaFramework/jpeg/JIF.cpp
+    MediaFramework/jpeg/TIFF.cpp
     MediaFramework/jpeg/JFIF.cpp
     MediaFramework/jpeg/Exif.cpp
     MediaFramework/jpeg/JPEG.cpp

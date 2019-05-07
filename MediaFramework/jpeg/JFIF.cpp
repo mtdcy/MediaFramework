@@ -41,7 +41,7 @@
 __BEGIN_NAMESPACE_MPX
 __BEGIN_NAMESPACE(JFIF)
 
-sp<AppHeader> readAppHeader(const BitReader& br) {
+sp<AppHeader> readAppHeader(const BitReader& br, size_t length) {
     String id = br.readS(5);
     DEBUG("APP0 identifier %s", id.c_str());
     if (id != "JFIF") {
@@ -58,7 +58,7 @@ sp<AppHeader> readAppHeader(const BitReader& br) {
     if (br.numBitsLeft() > 2 * 8) {
         segment->width0     = br.r8();
         segment->height0    = br.r8();
-        segment->thunmbnail = br.readB();
+        segment->thunmbnail = br.readB(length - 5 - 7);
     } else {
         segment->width0     = 0;
         segment->height0    = 0;
@@ -98,23 +98,24 @@ sp<JFIFObject> openJFIF(sp<Content>& pipe) {
         size_t length = readLength(pipe);
         DEBUG("JFIF %s: length %zu", JPEG::MarkerName(marker), length);
         
-        sp<Buffer> data = pipe->read(length - 2);
+        length -= 2;
+        sp<Buffer> data = pipe->read(length);
         BitReader br (data->data(), data->size());
         
         if (marker == JPEG::APP0) {
-            JFIF->mAppHeader = JFIF::readAppHeader(br);
+            JFIF->mAppHeader = JFIF::readAppHeader(br, length);
         } else if (marker == JPEG::APP1) {
-            EXIF::readAttributeInformation(br);
+            JFIF->mAttributeInformation = EXIF::readAttributeInformation(br, length);
         } else if (marker == JPEG::SOF0) {
-            JFIF->mFrameHeader = JPEG::readFrameHeader(br);
+            JFIF->mFrameHeader = JPEG::readFrameHeader(br, length);
         } else if (marker == JPEG::DHT) {
-            JFIF->mHuffmanTables.push(JPEG::readHuffmanTable(br));
+            JFIF->mHuffmanTables.push(JPEG::readHuffmanTable(br, length));
         } else if (marker == JPEG::DQT) {
-            JFIF->mQuantizationTables.push(JPEG::readQuantizationTable(br));
+            JFIF->mQuantizationTables.push(JPEG::readQuantizationTable(br, length));
         } else if (marker == JPEG::DRI) {
-            JFIF->mRestartInterval = JPEG::readRestartInterval(br);
+            JFIF->mRestartInterval = JPEG::readRestartInterval(br, length);
         } else if (marker == JPEG::SOS) {
-            JFIF->mScanHeader = JPEG::readScanHeader(br);
+            JFIF->mScanHeader = JPEG::readScanHeader(br, length);
             // followed by image data
             break;
         } else {
