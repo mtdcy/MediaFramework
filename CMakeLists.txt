@@ -89,7 +89,6 @@ set (SOURCE_FILES
     #MediaFramework/sdl2/SDLVideo.cpp
     MediaFramework/opengl/OpenGLObject.cpp
     MediaFramework/opengl/GLVideo.cpp
-    MediaFramework/jpeg/JIF.cpp
     MediaFramework/jpeg/TIFF.cpp
     MediaFramework/jpeg/JFIF.cpp
     MediaFramework/jpeg/Exif.cpp
@@ -112,8 +111,8 @@ endif()
 
 add_library (${PROJECT_NAME} SHARED ${SOURCE_FILES} ${PUBLIC_HEADERS})
 
-include_directories(${CMAKE_CURRENT_SOURCE_DIR})
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/MediaFramework)
+include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
+include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/MediaFramework)
 
 # libz
 target_link_libraries(${PROJECT_NAME} z)
@@ -123,7 +122,7 @@ if (WITH_SDL)
 find_package (SDL2 REQUIRED)
 message(${SDL2_INCLUDE_DIR})
 message(${SDL2_LIBRARY})
-include_directories(${SDL2_INCLUDE_DIR})
+include_directories(BEFORE ${SDL2_INCLUDE_DIR})
 target_link_libraries(${PROJECT_NAME} ${SDL2_LIBRARY})
 endif()
 
@@ -147,7 +146,7 @@ if (XCODE)
     message("FFMPEG: ${FFMPEG}")
     target_link_libraries(${PROJECT_NAME} ${FFMPEG})
     # ffmpeg header structure need this
-    include_directories(${FFMPEG}/Headers)
+    include_directories(BEFORE ${FFMPEG}/Headers)
     endif()
 else()
     find_library (ABE 
@@ -163,7 +162,7 @@ else()
     message("ABE: ${ABE}")
     message("ABE_HEADER: ${ABE_HEADER}")
     target_link_libraries(${PROJECT_NAME} ${ABE})
-    include_directories(${ABE_HEADER})
+    include_directories(BEFORE ${ABE_HEADER})
 
     if (WITH_FFMPEG)
     find_library (FFMPEG
@@ -180,7 +179,7 @@ else()
     message("FFMPEG_HEADER: ${FFMPEG_HEADER}")
     target_link_libraries(${PROJECT_NAME} ${FFMPEG})
     # ffmpeg header in bad structure
-    include_directories(${FFMPEG_HEADER}/FFmpeg)
+    include_directories(BEFORE ${FFMPEG_HEADER}/FFmpeg)
     endif()
 
     if (WIN32)
@@ -192,16 +191,16 @@ endif()
 
 # link static
 target_link_libraries (${PROJECT_NAME}  yuv)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/libyuv/include)
+include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/external/libyuv/include)
 if (WITH_LIBJEPG)
 target_link_libraries (${PROJECT_NAME} jpeg-static)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/libjpeg-turbo)
-include_directories(${CMAKE_CURRENT_BINARY_DIR}/external/libjpeg-turbo) # jconfig.h
+include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/external/libjpeg-turbo)
+include_directories(BEFORE ${CMAKE_CURRENT_BINARY_DIR}/external/libjpeg-turbo) # jconfig.h
 endif()
 if (WITH_OPENJPEG)
 target_link_libraries (${PROJECT_NAME}  openjp2_static)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/openjpeg/src/lib/openjp2)
-include_directories(${CMAKE_CURRENT_BINARY_DIR}/external/openjpeg/src/lib/openjp2) # opj_config.h
+include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/external/openjpeg/src/lib/openjp2)
+include_directories(BEFORE ${CMAKE_CURRENT_BINARY_DIR}/external/openjpeg/src/lib/openjp2) # opj_config.h
 endif()
 
 # install targets and headers
