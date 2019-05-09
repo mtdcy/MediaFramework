@@ -480,7 +480,6 @@ struct Mp4File : public MediaExtractor {
 
     virtual MediaError init(sp<Content>& pipe, const sp<Message>& options) {
         CHECK_TRUE(pipe != NULL);
-        pipe->reset();
 
         FileTypeBox ftyp;
         sp<Buffer>  moovData;  // this is our target
@@ -493,7 +492,7 @@ struct Mp4File : public MediaExtractor {
                 break;
             }
 
-            BitReader br(*boxHeader);
+            BitReader br(boxHeader->data(), boxHeader->size());
 
             size_t boxHeadLength    = 8;
             // if size is 1 then the actual size is in the field largesize;
@@ -503,7 +502,7 @@ struct Mp4File : public MediaExtractor {
 
             if (boxSize == 1) {
                 sp<Buffer> large    = pipe->read(8);
-                BitReader br(*large);
+                BitReader br(large->data(), large->size());
                 boxSize             = br.rb64();
                 boxHeadLength       = 16;
             }
@@ -549,7 +548,7 @@ struct Mp4File : public MediaExtractor {
             if (boxType == "ftyp") {
                 // ISO/IEC 14496-12: Section 4.3 Page 12
                 DEBUG("file type box");
-                BitReader _br(*boxPayload);
+                BitReader _br(boxPayload->data(), boxPayload->size());
                 ftyp = FileTypeBox(_br, boxSize);
             } else if (boxType == "moov") {
                 // ISO/IEC 14496-12: Section 8.1 Page 22
@@ -572,7 +571,7 @@ struct Mp4File : public MediaExtractor {
         }
 
         sp<MovieBox> moov = new MovieBox;
-        if (moov->parse(BitReader(*moovData), moovData->size(), ftyp) != OK) {
+        if (moov->parse(BitReader(moovData->data(), moovData->size()), moovData->size(), ftyp) != OK) {
             ERROR("bad moov box?");
             return kMediaErrorBadFormat;
         }

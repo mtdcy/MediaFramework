@@ -36,6 +36,7 @@
 #define _MEDIA_JPEG_H
 
 #include "MediaDefs.h"
+#include "MediaFrame.h"
 
 __BEGIN_NAMESPACE_MPX
 __BEGIN_NAMESPACE(JPEG)
@@ -47,27 +48,50 @@ __BEGIN_NAMESPACE(JPEG)
  */
 
 /**
+ * ISO/IEC 10918-1, Table B.1 – Marker code assignments
  * https://en.wikipedia.org/wiki/JPEG#Syntax_and_structure
  */
-enum eMarker {
-    SOI     = 0xFFD8,   // Start Of Image. payload: none
-    SOF0    = 0xFFC0,   // Baseline DCT. payload: variable
-    SOF1    = 0xFFC1,   // Extended sequential DCT, Huffman. payload: variable
-    SOF2    = 0xFFC2,   // Progressive DCT, Huffman. payload: variable
-    SOF3    = 0xFFC3,   // Lossless (sequential), Huffman. payload: variable
-    SOF9    = 0xFFC9,   // Extended sequential DCT, arithmetic coding. payload: variable
-    SOF10   = 0xFFCA,   // Progressive DCT, arithmetic coding. payload: variable
-    SOF11   = 0xFFCB,   // Lossless (sequential), arithmetic coding. payload: variable
-    DHT     = 0xFFC4,   // Huffman tables. payload: variable
-    DQT     = 0xFFDB,   // Quantization tables. payload: variable
-    DRI     = 0xFFDD,   // interval between RSTn markers, in Minimum Coded Units (MCUs). payload: 4bytes
-    SOS     = 0xFFDA,   // Start Of Scan. payload: variable
-    RST0    = 0xFFD0,   // multi value: [0xFFD0, 0xFFD7]. payload: none
-    APP0    = 0xFFE0,   // Application specific. payload: variable
-    APP1    = 0XFFE1,   // Exif APP1 & ...
-    APP2    = 0XFFE2,   // Exif Flashpix Extension & ...
-    COM     = 0xFFFE,   // a text comment. payload: variable
-    EOI     = 0xFFD9,   // End Of Image. payload: none
+typedef uint16_t    eMarker;
+enum {
+    // SOF, non-differential, Huffman coding
+    SOF0    = 0xFFC0,   ///< Baseline DCT. payload: variable
+    SOF1    = 0xFFC1,   ///< Extended sequential DCT, Huffman. payload: variable
+    SOF2    = 0xFFC2,   ///< Progressive DCT, Huffman. payload: variable
+    SOF3    = 0xFFC3,   ///< Lossless (sequential), Huffman. payload: variable
+    // SOF, differential, Huffman coding
+    SOF5    = 0xFFC5,   ///< Differential sequential DCT
+    SOF6    = 0xFFC6,   ///< Differential progressive DCT
+    SOF7    = 0xFFC7,   ///< Differential lossless (sequential)
+    // SOF, non-differential, arithmetic coding
+    SOF8    = 0xFFC8,   ///< Reserved for JPEG extensions
+    JPG     = 0xFFC8,   ///< alias
+    SOF9    = 0xFFC9,   ///< Extended sequential DCT, arithmetic coding. payload: variable
+    SOF10   = 0xFFCA,   ///< Progressive DCT, arithmetic coding. payload: variable
+    SOF11   = 0xFFCB,   ///< Lossless (sequential), arithmetic coding. payload: variable
+    // SOF, differential, arithmetic coding
+    SOF13   = 0xFFCD,   ///< Differential sequential DCT
+    SOF14   = 0xFFCE,   ///< Differential progressive DCT
+    SOF15   = 0xFFCF,   ///< Differential lossless (sequential)
+    //
+    DHT     = 0xFFC4,   ///< Huffman tables. payload: variable
+    DAC     = 0xFFCC,   ///< Define arithmetic coding conditioning(s)
+    RST0    = 0xFFD0,   ///< multi value: [0xFFD0, 0xFFD7]. payload: none
+    SOI     = 0xFFD8,   ///< Start Of Image. payload: none
+    EOI     = 0xFFD9,   ///< End Of Image. payload: none
+    SOS     = 0xFFDA,   ///< Start Of Scan. payload: variable
+    DQT     = 0xFFDB,   ///< Quantization tables. payload: variable
+    DNL     = 0xFFDC,   ///< Define number of lines
+    DRI     = 0xFFDD,   ///< interval between RSTn markers, in Minimum Coded Units (MCUs). payload: 4bytes
+    DHP     = 0xFFDE,   ///< Define hierarchical progression
+    EXP     = 0xFFDF,   ///< Expand reference component(s)
+
+    APP0    = 0xFFE0,   ///< Application specific. payload: variable
+    APP1    = 0xFFE1,   ///< Exif APP1 & ...
+    APP2    = 0xFFE2,   ///< Exif Flashpix Extension & ...
+    APPn    = 0xFFEF,   ///< last application segment
+
+    JPG0    = 0xFFF0,   ///< Reserved for JPEG extensions, multi value: [0xFFF0, 0xFFFD]
+    COM     = 0xFFFE,   ///< a text comment. payload: variable
 };
 
 static const char * MarkerName(eMarker marker) {
@@ -98,18 +122,24 @@ enum eFrameType {
     Baseline,
 };
 
+/**
+ * Annex B.1.1.4 Marker segments
+ * marker: uint16_t
+ * length: uint16_t, incluing length bytes and excluding 2-bytes marker
+ */
 struct Segment : public SharedObject {
     Segment(eMarker x) : marker(x) { }
-    eMarker     marker;
+    const eMarker   marker;
 };
 
 /**
- * Annex B.2.2
+ * Annex B.2.2, Frame header syntax
  * Frame Header with marker SOFn
  *
  */
 struct FrameHeader : public Segment {
     FrameHeader() : Segment(SOF0) { }
+    FrameHeader(eMarker marker) : Segment(marker) { }
     
     // SOF0 : uint16_t
     // length : uint16_t, exclude markder
@@ -151,6 +181,20 @@ struct RestartInterval : public Segment {
     uint16_t    interval;   ///<
 };
 
+/**
+ * Annex B.2.4 Arithmetic conditioning table
+ */
+struct ArithmeticCoding : public Segment {
+    ArithmeticCoding() : Segment(DAC) { }
+    
+    uint8_t     tc;     ///< 0 - DC table or lossless table; 1 - AC table
+    uint8_t     tb;     ///< arithmetic coding conditioning table id
+    uint8_t     cs;     ///< conditioning table value
+};
+
+/**
+ * Annex B.2.3 Scan Header syntax
+ */
 struct ScanHeader : public Segment {
     ScanHeader() : Segment(SOS) { }
     
@@ -164,6 +208,15 @@ struct ScanHeader : public Segment {
 };
 
 /**
+ * Annex B.2.4.5 Comment syntax
+ */
+struct Comment : public Segment {
+    Comment() : Segment(COM) { }
+    
+    String      comment;
+};
+
+/**
  * BitReader without marker
  */
 sp<FrameHeader> readFrameHeader(const BitReader&, size_t);
@@ -172,22 +225,38 @@ sp<HuffmanTable> readHuffmanTable(const BitReader&, size_t);
 sp<QuantizationTable> readQuantizationTable(const BitReader&, size_t);
 sp<RestartInterval> readRestartInterval(const BitReader&, size_t);
 
+void printFrameHeader(const sp<FrameHeader>&);
+void printScanHeader(const sp<ScanHeader>&);
+void printHuffmanTable(const sp<HuffmanTable>&);
+void printQuantizationTable(const sp<QuantizationTable>&);
+void printRestartInterval(const sp<RestartInterval>&);
+
+/**
+ * @note, most decoder decode [SOI, EOI] as a frame.
+ */
 struct JIFObject : public SharedObject {
+    JIFObject(bool headOnly = false) : mHeadOnly(headOnly) { }
+    bool                            mHeadOnly;              // SOF only
+    
     List<sp<HuffmanTable> >         mHuffmanTables;         // DHT
     List<sp<QuantizationTable> >    mQuantizationTables;    // DQT
     sp<FrameHeader>                 mFrameHeader;           // SOF
     sp<ScanHeader>                  mScanHeader;            // SOS
     sp<RestartInterval>             mRestartInterval;       // DRI
-    sp<Buffer>                      mData;                  // Compressed Data
+    sp<Buffer>                      mData;                  // Compressed Data; if SOF only, [SOI, EOI]
 };
 
 /**
  * BitReader with full JIF
  */
-sp<JIFObject> readJIF(const BitReader&, size_t);
+sp<JIFObject> readJIF(const BitReader&, size_t);            // full read
+sp<JIFObject> readJIFLazy(const BitReader&, size_t);        // read SOF only
+
+void printJIFObject(const sp<JIFObject>&);
+
+sp<MediaFrame> decodeJIFObject(const sp<JIFObject>&);
 
 __END_NAMESPACE(JPEG)
-
 __END_NAMESPACE_MPX
 
 #endif // _MEDIA_JPEG_H

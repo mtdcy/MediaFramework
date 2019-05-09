@@ -84,7 +84,7 @@ static FORCE_INLINE uint32_t samplingRate(const BitReader& br) {
 // 4 bits: channel configuration
 // var bits: AOT Specific Config
 AudioSpecificConfig::AudioSpecificConfig(const BitReader& br) {
-    CHECK_GE(br.numBitsLeft(), 2 * 8); // 2 bytes at least
+    CHECK_GE(br.remains(), 2 * 8); // 2 bytes at least
     audioObjectType         = objectType(br);
     samplingFrequency       = samplingRate(br);
     uint8_t channelConfig   = br.read(4);
@@ -125,7 +125,7 @@ AudioSpecificConfig::AudioSpecificConfig(const BitReader& br) {
     }
     
     // HE-AAC extension
-    if (br.numBitsLeft() > 15 && br.show(11) == 0x2b7) {    // syncExtensionType
+    if (br.remains() > 15 && br.show(11) == 0x2b7) {    // syncExtensionType
         DEBUG("syncExtensionType");
         br.skip(11);
         extAudioObjectType      = objectType(br);

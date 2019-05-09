@@ -180,14 +180,11 @@ sp<AttributeInformation> readAttributeInformation(const BitReader& br, size_t le
     
     br.seekBytes(start + offset);
     
+    // 0th IFD
     size_t next = 0;
     attr->IFD0 = TIFF::readImageFileDirectory(br, &next);
     
-    if (next) {
-        br.seekBytes(start + next);
-        attr->IFD1 = TIFF::readImageFileDirectory(br);
-    }
-    
+    // 0th IFD value
     List<TIFF::Entry *>::iterator it = attr->IFD0->mEntries.begin();
     for (; it != attr->IFD0->mEntries.end(); ++it) {
         TIFF::Entry * e = *it;
@@ -204,8 +201,14 @@ sp<AttributeInformation> readAttributeInformation(const BitReader& br, size_t le
             attr->GPS = TIFF::readImageFileDirectory(br);
         }
     }
+    DEBUG("IFD0 end - %u @ %u", br.offset() / 8, br.length() / 8);
     
-    if (attr->IFD1 != NIL) {
+    if (next) {
+        // 1th IFD
+        br.seekBytes(start + next);
+        attr->IFD1 = TIFF::readImageFileDirectory(br);
+        
+        // 1th IFD value
         uint32_t jif = 0;
         uint32_t jifLength = 0;
         List<TIFF::Entry *>::iterator it = attr->IFD1->mEntries.begin();
@@ -223,32 +226,42 @@ sp<AttributeInformation> readAttributeInformation(const BitReader& br, size_t le
             }
         }
         
+        // 1th IFD image data
         if (jif && jifLength) {
             DEBUG("thumbnail @ %zu, length %zu", start + jif, jifLength);
             br.seekBytes(start + jif);
-            CHECK_GE(br.numBitsLeft() / 8, jifLength);
-            attr->Thumb = JPEG::readJIF(br, jifLength);
+            CHECK_GE(br.remains() / 8, jifLength);
+            attr->Thumb = JPEG::readJIFLazy(br, jifLength);
         }
+        DEBUG("IFD1 end - %u @ %u", br.offset() / 8, br.length() / 8);
+        // FIXME: there are two bytes after IFD1
     }
     
-    DEBUG("offset - %u @ %u", br.offset() / 8, br.size());
+    DEBUG("offset - %u @ %u", br.offset() / 8, br.length() / 8);
     
-    DEBUG("IFD0 For Primary Image Data:");
+    return attr;
+}
+
+void printAttributeInformation(const sp<AttributeInformation>& attr) {
+    INFO("IFD0 For Primary Image Data:");
     TIFF::printImageFileDirectory(attr->IFD0, ExifTagName);
     if (attr->Exif != NIL) {
-        DEBUG("Exif IFD:");
+        INFO("Exif IFD:");
         TIFF::printImageFileDirectory(attr->Exif, ExifTagName);
     }
     if (attr->GPS != NIL) {
-        DEBUG("GPS IFD:");
+        INFO("GPS IFD:");
         TIFF::printImageFileDirectory(attr->GPS, GPSTagName);
     }
     if (attr->IFD1 != NIL) {
-        DEBUG("IFD1 For Thumbnail Data:");
+        INFO("IFD1 For Thumbnail Data:");
         TIFF::printImageFileDirectory(attr->IFD1);
     }
+    if (attr->Thumb != NIL) {
+        INFO("Exif Thumbnail:");
+        JPEG::printJIFObject(attr->Thumb);
+    }
     
-    return attr;
 }
 
 __END_NAMESPACE(EXIF)

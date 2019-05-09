@@ -188,23 +188,23 @@ static int64_t locateFirstFrame(const Buffer& data,
         uint32_t *_head/* found head */) {
     // locate first frame:
     //  current and next frame header is valid
-    BitReader br(data);
+    BitReader br(data.data(), data.size());
     uint32_t head = 0;
-    for (size_t i = 0; i < br.size(); i++) {
+    for (size_t i = 0; i < br.length() / 8; i++) {
         head = (head << 8) | br.r8();
 
         // test current frame
         ssize_t frameLength = decodeFrameHeader(head, frameHeader);
         if (frameLength <= 4) continue;
 
-        if (i + frameLength > br.size()) {
+        if (i + frameLength > br.length() / 8) {
             DEBUG("scan to the end.");
             if (possible) *possible = i - 3;
             break;
         }
 
         // test next head.
-        BitReader _br(data);
+        BitReader _br(data.data(), data.size());
         _br.skipBytes(frameLength + i - 3);
         uint32_t next = _br.rb32();
         if ((next & kHeaderMask) == (head & kHeaderMask)
@@ -220,15 +220,15 @@ static int64_t locateFirstFrame(const Buffer& data,
 static int64_t locateFrame(const Buffer& data, uint32_t common,
         struct MPEGAudioFrameHeader *frameHeader,
         size_t *possible) {
-    BitReader br(data);
+    BitReader br(data.data(), data.size());
     uint32_t head = 0;
-    for (size_t i = 0; i < br.size(); i++) {
+    for (size_t i = 0; i < br.length() / 8; i++) {
         head = (head << 8) | br.r8();
         if ((head & kHeaderMask) != common) continue;
 
         ssize_t frameLength = decodeFrameHeader(head, frameHeader);
         if (frameLength <= 4) continue;
-        if (i - 3 + frameLength > br.size()) {
+        if (i - 3 + frameLength > br.length() / 8) {
             if (possible) *possible = i - 3;
             break;
         }
@@ -264,7 +264,7 @@ struct XingHeader {
 // http://gabriel.mp3-tech.org/mp3infotag.html#versionstring
 static bool parseXingHeader(const Buffer& firstFrame, XingHeader *head) {
     CHECK_NULL(head);
-    BitReader br(firstFrame);
+    BitReader br(firstFrame.data(), firstFrame.size());
     head->ID    = br.readS(4);  // XING or Info;
     if (head->ID != "XING" && head->ID != "Info") {
         return false;
@@ -346,7 +346,7 @@ struct VBRIHeader {
 static bool parseVBRIHeader(const Buffer& firstFrame, VBRIHeader *head) {
     CHECK_NULL(head);
 
-    BitReader br(firstFrame);
+    BitReader br(firstFrame.data(), firstFrame.size());
     head->ID                = br.readS(4);  // VBRI
     if (head->ID != "VBRI") return false;
 
@@ -597,7 +597,7 @@ struct Mp3File : public MediaExtractor {
             }
         }
 
-        size_t totalLength = pipe->size();
+        size_t totalLength = pipe->length();
         DEBUG("totalLength %zu", totalLength);
         pipe->seek(totalLength - ID3v1::kLength);
         sp<Buffer> tail = pipe->read(ID3v1::kLength);

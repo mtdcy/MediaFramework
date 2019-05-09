@@ -239,14 +239,14 @@ String printEntry(const Entry * e) {
 void printImageFileDirectory(const sp<ImageFileDirectory>& IFD) {
     List<Entry *>::const_iterator it = IFD->mEntries.cbegin();
     for (; it != IFD->mEntries.cend(); ++it) {
-        INFO("%s", printEntry(*it).c_str());
+        INFO("\t%s", printEntry(*it).c_str());
     }
 }
 
 void printImageFileDirectory(const sp<ImageFileDirectory>& IFD, const char * (*GetTagName)(eTag)) {
     List<Entry *>::const_iterator it = IFD->mEntries.cbegin();
     for (; it != IFD->mEntries.cend(); ++it) {
-        INFO("%s", printEntry(*it, GetTagName((*it)->tag)).c_str());
+        INFO("\t%s", printEntry(*it, GetTagName((*it)->tag)).c_str());
     }
 }
 

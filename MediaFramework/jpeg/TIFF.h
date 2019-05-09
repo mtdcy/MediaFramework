@@ -35,7 +35,7 @@
 #ifndef _MEDIA_JPEG_TIFF_H
 #define _MEDIA_JPEG_TIFF_H
 
-#include "JIF.h"
+#include "JPEG.h"
 
 __BEGIN_NAMESPACE_MPX
 

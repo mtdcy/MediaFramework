@@ -89,7 +89,7 @@ static sp<EBMLElement> getSegmentElement(sp<Content>& pipe,
         sp<EBMLIntegerElement> SEEKID = FindEBMLElement(*it, ID_SEEKID);
         if (SEEKID->vint.u64 == id) {
             sp<EBMLIntegerElement> SEEKPOSITION = FindEBMLElement(*it, ID_SEEKPOSITION);
-            CHECK_LT(segment_offset + SEEKPOSITION->vint.u64, pipe->size());
+            CHECK_LT(segment_offset + SEEKPOSITION->vint.u64, pipe->length());
             pipe->seek(segment_offset + SEEKPOSITION->vint.u64);
             return ReadEBMLElement(pipe);
         }
@@ -318,7 +318,7 @@ struct MatroskaFile : public MediaExtractor {
                 if (trak.format == kAudioCodecFormatAAC && trak.csd != NULL) {
                     // FIXME: strip audio properties from ADTS headers if csd is not exists
                     // AudioSpecificConfig
-                    BitReader br(*trak.csd);
+                    BitReader br(trak.csd->data(), trak.csd->size());
                     MPEG4::AudioSpecificConfig asc(br);
                     if (asc.valid) {
                         trak.a.channels     = asc.channels;
@@ -446,7 +446,7 @@ struct MatroskaFile : public MediaExtractor {
                 if (trak.format == kAudioCodecFormatAAC) {
                     // AudioSpecificConfig
                     // TODO: if csd is not exists, make one
-                    BitReader br(*trak.csd);
+                    BitReader br(trak.csd->data(), trak.csd->size());
                     MPEG4::AudioSpecificConfig asc(br);
                     if (asc.valid) {
                         MPEG4::ES_Descriptor esd = MakeESDescriptor(asc);
@@ -455,7 +455,7 @@ struct MatroskaFile : public MediaExtractor {
                     } else
                         ERROR("bad AudioSpecificConfig");
                 } else if (trak.format == kVideoCodecFormatH264) {
-                    BitReader br(*trak.csd);
+                    BitReader br(trak.csd->data(), trak.csd->size());
                     MPEG4::AVCDecoderConfigurationRecord avcC(br);
                     if (avcC.valid) {
                         trakInfo->setObject(kKeyavcC, trak.csd);

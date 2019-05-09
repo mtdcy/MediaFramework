@@ -48,7 +48,7 @@ __BEGIN_NAMESPACE(MPEG4)
 // 这种格式通常用于可以被随机访问的多媒体数据，如存储在硬盘的文件。
 // 也因为这个特性，MP4、MKV通常用AVCC格式来存储
 eH264StreamFormat GetH264StreamFormat(sp<Buffer>& stream) {
-    BitReader br(*stream);
+    BitReader br(stream->data(), stream->size());
     if (br.show(8) == 1) {     // avcc format with avcC
         AVCDecoderConfigurationRecord avcC(br);
         if (avcC.valid) {

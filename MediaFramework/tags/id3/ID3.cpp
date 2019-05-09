@@ -311,7 +311,7 @@ static ssize_t isID3v2Header(const Buffer& data, ID3v2Header *header) {
     //CHECK_GE(data.size(), ID3v2::kHeaderLength);
     if (data.size() < ID3v2::kHeaderLength) return BAD_VALUE;
     
-    BitReader br(data);
+    BitReader br(data.data(), data.size());
     String magic        = br.readS(3);
     if (magic != "ID3") {
         DEBUG("no ID3v2 magic.");

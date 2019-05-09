@@ -34,160 +34,250 @@
 
 #define LOG_TAG "JPEG"
 #define LOG_NDEBUG 0
-#include "ImageFile.h"
-
-#include "JIF.h"
-#include "JFIF.h"
+#include "JPEG.h"
 
 // JPEG, image/jpeg, ISO 10918-1,
 #include <stdio.h>
+#define JPEG_INTERNALS
 #include "jpeglib.h"
 
-// JPEG 2000, image/jp2, ISO/IEC 15444-1
-#include "openjpeg.h"
-
 __BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE(JPEG)
 
-static OPJ_SIZE_T opj2content_bridge_read(void * p_buffer,
-                                          OPJ_SIZE_T p_nb_bytes,
-                                          void * p_user_data) {
-    sp<Content> pipe = p_user_data;
-    sp<Buffer> buffer = pipe->read(p_nb_bytes);
-    if (buffer.isNIL()) {
-        DEBUG("eos");
-        return 0;
+sp<FrameHeader> readFrameHeader(const BitReader& br, size_t length) {
+    sp<FrameHeader> header = new FrameHeader;
+    
+    header->bpp     = br.r8();
+    header->height  = br.rb16();
+    header->width   = br.rb16();
+    header->planes  = br.r8();
+    for (size_t i = 0; i < header->planes; ++i) {
+        header->plane[i].id = br.r8();
+        header->plane[i].ss = br.r8();
+        header->plane[i].qt = br.r8();
     }
-    size_t n = buffer->read((char *)p_buffer, p_nb_bytes);
-    DEBUG("read %zu / %zu bytes", n, p_nb_bytes);
-    return n;
+    return header;
 }
 
-static OPJ_OFF_T opj2content_bridge_skip(OPJ_OFF_T p_nb_bytes,
-                                         void * p_user_data) {
-    DEBUG("skip %" PRId64, p_nb_bytes);
-    sp<Content> pipe = p_user_data;
-    const int64_t cur = pipe->tell();
-    return pipe->skip(p_nb_bytes) - cur;
+void printFrameHeader(const sp<FrameHeader>& header) {
+    INFO("\tSOF: bpp %" PRIu8 ", height %" PRIu16 ", width %" PRIu16 ", %" PRIu8 " planes",
+         header->bpp, header->height, header->width, header->planes);
+    for (size_t i = 0; i < header->planes; ++i) {
+        INFO("\t\t plane %" PRIu8 ", hss %d, vss %d, qt %" PRIu8,
+             header->plane[i].id,
+             (header->plane[i].ss & 0xf0) >> 4,
+             (header->plane[i].ss & 0xf),
+             header->plane[i].qt);
+    }
 }
 
-static OPJ_BOOL opj2content_bridge_seek(OPJ_OFF_T p_nb_bytes,
-                                        void * p_user_data) {
-    DEBUG("seek to %" PRId64, p_nb_bytes);
-    sp<Content> pipe = p_user_data;
-    if (p_nb_bytes > pipe->size()) return OPJ_FALSE;
-    int64_t pos = pipe->seek(p_nb_bytes);
-    return OPJ_TRUE;
+sp<ScanHeader> readScanHeader(const BitReader& br, size_t length) {
+    sp<ScanHeader> header = new ScanHeader;
+    
+    header->components  = br.r8();
+    for (size_t i = 0; i < header->components; ++i) {
+        header->component[i].id = br.r8();
+        header->component[i].tb = br.r8();
+    }
+    return header;
 }
 
-static opj_stream_t * opj2content_bridge(const sp<Content>& pipe) {
-    opj_stream_t * opj = opj_stream_create(4096, true);
-    
-    opj_stream_set_user_data_length(opj, pipe->size());
-    opj_stream_set_read_function(opj, opj2content_bridge_read);
-    opj_stream_set_seek_function(opj, opj2content_bridge_seek);
-    opj_stream_set_skip_function(opj, opj2content_bridge_skip);
-    opj_stream_set_user_data(opj, pipe.get(), NULL);
-    return opj;
+void printScanHeader(const sp<ScanHeader>& header) {
+    INFO("\tSOS: %d components", header->components);
+    for (size_t i = 0; i < header->components; ++i) {
+        INFO("\t\t component %u, AC %u, DC %u",
+             header->component[i].id,
+             (header->component[i].tb & 0xf0) >> 4,
+             header->component[i].tb & 0xf);
+    }
 }
 
-static void opj2log_bridge(const char *msg, void *client_data) {
-    INFO("%s", msg);
+sp<HuffmanTable> readHuffmanTable(const BitReader& br, size_t length) {
+    sp<HuffmanTable> huff = new HuffmanTable;
+    huff->type  = br.read(4);
+    huff->id    = br.read(4);
+    huff->table = br.readB(length - 1);
+    return huff;
 }
 
-struct JPEG_JFIF : public ImageFile {
-    sp<JFIFObject>      mJFIFObject;
-    
-    // JPEG
-    jpeg_decompress_struct  mJPEGDecoder;
-    
-    // JPEG 2000
-    opj_stream_t *      opj_stream;
-    opj_codec_t *       opj_codec;
-    opj_dparameters_t   opj_dparam;
-    opj_image_t *       opj_image;
-    
-    JPEG_JFIF() : opj_stream(NULL), opj_codec(NULL), opj_image(NULL) { }
-    
-    ~JPEG_JFIF() {
-        if (opj_stream) opj_stream_destroy(opj_stream);
-        if (opj_codec) opj_destroy_codec(opj_codec);
-        if (opj_image) opj_image_destroy(opj_image);
+void printHuffmanTable(const sp<HuffmanTable>& huff) {
+    INFO("\tDHT: %s, id %u, table length %zu",
+         huff->type ? "AC" : "DC", huff->id, huff->table->size());
+}
+
+sp<QuantizationTable> readQuantizationTable(const BitReader& br, size_t length) {
+    sp<QuantizationTable> quan = new QuantizationTable;
+    quan->precision = br.read(4);
+    quan->id        = br.read(4);
+    quan->table     = br.readB(length - 1);
+    return quan;
+}
+
+void printQuantizationTable(const sp<QuantizationTable>& quan) {
+    INFO("\tDQT: precision %u bit, id %u, table length %zu",
+         quan->precision ? 16u : 8u, quan->id, quan->table->size());
+}
+
+sp<RestartInterval> readRestartInterval(const BitReader& br, size_t length) {
+    sp<RestartInterval> ri = new RestartInterval;
+    ri->interval    = br.rb16();
+    return ri;
+}
+
+void printRestartInterval(const sp<RestartInterval>& ri) {
+    INFO("\tDRI: interval %u", ri->interval);
+}
+
+sp<JIFObject> readJIF(const BitReader& br, size_t length) {
+    const size_t start = br.offset() / 8;
+    eMarker marker = (eMarker)br.r16();
+    if (marker != SOI) {
+        ERROR("missing JIF SOI segment, unexpected marker %s", JPEG::MarkerName(SOI));
+        return NIL;
     }
     
-    virtual MediaError init(sp<Content>& pipe, const sp<Message>& options) {
-        mJFIFObject = openJFIF(pipe);
-        
-        jpeg_create_decompress(&mJPEGDecoder);
-        
-        
-#if 0
-        opj_stream = opj2content_bridge(pipe);
-        
-        opj_set_default_decoder_parameters(&opj_dparam);
-        
-        opj_codec = opj_create_decompress(OPJ_CODEC_JP2);
-        opj_set_info_handler(opj_codec, opj2log_bridge, NULL);
-        opj_set_warning_handler(opj_codec, opj2log_bridge, NULL);
-        opj_set_error_handler(opj_codec, opj2log_bridge, NULL);
-        if (opj_setup_decoder(opj_codec, &opj_dparam) == false) {
-            ERROR("setup decoder failed.");
-            return kMediaErrorUnknown;
+    sp<JIFObject> JIF = new JIFObject(false);
+    while ((marker = (eMarker)br.r16()) != EOI) {
+        if ((marker & 0xff00) != 0xff00) {
+            ERROR("JIF bad marker %#x", marker);
+            break;
         }
         
-        if (opj_read_header(opj_stream, opj_codec, &opj_image)) {
-            INFO("[%u, %u, %u, %u], numcomps %u, %d",
-                 opj_image->x0, opj_image->y0,
-                 opj_image->x1, opj_image->y1,
-                 opj_image->numcomps, opj_image->color_space);
-        }
+        size_t size = br.r16();
+        DEBUG("JIF %s: length %zu", MarkerName(marker), size);
         
-        OPJ_INT32 width = opj_image->x1 - opj_image->x0;
-        OPJ_INT32 height = opj_image->y1 - opj_image->y0;
-        
-        opj_codestream_info_v2_t * info = opj_get_cstr_info(opj_codec);
-        INFO("tiles %d x %d", info->tdx, info->tdy);
-        if (opj_set_decode_area(opj_codec, opj_image,
-                                opj_image->x0, opj_image->y0,
-                                opj_image->x0 + info->tdx,
-                                opj_image->y0 + info->tdy)) {
-            
-            if (opj_decode(opj_codec, opj_stream, opj_image) == false) {
-                ERROR("decode failed");
-            }
+        size -= 2;
+        if (marker == SOF0) {
+            JIF->mFrameHeader = readFrameHeader(br, size);
+        } else if (marker == DHT) {
+            JIF->mHuffmanTables.push(readHuffmanTable(br, size));
+        } else if (marker == DQT) {
+            JIF->mQuantizationTables.push(readQuantizationTable(br, size));
+        } else if (marker == DRI) {
+            JIF->mRestartInterval = readRestartInterval(br, size);
+        } else if (marker == SOS) {
+            JIF->mScanHeader = readScanHeader(br, size);
+            JIF->mData = br.readB(length - 2 - (br.offset() / 8 - start));
+            break;
         } else {
-            ERROR("set decode area failed");
+            INFO("ignore marker %#x", marker);
+            br.skipBytes(size);
         }
-        opj_destroy_cstr_info(&info);
-        opj_end_decompress(opj_codec, opj_stream);
-#endif
-        return kMediaNoError;
     }
     
-    virtual MediaError configure(const sp<Message>& options) { return kMediaErrorNotSupported; }
-    
-    virtual sp<Message> formats() const {
-        
+    if (JIF->mData == NIL) {
+        ERROR("missing SOS");
+        return NIL;
     }
     
-    virtual sp<MediaPacket> read() {
-        
+    marker = (eMarker)br.r16();
+    if (marker != EOI) {
+        ERROR("JIF missing EOI, image may be broken");
     }
-    
-    virtual sp<MediaFrame> readImage() {
-        
-    }
-    
-    virtual MediaError write(const sp<MediaPacket>&) {
-        
-    }
-    
-    virtual MediaError writeImage(const sp<MediaFrame>&) {
-        
-    }
-};
-
-sp<ImageFile> CreateJPEG() {
-    return new JPEG_JFIF;
+    return JIF;
 }
+
+// read only SOF & store [SOI, EOI] to data
+sp<JIFObject> readJIFLazy(const BitReader& br, size_t length) {
+    const size_t start = br.offset() / 8;
+    eMarker marker = (eMarker)br.r16();
+    if (marker != SOI) {
+        ERROR("missing JIF SOI segment, unexpected marker %s", JPEG::MarkerName(SOI));
+        return NIL;
+    }
+    
+    sp<JIFObject> JIF = new JIFObject(true);
+    while ((marker = (eMarker)br.r16()) != EOI) {
+        if ((marker & 0xff00) != 0xff00) {
+            ERROR("JIF bad marker %#x", marker);
+            break;
+        }
+        
+        size_t size = br.r16();
+        DEBUG("JIF %s: length %zu", MarkerName(marker), size);
+        
+        size -= 2;
+        if (marker == SOF0) {
+            JIF->mFrameHeader = readFrameHeader(br, size);
+            break;
+        } else {
+            //INFO("ignore marker %#x", marker);
+            br.skipBytes(size);
+        }
+    }
+    
+    if (JIF->mFrameHeader.isNIL()) {
+        ERROR("JIF: missing SOF0");
+        return NIL;
+    }
+    
+    br.seekBytes(start);
+    JIF->mData = br.readB(length);
+    
+    return JIF;
+}
+
+void printJIFObject(const sp<JIFObject>& jif) {
+    if (jif->mFrameHeader != NIL) {
+        printFrameHeader(jif->mFrameHeader);
+    }
+    
+    if (jif->mHuffmanTables.size()) {
+        List<sp<HuffmanTable> >::const_iterator it = jif->mHuffmanTables.cbegin();
+        for (; it != jif->mHuffmanTables.cend(); ++it) {
+            printHuffmanTable(*it);
+        }
+    }
+    
+    if (jif->mQuantizationTables.size()) {
+        List<sp<QuantizationTable> >::const_iterator it = jif->mQuantizationTables.cbegin();
+        for (; it != jif->mQuantizationTables.cend(); ++it) {
+            printQuantizationTable(*it);
+        }
+    }
+    
+    if (jif->mRestartInterval != NIL) {
+        printRestartInterval(jif->mRestartInterval);
+    }
+    
+    if (jif->mScanHeader != NIL) {
+        printScanHeader(jif->mScanHeader);
+    }
+    
+    if (jif->mData != NIL) {
+        INFO("JIF: image length %zu", jif->mData->size());
+    }
+}
+
+/**
+ * decode JIFObject using libjpeg-turbo
+ */
+sp<MediaFrame> decodeJIFObject(const sp<JIFObject>& jif) {
+    CHECK_EQ(jif->mHeadOnly, true);     // only support head only now
+    
+    ImageFormat format;
+    format.format   = kPixelFormatRGB;
+    format.width    = jif->mFrameHeader->width;
+    format.height   = jif->mFrameHeader->height;
+    sp<MediaFrame> frame = MediaFrame::Create(format);
+    
+#if 1
+    jpeg_decompress_struct jpeg;
+    jpeg_error_mgr jerr;
+    jpeg.err = jpeg_std_error(&jerr);
+    jpeg_create_decompress(&jpeg);
+    
+    jpeg_mem_src(&jpeg, (const unsigned char *)jif->mData->data(), jif->mData->size());
+    
+    jpeg_read_header(&jpeg, TRUE);
+    
+    jpeg_start_decompress(&jpeg);
+    
+    jpeg_destroy_decompress(&jpeg);
+#endif
+    return frame;
+}
+
+__END_NAMESPACE(JPEG)
 
 __END_NAMESPACE_MPX

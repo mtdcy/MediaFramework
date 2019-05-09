@@ -35,7 +35,7 @@
 #ifndef _MEDIA_JPEG_EXIF_H
 #define _MEDIA_JPEG_EXIF_H
 
-#include "JIF.h"
+#include "JPEG.h"
 #include "TIFF.h"
 
 __BEGIN_NAMESPACE_MPX
@@ -392,6 +392,8 @@ struct FlashpixExtension : public JPEG::Segment {
 sp<AttributeInformation> readAttributeInformation(const BitReader&, size_t);
 
 sp<FlashpixExtension> readFlashpixExtension(const BitReader&);
+
+void printAttributeInformation(const sp<AttributeInformation>&);
 
 __END_NAMESPACE(EXIF)
 __END_NAMESPACE_MPX

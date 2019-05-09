@@ -84,7 +84,7 @@ static FORCE_INLINE EBMLInteger EBMLGetCodedInteger(BitReader& br) {
     vint.length = EBMLGetBytesLength(vint.u8);
     CHECK_GT(vint.length, 0);
     CHECK_LE(vint.length, 8);
-    if (br.numBitsLeft() < vint.length * 8) {
+    if (br.remains() < vint.length * 8) {
         return EBMLIntegerNull;
     }
 
@@ -153,7 +153,7 @@ static FORCE_INLINE double EBMLGetFloat(BitReader& br, size_t n) {
 }
 
 static FORCE_INLINE EBMLInteger EBMLGetCodedInteger(sp<Content>& pipe) {
-    if (pipe->tell() >= pipe->size()) {
+    if (pipe->tell() >= pipe->length()) {
         return EBMLIntegerNull;
     }
     //CHECK_LT(pipe->tell(), pipe->size());
@@ -163,12 +163,12 @@ static FORCE_INLINE EBMLInteger EBMLGetCodedInteger(sp<Content>& pipe) {
     vint.length = EBMLGetBytesLength(vint.u8);
     CHECK_GT(vint.length, 0);
     CHECK_LE(vint.length, 8);
-    if (pipe->tell() + vint.length >= pipe->size()) {
+    if (pipe->tell() + vint.length >= pipe->length()) {
         return EBMLIntegerNull;
     }
 
     if (vint.length > 1) {
-        if (pipe->tell() + vint.length >= pipe->size()) {
+        if (pipe->tell() + vint.length >= pipe->length()) {
             vint.length = 0;    // invalid
             return vint;
         }
@@ -609,7 +609,7 @@ void PrintEBMLElements(const sp<EBMLElement>& elem, size_t level) {
 sp<EBMLElement> EnumEBMLElement(sp<Content>& pipe) {
     sp<EBMLMasterElement> top = new EBMLMasterElement("mkv", EBMLIntegerNull);
     sp<EBMLMasterElement> master = top;
-    uint64_t n = pipe->size() - pipe->tell();
+    uint64_t n = pipe->length() - pipe->tell();
     for (uint64_t offset = 0; offset < n; ) {
         EBMLInteger id      = EBMLGetCodedInteger(pipe);
         EBMLInteger size    = EBMLGetLength(pipe);
@@ -644,7 +644,7 @@ sp<EBMLElement> EnumEBMLElement(sp<Content>& pipe) {
                 pipe->skip(size.u32);
             } else {
                 sp<Buffer> data = pipe->read(size.u32);
-                BitReader br(*data);
+                BitReader br(data->data(), data->size());
                 if (element->parse(br, data->size()) != OK) {
                     ERROR("ebml element %#x parse failed.", id.u64);
                 }
@@ -661,7 +661,7 @@ sp<EBMLElement> EnumEBMLElement(sp<Content>& pipe) {
 sp<EBMLElement> ParseMatroska(sp<Content>& pipe, int64_t *segment_offset, int64_t *clusters_offset) {
     sp<EBMLMasterElement> top = new EBMLMasterElement("mkv", EBMLIntegerNull);
     sp<EBMLMasterElement> master = top;
-    uint64_t n = pipe->size() - pipe->tell();
+    uint64_t n = pipe->length() - pipe->tell();
     for (uint64_t offset = 0; offset < n; ) {
         EBMLInteger id      = EBMLGetCodedInteger(pipe);
         EBMLInteger size    = EBMLGetLength(pipe);
@@ -700,7 +700,7 @@ sp<EBMLElement> ParseMatroska(sp<Content>& pipe, int64_t *segment_offset, int64_
                 pipe->skip(size.u32);
             } else {
                 sp<Buffer> data = pipe->read(size.u32);
-                BitReader br(*data);
+                BitReader br(data->data(), data->size());
                 if (element->parse(br, data->size()) != OK) {
                     ERROR("ebml element %#x parse failed.", id.u64);
                 } else {
@@ -719,7 +719,7 @@ sp<EBMLElement> ParseMatroska(sp<Content>& pipe, int64_t *segment_offset, int64_
 
 sp<EBMLElement> ReadEBMLElement(sp<Content>& pipe) {
     // end of pipe
-    if (pipe->tell() == pipe->size()) return NULL;
+    if (pipe->tell() == pipe->length()) return NULL;
 
     EBMLInteger id = EBMLGetCodedInteger(pipe);
     EBMLInteger size = EBMLGetLength(pipe);
@@ -734,15 +734,15 @@ sp<EBMLElement> ReadEBMLElement(sp<Content>& pipe) {
         return NULL;
     }
 
-    if (pipe->tell() + size.length >= pipe->size()) {
+    if (pipe->tell() + size.length >= pipe->length()) {
         ERROR("bad pipe");
         return NULL;
     }
 
     sp<Buffer> data = pipe->read(size.u32);     // u32 is logical ok
-    BitReader br(*data);
+    BitReader br(data->data(), data->size());
 
-    if (ebml->parse(br, br.size()) != OK) {
+    if (ebml->parse(br, br.length() / 8) != OK) {
         ERROR("element %s parse failed", ebml->name);
         return NULL;
     }

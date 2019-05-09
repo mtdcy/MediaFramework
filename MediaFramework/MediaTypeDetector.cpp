@@ -81,7 +81,7 @@ eFileFormat MediaFormatDetect(Content& pipe) {
         } else {
             INFO("id3 len = %lu", id3Len);
 
-            if (pipe.size() < 10 + id3Len + 32) {
+            if (pipe.length() < 10 + id3Len + 32) {
                 return kFileFormatUnknown;
             }
 
@@ -98,7 +98,7 @@ eFileFormat MediaFormatDetect(Content& pipe) {
     const int64_t startPos = pipe.tell() - kCommonHeadLength;
     DEBUG("startPos = %" PRId64, startPos);
 
-    BitReader br(*header);
+    BitReader br(header->data(), header->size());
 
     // formats with 100 score by check fourcc
     {
@@ -199,7 +199,7 @@ int scanMatroska(const sp<Buffer>& data) {
         DEBUG("Media::File::MKV");
         score = 20;
 
-        BitReader br(*data);
+        BitReader br(data->data(), data->size());
         br.skipBytes(4);   // skip EBML ID
 
         uint32_t headerLength   = br.r8();
@@ -213,13 +213,13 @@ int scanMatroska(const sp<Buffer>& data) {
         DEBUG("headerLength %d", headerLength);
 
         int done = 0;
-        while (score < 100 && !done && br.numBitsLeft() >= 3 * 8) {
+        while (score < 100 && !done && br.remains() >= 3 * 8) {
             uint16_t Id     = br.rb16();   // EBML ID
             uint32_t size   = br.r8();
             size_t bytes    = __builtin_clz(size) - 24;
             size            &= MASK(8-bytes-1);
 
-            if (br.numBitsLeft() < size * 8) break;
+            if (br.remains() < size * 8) break;
 
             while (bytes--) size = (size << 8) | br.r8();
 
@@ -261,7 +261,7 @@ int scanMatroska(const sp<Buffer>& data) {
 int scanAAC(const sp<Buffer>& data) {
     // 1. http://wiki.multimedia.cx/index.php?title=ADTS
 
-    BitReader br(*data);
+    BitReader br(data->data(), data->size());
     const size_t length = data->ready();
     const char *s = data->data();
 
@@ -302,7 +302,7 @@ int scanAAC(const sp<Buffer>& data) {
 int scanMP4(const sp<Buffer>& data) {
     // 1. libavformat::mov.c::mov_probe
     // 2. MTK::MPEG4Extractor.cpp
-    BitReader br(*data);
+    BitReader br(data->data(), data->size());
 
     int score = 0;
     uint32_t ckSize = br.rb32();
@@ -316,13 +316,13 @@ int scanMP4(const sp<Buffer>& data) {
 
         score = 20; 
         int done = 0;
-        while (!done && br.numBitsLeft() > 8 * 8 && score < 100) {
+        while (!done && br.remains() > 8 * 8 && score < 100) {
             uint32_t ckSize     = br.rb32();
             String ckType       = br.readS(4);
 
             DEBUG("chunk [%s] size %d", ckType.c_str(), ckSize);
 
-            if (br.numBitsLeft() < (ckSize - 8) * 8) break;
+            if (br.remains() < (ckSize - 8) * 8) break;
 
             br.skipBytes(ckSize - 8);
             if (ckType == "moov") {

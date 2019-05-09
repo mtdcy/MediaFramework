@@ -285,7 +285,7 @@ static FORCE_INLINE CFDictionaryRef setupFormatDescriptionExtension(const sp<Mes
         case kCMVideoCodecType_MPEG4Video:
             if (formats->contains(kKeyESDS)) {
                 sp<Buffer> esds = formats->findObject(kKeyESDS);
-                BitReader br(*esds);
+                BitReader br(esds->data(), esds->size());
                 MPEG4::ES_Descriptor esd(br);
                 if (esd.valid) {
                     CFDataRef data = CFDataCreate(kCFAllocatorDefault, (const UInt8*)esds->data(), esds->size());

@@ -36,7 +36,7 @@
 #define _MEDIA_JPEG_JFIF_H
 
 #include "MediaDefs.h"
-#include "JIF.h"
+#include "JPEG.h"
 #include "Exif.h"
 
 __BEGIN_NAMESPACE_MPX
@@ -44,6 +44,7 @@ __BEGIN_NAMESPACE(JFIF)
 
 /**
  * ITU-R T871
+ * ISO/IEC 10918-5:2012 (E)
  *
  *
  * APP0 segment: 0xFFE0
@@ -60,38 +61,36 @@ struct AppHeader : public SharedObject {
     uint8_t     width0;     // thumbnail horizontal pixel count [optional]
     uint8_t     height0;    // thumbnail vertical pixel count [optional]
     sp<Buffer>  thunmbnail; // packed RGB thumbnail [optional]
-};
-
-/**
- * extension APP0 segment: 0xFFE0
- * with identifier : "JFXX\0"
- */
-struct AppHeaderExt : public SharedObject {
-    uint8_t     format;     // thumbnail format
-    sp<Buffer>  thumbnail;
+    
+    // "JFXX\0": thumbnail coded using JPEG
+    uint8_t     extension;  // extension code: 0x10 - JPEG, 0x11 - 1 byte/pixel, 0x13 - 3 bytes/pixel
+    sp<JPEG::JIFObject> jif;// JPEG thumbnail
 };
 
 /**
  * BitReader: without marker & length
  */
 sp<AppHeader>   readAppHeader(const BitReader&, size_t);
+MediaError      extendAppHeader(sp<AppHeader>&, const BitReader&, size_t);
+void            printAppHeader(const sp<AppHeader>&);
 
 __END_NAMESPACE(JFIF)
 
 /**
  * Object for JPEG/JFIF & JPEG/Exif
+ * as most writer will write both APP0(JFIF) & APP1(Exif), so it always looks like JFIF
+ * so we prefer JFIFObject instead of ExifObject
  */
-struct JFIFObject : public SharedObject {
-    sp<JFIF::AppHeader>                 mAppHeader;             ///< JFIF APP0
-    sp<EXIF::AttributeInformation>      mAttributeInformation;  ///< Exif APP1
-    sp<JPEG::FrameHeader>               mFrameHeader;
-    List<sp<JPEG::HuffmanTable> >       mHuffmanTables;
-    List<sp<JPEG::QuantizationTable> >  mQuantizationTables;
-    sp<JPEG::RestartInterval>           mRestartInterval;
-    sp<JPEG::ScanHeader>                mScanHeader;
+struct JFIFObject : public JPEG::JIFObject {
+    JFIFObject() : JPEG::JIFObject(true) { }
+    
+    sp<JFIF::AppHeader>                 mAppHeader;             ///< JFIF APP0, exist only for JFIF
+    sp<EXIF::AttributeInformation>      mAttributeInformation;  ///< Exif APP1, may exists in both JFIF & Exif
 };
 
 sp<JFIFObject> openJFIF(sp<Content>&);
+
+void printJFIFObject(const sp<JFIFObject>&);
 
 __END_NAMESPACE_MPX
 

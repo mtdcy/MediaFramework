@@ -226,7 +226,7 @@ BaseDescriptor(ES_DescrTag)
     DEBUG("Tag 0x%" PRIx8 ", Length %" PRIu32,
           descrTag, descrLength);
     
-    if (descrLength * 8 > br.numBitsLeft()) {
+    if (descrLength * 8 > br.remains()) {
         ERROR("bad esd data");
         return;
     }
