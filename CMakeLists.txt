@@ -2,18 +2,10 @@ cmake_minimum_required (VERSION 2.8)
 
 option (WITH_FFMPEG     "Build with ffmpeg"     ON)
 option (WITH_SDL        "Build with SDL"        ON)
-option (WITH_LIBJEPG    "Build with libjpeg"    ON)
-option (WITH_OPENJPEG   "Build with OpenJPEG"   ON)
 
 # put sub directories before our project 
 # avoid pollution by our project
 add_subdirectory(external/libyuv    EXCLUDE_FROM_ALL)
-if (WITH_LIBJEPG)
-add_subdirectory(external/libjpeg-turbo EXCLUDE_FROM_ALL)
-endif()
-if (WITH_OPENJPEG)
-add_subdirectory(external/openjpeg  EXCLUDE_FROM_ALL)
-endif()
 
 project (MediaFramework)
 
@@ -41,12 +33,6 @@ if (WITH_FFMPEG)
 endif()
 if (WITH_SDL)
     add_definitions(-DWITH_SDL)
-endif()
-if (WITH_LIBJEPG)
-    add_definitions(-DWITH_JPEG)
-endif()
-if (WITH_OPENJPEG)
-    add_definitions(-DWITH_OPENJPEG)
 endif()
 
 if (APPLE)
@@ -192,16 +178,6 @@ endif()
 # link static
 target_link_libraries (${PROJECT_NAME}  yuv)
 include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/external/libyuv/include)
-if (WITH_LIBJEPG)
-target_link_libraries (${PROJECT_NAME} jpeg-static)
-include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/external/libjpeg-turbo)
-include_directories(BEFORE ${CMAKE_CURRENT_BINARY_DIR}/external/libjpeg-turbo) # jconfig.h
-endif()
-if (WITH_OPENJPEG)
-target_link_libraries (${PROJECT_NAME}  openjp2_static)
-include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/external/openjpeg/src/lib/openjp2)
-include_directories(BEFORE ${CMAKE_CURRENT_BINARY_DIR}/external/openjpeg/src/lib/openjp2) # opj_config.h
-endif()
 
 # install targets and headers
 if (XCODE)

@@ -38,8 +38,6 @@
 
 // JPEG, image/jpeg, ISO 10918-1,
 #include <stdio.h>
-#define JPEG_INTERNALS
-#include "jpeglib.h"
 
 __BEGIN_NAMESPACE_MPX
 __BEGIN_NAMESPACE(JPEG)
@@ -260,21 +258,6 @@ sp<MediaFrame> decodeJIFObject(const sp<JIFObject>& jif) {
     format.width    = jif->mFrameHeader->width;
     format.height   = jif->mFrameHeader->height;
     sp<MediaFrame> frame = MediaFrame::Create(format);
-    
-#if 1
-    jpeg_decompress_struct jpeg;
-    jpeg_error_mgr jerr;
-    jpeg.err = jpeg_std_error(&jerr);
-    jpeg_create_decompress(&jpeg);
-    
-    jpeg_mem_src(&jpeg, (const unsigned char *)jif->mData->data(), jif->mData->size());
-    
-    jpeg_read_header(&jpeg, TRUE);
-    
-    jpeg_start_decompress(&jpeg);
-    
-    jpeg_destroy_decompress(&jpeg);
-#endif
     return frame;
 }
 

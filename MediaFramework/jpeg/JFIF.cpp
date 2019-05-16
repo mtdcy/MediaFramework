@@ -40,9 +40,6 @@
 
 #include "ImageFile.h"
 
-// JPEG 2000, image/jp2, ISO/IEC 15444-1
-#include "openjpeg.h"
-
 __BEGIN_NAMESPACE_MPX
 __BEGIN_NAMESPACE(JFIF)
 
@@ -253,67 +250,12 @@ void printJFIFObject(const sp<JFIFObject>& jfif) {
     INFO("----------------------------------");
 }
 
-static OPJ_SIZE_T opj2content_bridge_read(void * p_buffer,
-                                          OPJ_SIZE_T p_nb_bytes,
-                                          void * p_user_data) {
-    sp<Content> pipe = p_user_data;
-    sp<Buffer> buffer = pipe->read(p_nb_bytes);
-    if (buffer.isNIL()) {
-        DEBUG("eos");
-        return 0;
-    }
-    size_t n = buffer->read((char *)p_buffer, p_nb_bytes);
-    DEBUG("read %zu / %zu bytes", n, p_nb_bytes);
-    return n;
-}
-
-static OPJ_OFF_T opj2content_bridge_skip(OPJ_OFF_T p_nb_bytes,
-                                         void * p_user_data) {
-    DEBUG("skip %" PRId64, p_nb_bytes);
-    sp<Content> pipe = p_user_data;
-    const int64_t cur = pipe->tell();
-    return pipe->skip(p_nb_bytes) - cur;
-}
-
-static OPJ_BOOL opj2content_bridge_seek(OPJ_OFF_T p_nb_bytes,
-                                        void * p_user_data) {
-    DEBUG("seek to %" PRId64, p_nb_bytes);
-    sp<Content> pipe = p_user_data;
-    if (p_nb_bytes > pipe->length()) return OPJ_FALSE;
-    int64_t pos = pipe->seek(p_nb_bytes);
-    return OPJ_TRUE;
-}
-
-static opj_stream_t * opj2content_bridge(const sp<Content>& pipe) {
-    opj_stream_t * opj = opj_stream_create(4096, true);
-    
-    opj_stream_set_user_data_length(opj, pipe->length());
-    opj_stream_set_read_function(opj, opj2content_bridge_read);
-    opj_stream_set_seek_function(opj, opj2content_bridge_seek);
-    opj_stream_set_skip_function(opj, opj2content_bridge_skip);
-    opj_stream_set_user_data(opj, pipe.get(), NULL);
-    return opj;
-}
-
-static void opj2log_bridge(const char *msg, void *client_data) {
-    INFO("%s", msg);
-}
-
 struct JPEG_JFIF : public ImageFile {
     sp<JFIFObject>      mJFIFObject;
     
-    // JPEG 2000
-    opj_stream_t *      opj_stream;
-    opj_codec_t *       opj_codec;
-    opj_dparameters_t   opj_dparam;
-    opj_image_t *       opj_image;
-    
-    JPEG_JFIF() : opj_stream(NULL), opj_codec(NULL), opj_image(NULL) { }
+    JPEG_JFIF() { }
     
     ~JPEG_JFIF() {
-        if (opj_stream) opj_stream_destroy(opj_stream);
-        if (opj_codec) opj_destroy_codec(opj_codec);
-        if (opj_image) opj_image_destroy(opj_image);
     }
     
     virtual MediaError init(sp<Content>& pipe, const sp<Message>& options) {
