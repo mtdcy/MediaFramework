@@ -76,16 +76,18 @@ static void dumpCurrentFrameIntoFile() {
         ERROR("current frame is nil");
         return;
     }
-    
+#if 0
     String desc = GetImageFrameString(g_frame);
     INFO("%s", desc.c_str());
     
+    const PixelDescriptor * desc = GetPixelFormatDescriptor(g_frame->v.format);
+    
     String filename = String::format("%s/%s_%dx%d_%.3f.raw",
                                      getenv("HOME"),
-                                     GetPixelFormatString(g_frame->v.format),
+                                     desc->name,
                                      g_frame->v.width, g_frame->v.height,
                                      g_frame->pts.seconds());
-    sp<Content> pipe = Content::Create(filename, abe::Content::Protocol::WRITE);
+    sp<Content> pipe = Content::Create(filename, abe::Content::Protocol::Write);
     
     size_t written = 0;
     for (size_t i = 0; ; ++i) {
@@ -94,6 +96,7 @@ static void dumpCurrentFrameIntoFile() {
         written += pipe->write(*plane);
     }
     INFO("written bytes %zu", written);
+#endif
 }
 
 struct OnPlayerInfo : public PlayerInfoEvent {

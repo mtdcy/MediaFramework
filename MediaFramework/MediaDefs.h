@@ -59,19 +59,10 @@
 
 __BEGIN_DECLS
 
-// common constants and basic types
-typedef enum eFileFormat {
-    kFileFormatUnknown      = 0,
-    kFileFormatMP3,
-    kFileFormatMP4,
-    kFileFormatFlac,
-    kFileFormatWave,
-    kFileFormatAVI,
-    kFileFormatMKV,
-    kFileFormatAAC,
-    // image files
-    kFileFormatJPEG,
-} eFileFormat;
+/**
+ * constrants & types that should export
+ * @note framework internal constrants & types should define inside class
+ */
 
 typedef enum eCodecFormat {
     kCodecFormatUnknown     = 0,

@@ -153,10 +153,8 @@ struct MPContext : public SharedObject {
             return kMediaErrorBadFormat;
         }
         
-        sp<MediaFile> file = MediaFile::Create(MediaFormatDetect(*pipe));
-        
-        sp<Message> options = new Message;
-        if (file == NULL || file->init(pipe, options) != kMediaNoError) {
+        sp<MediaFile> file = MediaFile::Create(pipe);
+        if (file.isNIL()) {
             ERROR("create file failed");
             return kMediaErrorBadFormat;
         }
@@ -167,6 +165,8 @@ struct MPContext : public SharedObject {
         //double endTimeUs = options.findDouble("EndTime");
         
         sp<Message> fileFormats = file->formats();
+        INFO("file formats: %s", fileFormats->string().c_str());
+        
         size_t numTracks = fileFormats->findInt32(kKeyCount, 1);
         INFO("%s", fileFormats->string().c_str());
         mInfo = fileFormats->dup();

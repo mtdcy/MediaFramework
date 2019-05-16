@@ -37,17 +37,17 @@
 
 #include <MediaFramework/MediaDefs.h>
 
-#ifdef __cplusplus
-__BEGIN_NAMESPACE_MPX
+__BEGIN_DECLS
 
 /**
- * detect file format
- * @param url   url to the content
- * @param pipe  content pipe
- * @return return file format @see eFileFormat
+ * constrants should export
+ * @note framework internal constrants should define inside MediaFile
  */
-eFileFormat MediaFormatDetect(const String& url);
-eFileFormat MediaFormatDetect(Content& pipe);
+
+__END_DECLS
+
+#ifdef __cplusplus
+__BEGIN_NAMESPACE_MPX
 
 /**
  * base class for different files
@@ -60,9 +60,7 @@ struct API_EXPORT MediaFile : public SharedObject {
      * @return return reference to new file
      */
     enum eMode { Read, Write, Modify };
-    static sp<MediaFile> Create(eFileFormat format, const eMode mode = Read);
-
-    virtual MediaError      init(sp<Content>& pipe, const sp<Message>& options) = 0;
+    static sp<MediaFile>    Create(sp<Content>& pipe, const eMode mode = Read);
     
     /**
      * get information of this file.
@@ -80,13 +78,13 @@ struct API_EXPORT MediaFile : public SharedObject {
     /**
      * get output format information of this codec.
      * about the output format:
-     *  kKeyFormat      - [eFileFormat]     - mandatory, file format
+     *  kKeyFormat      - [eFormat]         - mandatory, file format @see eFormat
      *  kKeyDuration    - [int64_t]         - mandatory, file duration
      *  kKeyCount       - [int32_t]         - mandatory,
      *  "track-%zu"     - [Message]         - mandatory
      * about the track output format:
-     *  kKeyFormat      - [eCodecFormat]    - mandatory
-     *  kKeyType        - [eCodecType]      - mandatory
+     *  kKeyFormat      - [eCodecFormat]    - mandatory, @see eCodecFormat
+     *  kKeyType        - [eCodecType]      - mandatory, @see eCodecType
      *  kKeyDuration    - [int64_t]         - optional, track duration
      *  "****"          - [Buffer]          - optional, codec csd data, may have different names
      * for audio track:
@@ -101,6 +99,21 @@ struct API_EXPORT MediaFile : public SharedObject {
      *       not a good structure for frequently access, and it is waste
      *       of memory.
      */
+    
+    enum eFormat {              ///< framework internal type
+        Invalid = 0,
+        Mp3     = 'mp3 ',
+        Aac     = 'aac ',
+        Flac    = 'fLaC',
+        Wave    = 'WAVE',
+        Ape     = 'APE ',
+        Mp4     = 'Mp4 ',
+        Mkv     = 'mkv ',
+        Avi     = 'avi ',
+        Jpeg    = 'jpeg',
+        Gif     = 'gif ',
+        Png     = 'png ',
+    };
     virtual sp<Message>     formats() const = 0;
     
     /**

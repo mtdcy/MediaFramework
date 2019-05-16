@@ -30,13 +30,13 @@
  ******************************************************************************/
 
 
-// File:    MediaTypeDetector.cpp
+// File:    MediaFile.cpp
 // Author:  mtdcy.chen
 // Changes: 
 //          1. 20160701     initial version
 //
 
-#define LOG_TAG "MTD"
+#define LOG_TAG "MediaFile"
 #define LOG_NDEBUG 0
 
 #include "MediaFile.h"
@@ -58,19 +58,13 @@ static int scanAAC(const sp<Buffer>& data);
 static int scanMatroska(const sp<Buffer>& data);
 static int scanMP4(const sp<Buffer>& data);
 
-eFileFormat MediaFormatDetect(const String& url) {
-    sp<Content> pipe = Content::Create(url);
-    if (pipe == 0) return kFileFormatUnknown;
-    return MediaFormatDetect(*pipe);
-}
-
-eFileFormat MediaFormatDetect(Content& pipe) {
+static MediaFile::eFormat GetFormat(sp<Content>& pipe) {
     int score = 0;
-
-    sp<Buffer> header = pipe.read(kCommonHeadLength);
+    
+    sp<Buffer> header = pipe->read(kCommonHeadLength);
     if (header == 0) {
         ERROR("content size is too small");
-        return kFileFormatUnknown;
+        return MediaFile::Invalid;
     }
 
     // skip id3v2
@@ -81,100 +75,102 @@ eFileFormat MediaFormatDetect(Content& pipe) {
         } else {
             INFO("id3 len = %lu", id3Len);
 
-            if (pipe.length() < 10 + id3Len + 32) {
-                return kFileFormatUnknown;
+            if (pipe->length() < 10 + id3Len + 32) {
+                return MediaFile::Invalid;
             }
 
-            pipe.skip(10 + id3Len - kCommonHeadLength);
+            pipe->skip(10 + id3Len - kCommonHeadLength);
 
-            header = pipe.read(kCommonHeadLength);
+            header = pipe->read(kCommonHeadLength);
             if (header == 0) {
                 ERROR("not enough data after skip id3v2");
-                return kFileFormatUnknown;
+                return MediaFile::Invalid;
             }
         }
     }
 
-    const int64_t startPos = pipe.tell() - kCommonHeadLength;
+    const int64_t startPos = pipe->tell() - kCommonHeadLength;
     DEBUG("startPos = %" PRId64, startPos);
 
     BitReader br(header->data(), header->size());
 
     // formats with 100 score by check fourcc
     {
-        String fourcc = br.readS(4);
-
         static struct {
-            const char *fourcc;
-            eFileFormat   fileType;
+            const char *        head;
+            const size_t        skip;
+            const char *        ext;        // extra text
+            MediaFile::eFormat  format;
         } kFourccMap[] = {
-            {"fLaC",        kFileFormatFlac    },
-            {NULL,          kFileFormatUnknown },
+            {"fLaC",    0,  NULL,       MediaFile::Flac     },
+            {"RIFF",    4,  "WAVE",     MediaFile::Wave     },
+            {"RIFF",    4,  "AVI ",     MediaFile::Avi      },
+            {"RIFF",    4,  "AVIX",     MediaFile::Avi      },
+            {"RIFF",    4,  "AVI\x19",  MediaFile::Avi      },
+            {"RIFF",    4,  "AMV ",     MediaFile::Avi      },
+            // END OF LIST
+            {NULL,      0,  NULL,       MediaFile::Invalid  },
         };
-
-        for (size_t i = 0; kFourccMap[i].fourcc; i++) {
-            if (fourcc.startsWith(kFourccMap[i].fourcc)) {
-                DEBUG("%s", kFourccMap[i].fileType);
-                return kFourccMap[i].fileType;
+        
+        MediaFile::eFormat format = MediaFile::Invalid;
+        for (size_t i = 0; kFourccMap[i].head; i++) {
+            const String head = br.readS(strlen(kFourccMap[i].head));
+            if (kFourccMap[i].ext) {
+                if (kFourccMap[i].skip) br.skip(kFourccMap[i].skip);
+                const String ext = br.readS(strlen(kFourccMap[i].ext));
+                if (head == kFourccMap[i].head &&
+                    ext == kFourccMap[i].ext) {
+                    format = kFourccMap[i].format;
+                    break;
+                }
+            } else {
+                if (head == kFourccMap[i].head) {
+                    format = kFourccMap[i].format;
+                    break;
+                }
             }
+            
+            br.reset();
+        }
+        
+        if (format != MediaFile::Invalid) {
+            // reset pipe to start pos
+            pipe->seek(startPos);
+            return format;
         }
 
-        // formats need check fourcc and extra values
-        if (fourcc == "RIFF") {
-            // RIFF
-            br.skipBytes(4);
-            String sub = br.readS(4);
-            if (sub == "WAVE") {
-                DEBUG("Media::File::WAVE");
-                return kFileFormatWave;
-            } else if (sub == "AVI " ||
-                    sub == "AVIX" ||
-                    sub == "AVI\x19" ||
-                    sub == "AMV ") {
-                DEBUG("Media::File::AVI");
-                return kFileFormatAVI;
-            }
-        }
-#if 0
-        else if (fourcc == "FRM8") {
-            br.skipBytes(8);
-            String sub = br->readS(4);
-            if (sub == "DSD ") {
-                DEBUG("Media::File::DFF");
-                return Media::File::DFF;
-            }
-        }
-#endif
         br.reset();
     }
 
     // formats with lower score by scanning header
     header->resize(kScanLength);
-    header->write(*pipe.read(kScanLength - kCommonHeadLength));
+    header->write(*pipe->read(kScanLength - kCommonHeadLength));
 
     struct {
         int (*scanner)(const sp<Buffer>& data);
-        eFileFormat   fileType;
+        MediaFile::eFormat format;
     } kScanners[] = {
-        { scanMP4,      kFileFormatMP4    },
-        { scanMatroska, kFileFormatMKV    },
-        { scanAAC,      kFileFormatAAC    },
-        { scanMP3,      kFileFormatMP3    },
-        { NULL,         kFileFormatUnknown}
+        { scanMP4,      MediaFile::Mp4      },
+        { scanMatroska, MediaFile::Mkv      },
+        { scanAAC,      MediaFile::Aac      },
+        { scanMP3,      MediaFile::Mp3      },
+        { NULL,         MediaFile::Invalid  }
     };
 
-    eFileFormat format = kFileFormatUnknown;
+    MediaFile::eFormat format = MediaFile::Invalid;
     for (size_t i = 0; kScanners[i].scanner; i++) {
         int c = kScanners[i].scanner(header);
-        DEBUG("%#x, score = %d", kScanners[i].fileType, c);
+        DEBUG("%#x, score = %d", kScanners[i].format, c);
         if (c > score) {
             score = c;
-            format = kScanners[i].fileType;
+            format = kScanners[i].format;
 
             if (score >= 100) break;
         }
     }
 
+    // TODO: seek to the right pos
+    pipe->seek(startPos);
     return format;
 }
 
@@ -343,6 +339,26 @@ int scanMP4(const sp<Buffer>& data) {
     }
 
     return score;
+}
+
+sp<MediaFile> CreateMp3File(sp<Content>& pipe);
+sp<MediaFile> CreateMp4File(sp<Content>& pipe);
+sp<MediaFile> CreateMatroskaFile(sp<Content>& pipe);
+
+sp<MediaFile> MediaFile::Create(sp<Content>& pipe, const eMode mode) {
+    CHECK_TRUE(mode == Read, "TODO: only support read");
+    
+    const MediaFile::eFormat format = GetFormat(pipe);
+    switch (format) {
+        case MediaFile::Mp3:
+            return CreateMp3File(pipe);
+        case MediaFile::Mp4:
+            return CreateMp4File(pipe);
+        case MediaFile::Mkv:
+            return CreateMatroskaFile(pipe);
+        default:
+            return NULL;
+    }
 }
 
 __END_NAMESPACE_MPX

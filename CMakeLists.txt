@@ -1,7 +1,7 @@
 cmake_minimum_required (VERSION 2.8)
 
-option (WITH_FFMPEG     "Build with ffmpeg"     OFF)
-option (WITH_SDL        "Build with SDL"        OFF)
+option (WITH_FFMPEG     "Build with ffmpeg"     ON)
+option (WITH_SDL        "Build with SDL"        ON)
 option (WITH_LIBJEPG    "Build with libjpeg"    ON)
 option (WITH_OPENJPEG   "Build with OpenJPEG"   ON)
 
@@ -68,11 +68,11 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 set (SOURCE_FILES
     MediaFramework/PixelFormatDescriptor.cpp
     MediaFramework/MediaFramework.cpp
+    MediaFramework/MediaFile.cpp
     MediaFramework/MediaFrame.cpp
     MediaFramework/MediaClock.cpp
     MediaFramework/MediaPlayer.cpp
     MediaFramework/MediaSession.cpp
-    MediaFramework/MediaTypeDetector.cpp
     MediaFramework/tags/id3/ID3.cpp
     MediaFramework/pcm/pcm_convert.c
     MediaFramework/pcm/pcm_interleave.c
@@ -86,7 +86,6 @@ set (SOURCE_FILES
     MediaFramework/mpeg4/Box.cpp
     MediaFramework/matroska/EBML.cpp
     MediaFramework/matroska/MatroskaFile.cpp
-    #MediaFramework/sdl2/SDLVideo.cpp
     MediaFramework/opengl/OpenGLObject.cpp
     MediaFramework/opengl/GLVideo.cpp
     MediaFramework/jpeg/TIFF.cpp
@@ -97,10 +96,11 @@ set (SOURCE_FILES
     )
 
 if (WITH_FFMPEG)
-    list (APPEND SOURCE_FILES MediaFramework/lavc/LavcDecoder.cpp)
+    list (APPEND SOURCE_FILES MediaFramework/ffmpeg/LavcDecoder.cpp)
 endif()
 if (WITH_SDL)
     list (APPEND SOURCE_FILES MediaFramework/sdl2/SDLAudio.cpp)
+    #MediaFramework/sdl2/SDLVideo.cpp
 endif()
 
 file (GLOB PUBLIC_HEADERS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "MediaFramework/*.h")

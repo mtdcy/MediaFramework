@@ -107,7 +107,7 @@ struct {
     {kPixelFormat420YpCbCrSemiPlanar,   AV_PIX_FMT_NV12},
     {kPixelFormat420YpCrCbSemiPlanar,   AV_PIX_FMT_NV21},
     {kPixelFormatRGB565,                AV_PIX_FMT_RGB565},
-    {kPixelFormatRGB888,                AV_PIX_FMT_RGB24},
+    {kPixelFormatRGB,                   AV_PIX_FMT_RGB24},
     // Hardware accel
 #ifdef __APPLE__
     {kPixelFormat420YpCbCrSemiPlanar,   AV_PIX_FMT_VIDEOTOOLBOX},
@@ -246,6 +246,8 @@ struct AVMediaFrame : public MediaFrame {
             }
         } else if (avcc->codec_type == AVMEDIA_TYPE_VIDEO) {
             v.format        = get_pix_format((AVPixelFormat)frame->format);
+            const PixelDescriptor * desc = GetPixelFormatDescriptor(v.format);
+            
             v.width         = frame->linesize[0];
             v.height        = frame->height;
             v.rect.x        = 0;
@@ -255,7 +257,7 @@ struct AVMediaFrame : public MediaFrame {
             for (size_t i = 0; frame->data[i] != NULL; ++i) {
                 planes[i].data  = frame->data[i];
                 // frame->linesize[i] is wired, can not used to calc plane bytes
-                planes[i].size  = (v.width * v.height * GetPixelFormatPlaneBPP(v.format, i)) / 8;
+                planes[i].size  = (v.width * v.height * desc->plane[i].bpp) / (desc->plane[i].hss * desc->plane[i].vss);
             }
         } else {
             FATAL("FIXME");
@@ -359,7 +361,7 @@ static status_t setupHwAccelContext(AVCodecContext *avcc) {
 }
 
 static void parseAudioSpecificConfig(AVCodecContext *avcc, const Buffer& csd) {
-    BitReader br(csd);
+    BitReader br(csd.data(), csd.size());
     MPEG4::AudioSpecificConfig asc(br);
     if (asc.valid) {
         avcc->extradata_size = csd.size();
@@ -375,7 +377,7 @@ static void parseAudioSpecificConfig(AVCodecContext *avcc, const Buffer& csd) {
 
 // parse AudioSpecificConfig from esds, for who needs AudioSpecificConfig
 static void parseESDS(AVCodecContext *avcc, const Buffer& esds) {
-    BitReader br(esds);
+    BitReader br(esds.data(), esds.size());
     MPEG4::ES_Descriptor esd(br);
     // client have make sure it is in the right form
     if (esd.valid) {

@@ -35,7 +35,7 @@ __USING_NAMESPACE_MPX
 
 ImageFileRef ImageFileOpen(ContentObjectRef ref) {
     Object<Content> pipe = ref;
-    Object<ImageFile> file = ImageFile::Create(kFileFormatJPEG);
+    Object<ImageFile> file = ImageFile::Create();
     if (file->init(pipe, NULL) == kMediaNoError) {
         return file->RetainObject();
     }

@@ -555,7 +555,7 @@ struct Mp3File : public MediaFile {
     // 1. http://gabriel.mp3-tech.org/mp3infotag.html#versionstring
     // 2. http://www.codeproject.com/Articles/8295/MPEG-Audio-Frame-Header
     // 3. http://mpgedit.org/mpgedit/mpeg_format/mpeghdr.htm
-    virtual MediaError init(sp<Content>& pipe, const sp<Message>& options) {
+    virtual MediaError init(sp<Content>& pipe) {
         CHECK_TRUE(pipe != 0);
 
         sp<Message> outputFormat    = new Message;
@@ -713,7 +713,7 @@ struct Mp3File : public MediaFile {
 
     virtual sp<Message> formats() const {
         sp<Message> info = new Message;
-        info->setInt32(kKeyFormat, kFileFormatMP3);
+        info->setInt32(kKeyFormat, MediaFile::Mp3);
         info->setInt64(kKeyDuration, mDuration.useconds());
 
         sp<Message> trak = new Message;
@@ -810,8 +810,10 @@ struct Mp3File : public MediaFile {
     }
 };
 
-sp<MediaFile> CreateMp3File() {
-    return new Mp3File;
+sp<MediaFile> CreateMp3File(sp<Content>& pipe) {
+    sp<Mp3File> file = new Mp3File;
+    if (file->init(pipe) == kMediaNoError) return file;
+    return NIL;
 }
 
 sp<MediaPacketizer> CreateMp3Packetizer() {

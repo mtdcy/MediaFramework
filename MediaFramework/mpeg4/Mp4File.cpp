@@ -33,7 +33,7 @@
 //
 
 #define LOG_TAG   "Mp4File"
-//#define LOG_NDEBUG 0
+#define LOG_NDEBUG 0
 #include <ABE/ABE.h>
 
 #include "Systems.h"
@@ -405,7 +405,7 @@ struct Mp4File : public MediaFile {
 
     virtual sp<Message> formats() const {
         sp<Message> info = new Message;
-        info->setInt32(kKeyFormat, kFileFormatMP4);
+        info->setInt32(kKeyFormat, MediaFile::Mp4);
         info->setInt64(kKeyDuration, mDuration.useconds());
         info->setInt32(kKeyCount, mTracks.size());
 
@@ -478,7 +478,7 @@ struct Mp4File : public MediaFile {
         return info;
     }
 
-    virtual MediaError init(sp<Content>& pipe, const sp<Message>& options) {
+    MediaError init(sp<Content>& pipe) {
         CHECK_TRUE(pipe != NULL);
 
         FileTypeBox ftyp;
@@ -724,7 +724,9 @@ struct Mp4File : public MediaFile {
     }
 };
 
-sp<MediaFile> CreateMp4File() {
-    return new Mp4File;
+sp<MediaFile> CreateMp4File(sp<Content>& pipe) {
+    sp<Mp4File> file = new Mp4File;
+    if (file->init(pipe) == kMediaNoError) return file;
+    return NIL;
 }
 __END_NAMESPACE_MPX

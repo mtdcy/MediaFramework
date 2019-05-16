@@ -265,7 +265,7 @@ static const PixelDescriptor * LIST[] = {
 };
 
 const PixelDescriptor * GetPixelFormatDescriptor(ePixelFormat pixel) {
-    for (size_t i = 0; ; ++i) {
+    for (size_t i = 0; LIST[i] != NULL; ++i) {
         const PixelDescriptor * desc = LIST[i];
         if (desc->format == pixel) {
             return desc;

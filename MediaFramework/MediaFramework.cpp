@@ -95,24 +95,6 @@ __END_DECLS
 
 __BEGIN_NAMESPACE_MPX
 
-sp<MediaFile> CreateMp3File();
-sp<MediaFile> CreateMp4File();
-sp<MediaFile> CreateMatroskaFile();
-
-sp<MediaFile> MediaFile::Create(eFileFormat format, const eMode mode) {
-    CHECK_TRUE(mode == Read, "TODO: only support read");
-    switch (format) {
-        case kFileFormatMP3:
-            return CreateMp3File();
-        case kFileFormatMP4:
-            return CreateMp4File();
-        case kFileFormatMKV:
-            return CreateMatroskaFile();
-        default:
-            return NULL;
-    }
-}
-
 #ifdef __APPLE__
 sp<MediaDecoder> CreateVideoToolboxDecoder();
 bool IsVideoToolboxSupported(eCodecFormat format);
@@ -157,13 +139,8 @@ sp<MediaPacketizer> MediaPacketizer::Create(eCodecFormat format) {
 }
 
 sp<ImageFile> CreateJPEG();
-sp<ImageFile> ImageFile::Create(eFileFormat format) {
-    switch (format) {
-        case kFileFormatJPEG:
-            return CreateJPEG();
-        default:
-            return NULL;
-    }
+sp<ImageFile> ImageFile::Create() {
+    return CreateJPEG();
 }
 
 sp<MediaOut> CreateGLVideo();

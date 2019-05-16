@@ -45,7 +45,7 @@ struct API_EXPORT ImageFile : public SharedObject {
     ImageFile() : SharedObject() { }
     virtual ~ImageFile() { }
     
-    static sp<ImageFile> Create(eFileFormat);
+    static sp<ImageFile> Create();
     
     virtual MediaError init(sp<Content>& pipe, const sp<Message>& options) = 0;
     

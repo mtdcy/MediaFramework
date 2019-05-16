@@ -205,7 +205,7 @@ struct MatroskaFile : public MediaFile {
     
     virtual String string() const { return "MatroskaFile"; }
 
-    virtual MediaError init(sp<Content>& pipe, const sp<Message>& options) {
+    MediaError init(sp<Content>& pipe) {
         pipe->seek(0);
         sp<EBMLMasterElement> top = ParseMatroska(pipe, &mSegment, &mClusters);
 #if LOG_NDEBUG == 0
@@ -420,7 +420,7 @@ struct MatroskaFile : public MediaFile {
 
     virtual sp<Message> formats() const {
         sp<Message> info = new Message;
-        info->setInt32(kKeyFormat, kFileFormatMKV);
+        info->setInt32(kKeyFormat, MediaFile::Mkv);
         info->setInt32(kKeyCount, mTracks.size());
         info->setInt64(kKeyDuration, mDuration.useconds());
         for (size_t i = 0; i < mTracks.size(); ++i) {
@@ -589,8 +589,10 @@ struct MatroskaFile : public MediaFile {
     }
 };
 
-sp<MediaFile> CreateMatroskaFile() {
-    return new MatroskaFile;
+sp<MediaFile> CreateMatroskaFile(sp<Content>& pipe) {
+    sp<MatroskaFile> file = new MatroskaFile;
+    if (file->init(pipe) == kMediaNoError) return file;
+    return NIL;
 }
 
 __END_NAMESPACE_MPX
