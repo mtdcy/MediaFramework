@@ -39,7 +39,7 @@
 #include <MediaFramework/MediaDefs.h>
 #include <MediaFramework/MediaFrame.h>
 #include <MediaFramework/ImageFile.h>
-#include <MediaFramework/MediaExtractor.h>
+#include <MediaFramework/MediaFile.h>
 #include <MediaFramework/MediaDecoder.h>
 #include <MediaFramework/MediaOut.h>
 #include <MediaFramework/MediaClock.h>

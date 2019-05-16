@@ -40,7 +40,7 @@
 #include "tags/id3/ID3.h"
 #include "Box.h"
 
-#include <MediaFramework/MediaExtractor.h>
+#include <MediaFramework/MediaFile.h>
 
 
 // reference: 
@@ -388,7 +388,7 @@ struct Mp4Packet : public MediaPacket {
     }
 };
 
-struct Mp4File : public MediaExtractor {
+struct Mp4File : public MediaFile {
     sp<Content>             mContent;
     Vector<sp<Mp4Track > >  mTracks;
     MediaTime               mDuration;
@@ -397,7 +397,7 @@ struct Mp4File : public MediaExtractor {
         size_t              length;
     } meta;
 
-    Mp4File() : MediaExtractor(), mContent(NULL) { }
+    Mp4File() : MediaFile(), mContent(NULL) { }
 
     virtual ~Mp4File() { }
     
@@ -724,7 +724,7 @@ struct Mp4File : public MediaExtractor {
     }
 };
 
-sp<MediaExtractor> CreateMp4File() {
+sp<MediaFile> CreateMp4File() {
     return new Mp4File;
 }
 __END_NAMESPACE_MPX

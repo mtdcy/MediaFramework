@@ -39,7 +39,7 @@
 #define LOG_TAG "MTD"
 #define LOG_NDEBUG 0
 
-#include "MediaExtractor.h"
+#include "MediaFile.h"
 #include <MediaFramework/MediaDefs.h>
 #include <MediaFramework/tags/id3/ID3.h>
 

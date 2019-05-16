@@ -36,7 +36,7 @@
 //#define LOG_NDEBUG 0
 #include "MediaPlayer.h"
 #include "MediaSession.h"
-#include "MediaExtractor.h"
+#include "MediaFile.h"
 #include "MediaClock.h"
 #include "MediaDecoder.h"
 #include "MediaOut.h"
@@ -45,10 +45,10 @@ __USING_NAMESPACE_MPX
 
 // for MediaSession request packet, which always run in player's looper
 struct MediaSource : public PacketRequestEvent {
-    sp<MediaExtractor>  mMedia;
+    sp<MediaFile>  mMedia;
     const size_t        mIndex;
 
-    MediaSource(const sp<Looper>& lp, const sp<MediaExtractor>& media, size_t index) :
+    MediaSource(const sp<Looper>& lp, const sp<MediaFile>& media, size_t index) :
         PacketRequestEvent(lp), mMedia(media), mIndex(index) { }
 
     virtual void onEvent(const PacketRequest& v) {
@@ -153,11 +153,11 @@ struct MPContext : public SharedObject {
             return kMediaErrorBadFormat;
         }
         
-        sp<MediaExtractor> extractor = MediaExtractor::Create(MediaFormatDetect(*pipe));
+        sp<MediaFile> file = MediaFile::Create(MediaFormatDetect(*pipe));
         
         sp<Message> options = new Message;
-        if (extractor == NULL || extractor->init(pipe, options) != kMediaNoError) {
-            ERROR("create extractor failed");
+        if (file == NULL || file->init(pipe, options) != kMediaNoError) {
+            ERROR("create file failed");
             return kMediaErrorBadFormat;
         }
         
@@ -166,7 +166,7 @@ struct MPContext : public SharedObject {
         //double startTimeUs = options.findDouble("StartTime");
         //double endTimeUs = options.findDouble("EndTime");
         
-        sp<Message> fileFormats = extractor->formats();
+        sp<Message> fileFormats = file->formats();
         size_t numTracks = fileFormats->findInt32(kKeyCount, 1);
         INFO("%s", fileFormats->string().c_str());
         mInfo = fileFormats->dup();
@@ -174,7 +174,7 @@ struct MPContext : public SharedObject {
         uint32_t activeTracks = 0;
         for (size_t i = 0; i < numTracks; ++i) {
             // PacketRequestEvent
-            sp<MediaSource> ms = new MediaSource(Looper::Current(), extractor, i);
+            sp<MediaSource> ms = new MediaSource(Looper::Current(), file, i);
             
             String name = String::format("track-%zu", i);
             sp<Message> formats = fileFormats->findObject(name);
@@ -242,11 +242,11 @@ struct MPContext : public SharedObject {
             activeTracks |= (1<<i);
         }
         
-        // tell extractor which tracks are enabled.
+        // tell file which tracks are enabled.
         sp<Message> config = new Message;
         config->setInt32(kKeyMask, activeTracks);
-        if (extractor->configure(config) != kMediaNoError) {
-            WARN("extractor not support configure active tracks");
+        if (file->configure(config) != kMediaNoError) {
+            WARN("file not support configure active tracks");
         }
         return kMediaNoError;
     }

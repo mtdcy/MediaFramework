@@ -52,7 +52,7 @@ typedef TypedEvent<sp<MediaPacket> > PacketReadyEvent;
 /**
  * For pull packets from packet source.
  *
- * @see MediaExtractor::read
+ * @see MediaFile::read
  */
 struct PacketRequest {
     eModeReadType           mode;   ///< read mode, @see eModeReadType

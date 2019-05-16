@@ -38,7 +38,7 @@
 
 #include <MediaFramework/MediaPacketizer.h>
 
-#include <MediaFramework/MediaExtractor.h>
+#include <MediaFramework/MediaFile.h>
 #include "mpeg4/Audio.h"
 #include "mpeg4/Video.h"
 #include "mpeg4/Systems.h"
@@ -192,7 +192,7 @@ struct MatroskaPacket : public MediaPacket {
 
 #define TIMESCALE_DEF 1000000UL
 bool decodeMPEGAudioFrameHeader(const Buffer& frame, uint32_t *sampleRate, uint32_t *numChannels);
-struct MatroskaFile : public MediaExtractor {
+struct MatroskaFile : public MediaFile {
     int64_t                 mSegment;   // offset of SEGMENT
     int64_t                 mClusters;  // offset of CLUSTERs
     MediaTime               mDuration;
@@ -201,7 +201,7 @@ struct MatroskaFile : public MediaExtractor {
     Vector<MatroskaTrack>   mTracks;
     List<TOCEntry>          mTOC;
 
-    MatroskaFile() : MediaExtractor(), mDuration(0), mTimeScale(TIMESCALE_DEF), mContent(NULL) { }
+    MatroskaFile() : MediaFile(), mDuration(0), mTimeScale(TIMESCALE_DEF), mContent(NULL) { }
     
     virtual String string() const { return "MatroskaFile"; }
 
@@ -589,7 +589,7 @@ struct MatroskaFile : public MediaExtractor {
     }
 };
 
-sp<MediaExtractor> CreateMatroskaFile() {
+sp<MediaFile> CreateMatroskaFile() {
     return new MatroskaFile;
 }
 

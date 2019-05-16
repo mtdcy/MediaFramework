@@ -44,7 +44,7 @@
 #include <stdio.h> // FIXME: sscanf
 
 #include "MediaPacketizer.h"
-#include "MediaExtractor.h"
+#include "MediaFile.h"
 
 
 __BEGIN_NAMESPACE_MPX
@@ -520,7 +520,7 @@ struct Mp3Packetizer : public MediaPacketizer {
     }
 };
 
-struct Mp3File : public MediaExtractor {
+struct Mp3File : public MediaFile {
     sp<Content>             mContent;
     int64_t                 mFirstFrameOffset;
     MPEGAudioFrameHeader    mHeader;
@@ -810,7 +810,7 @@ struct Mp3File : public MediaExtractor {
     }
 };
 
-sp<MediaExtractor> CreateMp3File() {
+sp<MediaFile> CreateMp3File() {
     return new Mp3File;
 }
 

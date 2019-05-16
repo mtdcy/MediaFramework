@@ -227,7 +227,7 @@ struct Decoder : public SharedObject {
             }
 
             ++mPacketsReceived;
-            // @see MediaExtractor::read(), packets should in dts order.
+            // @see MediaFile::read(), packets should in dts order.
             if (pkt->dts < mLastPacketTime) {
                 WARN("codec %zu: unorderred packet %.3f(s) < last %.3f(s)",
                         mID, pkt->dts.seconds(), mLastPacketTime.seconds());

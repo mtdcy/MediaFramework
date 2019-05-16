@@ -35,7 +35,7 @@
 #define LOG_TAG "MediaFramework"
 #include "MediaDefs.h"
 #include "MediaDecoder.h"
-#include "MediaExtractor.h"
+#include "MediaFile.h"
 #include "MediaPacketizer.h"
 #include "MediaOut.h"
 #include "ImageFile.h"
@@ -95,11 +95,12 @@ __END_DECLS
 
 __BEGIN_NAMESPACE_MPX
 
-sp<MediaExtractor> CreateMp3File();
-sp<MediaExtractor> CreateMp4File();
-sp<MediaExtractor> CreateMatroskaFile();
+sp<MediaFile> CreateMp3File();
+sp<MediaFile> CreateMp4File();
+sp<MediaFile> CreateMatroskaFile();
 
-sp<MediaExtractor> MediaExtractor::Create(eFileFormat format) {
+sp<MediaFile> MediaFile::Create(eFileFormat format, const eMode mode) {
+    CHECK_TRUE(mode == Read, "TODO: only support read");
     switch (format) {
         case kFileFormatMP3:
             return CreateMp3File();

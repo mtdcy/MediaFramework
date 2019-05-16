@@ -52,28 +52,31 @@ eFileFormat MediaFormatDetect(Content& pipe);
 /**
  * base class for different files
  */
-struct API_EXPORT MediaExtractor : public SharedObject {
-    MediaExtractor() { }
-    virtual ~MediaExtractor() { }
-
+struct API_EXPORT MediaFile : public SharedObject {
     /**
-     * allocate an extractor object
-     * @return return reference to new extractor
+     * allocate an file object
+     * @param format    file format @see eFileFormat
+     * @param mode      file mode @see eMode
+     * @return return reference to new file
      */
-    static sp<MediaExtractor> Create(eFileFormat);
+    enum eMode { Read, Write, Modify };
+    static sp<MediaFile> Create(eFileFormat format, const eMode mode = Read);
 
     virtual MediaError      init(sp<Content>& pipe, const sp<Message>& options) = 0;
+    
     /**
-     * get information of this extractor.
+     * get information of this file.
      * @return return a string of information
      */
     virtual String          string() const = 0;
+    
     /**
      * configure this codec
      * @param options   option and parameter
      * @return return OK on success, otherwise error code.
      */
-    virtual MediaError      configure(const sp<Message>& options) { return kMediaErrorNotSupported; }
+    virtual MediaError      configure(const sp<Message>& options) { return kMediaErrorInvalidOperation; }
+    
     /**
      * get output format information of this codec.
      * about the output format:
@@ -99,6 +102,7 @@ struct API_EXPORT MediaExtractor : public SharedObject {
      *       of memory.
      */
     virtual sp<Message>     formats() const = 0;
+    
     /**
      * read packets for each track.
      * @param index     index of the track
@@ -106,12 +110,18 @@ struct API_EXPORT MediaExtractor : public SharedObject {
      * @param ts        time in track's timescale
      * @return return reference to new packet if not eos and no
      *         error happens.
-     * @note the extractor may have to avoid seek too much, as we
+     * @note the file may have to avoid seek too much, as we
      *       are read each track seperately
      */
     virtual sp<MediaPacket> read(size_t index,
             eModeReadType mode,
             const MediaTime& ts = kTimeInvalid) = 0;
+    
+    /**
+     * write packets to file object
+     * @param
+     */
+    virtual MediaError  write(const sp<MediaPacket>& packet) { return kMediaErrorInvalidOperation; }
 };
 __END_NAMESPACE_MPX
 #endif

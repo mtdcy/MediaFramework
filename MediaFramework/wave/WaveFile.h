@@ -39,7 +39,7 @@
 #include <modules/asf/Asf.h>
 
 namespace mtdcy {
-    class WaveFile : public MediaExtractor {
+    class WaveFile : public MediaFile {
         public:
             WaveFile(const sp<Content>& pipe, const sp<Message>& formats);
 

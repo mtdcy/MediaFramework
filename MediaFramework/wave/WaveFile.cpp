@@ -77,7 +77,7 @@ namespace mtdcy {
     // 1. http://www-mmsp.ece.mcgill.ca/documents/audioformats/wave/wave.html
     WaveFile::WaveFile(const sp<Content>& pipe, const sp<Message>& formats)
         :
-            MediaExtractor(), 
+            MediaFile(), 
             mContent(pipe), mFormats(NULL),
             mDataOffset(0), mDataLength(0), mBytesRead(0)
     {
