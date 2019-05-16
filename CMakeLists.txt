@@ -72,6 +72,7 @@ set (SOURCE_FILES
     MediaFramework/mpeg4/Box.cpp
     MediaFramework/matroska/EBML.cpp
     MediaFramework/matroska/MatroskaFile.cpp
+    MediaFramework/ffmpeg/Libavformat.cpp
     MediaFramework/opengl/OpenGLObject.cpp
     MediaFramework/opengl/GLVideo.cpp
     MediaFramework/jpeg/TIFF.cpp

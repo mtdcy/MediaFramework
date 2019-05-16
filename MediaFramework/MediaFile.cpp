@@ -344,6 +344,7 @@ int scanMP4(const sp<Buffer>& data) {
 sp<MediaFile> CreateMp3File(sp<Content>& pipe);
 sp<MediaFile> CreateMp4File(sp<Content>& pipe);
 sp<MediaFile> CreateMatroskaFile(sp<Content>& pipe);
+sp<MediaFile> CreateLibavformat(sp<Content>& pipe);
 
 sp<MediaFile> MediaFile::Create(sp<Content>& pipe, const eMode mode) {
     CHECK_TRUE(mode == Read, "TODO: only support read");
@@ -352,12 +353,14 @@ sp<MediaFile> MediaFile::Create(sp<Content>& pipe, const eMode mode) {
     switch (format) {
         case MediaFile::Mp3:
             return CreateMp3File(pipe);
+#if 0
         case MediaFile::Mp4:
             return CreateMp4File(pipe);
+#endif
         case MediaFile::Mkv:
             return CreateMatroskaFile(pipe);
         default:
-            return NULL;
+            return CreateLibavformat(pipe);
     }
 }
 

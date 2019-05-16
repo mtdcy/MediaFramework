@@ -81,7 +81,7 @@ struct API_EXPORT MediaFile : public SharedObject {
      *  kKeyFormat      - [eFormat]         - mandatory, file format @see eFormat
      *  kKeyDuration    - [int64_t]         - mandatory, file duration
      *  kKeyCount       - [int32_t]         - mandatory,
-     *  "track-%zu"     - [Message]         - mandatory
+     *  "track-%zu"     - [sp<Message>]     - mandatory
      * about the track output format:
      *  kKeyFormat      - [eCodecFormat]    - mandatory, @see eCodecFormat
      *  kKeyType        - [eCodecType]      - mandatory, @see eCodecType
