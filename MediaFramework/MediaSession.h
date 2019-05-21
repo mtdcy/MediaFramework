@@ -51,30 +51,19 @@ typedef TypedEvent<sp<MediaPacket> > PacketReadyEvent;
 
 /**
  * For pull packets from packet source.
- *
- * @see MediaFile::read
  */
-struct PacketRequest {
-    eModeReadType           mode;   ///< read mode, @see eModeReadType
-    MediaTime               ts;     ///< timestamp of the packet
-    sp<PacketReadyEvent>    event;  ///< event for return the packet, @see PacketReadyEvent
-};
-typedef TypedEvent<PacketRequest> PacketRequestEvent;
+typedef TypedEvent<sp<PacketReadyEvent> > PacketRequestEvent;
 
 /**
  * For pushing frames to target. when a frame is ready,
  * fire this event, and target will receive the frame.
  */
-typedef TypedEvent<sp<MediaFrame> >  FrameReadyEvent;
+typedef TypedEvent<sp<MediaFrame> > FrameReadyEvent;
 
 /**
  * For pull frames from frame source
  */
-struct FrameRequest {
-    MediaTime               ts;     ///< timestamp of the start frame
-    sp<FrameReadyEvent>     event;  ///< event for return the frame, @see FrameReadyEvent
-};
-typedef TypedEvent<FrameRequest>  FrameRequestEvent;
+typedef TypedEvent<sp<FrameReadyEvent> > FrameRequestEvent;
 
 /**
  * For MediaSession Info
@@ -92,17 +81,27 @@ struct API_EXPORT IMediaSession : public SharedObject {
     virtual ~IMediaSession() { }
     
     /**
+     * create a new media session
      * "SessionInfoEvent"   - [sp<SessionInfoEvent>]    - optional
+     * @param formats   format of the media stream
+     * @param options   options of the media session
+     * @return return reference to the media session, or NIL if failed.
      */
-    static sp<IMediaSession> Create(const sp<Message>& formats, const sp<Message>& options);
+    static sp<IMediaSession> create(const sp<Message>& formats, const sp<Message>& options);
     
     /**
-     * prepare session at new position
-     * "time"               - [int64_t|useconds]    - mandatory
-     * "delay"              - [int64_t|useconds]    - optional
+     * prepare media session
      */
-    virtual void prepare(const sp<Message>& options) = 0;
+    virtual void prepare() = 0;
+    
+    /**
+     * flush media session
+     */
     virtual void flush() = 0;
+    
+    /**
+     * release media session
+     */
     virtual void release() = 0;
 };
 

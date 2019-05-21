@@ -34,7 +34,7 @@
 
 #include <FFmpeg.h>
 
-#define LOG_TAG "Lavc.Decoder"
+#define LOG_TAG "Lavc"
 //#define LOG_NDEBUG 0
 #include "MediaDefs.h"
 
@@ -263,7 +263,7 @@ struct AVMediaFrame : public MediaFrame {
             FATAL("FIXME");
         }
         // this may be wrong
-        pts         = MediaTime(frame->pts * avcc->time_base.num, avcc->time_base.den);
+        timecode    = MediaTime(frame->pts * avcc->time_base.num, avcc->time_base.den);
         duration    = kTimeInvalid;
     }
 
@@ -831,7 +831,7 @@ struct LavcDecoder : public MediaDecoder {
                 pkt->flags |= AV_PKT_FLAG_DISCARD;
                 pkt->flags |= AV_PKT_FLAG_DISPOSABLE;
             } else {
-                mTimestamps.push(input->dts);
+                mTimestamps.push(input->pts);
                 mTimestamps.sort();
             }
 
@@ -897,7 +897,7 @@ struct LavcDecoder : public MediaDecoder {
         }
 
 #if 1
-        out->pts                = *mTimestamps.begin();
+        out->timecode       = *mTimestamps.begin();
         mTimestamps.pop();
 #endif
 
@@ -923,7 +923,7 @@ struct LavcDecoder : public MediaDecoder {
         }
 #endif
         if (mOutputCount == 0) {
-            INFO("first frame @ %.3f(s)", out->pts.seconds());
+            INFO("first frame @ %.3f(s)", out->timecode.seconds());
         }
 
         av_frame_free(&internal);

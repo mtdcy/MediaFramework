@@ -526,10 +526,12 @@ struct MatroskaFile : public MediaFile {
 
     // https://matroska.org/technical/specs/notes.html#TimecodeScale
     // https://matroska.org/technical/specs/notes.html
-    virtual sp<MediaPacket> read(size_t index,
-            eModeReadType mode,
+    virtual sp<MediaPacket> read(eModeReadType mode,
             const MediaTime& ts = kTimeInvalid) {
 
+        const size_t index = 0;     // FIXME
+        FATAL("FIXME");
+        
         MatroskaTrack& trak = mTracks[index];
 
 #if 0

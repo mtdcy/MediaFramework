@@ -50,13 +50,13 @@
 __BEGIN_NAMESPACE_MPX
 
 const static size_t kCommonHeadLength = 32;
-const static size_t kScanLength = 8 * 1024ll;
+const static size_t kScanLength = 32 * 1024ll;
 
 // return score
 static int scanMP3(const sp<Buffer>& data);
 static int scanAAC(const sp<Buffer>& data);
 static int scanMatroska(const sp<Buffer>& data);
-static int scanMP4(const sp<Buffer>& data);
+int IsMp4File(const sp<Buffer>& data);
 
 static MediaFile::eFormat GetFormat(sp<Content>& pipe) {
     int score = 0;
@@ -150,7 +150,7 @@ static MediaFile::eFormat GetFormat(sp<Content>& pipe) {
         int (*scanner)(const sp<Buffer>& data);
         MediaFile::eFormat format;
     } kScanners[] = {
-        { scanMP4,      MediaFile::Mp4      },
+        { IsMp4File,    MediaFile::Mp4      },
         { scanMatroska, MediaFile::Mkv      },
         { scanAAC,      MediaFile::Aac      },
         { scanMP3,      MediaFile::Mp3      },
@@ -295,52 +295,6 @@ int scanAAC(const sp<Buffer>& data) {
     return score;
 }
 
-int scanMP4(const sp<Buffer>& data) {
-    // 1. libavformat::mov.c::mov_probe
-    // 2. MTK::MPEG4Extractor.cpp
-    BitReader br(data->data(), data->size());
-
-    int score = 0;
-    uint32_t ckSize = br.rb32();
-    String id = br.readS(4);
-    DEBUG("id = %s", id.c_str());
-    if (id == "ftyp" || id == "moov" ||
-            id == "mdat" || id == "free" ||
-            id == "wide") {
-        DEBUG("Media::File::MP4");
-        br.skipBytes(ckSize - 8);
-
-        score = 20; 
-        int done = 0;
-        while (!done && br.remains() > 8 * 8 && score < 100) {
-            uint32_t ckSize     = br.rb32();
-            String ckType       = br.readS(4);
-
-            DEBUG("chunk [%s] size %d", ckType.c_str(), ckSize);
-
-            if (br.remains() < (ckSize - 8) * 8) break;
-
-            br.skipBytes(ckSize - 8);
-            if (ckType == "moov") {
-                score = MAX(100, score);
-                break;
-            } else if (ckType == "ftyp" ||
-                    ckType == "mdat" ||
-                    ckType == "pnot" || /* detect movs with preview pics like ew.mov and april.mov */
-                    ckType == "udat" || /* Packet Video PVAuthor adds this and a lot of more junk */
-                    ckType == "wide" ||
-                    ckType == "ediw" || /* xdcam files have reverted first tags */
-                    ckType == "free" ||
-                    ckType == "junk" ||
-                    ckType == "pict") {
-                score += 10;
-            }
-        }
-    }
-
-    return score;
-}
-
 sp<MediaFile> CreateMp3File(sp<Content>& pipe);
 sp<MediaFile> CreateMp4File(sp<Content>& pipe);
 sp<MediaFile> CreateMatroskaFile(sp<Content>& pipe);
@@ -351,14 +305,14 @@ sp<MediaFile> MediaFile::Create(sp<Content>& pipe, const eMode mode) {
     
     const MediaFile::eFormat format = GetFormat(pipe);
     switch (format) {
+#if 0
         case MediaFile::Mp3:
             return CreateMp3File(pipe);
-#if 0
         case MediaFile::Mp4:
             return CreateMp4File(pipe);
-#endif
         case MediaFile::Mkv:
             return CreateMatroskaFile(pipe);
+#endif
         default:
             return CreateLibavformat(pipe);
     }

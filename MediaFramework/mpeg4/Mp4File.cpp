@@ -609,9 +609,11 @@ struct Mp4File : public MediaFile {
         return kMediaNoError;
     }
 
-    virtual sp<MediaPacket> read(size_t index,
-            eModeReadType mode,
+    virtual sp<MediaPacket> read(eModeReadType mode,
             const MediaTime& _ts = kTimeInvalid) {
+        const size_t index = 0; // FIXME
+        FATAL("FIXME");
+        
         sp<Mp4Track>& track = mTracks[index];
         Vector<Sample>& tbl = track->sampleTable;
 
@@ -701,7 +703,7 @@ struct Mp4File : public MediaFile {
         if (dts < track->startTime) {
             if (flags & kFrameFlagDisposal) {
                 INFO("track %zu: drop frame", index);
-                return read(index, mode, kTimeInvalid);
+                return read(mode, kTimeInvalid);
             } else {
                 INFO("track %zu: reference frame", index);
                 flags |= kFrameFlagReference;
@@ -729,4 +731,47 @@ sp<MediaFile> CreateMp4File(sp<Content>& pipe) {
     if (file->init(pipe) == kMediaNoError) return file;
     return NIL;
 }
+
+int IsMp4File(const sp<Buffer>& data) {
+    BitReader br(data->data(), data->size());
+    
+    int score = 0;
+    while (br.remianBytes() > 8 && score < 100) {
+        size_t boxHeadLength    = 8;
+        // if size is 1 then the actual size is in the field largesize;
+        // if size is 0, then this box is the last one in the file
+        uint64_t boxSize        = br.rb32();
+        const String boxType    = br.readS(4);
+        
+        if (boxSize == 1) {
+            if (br.remianBytes() < 8) break;
+            
+            boxSize             = br.rb64();
+            boxHeadLength       = 16;
+        }
+        
+        DEBUG("file: %s %" PRIu64, boxType.c_str(), boxSize);
+        if (boxType == "ftyp" || boxType == "moov" || boxType == "mdat") {
+            score += 40;
+        } else if (boxType == "ftyp" ||
+                   boxType == "mdat" ||
+                   boxType == "pnot" || /* detect movs with preview pics like ew.mov and april.mov */
+                   boxType == "udat" || /* Packet Video PVAuthor adds this and a lot of more junk */
+                   boxType == "wide" ||
+                   boxType == "ediw" || /* xdcam files have reverted first tags */
+                   boxType == "free" ||
+                   boxType == "junk" ||
+                   boxType == "pict") {
+            score += 10;
+        }
+        
+        if (boxSize - boxHeadLength > 0) {
+            if (br.remianBytes() < boxSize - boxHeadLength) break;
+            br.skipBytes(boxSize - boxHeadLength);
+        }
+    }
+    
+    return score > 100 ? 100 : score;
+}
+
 __END_NAMESPACE_MPX

@@ -32,8 +32,8 @@
 //          1. 20160701     initial version
 //
 
-#define LOG_TAG   "Libavformat"
-#define LOG_NDEBUG 0
+#define LOG_TAG   "Lavf"
+//#define LOG_NDEBUG 0
 #include <MediaFramework/MediaFile.h>
 
 #include <FFmpeg.h>
@@ -50,6 +50,7 @@ struct {
     { "mov",        MediaFile::Mp4  },
     { "mp4",        MediaFile::Mp4  },
     { "mp3",        MediaFile::Mp3  },
+    { "matroska",   MediaFile::Mkv  },
     // END OF LIST
     { NULL,         MediaFile::Invalid }
 };
@@ -136,14 +137,11 @@ AVIOContext * content_bridge(sp<Content>& pipe) {
 
 
 struct AVStreamObject : public SharedObject {
-    AVStream *              avs;
-    List<sp<MediaPacket> >  packets;
+    AVStream *      stream;
+    bool            calc_dts;
+    MediaTime       last_dts;
     
-    AVStreamObject(AVStream * s) : avs(s) {
-    }
-    
-    ~AVStreamObject() {
-    }
+    AVStreamObject() : stream(NULL), calc_dts(false), last_dts(0) { }
 };
 
 struct AVFormatObject : public SharedObject {
@@ -159,42 +157,83 @@ struct AVFormatObject : public SharedObject {
             avformat_close_input(&context);
             //avformat_free_context(context);
         }
-        if (avio) avio_context_free(&avio);
+        if (avio) {
+            avio_context_free(&avio);
+        }
     }
 };
 
-static sp<AVFormatObject> openFile(sp<Content>& pipe) {
+static AVDictionary * prepareOptions(const AVInputFormat * fmt) {
+    AVDictionary * dict = NULL;
+    // common options, @see libavformat/options_table.h
+    av_dict_set_int(&dict, "avioflags", AVIO_SEEKABLE_NORMAL | AVIO_FLAG_DIRECT, 0);
+    
+    int fflags = AVFMT_FLAG_CUSTOM_IO | AVFMT_FLAG_AUTO_BSF;
+    fflags |= AVFMT_FLAG_SORT_DTS;
+    fflags |= AVFMT_FLAG_GENPTS;
+    av_dict_set_int(&dict, "fflags", fflags, 0);
+    
+    String name = fmt->name;
+    if (name.startsWith("mov")) {
+        av_dict_set_int(&dict, "seek_streams_individually", 0, 0);
+    } else if (name.startsWith("mp3")) {
+        av_dict_set_int(&dict, "usetoc", 1, 0);
+    }
+    return dict;
+}
+
+static sp<AVFormatObject> openInput(sp<Content>& pipe, bool find_stream_info = false) {
     sp<AVFormatObject> object = new AVFormatObject;
     object->pipe = pipe;    // keep a ref
     
     object->avio = content_bridge(pipe);
     CHECK_NULL(object->avio);
     
+    AVInputFormat * fmt = NULL;
+    int ret = av_probe_input_buffer(object->avio, &fmt, NULL, NULL, 0, 0);
+    if (ret < 0) {
+        ERROR("probe input failed");
+        return NIL;
+    }
+    DEBUG("input: %s, flags %#x", fmt->name, fmt->flags);
+    String name = fmt->name;
+    
     object->context = avformat_alloc_context();
     object->context->pb = object->avio;
     
-    int ret = avformat_open_input(&object->context, NULL, NULL, NULL);
+    AVDictionary * options = prepareOptions(fmt);
+    ret = avformat_open_input(&object->context, NULL, fmt, &options);
+    if (options) av_dict_free(&options);
+    
     if (ret < 0) {
         ERROR("open file failed.");
         return NIL;
     }
     av_dump_format(object->context, 0, NULL, 0);
     
-#if 0
-    // avformat_find_stream_info not always necessary, it decoding extra info, like
-    // image pixel format (yuv420p), SAR, DAR ...
-    // audio sample format, channel map ...
-    ret = avformat_find_stream_info(object->context, NULL);
-    if (ret < 0) {
-        ERROR("find stream info failed.");
-        return NIL;
+    if (find_stream_info) {
+        // avformat_find_stream_info not always necessary, it decoding extra info, like
+        // image pixel format (yuv420p), SAR, DAR ...
+        // audio sample format, channel map ...
+        ret = avformat_find_stream_info(object->context, NULL);
+        if (ret < 0) {
+            ERROR("find stream info failed.");
+            return NIL;
+        }
+        
+        av_dump_format(object->context, 0, NULL, 0);
     }
     
-    av_dump_format(object->context, 0, NULL, 0);
-#endif
-    
+    // workarounds
     for (size_t i = 0; i < object->context->nb_streams; ++i) {
-        object->streams.push(new AVStreamObject(object->context->streams[i]));
+        sp<AVStreamObject> st = new AVStreamObject;
+        st->stream = object->context->streams[i];
+        
+        if (name.startsWith("matroska") && st->stream->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
+            st->calc_dts = true;
+        }
+        
+        object->streams.push(st);
     }
     
     return object;
@@ -204,28 +243,41 @@ static sp<AVFormatObject> openFile(sp<Content>& pipe) {
 struct AVMediaPacket : public MediaPacket {
     AVPacket *  pkt;
     
-    AVMediaPacket(AVStream * st, AVPacket * ref) {
+    AVMediaPacket(sp<AVStreamObject>& st, AVPacket * ref) {
         pkt = av_packet_alloc();
         av_packet_ref(pkt, ref);
         
+        CHECK_EQ(st->stream->index, pkt->stream_index);
         data    = pkt->data;
         size    = pkt->size;
-        //index   = 0;
-        format  = GetCodecFormat(st->codecpar->codec_id);
+        index   = pkt->stream_index;
+        format  = GetCodecFormat(st->stream->codecpar->codec_id);
         flags   = 0;
         if (pkt->flags & AV_PKT_FLAG_KEY)           flags |= kFrameFlagSync;
         if (pkt->flags & AV_PKT_FLAG_DISCARD)       flags |= kFrameFlagReference;
         if (pkt->flags & AV_PKT_FLAG_DISPOSABLE)    flags |= kFrameFlagDisposal;
         
-        if (pkt->dts == AV_NOPTS_VALUE)
-            dts = kTimeInvalid;
-        else
-            dts = MediaTime(pkt->dts * st->time_base.num, st->time_base.den);
+        if (st->calc_dts) {
+            if (pkt->duration == 0) {
+                ERROR("stream %d: missing duration");
+            }
+            
+            st->last_dts += MediaTime(pkt->duration * st->stream->time_base.num, st->stream->time_base.den);
+            dts = st->last_dts;
+        } else {
+            if (pkt->dts == AV_NOPTS_VALUE) {
+                ERROR("stream %d: missing dts", st->stream->index);
+                dts = MediaTime(pkt->pts * st->stream->time_base.num, st->stream->time_base.den);
+            } else
+                dts = MediaTime(pkt->dts * st->stream->time_base.num, st->stream->time_base.den);
+        }
         
-        if (pkt->pts == AV_NOPTS_VALUE)
-            pts = kTimeInvalid;
-        else
-            pts = MediaTime(pkt->pts * st->time_base.num, st->time_base.den);
+        if (pkt->pts == AV_NOPTS_VALUE) {
+            pts = dts;
+        } else {
+            pts = MediaTime(pkt->pts * st->stream->time_base.num, st->stream->time_base.den);
+        }
+        duration = MediaTime(pkt->duration * st->stream->time_base.num, st->stream->time_base.den);
         
         // opaque
         opaque  = pkt;
@@ -237,13 +289,50 @@ struct AVMediaPacket : public MediaPacket {
     }
 };
 
+static sp<Buffer> prepareESDS(const AVStream * st) {
+    // AudioSpecificConfig
+    // TODO: if csd is not exists, make one
+    BitReader br((const char *)st->codecpar->extradata,
+                 st->codecpar->extradata_size);
+    MPEG4::AudioSpecificConfig asc(br);
+    if (asc.valid) {
+        MPEG4::ES_Descriptor esd = MakeESDescriptor(asc);
+        sp<Buffer> csd = new Buffer((const char *)st->codecpar->extradata,
+                                    st->codecpar->extradata_size);
+        esd.decConfigDescr.decSpecificInfo.csd = csd;
+        return MPEG4::MakeESDS(esd);
+    } else {
+        ERROR("bad AudioSpecificConfig");
+        return NIL;
+    }
+}
+
+static sp<Buffer> prepareAVCC(const AVStream * st) {
+    BitReader br((const char *)st->codecpar->extradata,
+                 st->codecpar->extradata_size);
+    MPEG4::AVCDecoderConfigurationRecord avcC(br);
+    if (avcC.valid) {
+        return new Buffer((const char *)st->codecpar->extradata,
+                          st->codecpar->extradata_size);
+    } else {
+        ERROR("bad avcC");
+        return NIL;
+    }
+}
+
+static sp<Buffer> prepareHVCC(const AVStream * st) {
+    // TODO: validation the extradata
+    return new Buffer((const char *)st->codecpar->extradata,
+                      st->codecpar->extradata_size);
+}
+
 struct AVFormat : public MediaFile {
     sp<AVFormatObject>  mObject;
     
     AVFormat() : mObject(NIL) { }
     
     MediaError open(sp<Content>& pipe) {
-        mObject = openFile(pipe);
+        mObject = openInput(pipe);
         return mObject.isNIL() ? kMediaErrorUnknown : kMediaNoError;
     }
     
@@ -252,9 +341,13 @@ struct AVFormat : public MediaFile {
     virtual sp<Message> formats() const {
         sp<Message> info = new Message;
         info->setInt32(kKeyFormat, GetFormat(mObject->context->iformat->name));
-        info->setInt64(kKeyDuration, mObject->context->duration);
-        info->setInt32(kKeyCount, mObject->context->nb_streams);
+        if (mObject->context->duration != AV_NOPTS_VALUE) {
+            info->setInt64(kKeyDuration, mObject->context->duration);
+        } else {
+            ERROR("duration is not available");
+        }
         
+        info->setInt32(kKeyCount, mObject->context->nb_streams);
         for (size_t i = 0; i < mObject->context->nb_streams; ++i) {
             String name = String::format("track-%zu", i);
             sp<Message> trak = new Message;
@@ -262,7 +355,10 @@ struct AVFormat : public MediaFile {
             AVStream * st = mObject->context->streams[i];
             
             trak->setInt32(kKeyFormat, GetCodecFormat(st->codecpar->codec_id));
-            trak->setInt64(kKeyDuration, st->duration);
+            
+            if (st->duration != AV_NOPTS_VALUE) {
+                trak->setInt64(kKeyDuration, st->duration);
+            }
             switch (st->codecpar->codec_type) {
                 case AVMEDIA_TYPE_AUDIO:
                     trak->setInt32(kKeySampleRate, st->codecpar->sample_rate);
@@ -277,35 +373,21 @@ struct AVFormat : public MediaFile {
             }
             
             switch (st->codecpar->codec_id) {
-                case AV_CODEC_ID_AAC: {
-                    // AudioSpecificConfig
-                    // TODO: if csd is not exists, make one
-                    BitReader br((const char *)st->codecpar->extradata,
-                                 st->codecpar->extradata_size);
-                    MPEG4::AudioSpecificConfig asc(br);
-                    if (asc.valid) {
-                        MPEG4::ES_Descriptor esd = MakeESDescriptor(asc);
-                        esd.decConfigDescr.decSpecificInfo.csd = new Buffer((const char *)st->codecpar->extradata,
-                                                                            st->codecpar->extradata_size);
-                        trak->setObject(kKeyESDS, MPEG4::MakeESDS(esd));
-                    } else {
-                        ERROR("bad AudioSpecificConfig");
-                    }
-                } break;
-                case AV_CODEC_ID_H264: {
-                    BitReader br((const char *)st->codecpar->extradata,
-                                 st->codecpar->extradata_size);
-                    MPEG4::AVCDecoderConfigurationRecord avcC(br);
-                    if (avcC.valid) {
-                        trak->setObject(kKeyavcC,
+                case AV_CODEC_ID_AAC:
+                    trak->setObject(kKeyESDS, prepareESDS(st));
+                    break;
+                case AV_CODEC_ID_H264:
+                    trak->setObject(kKeyavcC, prepareAVCC(st));
+                    break;
+                case AV_CODEC_ID_HEVC:
+                    trak->setObject(kKeyhvcC, prepareHVCC(st));
+                    break;
+                default:
+                    if (st->codecpar->extradata) {
+                        trak->setObject(kKeyCodecSpecificData,
                                         new Buffer((const char *)st->codecpar->extradata,
                                                    st->codecpar->extradata_size));
-                    } else {
-                        ERROR("bad avcC");
                     }
-                } break;
-                    
-                default:
                     break;
             }
             
@@ -318,53 +400,38 @@ struct AVFormat : public MediaFile {
         return kMediaErrorInvalidOperation;
     }
     
-    virtual sp<MediaPacket> read(size_t index,
-                                 eModeReadType mode,
+    virtual sp<MediaPacket> read(eModeReadType mode,
                                  const MediaTime& ts) {
-        sp<AVStreamObject> st = mObject->streams[index];
-        
-        if (st->packets.size()) {
-            sp<MediaPacket> packet = st->packets.front();
-            st->packets.pop();
-            
-            return packet;
+        if (ts != kTimeInvalid) {
+            INFO("seek to %.3f(s)", ts.seconds());
+            avformat_seek_file(mObject->context, -1,
+                               0, ts.useconds(), mObject->context->duration,
+                               0);
         }
         
-        for (;;) {
-            AVPacket pkt;
-            av_init_packet(&pkt);
-            pkt.data = NULL; pkt.size = 0;
-            
-            int ret = av_read_frame(mObject->context, &pkt);
-            
-            if (ret < 0) {
-                switch (ret) {
-                    case AVERROR_EOF:
-                        INFO("End Of File...");
-                        return NIL;
-                    default:
-                        ERROR("av_read_frame error %s", av_err2str(ret));
-                        break;
-                }
-            }
-            
-            if (pkt.flags & AV_PKT_FLAG_CORRUPT) {
-                WARN("corrupt packet");
-                continue;
-            }
-            
-            sp<AVStreamObject> st = mObject->streams[pkt.stream_index];
-            sp<MediaPacket> packet = new AVMediaPacket(st->avs, &pkt);
-            
-            if (pkt.stream_index == index) {
-                return packet;
-            } else {
-                // cache the packet.
-                st->packets.push(packet);
-            }
+        AVPacket * pkt = av_packet_alloc();
+        pkt->data = NULL; pkt->size = 0;
+        
+        int ret = av_read_frame(mObject->context, pkt);
+        
+        if (ret < 0) {
+            ERROR("av_read_frame error %s", av_err2str(ret));
+            av_packet_free(&pkt);
+            return NIL;
         }
         
-        return NIL;
+        if (pkt->flags & AV_PKT_FLAG_CORRUPT) {
+            WARN("corrupt packet");
+            return read(mode, ts);
+        }
+        
+        sp<AVStreamObject> st = mObject->streams[pkt->stream_index];
+        sp<MediaPacket> packet = new AVMediaPacket(st, pkt);
+        av_packet_free(&pkt);
+        
+        DEBUG("trak %zu: %zu bytes@%p, %.3f(s)", packet->index, packet->size, packet->data, packet->timecode.seconds());
+        
+        return packet;
     }
 };
 

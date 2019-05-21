@@ -727,10 +727,8 @@ struct Mp3File : public MediaFile {
         return info;
     }
 
-    virtual sp<MediaPacket> read(size_t index,
-            eModeReadType mode,
+    virtual sp<MediaPacket> read(eModeReadType mode,
             const MediaTime& ts = kTimeInvalid) {
-        CHECK_EQ(index, 0);
         CHECK_NE(mode, kModeReadPeek); // don't support this
         bool sawInputEOS = false;
 

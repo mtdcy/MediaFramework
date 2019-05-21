@@ -44,23 +44,75 @@
 __USING_NAMESPACE_MPX
 
 // for MediaSession request packet, which always run in player's looper
-struct MediaSource : public PacketRequestEvent {
-    sp<MediaFile>  mMedia;
-    const size_t        mIndex;
-
-    MediaSource(const sp<Looper>& lp, const sp<MediaFile>& media, size_t index) :
-        PacketRequestEvent(lp), mMedia(media), mIndex(index) { }
-
-    virtual void onEvent(const PacketRequest& v) {
-        // NO lock to mMedia, as all PacketRequestEvent run in the same looper
-        sp<MediaPacket> pkt = mMedia->read(mIndex, v.mode, v.ts);
-
-        if (pkt == NULL) {
-            INFO("%zu: eos", mIndex);
+// TODO: seek
+struct MediaSource : public SharedObject {
+    sp<MediaFile>       mMediaFile;
+    
+    typedef List<sp<MediaPacket> > PacketList;
+    Vector<PacketList>  mPackets;
+    MediaTime           mNextPacket;
+    
+    MediaSource(sp<MediaFile>& media, size_t n) : mMediaFile(media), mNextPacket(kTimeInvalid) {
+        for (size_t i = 0; i < n; ++i) {
+            mPackets.push();
         }
+    }
+    
+    void seek(int64_t us) {
+        mNextPacket = MediaTime(us, 1000000);
+    }
+    
+    sp<MediaPacket> read(size_t index) {
+        if (mNextPacket != kTimeInvalid) {
+            for (size_t i = 0; i < mPackets.size(); ++i) {
+                mPackets[i].clear();
+            }
+            
+            sp<MediaPacket> packet = mMediaFile->read(kModeReadClosestSync, mNextPacket);
+            if (packet.isNIL()) {
+                INFO("eos");
+                return NIL;
+            }
+            
+            mPackets[packet->index].push(packet);
+            mNextPacket = kTimeInvalid;
+        }
+        
+        PacketList& list = mPackets[index];
+        if (list.size()) {
+            sp<MediaPacket> packet = list.front();
+            list.pop();
+            return packet;
+        }
+        
+        for (;;) {
+            sp<MediaPacket> packet = mMediaFile->read(kModeReadNext);
+            if (packet.isNIL()) {
+                INFO("eos");
+                break;
+            }
+            
+            if (packet->index == index) {
+                return packet;
+            }
+            
+            mPackets[packet->index].push(packet);
+        }
+        
+        return NIL;
+    }
+};
 
-        sp<PacketReadyEvent> event = v.event;
-        event->fire(pkt);
+struct OnPacketRequest : public PacketRequestEvent {
+    sp<MediaSource> mSource;
+    const size_t    mIndex;
+    OnPacketRequest(const sp<Looper>& lp, const sp<MediaSource>& source, size_t index) :
+        PacketRequestEvent(lp), mSource(source), mIndex(index) { }
+    
+    virtual void onEvent(const sp<PacketReadyEvent>& _event) {
+        sp<MediaPacket> packet = mSource->read(mIndex);
+        sp<PacketReadyEvent> event = _event;
+        event->fire(packet);
     }
 };
 
@@ -88,6 +140,7 @@ struct MPContext : public SharedObject {
     sp<Runnable>            mDeferStart;
 
     // mutable context
+    sp<MediaSource> mMediaSource;
     HashTable<size_t, sp<SessionContext> > mSessions;
     size_t          mNextId;
     bool            mHasAudio;
@@ -171,10 +224,11 @@ struct MPContext : public SharedObject {
         INFO("%s", fileFormats->string().c_str());
         mInfo = fileFormats->dup();
         
+        mMediaSource = new MediaSource(file, numTracks);
         uint32_t activeTracks = 0;
         for (size_t i = 0; i < numTracks; ++i) {
             // PacketRequestEvent
-            sp<MediaSource> ms = new MediaSource(Looper::Current(), file, i);
+            sp<MediaSource> ms = new OnPacketRequest(Looper::Current(), mMediaSource, i);
             
             String name = String::format("track-%zu", i);
             sp<Message> formats = fileFormats->findObject(name);
@@ -230,7 +284,7 @@ struct MPContext : public SharedObject {
                 options->setObject("Clock", new Clock(mClock));
             }
             
-            sp<IMediaSession> session = IMediaSession::Create(formats, options);
+            sp<IMediaSession> session = IMediaSession::create(formats, options);
             if (session == NULL) {
                 ERROR("create session for %s[%zu] failed", url, i);
                 continue;
@@ -289,13 +343,18 @@ struct MPContext : public SharedObject {
         // set clock time
         mClock->set(us);
         
-        sp<Message> options = new Message;
-        options->setInt64("time", us);
-        
         HashTable<size_t, sp<SessionContext> >::iterator it = mSessions.begin();
         for (; it != mSessions.end(); ++it) {
             sp<SessionContext>& sc = it.value();
-            sc->mMediaSession->prepare(options);
+            sc->mMediaSession->flush();
+        }
+        
+        mMediaSource->seek(us);
+        
+        it = mSessions.begin();
+        for (; it != mSessions.end(); ++it) {
+            sp<SessionContext>& sc = it.value();
+            sc->mMediaSession->prepare();
             mReadyMask.set(sc->mID);
         }
         

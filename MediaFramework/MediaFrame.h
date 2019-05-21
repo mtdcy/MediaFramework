@@ -47,7 +47,7 @@ __BEGIN_NAMESPACE_MPX
  */
 #define MEDIA_FRAME_NB_PLANES   (8)
 struct API_EXPORT MediaFrame : public SharedObject {
-    MediaTime               pts;        ///< display time in us
+    MediaTime               timecode;   ///< frame display timestamp
     MediaTime               duration;   ///< duration of this frame
     /**
      * plane data struct.

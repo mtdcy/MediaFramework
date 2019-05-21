@@ -39,7 +39,7 @@
 
 __BEGIN_NAMESPACE_MPX
 
-MediaFrame::MediaFrame() : pts(kTimeInvalid), duration(kTimeInvalid) {
+MediaFrame::MediaFrame() : timecode(kTimeInvalid), duration(kTimeInvalid) {
     for (size_t i = 0; i < MEDIA_FRAME_NB_PLANES; ++i) {
         planes[i].data = NULL;
         planes[i].size = 0;
@@ -513,7 +513,7 @@ String GetImageFrameString(const sp<MediaFrame>& frame) {
         line += String::format(" %zu@[%zu@%p]", i, frame->planes[i].size, frame->planes[i].data);
     }
     line += String::format(", pts %" PRId64 "/%" PRId64,
-                           frame->pts.value, frame->pts.timescale);
+                           frame->timecode.value, frame->timecode.timescale);
     return line;
 }
 

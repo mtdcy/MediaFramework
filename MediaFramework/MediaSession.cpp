@@ -65,7 +65,7 @@ __USING_NAMESPACE_MPX
 struct MediaFrameTunnel : public MediaFrame {
     sp<MediaPacket>     mPacket;
     MediaFrameTunnel(const sp<MediaPacket>& packet) : MediaFrame(), mPacket(packet) {
-        pts                 = packet->pts;
+        timecode            = packet->pts;
         duration            = kTimeInvalid;
         planes[0].data      = packet->data;
         planes[0].size      = packet->size;
@@ -87,23 +87,82 @@ struct OnFrameRequestTunnel : public FrameRequestEvent {
     OnFrameRequestTunnel(const sp<PacketRequestEvent>& event) :
     FrameRequestEvent(), mPacketRequestEvent(event) { }
     
-    virtual void onEvent(const FrameRequest& request) {
-        PacketRequest packetRequest;
-        packetRequest.event     = new OnPacketReadyTunnel(request.event);
-        packetRequest.mode      = kModeReadNext;
-        if (request.ts != kTimeInvalid) {
-            packetRequest.ts    = request.ts;
-            packetRequest.mode  = kModeReadClosestSync;
-        }
-        // request packet
-        mPacketRequestEvent->fire(packetRequest);
+    virtual void onEvent(const sp<FrameReadyEvent>& event) {
+        mPacketRequestEvent->fire(new OnPacketReadyTunnel(event));
     }
 };
 
-struct Decoder : public SharedObject {
+struct IMediaSessionInt : SharedObject {
+    virtual void onInit(const sp<Message>& format, const sp<Message>& options) = 0;
+    virtual void onPrepare() { }
+    virtual void onFlush() { }
+    virtual void onRelease() { ReleaseObject(); Looper::Current()->terminate(); }
+};
+
+struct InitRunnable : public Runnable {
+    sp<Message> mFormats;
+    sp<Message> mOptions;
+    InitRunnable(const sp<Message>& format, const sp<Message>& options) : mFormats(format), mOptions(options) { }
+    
+    virtual void run() {
+        sp<IMediaSessionInt> session = Looper::Current()->user(0);
+        session->onInit(mFormats, mOptions);
+    }
+};
+
+struct PrepareRunnable : public Runnable {
+    virtual void run() {
+        sp<IMediaSessionInt> session = Looper::Current()->user(0);
+        session->onPrepare();
+    }
+};
+
+struct FlushRunnable : public Runnable {
+    virtual void run() {
+        sp<IMediaSessionInt> session = Looper::Current()->user(0);
+        session->onFlush();
+    }
+};
+
+struct ReleaseRunnable : public Runnable {
+    virtual void run() {
+        sp<IMediaSessionInt> session = Looper::Current()->user(0);
+        session->onRelease();
+    }
+};
+
+struct ThreadSession : public IMediaSession {
+    sp<Looper> mLooper;
+    
+    ThreadSession(const String& name, sp<IMediaSessionInt>& internel) : mLooper(Looper::Create(name)) {
+        mLooper->bind(internel->RetainObject()); // remember to release on release
+        mLooper->loop();
+    }
+    
+    void init(const sp<Message>& format, const sp<Message>& options) {
+        mLooper->post(new InitRunnable(format, options));
+    }
+    
+    virtual void prepare() {
+        mLooper->post(new PrepareRunnable);
+    }
+    
+    virtual void flush() {
+        mLooper->post(new FlushRunnable);
+    }
+    
+    virtual void release() {
+        mLooper->post(new ReleaseRunnable);
+    }
+};
+
+struct Decoder : public IMediaSessionInt {
     // external static context
-    eCodecFormat            mID;
+    eCodecFormat            mFormat;
+    eCodecType              mType;
     sp<PacketRequestEvent>  mPacketRequestEvent;        // where we get packets
+    sp<SessionInfoEvent>    mInfoEvent;
+    
     // internal static context
     sp<MediaDecoder>        mCodec;                     // reference to codec
     sp<PacketReadyEvent>    mPacketReadyEvent;          // when packet ready
@@ -116,86 +175,87 @@ struct Decoder : public SharedObject {
     bool                    mSignalCodecEOS;    // tell codec eos
     bool                    mOutputEOS;         // end of output ?
     MediaTime               mLastPacketTime;    // test packets in dts order?
-    List<FrameRequest>      mFrameRequests;     // requests queue
+    List<sp<FrameReadyEvent> > mFrameRequests;  // requests queue
     // statistics
     size_t                  mPacketsReceived;
     size_t                  mPacketsComsumed;
     size_t                  mFramesDecoded;
 
-    bool valid() const { return mCodec != NULL; }
-
-    Decoder(const sp<Message>& format, const sp<Message>& options) :
+    Decoder() : IMediaSessionInt(),
         // external static context
-        mID(kCodecFormatUnknown),
-        mPacketRequestEvent(NULL),
+        mFormat(kCodecFormatUnknown), mType(kCodecTypeUnknown), mPacketRequestEvent(NULL),
         // internal static context
         mCodec(NULL), mPacketReadyEvent(NULL),
         // internal mutable context
         mGeneration(0), mInputEOS(false), mSignalCodecEOS(false), mLastPacketTime(kTimeInvalid),
         // statistics
         mPacketsReceived(0), mPacketsComsumed(0), mFramesDecoded(0)
-    {
+    { }
+    
+    void notify(eSessionInfoType info) {
+        if (mInfoEvent != NULL) {
+            mInfoEvent->fire(info);
+        }
+    }
+    
+    void onInit(const sp<Message>& format, const sp<Message>& options) {
+        DEBUG("codec %zu: init << %s << %s", mFormat, format->string().c_str(), options->string().c_str());
         CHECK_TRUE(options->contains("PacketRequestEvent"));
         mPacketRequestEvent = options->findObject("PacketRequestEvent");
+        
+        if (options->contains("SessionInfoEvent")) {
+            mInfoEvent = options->findObject("SessionInfoEvent");
+        }
 
         // setup decoder...
         CHECK_TRUE(format->contains(kKeyFormat));
-        mID = (eCodecFormat)format->findInt32(kKeyFormat);
+        mFormat = (eCodecFormat)format->findInt32(kKeyFormat);
+        mType = GetCodecType(mFormat);
+        
         eModeType mode = (eModeType)options->findInt32(kKeyMode, kModeTypeDefault);
 
-        eCodecType type = GetCodecType(mID);
-
-        // always set mCodec to null, if create or initial faileds
-        mCodec = MediaDecoder::Create(mID, mode);
-        if (mCodec == NULL) {
+        mCodec = MediaDecoder::Create(mFormat, mode);
+        if (mCodec.isNIL()) {
             ERROR("codec is not supported");
+            notify(kSessionInfoError);
             return;
         }
         
         if (mCodec->init(format, options) != kMediaNoError) {
-            ERROR("track %zu: create codec failed", mID);
+            ERROR("track %zu: create codec failed", mFormat);
             mCodec.clear();
 
 #if 1
             if (mode != kModeTypeSoftware) {
                 sp<Message> soft = options->dup();
                 soft->setInt32(kKeyMode, kModeTypeSoftware);
-                mCodec = MediaDecoder::Create(mID, kModeTypeSoftware);
+                mCodec = MediaDecoder::Create(mFormat, kModeTypeSoftware);
 
                 if (mCodec->init(format, soft) != kMediaNoError) {
-                    ERROR("track %zu: create software codec failed", mID);
+                    ERROR("track %zu: create software codec failed", mFormat);
                     mCodec.clear();
                 }
             }
 #endif
+        }
+        
+        if (mCodec.isNIL()) {
+            ERROR("codec initial failed");
+            notify(kSessionInfoError);
             return;
         }
     }
 
-    virtual ~Decoder() {
-    }
-
-    void requestPacket(const MediaTime& ts = kTimeInvalid) {
+    void requestPacket() {
         if (mInputEOS) return;
 
         if (mInputQueue.size() >= MAX_COUNT) {
-            DEBUG("codec %zu: input queue is full", mID);
+            DEBUG("codec %zu: input queue is full", mFormat);
             return;
         }
 
-        DEBUG("codec %zu: request packet", mID);
-        PacketRequest payload;
-        if (ts != kTimeInvalid) {
-            INFO("codec %zu: request frame at %.3f(s)", mID, ts.seconds());
-            payload.mode = kModeReadClosestSync;
-            payload.ts = ts;
-        } else {
-            payload.mode = kModeReadNext;
-            payload.ts = ts;
-        }
-
-        payload.event = mPacketReadyEvent;
-        mPacketRequestEvent->fire(payload);
+        DEBUG("codec %zu: request packet", mFormat);
+        mPacketRequestEvent->fire(mPacketReadyEvent);
 
         // -> onPacketReady
     }
@@ -211,26 +271,26 @@ struct Decoder : public SharedObject {
 
     void onPacketReady(const sp<MediaPacket>& pkt, int generation) {
         if (mGeneration.load() != generation) {
-            INFO("codec %zu: ignore outdated packets", mID);
+            INFO("codec %zu: ignore outdated packets", mFormat);
             return;
         }
 
         if (pkt == NULL) {
-            INFO("codec %zu: eos detected", mID);
+            INFO("codec %zu: eos detected", mFormat);
             mInputEOS = true;
         } else {
             DEBUG("codec %zu: packet %.3f|%.3f(s) ready",
                     mID, pkt->dts.seconds(), pkt->pts.seconds());
             
             if (mPacketsReceived == 0) {
-                INFO("codec %zu: first packet @ %.3f(s)|%.3f(s)", mID, pkt->pts.seconds(), pkt->dts.seconds());
+                INFO("codec %zu: first packet @ %.3f(s)|%.3f(s)", mFormat, pkt->pts.seconds(), pkt->dts.seconds());
             }
 
             ++mPacketsReceived;
             // @see MediaFile::read(), packets should in dts order.
             if (pkt->dts < mLastPacketTime) {
                 WARN("codec %zu: unorderred packet %.3f(s) < last %.3f(s)",
-                        mID, pkt->dts.seconds(), mLastPacketTime.seconds());
+                        mFormat, pkt->dts.seconds(), mLastPacketTime.seconds());
             }
             mLastPacketTime = pkt->dts;
             mInputQueue.push(pkt);
@@ -244,14 +304,8 @@ struct Decoder : public SharedObject {
         requestPacket();
     }
 
-    void onPrepareDecoder(const MediaTime& ts) {
-        INFO("codec %zu: prepare decoder @ %.3f(s)", mID, ts.seconds());
-        CHECK_TRUE(ts != kTimeInvalid);
-        
-        // clear
-        mInputQueue.clear();
-        mCodec->flush();
-        mFrameRequests.clear();
+    void onPrepare() {
+        INFO("codec %zu: prepare decoder", mFormat);
 
         // update generation
         mPacketReadyEvent = new OnPacketReady(++mGeneration);
@@ -267,28 +321,31 @@ struct Decoder : public SharedObject {
         mFramesDecoded = 0;
 
         // request packets
-        requestPacket(ts);
+        requestPacket();
         // -> onPacketReady
         // MIN_COUNT packets
     }
-
-    void onRequestFrame(const FrameRequest& request) {
-        DEBUG("codec %zu: request frames", mID);
-        CHECK_TRUE(request.event != NULL);
+    
+    void onFlush() {
+        INFO("codec %zu: flush decoder", mFormat);
         
-        if (request.ts != kTimeInvalid) {
-            // request frame @ new position
-            onPrepareDecoder(request.ts);
-        }
+        ++mGeneration;
+        mInputQueue.clear();
+        mCodec->flush();
+        mFrameRequests.clear();
+    }
+
+    void onRequestFrame(const sp<FrameReadyEvent>& event) {
+        DEBUG("codec %zu: request frames", mFormat);
+        CHECK_TRUE(event != NULL);
     
         // request next frame
         if (mOutputEOS) {
-            ERROR("codec %zu: request frame at eos", mID);
+            ERROR("codec %zu: request frame at eos", mFormat);
             return;
         }
-        CHECK_TRUE(request.event != NULL);
 
-        mFrameRequests.push(request);
+        mFrameRequests.push(event);
         // case 2: packet is ready
         // decode the first packet
         // or drain the codec if input eos
@@ -303,7 +360,7 @@ struct Decoder : public SharedObject {
     }
 
     void onDecode() {
-        DEBUG("codec %zu: with %zu packets ready", mID, mInputQueue.size());
+        DEBUG("codec %zu: with %zu packets ready", mFormat, mInputQueue.size());
         CHECK_TRUE(mInputQueue.size() || mInputEOS);
         CHECK_FALSE(mOutputEOS);
 
@@ -312,13 +369,13 @@ struct Decoder : public SharedObject {
             sp<MediaPacket> packet = *mInputQueue.begin();
             CHECK_TRUE(packet != NULL);
 
-            DEBUG("codec %zu: decode pkt %.3f(s)", mID, packet->dts.seconds());
+            DEBUG("codec %zu: decode pkt %.3f(s)", mFormat, packet->timecode.seconds());
             MediaError err = mCodec->write(packet);
             if (err == kMediaErrorResourceBusy) {
-                DEBUG("codec %zu: codec is full with frames", mID);
+                DEBUG("codec %zu: codec is full with frames", mFormat);
             } else {
                 if (err != kMediaNoError) {
-                    ERROR("codec %zu: write packet failed.", mID);
+                    ERROR("codec %zu: write packet failed.", mFormat);
                 }
                 mInputQueue.pop();
                 ++mPacketsComsumed;
@@ -333,18 +390,18 @@ struct Decoder : public SharedObject {
         // drain from codec
         sp<MediaFrame> frame = mCodec->read();
         if (frame == NULL && !mInputEOS) {
-            WARN("codec %zu: is initializing...", mID);
+            WARN("codec %zu: is initializing...", mFormat);
         } else {
-            FrameRequest& request = *mFrameRequests.begin();
+            sp<FrameReadyEvent>& event = mFrameRequests.front();
 
             if (frame != NULL) {
-                DEBUG("codec %zu: decoded frame %.3f(s) ready", mID, frame->pts.seconds());
+                DEBUG("codec %zu: decoded frame %.3f(s) ready", mFormat, frame->timecode.seconds());
                 ++mFramesDecoded;
             } else {
-                INFO("codec %zu: codec eos detected", mID);
+                INFO("codec %zu: codec eos detected", mFormat);
                 mOutputEOS = true;
             }
-            request.event->fire(frame);
+            event->fire(frame);
 
             if (mOutputEOS) {
                 mFrameRequests.clear(); // clear requests
@@ -360,29 +417,30 @@ struct Decoder : public SharedObject {
 
 // request frame from decoder
 struct OnFrameRequest : public FrameRequestEvent {
-    OnFrameRequest(const sp<Looper>& looper) : FrameRequestEvent(looper) { }
+    OnFrameRequest(const sp<ThreadSession>& session) : FrameRequestEvent(session->mLooper) { }
     
-    virtual void onEvent(const FrameRequest& request) {
+    virtual void onEvent(const sp<FrameReadyEvent>& event) {
         sp<Decoder> decoder = Looper::Current()->user(0);
-        decoder->onRequestFrame(request);
+        decoder->onRequestFrame(event);
     }
 };
 
-enum eRenderState {
-    kRenderInitialized,
-    kRenderReady,
-    kRenderTicking,
-    kRenderFlushed,
-    kRenderEnd
-};
-
-struct Renderer : public SharedObject {
+struct Renderer : public IMediaSessionInt {
+    enum eRenderState {
+        kRenderInitialized,
+        kRenderReady,
+        kRenderTicking,
+        kRenderFlushed,
+        kRenderEnd
+    };
+    
     // external static context
+    eCodecFormat            mFormat;
+    eCodecType              mType;
     sp<FrameRequestEvent>   mFrameRequestEvent;
-    eCodecFormat            mID;
     sp<SessionInfoEvent>    mInfoEvent;
     // internal static context
-    sp<Looper>              mDecoder;
+    sp<ThreadSession>       mDecoder;
     sp<FrameReadyEvent>     mFrameReadyEvent;
     sp<MediaFrameEvent>     mMediaFrameEvent;
     sp<MediaOut>            mOut;
@@ -405,10 +463,10 @@ struct Renderer : public SharedObject {
 
     bool valid() const { return mOut != NULL || mMediaFrameEvent != NULL; }
 
-    Renderer(const sp<Message>& format, const sp<Message>& options) :
-        SharedObject(),
+    Renderer() : IMediaSessionInt(),
         // external static context
-        mFrameRequestEvent(NULL), mID(kCodecFormatUnknown), mInfoEvent(NULL),
+        mFormat(kCodecFormatUnknown), mType(kCodecTypeUnknown),
+        mFrameRequestEvent(NULL), mInfoEvent(NULL),
         // internal static context
         mFrameReadyEvent(NULL),
         mOut(NULL), mClock(NULL), mLatency(0),
@@ -418,8 +476,86 @@ struct Renderer : public SharedObject {
         mLastFrameTime(kTimeInvalid),
         mLastUpdateTime(kTimeInvalid),
         // statistics
-        mFramesRenderred(0)
-    {
+        mFramesRenderred(0) { }
+    
+    // init MediaOut based on MediaFrame
+    void onInitDevice(const sp<MediaFrame>& frame) {
+        DEBUG("renderer %zu: init device", mFormat);
+        
+        if (!mMediaFrameEvent.isNIL()) {
+            DEBUG("renderer %zu: MediaFrameEvent...", mFormat);
+            return;
+        }
+        
+        // init MediaOut
+        if (!mOut.isNIL()) {
+            mOut->flush();
+            mOut.clear();
+        }
+        
+        mOut = MediaOut::Create(mType);
+        sp<Message> format = new Message;
+        sp<Message> options = new Message;
+        if (mType == kCodecTypeVideo) {
+            format->setInt32(kKeyFormat, frame->v.format);
+            format->setInt32(kKeyWidth, frame->v.width);
+            format->setInt32(kKeyHeight, frame->v.height);
+        } else if (mType == kCodecTypeAudio) {
+            format->setInt32(kKeyFormat, frame->a.format);
+            format->setInt32(kKeyChannels, frame->a.channels);
+            format->setInt32(kKeySampleRate, frame->a.freq);
+        }
+        
+        if (mOut->prepare(format, options) != kMediaNoError) {
+            ERROR("renderer %zu: create out failed", mFormat);
+            notify(kSessionInfoError);
+            return;
+        }
+        
+        if (mType == kCodecTypeVideo) {
+            // setup color converter
+        } else if (mType == kCodecTypeAudio) {
+            // setup resampler
+            mLatency = mOut->formats()->findInt32(kKeyLatency);
+        } else {
+            FATAL("FIXME");
+        }
+    }
+    
+    // using clock to control render session, start|pause|...
+    struct OnClockEvent : public ClockEvent {
+        OnClockEvent(const sp<Looper>& lp) : ClockEvent(lp) { }
+        
+        virtual void onEvent(const eClockState& cs) {
+            sp<Renderer> renderer = Looper::Current()->user(0);
+            INFO("clock state => %d", cs);
+            switch (cs) {
+                case kClockStateTicking:
+                    renderer->onStartRenderer();
+                    break;
+                case kClockStatePaused:
+                    renderer->onPauseRenderer();
+                    break;
+                case kClockStateReset:
+                    renderer->onPauseRenderer();
+                    break;
+                default:
+                    break;
+            }
+        }
+    };
+    
+    void onInit(const sp<Message>& format, const sp<Message>& options) {
+        CHECK_TRUE(format->contains(kKeyFormat));
+        mFormat = (eCodecFormat)format->findInt32(kKeyFormat);
+        mType = GetCodecType(mFormat);
+        
+        DEBUG("renderer %zu: init << %s << %s", mFormat, format->string().c_str(), options->string().c_str());
+        
+        sp<IMediaSessionInt> dec = new Decoder;
+        mDecoder = new ThreadSession(String::format("dec.%#x", mFormat), dec);
+        mDecoder->init(format, options);
+        
         // setup external context
         if (options->contains("SessionInfoEvent")) {
             mInfoEvent = options->findObject("SessionInfoEvent");
@@ -427,58 +563,14 @@ struct Renderer : public SharedObject {
         
         if (options->contains("Clock")) {
             mClock = options->findObject("Clock");
+            mClock->setListener(new OnClockEvent(Looper::Current()));
         }
         
-        CHECK_TRUE(format->contains(kKeyFormat));
-        mID = (eCodecFormat)format->findInt32(kKeyFormat);
-        eCodecType type = GetCodecType(mID);
-
-        sp<Message> raw;
-        if (1 /* FIXME */) {
-            sp<Decoder> decoder = new Decoder(format, options);
-            if (decoder->valid() == false) return;
-            
-            mDecoder = Looper::Create(String::format("d.%zu", mID));
-            mDecoder->loop();
-            mDecoder->bind(decoder->RetainObject());
-            mFrameRequestEvent = new OnFrameRequest(mDecoder);
-
-            raw = decoder->mCodec->formats();
-        } else {
-            CHECK_TRUE(options->contains("PacketRequestEvent"));
-            sp<PacketRequestEvent> pre = options->findObject("PacketRequestEvent");
-            mFrameRequestEvent = new OnFrameRequestTunnel(pre);
-            raw = format;
-        }
-        
-        // setup out context
-        CHECK_TRUE(raw->contains(kKeyFormat));
-        
-        INFO("output format %s", raw->string().c_str());
         if (options->contains("MediaFrameEvent")) {
             mMediaFrameEvent = options->findObject("MediaFrameEvent");
-        } else {
-            mOut = MediaOut::Create(type);
-            if (mOut->prepare(raw, options) != kMediaNoError) {
-                ERROR("track %zu: create out failed", mID);
-                return;
-            }
-            
-            if (type == kCodecTypeVideo) {
-                ePixelFormat pixel = (ePixelFormat)raw->findInt32(kKeyFormat);
-                ePixelFormat accpeted = (ePixelFormat)mOut->formats()->findInt32(kKeyFormat);// color convert
-                if (accpeted != pixel) {
-                    FATAL("FIXME");
-                }
-            } else if (type == kCodecTypeAudio) {
-                mLatency = mOut->formats()->findInt32(kKeyLatency);
-            } else {
-                FATAL("FIXME");
-            }
         }
-    }
-
-    virtual ~Renderer() {
+        
+        mFrameRequestEvent = new OnFrameRequest(mDecoder);
     }
     
     void notify(eSessionInfoType info) {
@@ -487,21 +579,18 @@ struct Renderer : public SharedObject {
         }
     }
 
-    void requestFrame(int64_t us = -1) {
+    void requestFrame() {
         // don't request frame if eos detected.
         if (mOutputEOS) return;
 
         // output queue: kMaxFrameNum at most
         if (mOutputQueue.size() >= MAX_COUNT) {
-            DEBUG("renderer %zu: output queue is full", mID);
+            DEBUG("renderer %zu: output queue is full", mFormat);
             return;
         }
 
-        FrameRequest request;
-        request.ts      = us < 0 ? kTimeInvalid : us;
-        request.event   = mFrameReadyEvent;
-        mFrameRequestEvent->fire(request);
-        DEBUG("renderer %zu: request more frames", mID);
+        mFrameRequestEvent->fire(mFrameReadyEvent);
+        DEBUG("renderer %zu: request more frames", mFormat);
         // -> onFrameReady
     }
 
@@ -515,18 +604,23 @@ struct Renderer : public SharedObject {
     };
 
     void onFrameReady(const sp<MediaFrame>& frame, int generation) {
-        DEBUG("renderer %zu: one frame ready", mID);
+        DEBUG("renderer %zu: one frame ready", mFormat);
         if (mGeneration.load() != generation) {
-            INFO("renderer %zu: ignore outdated frames", mID);
+            INFO("renderer %zu: ignore outdated frames", mFormat);
             return;
+        }
+        
+        // TODO: re-init on format changed
+        if (ABE_UNLIKELY(mMediaFrameEvent.isNIL() && mOut.isNIL())) {
+            onInitDevice(frame);
         }
 
         // case 1: eos
         if (frame == NULL) {
-            INFO("renderer %zu: eos detected", mID);
+            INFO("renderer %zu: eos detected", mFormat);
             mOutputEOS = true;
             if (mLastFrameTime == kTimeInvalid) {
-                WARN("renderer %zu: eos at start", mID);
+                WARN("renderer %zu: eos at start", mFormat);
                 notify(kSessionInfoEnd);
             }
             // NOTHING TO DO
@@ -534,28 +628,32 @@ struct Renderer : public SharedObject {
         }
 
         // check pts, kTimeInvalid < kTimeBegin
-        if (frame->pts < kTimeBegin) {
-            ERROR("renderer %zu: bad pts", mID);
+        if (frame->timecode < kTimeBegin) {
+            ERROR("renderer %zu: bad pts", mFormat);
             // FIXME:
         }
 
         // queue frame, frames must be pts order
-        DEBUG("renderer %zu: %.3f(s)", mID, frame->pts.seconds());
-        if (frame->pts <= mLastFrameTime) {
+        DEBUG("renderer %zu: %.3f(s)", mFormat, frame->timecode.seconds());
+        if (frame->timecode <= mLastFrameTime) {
             WARN("renderer %zu: unordered frame %.3f(s) < last %.3f(s)",
-                    mID, frame->pts.seconds(),
+                    mFormat, frame->timecode.seconds(),
                     mLastFrameTime.seconds());
         }
 
-
-        mOutputQueue.push(frame);
+        if (!mClock.isNIL() && frame->timecode.useconds() < mClock->get()) {
+            WARN("renderer %zu: frame late %.3f(s) vs current %.3f(s)", mFormat,
+                 frame->timecode.seconds(), mClock->get() / 1E6);
+        } else {
+            mOutputQueue.push(frame);
+        }
 
         // request more frames
         requestFrame();
 
         // prepare done ?
         if (mState == kRenderInitialized && (mOutputQueue.size() >= MIN_COUNT || mOutputEOS)) {
-            INFO("renderer %zu: prepare done", mID);
+            INFO("renderer %zu: prepare done", mFormat);
             mState = kRenderReady;
             notify(kSessionInfoReady);
         }
@@ -563,30 +661,32 @@ struct Renderer : public SharedObject {
         // always render the first video
         if (mLastFrameTime == kTimeInvalid) {
             sp<MediaFrame> frame = *mOutputQueue.begin();
-            INFO("renderer %zu: first frame %.3f(s)",
-                    mID, frame->pts.seconds());
+            INFO("renderer %zu: first frame %.3f(s)", mFormat, frame->timecode.seconds());
 
             // notify about the first render postion
             notify(kSessionInfoBegin);
 
-            if (GetCodecType(mID) == kCodecTypeVideo) {
+            if (GetCodecType(mFormat) == kCodecTypeVideo) {
                 if (mMediaFrameEvent != NULL) mMediaFrameEvent->fire(frame);
                 else mOut->write(frame);
             }
 
+#if 0
             if (mClock != NULL && mClock->role() == kClockRoleMaster) {
-                DEBUG("renderer %zu: set clock time %.3f(s)", mID, frame->pts.seconds());
-                mClock->set(frame->pts.useconds());
+                INFO("renderer %zu: set clock time %.3f(s)", mFormat, frame->timecode.seconds());
+                mClock->set(frame->timecode.useconds());
             }
+#endif
         }
 
         // remember last frame pts
-        mLastFrameTime = frame->pts;
+        mLastFrameTime = frame->timecode;
     }
 
-    void onPrepareRenderer(int64_t us) {
-        INFO("renderer %zu: prepare renderer @ %.3f(s)", mID, us / 1E6);
-        if (us < 0) us = 0;
+    void onPrepare() {
+        INFO("renderer %zu: prepare renderer", mFormat);
+        
+        if (!mDecoder.isNIL()) mDecoder->prepare();
         
         // update generation
         mFrameReadyEvent = new OnFrameReady(++mGeneration);
@@ -599,7 +699,7 @@ struct Renderer : public SharedObject {
         mOutputQueue.clear();
 
         // request frames
-        requestFrame(us);
+        requestFrame();
         // -> onFrameReady
 
         // if no clock, start render directly
@@ -609,8 +709,10 @@ struct Renderer : public SharedObject {
     }
 
     // just flush resources, leave state as it is, reset state on prepare
-    void onFlushRenderer() {
-        INFO("track %zu: flush %zu frames", mID, mOutputQueue.size());
+    void onFlush() {
+        INFO("track %zu: flush %zu frames", mFormat, mOutputQueue.size());
+        
+        if (!mDecoder.isNIL()) mDecoder->flush();
 
         // update generation
         ++mGeneration;
@@ -620,8 +722,8 @@ struct Renderer : public SharedObject {
 
         // flush output
         mOutputQueue.clear();
-        if (mMediaFrameEvent != NULL) mMediaFrameEvent->fire(NULL);
-        else mOut->flush();
+        if (!mMediaFrameEvent.isNIL()) mMediaFrameEvent->fire(NULL);
+        else if (!mOut.isNIL()) mOut->flush();
 
         mState = kRenderFlushed;
     }
@@ -638,20 +740,22 @@ struct Renderer : public SharedObject {
         int64_t next = REFRESH_RATE;
 
         if (mClock != NULL && mClock->isPaused() && mClock->role() == kClockRoleSlave) {
-            INFO("renderer %zu: clock is paused", mID);
+            INFO("renderer %zu: clock is paused", mFormat);
         } else if (mOutputQueue.size()) {
             next = renderCurrent();
         } else if (mOutputEOS) {
-            INFO("renderre %zu: eos, stop render", mID);
+            INFO("renderre %zu: eos, stop render", mFormat);
             // NOTHING
             return;
         } else {
-            ERROR("renderer %zu: codec underrun...", mID);
+            ERROR("renderer %zu: codec underrun...", mFormat);
         }
 
         if (next < 0) { // too early
+            //INFO("renderer %zu: overrun by %.3f(s)...", mFormat, - next / 1E6);
             Looper::Current()->post(mPresentFrame, -next);
         } else {
+            //INFO("renderer %zu: render next @ %.3f(s)...", mFormat, next / 1E6);
             Looper::Current()->post(mPresentFrame, next);
         }
 
@@ -664,32 +768,32 @@ struct Renderer : public SharedObject {
     // return negtive value if render current frame too early
     // return postive value for next frame render time
     FORCE_INLINE int64_t renderCurrent() {
-        DEBUG("renderer %zu: render with %zu frame ready", mID, mOutputQueue.size());
+        DEBUG("renderer %zu: render with %zu frame ready", mFormat, mOutputQueue.size());
 
-        sp<MediaFrame> frame = *mOutputQueue.begin();
+        sp<MediaFrame> frame = mOutputQueue.front();
         CHECK_TRUE(frame != NULL);
 
         if (mClock != NULL) {
             // check render time
             if (mClock->role() == kClockRoleSlave) {
                 // render too early or late ?
-                int64_t late = mClock->get() - frame->pts.useconds();
+                int64_t late = mClock->get() - frame->timecode.useconds();
                 if (late > REFRESH_RATE) {
                     // render late: drop current frame
                     WARN("renderer %zu: render late by %.3f(s)|%.3f(s), drop frame... [%zu]",
-                            mID, late/1E6, frame->pts.seconds(), mOutputQueue.size());
+                            mFormat, late/1E6, frame->timecode.seconds(), mOutputQueue.size());
                     mOutputQueue.pop();
                     return 0;
                 } else if (late < -REFRESH_RATE/2) {
                     // FIXME: sometimes render too early for unknown reason
                     DEBUG("renderer %zu: overrun by %.3f(s)|%.3f(s)...",
-                            mID, -late/1E6, frame->pts.seconds());
+                            mFormat, -late/1E6, frame->timecode.seconds());
                     return -late;
                 }
             }
         }
 
-        DEBUG("renderer %zu: render frame %.3f(s)", mID, frame->pts.seconds());
+        DEBUG("renderer %zu: render frame %.3f(s)", mFormat, frame->timecode.seconds());
         MediaError rt = kMediaNoError;
         if (mOut != NULL) CHECK_TRUE(mOut->write(frame) == kMediaNoError);
         else mMediaFrameEvent->fire(frame);
@@ -700,9 +804,8 @@ struct Renderer : public SharedObject {
         // FIXME: if current frame is too big, update clock after write will cause clock advance too far
         if (mClock != NULL && mClock->role() == kClockRoleMaster && !mClock->isTicking()) {
             const int64_t realTime = SystemTimeUs();
-            INFO("renderer %zu: update clock %.3f(s)+%.3f(s)",
-                    mID, frame->pts.seconds(), realTime / 1E6);
-            mClock->update(frame->pts.useconds() - mLatency, realTime);
+            INFO("renderer %zu: update clock %.3f(s)+%.3f(s)", mFormat, frame->timecode.seconds(), realTime / 1E6);
+            mClock->update(frame->timecode.useconds() - mLatency, realTime);
         }
 
         // next frame render time.
@@ -713,11 +816,11 @@ struct Renderer : public SharedObject {
             }
 
             sp<MediaFrame> next = mOutputQueue.front();
-            int64_t delay = next->pts.useconds() - mClock->get();
+            int64_t delay = next->timecode.useconds() - mClock->get();
             if (delay < 0)  return 0;
             else            return delay;
         } else if (mOutputEOS) {
-            INFO("renderer %zu: eos...", mID);
+            INFO("renderer %zu: eos...", mFormat);
             // tell out device about eos
             if (mOut != NULL) mOut->write(NULL);
             else mMediaFrameEvent->fire(NULL);
@@ -729,7 +832,7 @@ struct Renderer : public SharedObject {
     }
 
     void onStartRenderer() {
-        INFO("renderer %zu: start", mID);
+        INFO("renderer %zu: start", mFormat);
         //onPrintStat();
 
         // check
@@ -742,7 +845,7 @@ struct Renderer : public SharedObject {
         // case 1: start at eos
         if (mOutputEOS && mOutputQueue.empty()) {
             // eos, do nothing
-            ERROR("renderer %zu: start at eos", mID);
+            ERROR("renderer %zu: start at eos", mFormat);
         }
         // case 3: frames ready
         else {
@@ -757,7 +860,7 @@ struct Renderer : public SharedObject {
     }
 
     void onPauseRenderer() {
-        INFO("renderer %zu: pause at %.3f(s)", mID, mClock->get() / 1E6);
+        INFO("renderer %zu: pause at %.3f(s)", mFormat, mClock->get() / 1E6);
         Looper::Current()->remove(mPresentFrame);
 
         if (mOut != NULL) {
@@ -768,87 +871,11 @@ struct Renderer : public SharedObject {
     }
 };
 
-struct PrepareRunnable : public Runnable {
-    sp<Message>     mOptions;
-    PrepareRunnable(const sp<Message>& options) : mOptions(options) { }
-    virtual void run() {
-        int64_t us = mOptions->findInt64("time");
-        sp<Renderer> renderer = Looper::Current()->user(0);
-        renderer->onPrepareRenderer(us);
-    }
-};
-
-struct FlushRunnable : public Runnable {
-    FlushRunnable() : Runnable() { }
-    virtual void run() {
-        sp<Renderer> renderer = Looper::Current()->user(0);
-        renderer->onFlushRenderer();
-    }
-};
-
-// using clock to control render session, start|pause|...
-struct OnClockEvent : public ClockEvent {
-    OnClockEvent(const sp<Looper>& lp) : ClockEvent(lp) { }
-
-    virtual void onEvent(const eClockState& cs) {
-        sp<Renderer> renderer = Looper::Current()->user(0);
-        INFO("clock state => %d", cs);
-        switch (cs) {
-            case kClockStateTicking:
-                renderer->onStartRenderer();
-                break;
-            case kClockStatePaused:
-                renderer->onPauseRenderer();
-                break;
-            case kClockStateReset:
-                renderer->onPauseRenderer();
-                break;
-            default:
-                break;
-        }
-    }
-};
-
-struct AVSession : public IMediaSession {
-    sp<Looper>  mLooper;
-
-    bool valid() const { return mLooper != NULL; }
-
-    AVSession(const sp<Message>& format, const sp<Message>& options) : IMediaSession() {
-        sp<Renderer> renderer = new Renderer(format, options);
-        if (renderer->valid() == false) {
-            return;
-        }
-        
-        mLooper = Looper::Create(String::format("%#x", renderer->mID));
-        mLooper->loop();
-        mLooper->bind(renderer->RetainObject());
-
-        if (renderer->mClock != NULL)
-            renderer->mClock->setListener(new OnClockEvent(mLooper));
-    }
+sp<IMediaSession> IMediaSession::create(const sp<Message>& format, const sp<Message>& options) {
+    eCodecFormat codec = (eCodecFormat)format->findInt32(kKeyFormat);
+    sp<IMediaSessionInt> internal = new Renderer;
+    sp<ThreadSession> session = new ThreadSession(String::format("st.%#x", codec), internal);
+    session->init(format, options);
     
-    virtual ~AVSession() { CHECK_TRUE(mLooper == NULL); }
-
-    virtual void prepare(const sp<Message>& options) {
-        mLooper->post(new PrepareRunnable(options));
-    }
-
-    virtual void flush() {
-        mLooper->post(new FlushRunnable);
-    }
-    
-    virtual void release() {
-        mLooper->terminate(true);
-        static_cast<SharedObject *>(mLooper->user(0))->ReleaseObject();
-        mLooper.clear();
-        INFO("release av session");
-    }
-};
-
-// PacketRequestEvent <- DecodeSession <- FrameRequestEvent <- RenderSession
-sp<IMediaSession> IMediaSession::Create(const sp<Message>& format, const sp<Message>& options) {
-    sp<AVSession> av = new AVSession(format, options);
-    if (av->valid())    return av;
-    else                return NULL;
+    return session;
 }

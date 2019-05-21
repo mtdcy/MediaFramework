@@ -402,17 +402,18 @@ struct API_EXPORT MediaPacket : public SharedObject {
     uint8_t *           data;       ///< packet data
     size_t              size;       ///< data size in bytes
 
-    size_t              index;      ///< sample index, 0 based value
+    size_t              index;      ///< track index, 0 based value
     eCodecFormat        format;     ///< packet format @see eCodecFormat
     uint32_t            flags;      ///< @see kFrameFlag*
-    MediaTime           dts;        ///< packet decoding time
-    MediaTime           pts;        ///< packet presentation time
+    MediaTime           dts;        ///< packet decoding time, mandatory
+    MediaTime           pts;        ///< packet presentation time, mandatory if decoding order != presentation order
+    MediaTime           duration;   ///< packet duration time
 
     sp<Message>         properties; ///< extra properties of current frame
     void *              opaque;     ///< opaque
 
     MediaPacket() : data(NULL), size(0), index(0), format(kCodecFormatUnknown),
-    flags(kFrameFlagNone), dts(kTimeInvalid), pts(kTimeInvalid), opaque(NULL) { }
+    flags(kFrameFlagNone), dts(kTimeInvalid), pts(kTimeInvalid), duration(kTimeInvalid), opaque(NULL) { }
     virtual ~MediaPacket() { }
 };
 
@@ -524,6 +525,7 @@ __END_NAMESPACE_MPX
  */
 #define kKeyChannels    "channels"      ///< int32_t, mandatory for audio
 #define kKeySampleRate  "sample-rate"   ///< int32_t, mandatory for audio
+#define kKeyChannelMap  "channel-map"   ///< int32_t, optional for audio
 
 /**
  * video display width and height

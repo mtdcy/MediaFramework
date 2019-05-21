@@ -32,7 +32,7 @@
 //          1. 20160701     initial version
 //
 
-#define LOG_TAG "videotoolbox"
+#define LOG_TAG "mac.VLD"
 //#define LOG_NDEBUG 0
 #include <ABE/ABE.h>
 
@@ -49,8 +49,6 @@
 #else
 #define DEBUGV(fmt, ...) do {} while(0)
 #endif
-
-#define FORCE_DTS   0 // for testing
 
 // https://www.objc.io/issues/23-video/videotoolbox/
 // http://www.enkichen.com/2018/03/24/videotoolbox/?utm_source=tuicool&utm_medium=referral
@@ -118,9 +116,9 @@ static FORCE_INLINE OSType get_cv_pix_format(ePixelFormat a) {
 
 // for store unorderred image buffers and sort them
 struct VTMediaFrame : public MediaFrame {
-    FORCE_INLINE VTMediaFrame(CVPixelBufferRef pixbuf, const MediaTime& _pts, const MediaTime& _duration) : MediaFrame() {
+    FORCE_INLINE VTMediaFrame(CVPixelBufferRef pixbuf, const MediaTime& pts, const MediaTime& _duration) : MediaFrame() {
         planes[0].data  = NULL;
-        pts         = _pts;
+        timecode    = pts;
         duration    = _duration;
         v.format    = kPixelFormatVideoToolbox;
         v.width     = CVPixelBufferGetWidth(pixbuf);
@@ -134,7 +132,7 @@ struct VTMediaFrame : public MediaFrame {
 
     FORCE_INLINE VTMediaFrame(const VTMediaFrame& rhs) {
         planes[0].data  = NULL;
-        pts         = rhs.pts;
+        timecode    = rhs.timecode;
         duration    = rhs.duration;
         v           = rhs.v;
         opaque      = CVPixelBufferRetain((CVPixelBufferRef)rhs.opaque);
@@ -145,7 +143,7 @@ struct VTMediaFrame : public MediaFrame {
     }
 
     FORCE_INLINE bool operator<(const VTMediaFrame& rhs) const {
-        return pts < rhs.pts;
+        return timecode < rhs.timecode;
     }
     
     virtual sp<Buffer> getData(size_t index) const {
@@ -178,7 +176,7 @@ struct VTMediaFrame : public MediaFrame {
 
 struct VTContext : public SharedObject {
     FORCE_INLINE VTContext() : decompressionSession(NULL), formatDescription(NULL),
-    mInputEOS(false), mLastFrameTime(kTimeBegin) { }
+    mInputEOS(false), mNextFrameTime(kTimeInvalid), mLastFrameTime(kTimeBegin) { }
 
     FORCE_INLINE ~VTContext() {
         if (decompressionSession) {
@@ -198,10 +196,25 @@ struct VTContext : public SharedObject {
     Mutex                           mLock;
     bool                            mInputEOS;
     List<VTMediaFrame>              mImages;
-    List<MediaTime>                 mTimestamps;
-
+    MediaTime                       mNextFrameTime;
+    
     MediaTime                       mLastFrameTime;
 };
+
+static FORCE_INLINE bool IsFrameReady(const sp<VTContext>& vtc) {
+    if (vtc->mInputEOS) return vtc->mImages.size();
+    
+    if (vtc->mImages.empty()) return false;
+    
+    if (vtc->mNextFrameTime != kTimeInvalid) {
+        const VTMediaFrame& image = vtc->mImages.front();
+        if (image.timecode <= vtc->mNextFrameTime) return true;
+        return false;
+    }
+    
+    if (vtc->mImages.size() < 4) return false;
+    return true;
+}
 
 static FORCE_INLINE void OutputCallback(void *decompressionOutputRefCon,
         void *sourceFrameRefCon,
@@ -216,7 +229,7 @@ static FORCE_INLINE void OutputCallback(void *decompressionOutputRefCon,
     sp<MediaPacket> packet = sourceFrameRefCon;
 
     DEBUG("packet %p, status %d, infoFlags %#x, imageBuffer %p, presentationTimeStamp %.3f(s)/%.3f(s)",
-            packet->get()->data, status, infoFlags, imageBuffer,
+            packet->data, status, infoFlags, imageBuffer,
             CMTimeGetSeconds(presentationTimeStamp),
             CMTimeGetSeconds(presentationDuration));
 
@@ -230,14 +243,8 @@ static FORCE_INLINE void OutputCallback(void *decompressionOutputRefCon,
     VTContext *vtc = (VTContext*)decompressionOutputRefCon;
     AutoLock _l(vtc->mLock);
 
-    MediaTime pts;
-    if (CMTIME_IS_INVALID(presentationTimeStamp) || FORCE_DTS) {
-        //WARN("decode output invalid pts");
-        pts = *vtc->mTimestamps.begin();
-        vtc->mTimestamps.pop();
-    } else {
-        pts = MediaTime( presentationTimeStamp.value, presentationTimeStamp.timescale );
-    }
+    CHECK_TRUE(CMTIME_IS_VALID(presentationTimeStamp));
+    MediaTime pts = MediaTime( presentationTimeStamp.value, presentationTimeStamp.timescale );
 
 #if 0
     if (pts < vtc->mLastFrameTime) {
@@ -246,7 +253,12 @@ static FORCE_INLINE void OutputCallback(void *decompressionOutputRefCon,
     vtc->mLastFrameTime = pts;
 #endif
 
-    MediaTime duration ( presentationDuration.value, presentationDuration.timescale );
+    MediaTime duration;
+    if (CMTIME_IS_INVALID(presentationDuration)) {
+        duration = kTimeInvalid;
+    } else {
+        duration = MediaTime( presentationDuration.value, presentationDuration.timescale );
+    }
     VTMediaFrame frame(imageBuffer, pts, duration);
 
     vtc->mImages.push(frame);
@@ -482,22 +494,19 @@ static FORCE_INLINE CMSampleBufferRef createCMSampleBuffer(sp<VTContext>& vtc,
     CHECK_NULL(blockBuffer);
 
     CMSampleTimingInfo timingInfo[1];
-    if (packet->dts != kTimeInvalid) {
-        timingInfo[0].decodeTimeStamp = CMTimeMake(packet->dts.value, packet->dts.timescale);
-    } else {
-        WARN("dts is missing");
-        timingInfo[0].decodeTimeStamp = kCMTimeInvalid;
-    }
-    if (packet->pts != kTimeInvalid && !FORCE_DTS) {
+    CHECK_TRUE(packet->dts != kTimeInvalid);
+    timingInfo[0].decodeTimeStamp = CMTimeMake(packet->dts.value, packet->dts.timescale);
+    if (packet->pts != kTimeInvalid) {
         timingInfo[0].presentationTimeStamp = CMTimeMake(packet->pts.value, packet->pts.timescale);
-    } else if (!(packet->flags & kFrameFlagReference)) {
-        //WARN("pts is missing");
-        timingInfo[0].presentationTimeStamp = kCMTimeInvalid;
-        vtc->mTimestamps.push(packet->dts);
-        vtc->mTimestamps.sort();
+    } else {
+        // assume decoding order = presentation order
+        timingInfo[0].presentationTimeStamp = timingInfo[0].decodeTimeStamp;
     }
-    // FIXME
-    timingInfo[0].duration = kCMTimeInvalid;
+    if (packet->duration != kTimeInvalid) {
+        timingInfo[0].duration = CMTimeMake(packet->duration.value, packet->duration.timescale);
+    } else {
+        timingInfo[0].duration = kCMTimeInvalid;
+    }
 
     status = CMSampleBufferCreate(
             kCFAllocatorDefault,    // allocator
@@ -602,7 +611,7 @@ struct VideoToolboxDecoder : public MediaDecoder {
         info->setInt32(kKeyWidth, mVTContext->width);
         info->setInt32(kKeyHeight, mVTContext->height);
         info->setInt32(kKeyFormat, mVTContext->pixel);
-        DEBUG(" => %s", formats.string().c_str());
+        DEBUG(" => %s", info->string().c_str());
         return info;
     }
 
@@ -636,7 +645,7 @@ struct VideoToolboxDecoder : public MediaDecoder {
                 input->dts.seconds(),
                 input->pts.seconds());
 
-        CHECK_TRUE(input->dts != kTimeInvalid || input->pts != kTimeInvalid);
+        CHECK_TRUE(input->dts != kTimeInvalid);
 
         CMSampleBufferRef sampleBuffer = createCMSampleBuffer(mVTContext, input);
 
@@ -681,13 +690,18 @@ struct VideoToolboxDecoder : public MediaDecoder {
         }
 
         // for frame reordering
-        if (mVTContext->mImages.size() < 4 && !mVTContext->mInputEOS) {
+        if (IsFrameReady(mVTContext) == false) {
             INFO("no frames ready");
             return NULL;
         }
 
         AutoLock _l(mVTContext->mLock);
         VTMediaFrame& frame = *mVTContext->mImages.begin();
+        
+        // set next frame time.
+        if (frame.duration != kTimeInvalid) {
+            mVTContext->mNextFrameTime = frame.timecode + frame.duration;
+        }
 
         // fix the width & height
         frame.v.rect.w  = mVTContext->width;

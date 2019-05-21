@@ -72,7 +72,6 @@ set (SOURCE_FILES
     MediaFramework/mpeg4/Box.cpp
     MediaFramework/matroska/EBML.cpp
     MediaFramework/matroska/MatroskaFile.cpp
-    MediaFramework/ffmpeg/Libavformat.cpp
     MediaFramework/opengl/OpenGLObject.cpp
     MediaFramework/opengl/GLVideo.cpp
     MediaFramework/jpeg/TIFF.cpp
@@ -83,8 +82,10 @@ set (SOURCE_FILES
     )
 
 if (WITH_FFMPEG)
-    list (APPEND SOURCE_FILES MediaFramework/ffmpeg/LavcDecoder.cpp)
+    list (APPEND SOURCE_FILES MediaFramework/ffmpeg/Libavformat.cpp)
+    list (APPEND SOURCE_FILES MediaFramework/ffmpeg/Libavcodec.cpp)
 endif()
+
 if (WITH_SDL)
     list (APPEND SOURCE_FILES MediaFramework/sdl2/SDLAudio.cpp)
     #MediaFramework/sdl2/SDLVideo.cpp
