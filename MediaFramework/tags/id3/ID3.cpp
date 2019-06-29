@@ -309,13 +309,13 @@ struct ID3v2Header {
 
 static ssize_t isID3v2Header(const Buffer& data, ID3v2Header *header) {
     //CHECK_GE(data.size(), ID3v2::kHeaderLength);
-    if (data.size() < ID3v2::kHeaderLength) return BAD_VALUE;
+    if (data.size() < ID3v2::kHeaderLength) return ERROR_UNKNOWN;
     
     BitReader br(data.data(), data.size());
     String magic        = br.readS(3);
     if (magic != "ID3") {
         DEBUG("no ID3v2 magic.");
-        return BAD_VALUE;
+        return ERROR_UNKNOWN;
     }
     
     uint8_t major       = br.r8();
@@ -327,30 +327,30 @@ static ssize_t isID3v2Header(const Buffer& data, ID3v2Header *header) {
     if (major == 0xff || revision == 0xff) {
         DEBUG("invalid version number 2.%d.%d",
               major, revision);
-        return BAD_VALUE;
+        return ERROR_UNKNOWN;
     }
     
     // check size
     if (size == 0) {
         DEBUG("invalid size %d", size);
-        return BAD_VALUE;
+        return ERROR_UNKNOWN;
     }
     
     // check flags.
     if (major == 2) { // %xx000000
         if (flags & 0x3f) {
             DEBUG("invalid 2.2.%d flags %#x", revision, flags);
-            return BAD_VALUE;
+            return ERROR_UNKNOWN;
         }
     } else if (major == 3) { // %abc00000
         if (flags & 0x1f) {
             DEBUG("invalid 2.3.%d flags %#x", revision, flags);
-            return BAD_VALUE;
+            return ERROR_UNKNOWN;
         }
     } else if (major == 4) { // %abcd0000
         if (flags & 0xf) {
             DEBUG("invalid 2.4.%d flags %#x", revision, flags);
-            return BAD_VALUE;
+            return ERROR_UNKNOWN;
         }
     }
     
@@ -485,7 +485,7 @@ static FORCE_INLINE String ID3v2String(int encoding, const char* data, int lengt
             
         {
             bool eightBit = true;
-            char16_t *tmp = (char16_t*)data;
+            uint16_t *tmp = (uint16_t*)data;
             int len = length / 2;
             for (int i = 0; i < len; i++) {
                 if (tmp[i] > 0xff) {
@@ -504,7 +504,7 @@ static FORCE_INLINE String ID3v2String(int encoding, const char* data, int lengt
                 str = String(data8, len);
                 delete [] data8;
             } else {
-                str = String(tmp, len);
+                str = String::UTF16(data, length);
             }
         }
             break;
@@ -513,7 +513,7 @@ static FORCE_INLINE String ID3v2String(int encoding, const char* data, int lengt
                 DEBUG("UTF16BE: not enought data.");
                 break;
             }
-            str = String((const char16_t*)data, length >> 1);
+            str = String::UTF16(data, length);
             break;
         case 0:  // ISO-8859-1
         case 3:  // UTF8
@@ -1070,7 +1070,7 @@ status_t ID3v2::parse(const Buffer& data) {
     CHECK_GE(data.size(), kHeaderLength);
     ID3v2Header header;
     if (isID3v2Header(data, &header) < 0) {
-        return UNKNOWN_ERROR;
+        return ERROR_UNKNOWN;
     }
     
     if (data.size() < kHeaderLength + header.size) {
@@ -1092,7 +1092,7 @@ status_t ID3v2::parse(const Buffer& data) {
     } else {
         ERROR("FIXME: unimplemented id3 v2.%d.%d",
               header.major, header.revision);
-        status = UNKNOWN_ERROR;
+        status = ERROR_UNKNOWN;
     }
     
     String version = String::format("v2.%d.%d",
@@ -1118,7 +1118,7 @@ ssize_t ID3v2::isID3v2(const Buffer& data) {
     
     ID3v2Header header;
     if (isID3v2Header(data, &header) < 0) {
-        return NAME_NOT_FOUND;
+        return ERROR_UNKNOWN;
     }
     return header.size;
 }
@@ -1129,7 +1129,7 @@ status_t ID3v1::parse(const Buffer& data) {
     
     if (data != "TAG") {
         DEBUG("not id3v1");
-        return BAD_VALUE;
+        return ERROR_UNKNOWN;
     }
     
     const char *buffer = data.data() + 3;

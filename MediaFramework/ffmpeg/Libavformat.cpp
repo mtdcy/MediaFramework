@@ -33,7 +33,7 @@
 //
 
 #define LOG_TAG   "Lavf"
-//#define LOG_NDEBUG 0
+#define LOG_NDEBUG 0
 #include <MediaFramework/MediaFile.h>
 
 #include <FFmpeg.h>
@@ -47,10 +47,14 @@ struct {
     const char *        name;
     MediaFile::eFormat  format;
 } kFormatMap[] = {
-    { "mov",        MediaFile::Mp4  },
-    { "mp4",        MediaFile::Mp4  },
+    { "wav",        MediaFile::Wave },
     { "mp3",        MediaFile::Mp3  },
-    { "matroska",   MediaFile::Mkv  },
+    { "flac",       MediaFile::Flac },
+    { "ape",        MediaFile::Ape  },
+    // video
+    { "mov",        MediaFile::Mp4  },
+    { "mp4",        MediaFile::Mp4  },  // & m4a
+    { "matroska",   MediaFile::Mkv  },  // matroska & webm
     // END OF LIST
     { NULL,         MediaFile::Invalid }
 };
@@ -61,7 +65,8 @@ static MediaFile::eFormat GetFormat(const String& name) {
             return kFormatMap[i].format;
         }
     }
-    return MediaFile::Invalid;
+    
+    return MediaFile::Any;
 }
 
 struct {
@@ -122,6 +127,7 @@ static int64_t content_bridge_seek(void * opaque, int64_t offset, int whence) {
         default:
             FATAL("FIXME...");
     }
+    return 0;
 }
 
 AVIOContext * content_bridge(sp<Content>& pipe) {
@@ -268,8 +274,9 @@ struct AVMediaPacket : public MediaPacket {
             if (pkt->dts == AV_NOPTS_VALUE) {
                 ERROR("stream %d: missing dts", st->stream->index);
                 dts = MediaTime(pkt->pts * st->stream->time_base.num, st->stream->time_base.den);
-            } else
+            } else {
                 dts = MediaTime(pkt->dts * st->stream->time_base.num, st->stream->time_base.den);
+            }
         }
         
         if (pkt->pts == AV_NOPTS_VALUE) {
@@ -277,35 +284,21 @@ struct AVMediaPacket : public MediaPacket {
         } else {
             pts = MediaTime(pkt->pts * st->stream->time_base.num, st->stream->time_base.den);
         }
-        duration = MediaTime(pkt->duration * st->stream->time_base.num, st->stream->time_base.den);
+        
+        if (pkt->duration > 0) {
+            duration = MediaTime(pkt->duration * st->stream->time_base.num, st->stream->time_base.den);
+        } else {
+            duration = kTimeInvalid;
+        }
         
         // opaque
         opaque  = pkt;
     }
     
-    ~AVMediaPacket() {
-        av_packet_unref(pkt);
+    virtual ~AVMediaPacket() {
         av_packet_free(&pkt);
     }
 };
-
-static sp<Buffer> prepareESDS(const AVStream * st) {
-    // AudioSpecificConfig
-    // TODO: if csd is not exists, make one
-    BitReader br((const char *)st->codecpar->extradata,
-                 st->codecpar->extradata_size);
-    MPEG4::AudioSpecificConfig asc(br);
-    if (asc.valid) {
-        MPEG4::ES_Descriptor esd = MakeESDescriptor(asc);
-        sp<Buffer> csd = new Buffer((const char *)st->codecpar->extradata,
-                                    st->codecpar->extradata_size);
-        esd.decConfigDescr.decSpecificInfo.csd = csd;
-        return MPEG4::MakeESDS(esd);
-    } else {
-        ERROR("bad AudioSpecificConfig");
-        return NIL;
-    }
-}
 
 static sp<Buffer> prepareAVCC(const AVStream * st) {
     BitReader br((const char *)st->codecpar->extradata,
@@ -373,9 +366,32 @@ struct AVFormat : public MediaFile {
             }
             
             switch (st->codecpar->codec_id) {
-                case AV_CODEC_ID_AAC:
-                    trak->setObject(kKeyESDS, prepareESDS(st));
-                    break;
+                case AV_CODEC_ID_AAC: {
+                    sp<Buffer> esds = MPEG4::MakeAudioESDS((const char *)st->codecpar->extradata,
+                                                           st->codecpar->extradata_size);
+                    if (esds.isNIL()) {
+                        MPEG4::eAudioObjectType aot = MPEG4::AOT_AAC_MAIN;
+                        switch (st->codecpar->profile) {
+                            case FF_PROFILE_AAC_SSR:
+                                aot = MPEG4::AOT_AAC_SSR;
+                                break;
+                            case FF_PROFILE_AAC_LOW:
+                                aot = MPEG4::AOT_AAC_LC;
+                                break;
+                            case FF_PROFILE_AAC_LTP:
+                                aot = MPEG4::AOT_AAC_LTP;
+                                break;
+                            case FF_PROFILE_AAC_MAIN:
+                            default:
+                                break;
+                        }
+                        MPEG4::AudioSpecificConfig asc (aot,
+                                                        st->codecpar->sample_rate,
+                                                        st->codecpar->channels);
+                        esds = MPEG4::MakeAudioESDS(asc);
+                    }
+                    trak->setObject(kKeyESDS, esds);
+                } break;
                 case AV_CODEC_ID_H264:
                     trak->setObject(kKeyavcC, prepareAVCC(st));
                     break;
@@ -400,12 +416,13 @@ struct AVFormat : public MediaFile {
         return kMediaErrorInvalidOperation;
     }
     
-    virtual sp<MediaPacket> read(eModeReadType mode,
-                                 const MediaTime& ts) {
+    virtual sp<MediaPacket> read(eModeReadType mode, const MediaTime& ts) {
         if (ts != kTimeInvalid) {
             INFO("seek to %.3f(s)", ts.seconds());
             avformat_seek_file(mObject->context, -1,
-                               0, ts.useconds(), mObject->context->duration,
+                               0,
+                               ts.useconds(),
+                               mObject->context->duration,
                                0);
         }
         
@@ -429,7 +446,7 @@ struct AVFormat : public MediaFile {
         sp<MediaPacket> packet = new AVMediaPacket(st, pkt);
         av_packet_free(&pkt);
         
-        DEBUG("trak %zu: %zu bytes@%p, %.3f(s)", packet->index, packet->size, packet->data, packet->timecode.seconds());
+        DEBUG("trak %zu: %zu bytes@%p, %.3f(s)", packet->index, packet->size, packet->data, packet->dts.seconds());
         
         return packet;
     }

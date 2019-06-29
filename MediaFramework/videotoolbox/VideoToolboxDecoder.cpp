@@ -202,15 +202,18 @@ struct VTContext : public SharedObject {
 };
 
 static FORCE_INLINE bool IsFrameReady(const sp<VTContext>& vtc) {
-    if (vtc->mInputEOS) return vtc->mImages.size();
-    
     if (vtc->mImages.empty()) return false;
     
+#if 0
+    // TODO
     if (vtc->mNextFrameTime != kTimeInvalid) {
         const VTMediaFrame& image = vtc->mImages.front();
-        if (image.timecode <= vtc->mNextFrameTime) return true;
+        if (image.timecode <= vtc->mNextFrameTime) {
+            return true;
+        }
         return false;
     }
+#endif
     
     if (vtc->mImages.size() < 4) return false;
     return true;
@@ -297,9 +300,8 @@ static FORCE_INLINE CFDictionaryRef setupFormatDescriptionExtension(const sp<Mes
         case kCMVideoCodecType_MPEG4Video:
             if (formats->contains(kKeyESDS)) {
                 sp<Buffer> esds = formats->findObject(kKeyESDS);
-                BitReader br(esds->data(), esds->size());
-                MPEG4::ES_Descriptor esd(br);
-                if (esd.valid) {
+                sp<MPEG4::ESDescriptor> esd = MPEG4::ReadESDS(esds);
+                if (!esd.isNIL()) {
                     CFDataRef data = CFDataCreate(kCFAllocatorDefault, (const UInt8*)esds->data(), esds->size());
                     CFDictionarySetValue(atoms, CFSTR("esds"), data);
                     CFRelease(data);

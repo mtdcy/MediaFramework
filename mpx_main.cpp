@@ -240,7 +240,7 @@ int main (int argc, char **argv)
 #endif
     INFO("url: %s", url.c_str());
     
-    INFO("Toolkit version %#x", TOOLKIT_VERSION);
+    INFO("Toolkit version %#x", ABE_VERSION);
     malloc_prepare(); {
         sp<Looper> mainLooper = Looper::Main();
         

@@ -153,7 +153,7 @@ static ssize_t decodeFrameHeader(uint32_t head, MPEGAudioFrameHeader *frameHeade
     if (version == 0x1 || layer == 0x0 || brIndex == 0xf ||
             srIndex == 0x3) {
         DEBUG("invalid head.");
-        return BAD_VALUE;
+        return ERROR_INVALID;
     }
 
     uint32_t samplesPerFrame    = kSamplesPerFrameTable[version][layer];
@@ -214,7 +214,7 @@ static int64_t locateFirstFrame(const Buffer& data,
         }
     }
 
-    return NAME_NOT_FOUND;
+    return ERROR_UNKNOWN;
 }
 
 static int64_t locateFrame(const Buffer& data, uint32_t common,
@@ -235,7 +235,7 @@ static int64_t locateFrame(const Buffer& data, uint32_t common,
 
         return i - 3;
     }
-    return NAME_NOT_FOUND;
+    return ERROR_UNKNOWN;
 }
 
 bool decodeMPEGAudioFrameHeader(const Buffer& frame, uint32_t *sampleRate, uint32_t *numChannels) {
@@ -822,7 +822,7 @@ ssize_t locateFirstFrame(const Buffer& data, size_t *frameLength) {
     MPEGAudioFrameHeader mpa;
     ssize_t offset = locateFirstFrame(data, &mpa, NULL, NULL);
 
-    if (offset < 0) return NAME_NOT_FOUND;
+    if (offset < 0) return ERROR_UNKNOWN;
 
     *frameLength    = mpa.frameLengthInBytes;
     return offset;

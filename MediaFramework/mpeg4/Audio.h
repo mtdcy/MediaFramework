@@ -42,39 +42,23 @@ __BEGIN_NAMESPACE_MPX
 
 // ISO/IEC 14496-3 Audio
 namespace MPEG4 {
-
-    // ISO/IEC 14496-3:2001
-    struct AudioSpecificConfig {
-        AudioSpecificConfig(const BitReader& br);
-        bool                    valid;
-        uint8_t                 audioObjectType;
-        uint32_t                samplingFrequency;
-        uint8_t                 channels;
-        // AOT Specific Config
-        // AOT_SBR
-        bool                    sbr;
-        uint8_t                 extAudioObjectType;
-        uint32_t                extSamplingFrquency;
-        // AOT_AAC_*
-        // GASpecificConfig
-        uint16_t                frameLength;
-        uint16_t                coreCoderDelay;
-    };
-
-    // MPEG-4 Audio Object Types
-    enum {
+    
+    // ISO/IEC 14496-3
+    // Section 1.5.1MPEG-4 audio object types
+    enum eAudioObjectType {
         AOT_NULL,
-        AOT_AAC_MAIN            = 1,
-        AOT_AAC_LC              = 2,
-        AOT_AAC_SSR             = 3,
-        AOT_AAC_LTP             = 4,
-        AOT_SBR                 = 5,
-        AOT_AAC_SCALABLE        = 6,
+        AOT_AAC_MAIN            = 1,        ///< ISO/IEC 13818-7 Main & PNS
+        AOT_AAC_LC              = 2,        ///< ISO/IEC 13818-7 LC & PNS
+        AOT_AAC_SSR             = 3,        ///< ISO/IEC 13818-7 SSR & PNS
+        AOT_AAC_LTP             = 4,        ///< ISO/IEC 13818-7 LC & PNS & LTP
+        AOT_SBR                 = 5,        ///<
+        AOT_AAC_SCALABLE        = 6,        ///< ISO/IEC 13818-7 LC
         AOT_MPEG_L1             = 32,
         AOT_MPEG_L2             = 33,
         AOT_MPEG_L3             = 34,
-    }; 
-
+        AOT_MAX                 = 0xff
+    };
+    
     static const char * kAOTNames[] = {
         "Unknown",
         "Main",
@@ -84,9 +68,49 @@ namespace MPEG4 {
         "SBR",
         "Scalable"
     };
+    
+    struct GASpecificConfig {
+        GASpecificConfig();
+        
+        uint16_t    frameLength;    // 960 or 1024
+        uint16_t    coreCoderDelay; //
+        uint8_t     layerNr;
+        // extensionFlag
+        //
+        uint8_t     numOfSubFrame;
+        uint16_t    layerLength;
+        //
+        uint8_t     aacSectionDataResilienceFlag;
+        uint8_t     aacScalefactorDataResilienceFlag;
+        uint8_t     aacSpectralDataResilienceFlag;
+    };
+    
+    struct CelpSpecificConfig {
+    };
 
-    ES_Descriptor MakeESDescriptor(AudioSpecificConfig& asc);
+    // ISO/IEC 14496-3:2001
+    // Section 1.6 Interface to ISO/IEC 14496-1
+    struct AudioSpecificConfig {
+        AudioSpecificConfig(eAudioObjectType, uint32_t freq, uint8_t channels);
+        AudioSpecificConfig(const BitReader& br);
+        
+        bool                    valid;
+        eAudioObjectType        audioObjectType;
+        uint32_t                samplingFrequency;
+        uint8_t                 channels;
+        // AOT Specific Config
+        // AOT_SBR
+        bool                    sbr;
+        eAudioObjectType        extAudioObjectType;
+        uint32_t                extSamplingFrquency;
+        uint8_t                 extChannels;
+        // 
+        GASpecificConfig        gasc;
+    };
 
+    sp<Buffer> MakeAudioESDS(const AudioSpecificConfig&);
+    
+    sp<Buffer> MakeAudioESDS(const char *, size_t);
 }
 
 __END_NAMESPACE_MPX

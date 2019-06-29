@@ -100,16 +100,20 @@ struct API_EXPORT MediaFile : public SharedObject {
      *       of memory.
      */
     
+    // nobody really care about file format
     enum eFormat {              ///< framework internal type
         Invalid = 0,
-        Mp3     = 'mp3 ',
-        Aac     = 'aac ',
-        Flac    = 'fLaC',
+        Any     = '****',       ///< ...
+        // audio
         Wave    = 'WAVE',
+        Mp3     = 'mp3 ',
+        Flac    = 'fLaC',
         Ape     = 'APE ',
-        Mp4     = 'Mp4 ',
+        // video
+        Mp4     = 'Mp4 ',       ///< mp4 & m4a
         Mkv     = 'mkv ',
         Avi     = 'avi ',
+        // images
         Jpeg    = 'jpeg',
         Gif     = 'gif ',
         Png     = 'png ',

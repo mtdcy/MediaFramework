@@ -60,8 +60,6 @@ set (SOURCE_FILES
     MediaFramework/MediaPlayer.cpp
     MediaFramework/MediaSession.cpp
     MediaFramework/tags/id3/ID3.cpp
-    MediaFramework/pcm/pcm_convert.c
-    MediaFramework/pcm/pcm_interleave.c
     MediaFramework/audioresampler/AudioResampler.cpp
     MediaFramework/mp3/Mp3File.cpp
     MediaFramework/mpeg4/Mp4File.cpp
@@ -129,8 +127,8 @@ if (XCODE)
     target_link_libraries(${PROJECT_NAME} ${ABE})
 
     if (WITH_FFMPEG)
-    # FFmpeg.framework
-    find_library (FFMPEG NAMES FFmpeg PATHS ${CMAKE_INSTALL_PREFIX} NO_DEFAULT_PATH)
+    # FFmpegStatic.framework
+    find_library (FFMPEG NAMES FFmpegStatic PATHS ${CMAKE_INSTALL_PREFIX} NO_DEFAULT_PATH)
     message("FFMPEG: ${FFMPEG}")
     target_link_libraries(${PROJECT_NAME} ${FFMPEG})
     # ffmpeg header structure need this
@@ -154,12 +152,12 @@ else()
 
     if (WITH_FFMPEG)
     find_library (FFMPEG
-        NAMES libFFmpeg.a libFFmpeg.so libFFmpeg.dylib libFFmpeg.dll
+        NAMES libFFmpegStatic.a libFFmpegStatic.so libFFmpegStatic.dylib libFFmpegStatic.dll
         PATHS ${CMAKE_INSTALL_PREFIX}/lib
         NO_DEFAULT_PATH
         )
     find_path (FFMPEG_HEADER
-        NAMES FFmpeg/FFmpeg.h
+        NAMES FFmpegStatic/FFmpeg.h
         PATHS ${CMAKE_INSTALL_PREFIX}/include
         NO_DEFAULT_PATH
         )
@@ -167,7 +165,7 @@ else()
     message("FFMPEG_HEADER: ${FFMPEG_HEADER}")
     target_link_libraries(${PROJECT_NAME} ${FFMPEG})
     # ffmpeg header in bad structure
-    include_directories(BEFORE ${FFMPEG_HEADER}/FFmpeg)
+    include_directories(BEFORE ${FFMPEG_HEADER}/FFmpegStatic)
     endif()
 
     if (WIN32)

@@ -77,14 +77,14 @@ static eCodecFormat get_codec_format(const String& name) {
 static status_t prepareMetaData(const sp<Box>& meta, const sp<Message>& target) {
     if (meta == 0 || target == 0) {
         ERROR("bad parameters.");
-        return BAD_VALUE;
+        return ERROR_UNKNOWN;
     }
 
     sp<iTunesItemKeysBox> keys = FindBox(meta, "keys");
     sp<iTunesItemListBox> ilst = FindBox(meta, "ilst");
     if (ilst == 0) {
         ERROR("ilst is missing.");
-        return NO_INIT;
+        return ERROR_UNKNOWN;
     }
 
 }

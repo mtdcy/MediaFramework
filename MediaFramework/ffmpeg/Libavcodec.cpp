@@ -360,15 +360,15 @@ static status_t setupHwAccelContext(AVCodecContext *avcc) {
     return OK;
 }
 
-static void parseAudioSpecificConfig(AVCodecContext *avcc, const Buffer& csd) {
-    BitReader br(csd.data(), csd.size());
+static void parseAudioSpecificConfig(AVCodecContext *avcc, const sp<Buffer>& csd) {
+    BitReader br(csd->data(), csd->size());
     MPEG4::AudioSpecificConfig asc(br);
     if (asc.valid) {
-        avcc->extradata_size = csd.size();
+        avcc->extradata_size = csd->size();
         CHECK_GE(avcc->extradata_size, 2);
         avcc->extradata = (uint8_t*)av_mallocz(avcc->extradata_size +
                 AV_INPUT_BUFFER_PADDING_SIZE);
-        memcpy(avcc->extradata, csd.data(),
+        memcpy(avcc->extradata, csd->data(),
                 avcc->extradata_size);
     } else {
         ERROR("bad AudioSpecificConfig");
@@ -376,16 +376,13 @@ static void parseAudioSpecificConfig(AVCodecContext *avcc, const Buffer& csd) {
 }
 
 // parse AudioSpecificConfig from esds, for who needs AudioSpecificConfig
-static void parseESDS(AVCodecContext *avcc, const Buffer& esds) {
-    BitReader br(esds.data(), esds.size());
-    MPEG4::ES_Descriptor esd(br);
-    // client have make sure it is in the right form
-    if (esd.valid) {
-        CHECK_TRUE(esd.valid);
-        parseAudioSpecificConfig(avcc, *esd.decConfigDescr.decSpecificInfo.csd);
-    } else {
+static void parseESDS(AVCodecContext *avcc, const sp<Buffer>& esds) {
+    sp<MPEG4::ESDescriptor> esd = MPEG4::ReadESDS(esds);
+    if (esd.isNIL() || esd->decConfigDescr->decSpecificInfo.isNIL()) {
         ERROR("bad esds");
+        return;
     }
+    parseAudioSpecificConfig(avcc, esd->decConfigDescr->decSpecificInfo->csd);
 }
 
 static status_t setupExtraData(AVCodecContext *avcc, const sp<Message>& formats) {
@@ -394,15 +391,15 @@ static status_t setupExtraData(AVCodecContext *avcc, const sp<Message>& formats)
         case AV_CODEC_ID_AAC:
             if (formats->contains(kKeyESDS)) {
                 sp<Buffer> esds = formats->findObject(kKeyESDS);
-                parseESDS(avcc, *esds);
+                parseESDS(avcc, esds);
                 // aac sbr have real sample rate in AudioSpecificConfig
                 // but, DON'T fix avcc->sample_rate here
             } else if (formats->contains(kKeyCodecSpecificData)) {
                 sp<Buffer> csd = formats->findObject(kKeyCodecSpecificData);
-                parseAudioSpecificConfig(avcc, *csd);
+                parseAudioSpecificConfig(avcc, csd);
             } else {
                 ERROR("missing esds|csd for aac");
-                return UNKNOWN_ERROR;
+                return ERROR_UNKNOWN;
             }
             break;
         case AV_CODEC_ID_H264:
@@ -415,7 +412,7 @@ static status_t setupExtraData(AVCodecContext *avcc, const sp<Message>& formats)
                 memcpy(avcc->extradata, avcC->data(), avcc->extradata_size);
             } else {
                 ERROR("missing avcC for h264");
-                return UNKNOWN_ERROR;
+                return ERROR_UNKNOWN;
             }
             break;
         case AV_CODEC_ID_HEVC:
@@ -427,7 +424,7 @@ static status_t setupExtraData(AVCodecContext *avcc, const sp<Message>& formats)
                 memcpy(avcc->extradata, hvcC->data(), avcc->extradata_size);
             } else {
                 ERROR("missing hvcC for hevc");
-                return UNKNOWN_ERROR;
+                return ERROR_UNKNOWN;
             } break;
         default:
             break;

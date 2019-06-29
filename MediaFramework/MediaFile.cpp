@@ -54,7 +54,6 @@ const static size_t kScanLength = 32 * 1024ll;
 
 // return score
 static int scanMP3(const sp<Buffer>& data);
-static int scanAAC(const sp<Buffer>& data);
 static int scanMatroska(const sp<Buffer>& data);
 int IsMp4File(const sp<Buffer>& data);
 
@@ -152,7 +151,6 @@ static MediaFile::eFormat GetFormat(sp<Content>& pipe) {
     } kScanners[] = {
         { IsMp4File,    MediaFile::Mp4      },
         { scanMatroska, MediaFile::Mkv      },
-        { scanAAC,      MediaFile::Aac      },
         { scanMP3,      MediaFile::Mp3      },
         { NULL,         MediaFile::Invalid  }
     };
@@ -251,47 +249,6 @@ int scanMatroska(const sp<Buffer>& data) {
             } // switch
         } // while
     } // if
-    return score;
-}
-
-int scanAAC(const sp<Buffer>& data) {
-    // 1. http://wiki.multimedia.cx/index.php?title=ADTS
-
-    BitReader br(data->data(), data->size());
-    const size_t length = data->ready();
-    const char *s = data->data();
-
-    int score = 0;
-    uint16_t sync = 0;
-    for (size_t i = 0; i < length; i++) {
-        sync = (sync << 8) | (uint8_t)s[i];
-
-        if ((sync & 0xfff6) != 0xfff0) continue;
-
-        DEBUG("found aac frame %#x @ %zu", sync, i);
-
-        br.reset();
-        br.skipBytes(i);
-        br.skip(6);
-        size_t frameSize = br.read(13);
-
-        score = 20;
-        size_t j = i + frameSize - 1;
-        while (j + 1 < length && score < 100) {
-            br.reset();
-            br.skipBytes(j);
-
-            if ((br.rb16() & 0xfff6) != 0xfff6) {
-                DEBUG("first frame is invalid");
-                score = 0;
-                break;
-            }
-
-            br.skip(6);
-            j += br.read(13);
-        }
-    }
-
     return score;
 }
 

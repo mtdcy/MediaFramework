@@ -35,7 +35,8 @@
 #ifndef _MEDIA_MODULE_MP4_BOX_H
 #define _MEDIA_MODULE_MP4_BOX_H
 
-#include <MediaFramework/MediaDefs.h>
+#include "MediaDefs.h"
+#include "mpeg4/Systems.h"
 
 __BEGIN_NAMESPACE_MPX
 __BEGIN_NAMESPACE(MPEG4)
@@ -411,6 +412,20 @@ struct FullCommonBox : public CommonBox {
     FORCE_INLINE FullCommonBox(const String& _name) : CommonBox(_name, true) { }
 };
 
+#if 0
+// do we really need detail of esds here?
+// extractor 
+struct ESDBox : public FullBox {
+    sp<ESDescriptor> ES;
+    
+    FORCE_INLINE ESDBox() : FullBox("esds") { }
+    status_t parse(const BitReader&, size_t, const FileTypeBox&);
+    void compose(BitWriter&, const FileTypeBox&);
+};
+#else
+BOX_TYPE("esds", ESDBox,                        FullCommonBox);
+#endif
+
 BOX_TYPE("mp4v", MP4VisualSampleEntry,          VisualSampleEntry);
 BOX_TYPE("avc1", AVC1SampleEntry,               VisualSampleEntry);
 BOX_TYPE("avc2", AVC2SampleEntry,               VisualSampleEntry);
@@ -419,7 +434,6 @@ BOX_TYPE("hev1", HEV1SampleEntry,               VisualSampleEntry);
 BOX_TYPE("raw ", RawAudioSampleEntry,           AudioSampleEntry);
 BOX_TYPE("twos", TwosAudioSampleEntry,          AudioSampleEntry);
 BOX_TYPE("mp4a", MP4AudioSampleEntry,           AudioSampleEntry);
-BOX_TYPE("esds", ESDBox,                        FullCommonBox);
 BOX_TYPE("avcC", AVCConfigurationBox,           CommonBox);
 BOX_TYPE("hvcC", HVCConfigurationBox,           CommonBox);
 BOX_TYPE("m4ds", MPEG4ExtensionDescriptorsBox,  CommonBox);

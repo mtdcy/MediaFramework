@@ -21,7 +21,7 @@
  *  SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS 
  *  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN 
  *  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) 
- *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
+ *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 	
  *  POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************/
 
@@ -45,10 +45,11 @@ __BEGIN_NAMESPACE_MPX
 namespace MPEG4 {
     // ISO/IEC 14496-1:2010(E), Section 7.2.2.1, Page 31, Table 1
     // Object Description Tag
-    enum {
+    enum eDescriptorTag {
+        InvalidDescrTag                         = 0x0,
         ObjectDescrTag                          = 0x1,
         InitialObjectDescrTag                   = 0x2,
-        ES_DescrTag                             = 0x3,
+        ESDescrTag                             = 0x3,
         DecoderConfigDescrTag                   = 0x4,
         DecSpecificInfoTag                      = 0x5,
         SLConfigDescrTag                        = 0x6,
@@ -94,31 +95,32 @@ namespace MPEG4 {
     // ObjectTypeIndication
     // ISO/IEC 14496-1:2010(E), Section 7.2.6.6.2, Page 49, Table 5
     // http://www.mp4ra.org/object.html
-    enum {
+    enum eObjectTypeIndication {
+        InvalidObjectType           = 0x0,
         ISO_IEC_14496_2             = 0x20,         // MPEG4 visual
         ISO_IEC_14496_10            = 0x21,         // H264
         ISO_IEC_23008_2             = 0x22,         // H265
         ISO_IEC_14496_3             = 0x40,         // MPEG4 sound / AAC
-        ISO_IEC_13818_2_Simple      = 0x60,         // MPEG2 Simple Profile
-        ISO_IEC_13818_2_Main        = 0x61,         // MPEG2 Main Profile
-        ISO_IEC_13818_2_SNR         = 0x62,         // MPEG2 SNR Profile 
-        ISO_IEC_13818_2_Spatial     = 0x63,         // MPEG2 Spatial Profile 
-        ISO_IEC_13818_2_High        = 0x64,         // MPEG2 High Profile 
-        ISO_IEC_13818_2_422         = 0x65,         // MPEG2 422 Profile 
-        ISO_IEC_13818_7_Main        = 0x66,         // MPEG2 AAC Main 
-        ISO_IEC_13818_7_LC          = 0x67,         // MPEG2 AAC LC
-        ISO_IEC_13818_7_SSR         = 0x68,         // MPEG2 AAC SSR
-        ISO_IEC_13818_3             = 0x69,         // MP3 
-        ISO_IEC_11172_2             = 0x6a,         // MPEG1VIDEO
-        ISO_IEC_11172_3             = 0x6b,         // MP2 
+        ISO_IEC_13818_2_Simple      = 0x60,         // MPEG2 Visual Simple Profile
+        ISO_IEC_13818_2_Main        = 0x61,         // MPEG2 Visual Main Profile
+        ISO_IEC_13818_2_SNR         = 0x62,         // MPEG2 Visual SNR Profile
+        ISO_IEC_13818_2_Spatial     = 0x63,         // MPEG2 Visual Spatial Profile
+        ISO_IEC_13818_2_High        = 0x64,         // MPEG2 Visual High Profile
+        ISO_IEC_13818_2_422         = 0x65,         // MPEG2 Visual 422 Profile
+        ISO_IEC_13818_7_Main        = 0x66,         // MPEG2 Audio Main / MPEG2 AAC
+        ISO_IEC_13818_7_LC          = 0x67,         // MPEG2 Audio LC
+        ISO_IEC_13818_7_SSR         = 0x68,         // MPEG2 Audio SSR
+        ISO_IEC_13818_3             = 0x69,         // MPEG2 Audio / ?
+        ISO_IEC_11172_2             = 0x6a,         // MPEG1 VIDEO
+        ISO_IEC_11172_3             = 0x6b,         // MPEG1 Audio Layer II / MP2
         ISO_IEC_10918_1             = 0x6c,         // MJPEG
     };
-    eCodecFormat translateObjectTypeIndication(uint8_t objectTypeIndication);
+    eCodecFormat translateObjectTypeIndication(eObjectTypeIndication objectTypeIndication);
 
     // streamType
     // ISO/IEC 14496-1:2010(E), Section 7.2.6.6.2, Page 51, Table 6
     // http://www.mp4ra.org/object.html
-    enum {
+    enum eStreamType {
         ObjectDescriptorStream      = 0x1,
         ClockReferenceStream        = 0x2,
         SceneDescriptionStream      = 0x3,
@@ -133,15 +135,12 @@ namespace MPEG4 {
         // 0x0C - 0x1F reserved for ISO use
         // 0x20 - 0x3F user private
     };
+    eStreamType ObjectType2StreamType(eObjectTypeIndication);
 
-    struct BaseDescriptor {
-        BaseDescriptor() : valid(false) { }
-        BaseDescriptor(const uint8_t tag) : valid(false), descrTag(tag) { }
+    struct BaseDescriptor : public SharedObject {
+        BaseDescriptor(const eDescriptorTag tag) : descrTag(tag) { }
         virtual ~BaseDescriptor() { }
-        virtual size_t size() const = 0;
-        virtual status_t compose(BitWriter& bw) const = 0;
-        bool            valid;
-        uint8_t         descrTag;
+        const eDescriptorTag descrTag;
     };
 
     // ISO/IEC 14496-1:2010(E), Section 7.2.6.7 Page 51
@@ -151,37 +150,36 @@ namespace MPEG4 {
     // Note: decoder usually need this information, for demuxer, there may be 
     // no need to parse this information
     struct DecoderSpecificInfo : public BaseDescriptor {
-        DecoderSpecificInfo();
-        DecoderSpecificInfo(const BitReader& br);
-        virtual size_t size() const;
-        virtual status_t compose(BitWriter& bw) const;
-        sp<Buffer>  csd;
+        sp<Buffer>  csd;        // only codec care about its semantics
+        DecoderSpecificInfo(const sp<Buffer>& data = NIL) : BaseDescriptor(DecSpecificInfoTag) {
+            csd = data;
+        }
     };
 
     struct DecoderConfigDescriptor : public BaseDescriptor {
-        DecoderConfigDescriptor();
-        DecoderConfigDescriptor(const BitReader& br);
-        virtual size_t size() const;
-        virtual status_t compose(BitWriter& bw) const;
-
-        uint8_t                 objectTypeIndication;
-        uint8_t                 streamType;
-        uint8_t                 upStream;
-        uint32_t                bufferSizeDB;
+        eObjectTypeIndication   objectTypeIndication;
+        eStreamType             streamType;
+        uint8_t                 upStream;           //
+        uint32_t                bufferSizeDB;       //
         uint32_t                maxBitrate;
         uint32_t                avgBitrate;
-        DecoderSpecificInfo     decSpecificInfo;    // optional
+        sp<DecoderSpecificInfo> decSpecificInfo;    // optional
         // profileLevelIndicationIndexDescriptor
+        
+        DecoderConfigDescriptor(eObjectTypeIndication objectType = ISO_IEC_14496_3) : BaseDescriptor(DecoderConfigDescrTag) {
+            // default values
+            objectTypeIndication    = objectType;
+            streamType              = ObjectType2StreamType(objectType);
+            upStream                = 0;
+            bufferSizeDB            = 0;
+            maxBitrate              = 0;
+            avgBitrate              = 0;
+            decSpecificInfo         = NIL;
+        }
     };
 
     // ISO/IEC 14496-1:2010(E), Section 7.2.6.5, Page 47
-    struct ES_Descriptor : public BaseDescriptor {
-        ES_Descriptor();
-        ES_Descriptor(const BitReader& br);
-        virtual size_t size() const;
-        virtual status_t compose(BitWriter& bw) const;
-        sp<Buffer> compose() const;
-
+    struct ESDescriptor : public BaseDescriptor {
         uint16_t                ES_ID;
         uint8_t                 streamDependenceFlag;
         uint8_t                 URL_Flag;
@@ -190,13 +188,29 @@ namespace MPEG4 {
         uint16_t                dependsOn_ES_ID;
         String                  URLstring;
         uint16_t                OCR_ES_Id;
-        DecoderConfigDescriptor decConfigDescr;     // mandatory
-        sp<Buffer>              extraBytes;
+        sp<DecoderConfigDescriptor> decConfigDescr;     // mandatory
+        
+        ESDescriptor(eObjectTypeIndication objectType = InvalidObjectType) : BaseDescriptor(ESDescrTag) {
+            // default values
+            ES_ID                   = 0;
+            streamDependenceFlag    = 0;
+            URL_Flag                = 0;
+            OCRstreamFlag           = 0;
+            streamPriority          = 0;
+            dependsOn_ES_ID         = 0;
+            URLstring               = "";
+            OCR_ES_Id               = 0;
+            if (objectType == InvalidObjectType)
+                decConfigDescr      = NIL;
+            else
+                decConfigDescr      = new DecoderConfigDescriptor(objectType);
+        }
     };
-
-    sp<Buffer> MakeESDS(ES_Descriptor& esd);
-
-    // ESDS
+    
+    // read esds content
+    sp<ESDescriptor> ReadESDS(const sp<Buffer>&);
+    // make esds content
+    sp<Buffer> MakeESDS(const sp<ESDescriptor>& esd);
 }
 
 __END_NAMESPACE_MPX

@@ -444,16 +444,13 @@ struct MatroskaFile : public MediaFile {
             if (trak.csd != NULL) {
                 DEBUG("csd: %s", trak.csd->string(true).c_str());
                 if (trak.format == kAudioCodecFormatAAC) {
-                    // AudioSpecificConfig
-                    // TODO: if csd is not exists, make one
-                    BitReader br(trak.csd->data(), trak.csd->size());
-                    MPEG4::AudioSpecificConfig asc(br);
-                    if (asc.valid) {
-                        MPEG4::ES_Descriptor esd = MakeESDescriptor(asc);
-                        esd.decConfigDescr.decSpecificInfo.csd = trak.csd;
-                        trakInfo->setObject(kKeyESDS, MPEG4::MakeESDS(esd));
-                    } else
-                        ERROR("bad AudioSpecificConfig");
+                    // AudioSpecificConfig -> ESDS
+                    sp<Buffer> esds = MPEG4::MakeAudioESDS(trak.csd->data(), trak.csd->size());
+                    if (esds.isNIL()) {
+                        MPEG4::AudioSpecificConfig asc (MPEG4::AOT_AAC_MAIN, trak.a.sampleRate, trak.a.channels);
+                        esds = MPEG4::MakeAudioESDS(asc);
+                    }
+                    trakInfo->setObject(kKeyESDS, esds);
                 } else if (trak.format == kVideoCodecFormatH264) {
                     BitReader br(trak.csd->data(), trak.csd->size());
                     MPEG4::AVCDecoderConfigurationRecord avcC(br);

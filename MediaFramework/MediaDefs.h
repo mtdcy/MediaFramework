@@ -38,7 +38,7 @@
 #include <ABE/ABE.h>
 
 #ifndef FORCE_INLINE 
-#define FORCE_INLINE    __ABE_INLINE
+#define FORCE_INLINE    ABE_INLINE
 #endif
 
 #ifndef API_EXPORT
@@ -54,7 +54,7 @@
 #endif
 
 #ifndef API_DEPRECATED
-#define API_DEPRECATED __ABE_DEPRECATED
+#define API_DEPRECATED  ABE_DEPRECATED
 #endif
 
 __BEGIN_DECLS
@@ -78,6 +78,7 @@ typedef enum eCodecFormat {
     kAudioCodecFormatAPE,
     kAudioCodecFormatDTS,
     kAudioCodecFormatLast   = 0x200 - 1,
+    kAudioCodecFormatFFmpeg = kAudioCodecFormatLast - 1,    // extend our capability using ffmpeg
     // video
     kVideoCodecFormatFirst  = 0x200,
     kVideoCodecFormatH264,
@@ -86,6 +87,7 @@ typedef enum eCodecFormat {
     kVideoCodecFormatVC1,
     kVideoCodecFormatH263,
     kVideoCodecFormatLast   = 0x300 - 1,
+    kVideoCodecFormatFFmpeg = kVideoCodecFormatLast - 1,    // extend our capability using ffmpeg
     // subtitle
     kSubtitleFormatFirst    = 0x300,
     kSubtitleFormatLast     = 0x400 - 1,
