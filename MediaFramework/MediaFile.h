@@ -55,37 +55,30 @@ __BEGIN_NAMESPACE_MPX
 struct API_EXPORT MediaFile : public SharedObject {
     /**
      * allocate an file object
-     * @param format    file format @see eFileFormat
      * @param mode      file mode @see eMode
      * @return return reference to new file
      */
     enum eMode { Read, Write, Modify };
     static sp<MediaFile>    Create(sp<Content>& pipe, const eMode mode = Read);
-    
-    /**
-     * get information of this file.
-     * @return return a string of information
-     */
-    virtual String          string() const = 0;
-    
+
     /**
      * configure this codec
      * @param options   option and parameter
      * @return return kMediaNoError on success, otherwise error code.
      */
     virtual MediaError      configure(const sp<Message>& options) { return kMediaErrorInvalidOperation; }
-    
+
     /**
      * get output format information of this codec.
      * about the output format:
-     *  kKeyFormat      - [eFormat]         - mandatory, file format @see eFormat
-     *  kKeyDuration    - [int64_t]         - mandatory, file duration
-     *  kKeyCount       - [int32_t]         - mandatory,
-     *  "track-%zu"     - [sp<Message>]     - mandatory
-     * about the track output format:
+     *  kKeyFormat      - [eFileFormat] - mandatory, file format @see eFileFormat
+     *  kKeyDuration    - [int64_t]         - mandatory, file duration in us
+     *  kKeyCount       - [int32_t]         - mandatory, number tracks
+     *  "track-%zu"     - [sp<Message>]     - mandatory, track formats
+     * about the track format:
      *  kKeyFormat      - [eCodecFormat]    - mandatory, @see eCodecFormat
      *  kKeyType        - [eCodecType]      - mandatory, @see eCodecType
-     *  kKeyDuration    - [int64_t]         - optional, track duration
+     *  kKeyDuration    - [int64_t]         - optional, track duration in us
      *  "****"          - [Buffer]          - optional, codec csd data, may have different names
      * for audio track:
      *  kKeySampleRate  - [int32_t]         - mandatory
@@ -99,27 +92,8 @@ struct API_EXPORT MediaFile : public SharedObject {
      *       not a good structure for frequently access, and it is waste
      *       of memory.
      */
-    
-    // nobody really care about file format
-    enum eFormat {              ///< framework internal type
-        Invalid = 0,
-        Any     = '****',       ///< ...
-        // audio
-        Wave    = 'WAVE',
-        Mp3     = 'mp3 ',
-        Flac    = 'fLaC',
-        Ape     = 'APE ',
-        // video
-        Mp4     = 'Mp4 ',       ///< mp4 & m4a
-        Mkv     = 'mkv ',
-        Avi     = 'avi ',
-        // images
-        Jpeg    = 'jpeg',
-        Gif     = 'gif ',
-        Png     = 'png ',
-    };
     virtual sp<Message>     formats() const = 0;
-    
+
     /**
      * read packets for each track.
      * @param index     index of the track
@@ -130,9 +104,9 @@ struct API_EXPORT MediaFile : public SharedObject {
      * @note the file may have to avoid seek too much, as we
      *       are read each track seperately
      */
-    virtual sp<MediaPacket> read(eModeReadType mode,
-                                 const MediaTime& ts = kMediaTimeInvalid) = 0;
-    
+    virtual sp<MediaPacket> read(eReadMode mode,
+            const MediaTime& ts = kMediaTimeInvalid) = 0;
+
     /**
      * write packets to file object
      * @param

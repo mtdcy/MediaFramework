@@ -57,13 +57,13 @@ static int scanMP3(const sp<Buffer>& data);
 static int scanMatroska(const sp<Buffer>& data);
 int IsMp4File(const sp<Buffer>& data);
 
-static MediaFile::eFormat GetFormat(sp<Content>& pipe) {
+static eFileFormat GetFormat(sp<Content>& pipe) {
     int score = 0;
     
     sp<Buffer> header = pipe->read(kCommonHeadLength);
     if (header == 0) {
         ERROR("content size is too small");
-        return MediaFile::Invalid;
+        return kFileFormatInvalid;
     }
 
     // skip id3v2
@@ -75,7 +75,7 @@ static MediaFile::eFormat GetFormat(sp<Content>& pipe) {
             INFO("id3 len = %lu", id3Len);
 
             if (pipe->length() < 10 + id3Len + 32) {
-                return MediaFile::Invalid;
+                return kFileFormatInvalid;
             }
 
             pipe->skip(10 + id3Len - kCommonHeadLength);
@@ -83,7 +83,7 @@ static MediaFile::eFormat GetFormat(sp<Content>& pipe) {
             header = pipe->read(kCommonHeadLength);
             if (header == 0) {
                 ERROR("not enough data after skip id3v2");
-                return MediaFile::Invalid;
+                return kFileFormatInvalid;
             }
         }
     }
@@ -99,19 +99,19 @@ static MediaFile::eFormat GetFormat(sp<Content>& pipe) {
             const char *        head;
             const size_t        skip;
             const char *        ext;        // extra text
-            MediaFile::eFormat  format;
+            eFileFormat         format;
         } kFourccMap[] = {
-            {"fLaC",    0,  NULL,       MediaFile::Flac     },
-            {"RIFF",    4,  "WAVE",     MediaFile::Wave     },
-            {"RIFF",    4,  "AVI ",     MediaFile::Avi      },
-            {"RIFF",    4,  "AVIX",     MediaFile::Avi      },
-            {"RIFF",    4,  "AVI\x19",  MediaFile::Avi      },
-            {"RIFF",    4,  "AMV ",     MediaFile::Avi      },
+            {"fLaC",    0,  NULL,       kFileFormatFlac     },
+            {"RIFF",    4,  "WAVE",     kFileFormatWave     },
+            {"RIFF",    4,  "AVI ",     kFileFormatAvi      },
+            {"RIFF",    4,  "AVIX",     kFileFormatAvi      },
+            {"RIFF",    4,  "AVI\x19",  kFileFormatAvi      },
+            {"RIFF",    4,  "AMV ",     kFileFormatAvi      },
             // END OF LIST
-            {NULL,      0,  NULL,       MediaFile::Invalid  },
+            {NULL,      0,  NULL,       kFileFormatInvalid  },
         };
         
-        MediaFile::eFormat format = MediaFile::Invalid;
+        eFileFormat format = kFileFormatInvalid;
         for (size_t i = 0; kFourccMap[i].head; i++) {
             const String head = br.readS(strlen(kFourccMap[i].head));
             if (kFourccMap[i].ext) {
@@ -132,7 +132,7 @@ static MediaFile::eFormat GetFormat(sp<Content>& pipe) {
             br.reset();
         }
         
-        if (format != MediaFile::Invalid) {
+        if (format != kFileFormatInvalid) {
             // reset pipe to start pos
             pipe->seek(startPos);
             return format;
@@ -147,15 +147,15 @@ static MediaFile::eFormat GetFormat(sp<Content>& pipe) {
 
     struct {
         int (*scanner)(const sp<Buffer>& data);
-        MediaFile::eFormat format;
+        eFileFormat format;
     } kScanners[] = {
-        { IsMp4File,    MediaFile::Mp4      },
-        { scanMatroska, MediaFile::Mkv      },
-        { scanMP3,      MediaFile::Mp3      },
-        { NULL,         MediaFile::Invalid  }
+        { IsMp4File,    kFileFormatMp4      },
+        { scanMatroska, kFileFormatMkv      },
+        { scanMP3,      kFileFormatMp3      },
+        { NULL,         kFileFormatInvalid  }
     };
 
-    MediaFile::eFormat format = MediaFile::Invalid;
+    eFileFormat format = kFileFormatInvalid;
     for (size_t i = 0; kScanners[i].scanner; i++) {
         int c = kScanners[i].scanner(header);
         DEBUG("%#x, score = %d", kScanners[i].format, c);
@@ -260,14 +260,14 @@ sp<MediaFile> CreateLibavformat(sp<Content>& pipe);
 sp<MediaFile> MediaFile::Create(sp<Content>& pipe, const eMode mode) {
     CHECK_TRUE(mode == Read, "TODO: only support read");
     
-    const MediaFile::eFormat format = GetFormat(pipe);
+    const eFileFormat format = GetFormat(pipe);
     switch (format) {
 #if 0
-        case MediaFile::Mp3:
+        case kFileFormatMp3:
             return CreateMp3File(pipe);
-        case MediaFile::Mp4:
+        case kFileFormatMp4:
             return CreateMp4File(pipe);
-        case MediaFile::Mkv:
+        case kFileFormatMkv:
             return CreateMatroskaFile(pipe);
 #endif
         default:

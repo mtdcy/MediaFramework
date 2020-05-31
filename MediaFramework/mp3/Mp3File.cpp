@@ -713,7 +713,7 @@ struct Mp3File : public MediaFile {
 
     virtual sp<Message> formats() const {
         sp<Message> info = new Message;
-        info->setInt32(kKeyFormat, MediaFile::Mp3);
+        info->setInt32(kKeyFormat, kFileFormatMp3);
         info->setInt64(kKeyDuration, mDuration.useconds());
 
         sp<Message> trak = new Message;
@@ -727,9 +727,9 @@ struct Mp3File : public MediaFile {
         return info;
     }
 
-    virtual sp<MediaPacket> read(eModeReadType mode,
+    virtual sp<MediaPacket> read(eReadMode mode,
             const MediaTime& ts = kMediaTimeInvalid) {
-        CHECK_NE(mode, kModeReadPeek); // don't support this
+        CHECK_NE(mode, kReadModePeek); // don't support this
         bool sawInputEOS = false;
 
         if (ts != kMediaTimeInvalid) {

@@ -45,28 +45,28 @@ __BEGIN_NAMESPACE_MPX
 
 struct {
     const char *        name;
-    MediaFile::eFormat  format;
+    eFileFormat         format;
 } kFormatMap[] = {
-    { "wav",        MediaFile::Wave },
-    { "mp3",        MediaFile::Mp3  },
-    { "flac",       MediaFile::Flac },
-    { "ape",        MediaFile::Ape  },
+    { "wav",        kFileFormatWave },
+    { "mp3",        kFileFormatMp3  },
+    { "flac",       kFileFormatFlac },
+    { "ape",        kFileFormatApe  },
     // video
-    { "mov",        MediaFile::Mp4  },
-    { "mp4",        MediaFile::Mp4  },  // & m4a
-    { "matroska",   MediaFile::Mkv  },  // matroska & webm
+    { "mov",        kFileFormatMp4  },
+    { "mp4",        kFileFormatMp4  },  // & m4a
+    { "matroska",   kFileFormatMkv  },  // matroska & webm
     // END OF LIST
-    { NULL,         MediaFile::Invalid }
+    { NULL,         kFileFormatInvalid }
 };
 
-static MediaFile::eFormat GetFormat(const String& name) {
+static eFileFormat GetFormat(const String& name) {
     for (size_t i = 0; kFormatMap[i].name; ++i) {
         if (name.startsWith(kFormatMap[i].name)) {
             return kFormatMap[i].format;
         }
     }
     
-    return MediaFile::Any;
+    return kFileFormatAny;
 }
 
 struct {
@@ -416,7 +416,7 @@ struct AVFormat : public MediaFile {
         return kMediaErrorInvalidOperation;
     }
     
-    virtual sp<MediaPacket> read(eModeReadType mode, const MediaTime& ts) {
+    virtual sp<MediaPacket> read(eReadMode mode, const MediaTime& ts) {
         if (ts != kMediaTimeInvalid) {
             INFO("seek to %.3f(s)", ts.seconds());
             avformat_seek_file(mObject->context, -1,

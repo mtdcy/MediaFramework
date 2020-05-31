@@ -64,6 +64,25 @@ __BEGIN_DECLS
  * @note framework internal constrants & types should define inside class
  */
 
+// nobody really care about file format
+typedef enum eFileFormat {
+    kFileFormatInvalid  = 0,
+    kFileFormatAny      = '****',       ///< it is a usefull file without details
+    // audio
+    kFileFormatWave     = 'WAVE',
+    kFileFormatMp3      = 'mp3 ',
+    kFileFormatFlac     = 'fLaC',
+    kFileFormatApe      = 'APE ',
+    // video
+    kFileFormatMp4      = 'Mp4 ',       ///< mp4 & m4a
+    kFileFormatMkv      = 'mkv ',
+    kFileFormatAvi      = 'avi ',
+    // images
+    kFileFormatJpeg     = 'jpeg',
+    kFileFormatGif      = 'gif ',
+    kFileFormatPng      = 'png ',
+} eFileFormat;
+
 typedef enum eCodecFormat {
     kCodecFormatUnknown     = 0,
     // audio
@@ -250,19 +269,19 @@ API_EXPORT size_t       GetSampleFormatBytes(eSampleFormat);
 /**
  * read behavior modes
  */
-typedef enum eModeReadType {
-    kModeReadFirst      = 0,    ///< read first sync packet, -ts
-    kModeReadNext,              ///< read next packet, -ts
-    kModeReadLast,              ///< read last packet, -ts
-    kModeReadCurrent,           ///< read current packet again, -ts
-    kModeReadNextSync,          ///< read next sync packet, -ts/+ts
-    kModeReadLastSync,          ///< read last sync packet, -ts/+ts
-    kModeReadClosestSync,       ///< read closest sync packet, +ts
+typedef enum eReadMode {
+    kReadModeFirst      = 0,    ///< read first sync packet, -ts
+    kReadModeNext,              ///< read next packet, -ts
+    kReadModeLast,              ///< read last packet, -ts
+    kReadModeCurrent,           ///< read current packet again, -ts
+    kReadModeNextSync,          ///< read next sync packet, -ts/+ts
+    kReadModeLastSync,          ///< read last sync packet, -ts/+ts
+    kReadModeClosestSync,       ///< read closest sync packet, +ts
     ///< @note only for seek, as direction can NOT be predict
-    kModeReadIndex,             ///< read sample of index, +ts as sample index
-    kModeReadPeek,              ///< peek packet, +ts
-    kModeReadDefault = kModeReadNext
-} eModeReadType;
+    kReadModeIndex,             ///< read sample of index, +ts as sample index
+    kReadModePeek,              ///< peek packet, +ts
+    kReadModeDefault = kReadModeNext
+} eReadMode;
 
 enum {
     kFrameFlagNone      = 0,
@@ -566,7 +585,7 @@ __END_NAMESPACE_MPX
 /**
  * key of mode
  * @see eModeType
- * @see eModeReadType
+ * @see eReadMode
  */
 #define kKeyMode        "mode"      ///< int32_t
 

@@ -318,7 +318,7 @@ static sp<Mp4Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderB
 
 static size_t findSampleIndex(const sp<Mp4Track>& track,
         int64_t ts,
-        eModeReadType mode,
+        eReadMode mode,
         size_t *match = NULL) {
     const Vector<Sample>& tbl = track->sampleTable;
 
@@ -345,7 +345,7 @@ static size_t findSampleIndex(const sp<Mp4Track>& track,
         if (s.flags & kFrameFlagSync) break;
         if (first == 0) {
             WARN("track %zu: no sync at start");
-            mode = kModeReadNextSync;
+            mode = kReadModeNextSync;
             break;
         }
         --first;
@@ -357,12 +357,12 @@ static size_t findSampleIndex(const sp<Mp4Track>& track,
         ++second;
     }
     // force last sync, if second sync pointer not exists
-    if (second == tbl.size()) mode = kModeReadLastSync;
+    if (second == tbl.size()) mode = kReadModeLastSync;
 
     size_t result;
-    if (mode == kModeReadLastSync) {
+    if (mode == kReadModeLastSync) {
         result = first;
-    } else if (mode == kModeReadNextSync) {
+    } else if (mode == kReadModeNextSync) {
         result = second;
     } else { // closest
         if (mid - first > second - mid)
@@ -406,7 +406,7 @@ struct Mp4File : public MediaFile {
 
     virtual sp<Message> formats() const {
         sp<Message> info = new Message;
-        info->setInt32(kKeyFormat, MediaFile::Mp4);
+        info->setInt32(kKeyFormat, kFileFormatMp4);
         info->setInt64(kKeyDuration, mDuration.useconds());
         info->setInt32(kKeyCount, mTracks.size());
 
@@ -610,7 +610,7 @@ struct Mp4File : public MediaFile {
         return kMediaNoError;
     }
 
-    virtual sp<MediaPacket> read(eModeReadType mode,
+    virtual sp<MediaPacket> read(eReadMode mode,
             const MediaTime& _ts = kMediaTimeInvalid) {
         const size_t index = 0; // FIXME
         FATAL("FIXME");
@@ -620,19 +620,19 @@ struct Mp4File : public MediaFile {
 
         MediaTime ts = _ts;
 
-        // first read, force mode = kModeReadFirst;
+        // first read, force mode = kReadModeFirst;
         if (track->startTime == kMediaTimeInvalid) {
             INFO("track %zu: read first pakcet", index);
-            mode = kModeReadFirst;
+            mode = kReadModeFirst;
             track->startTime = kMediaTimeInvalid;
             track->startTime.scale(track->duration.timescale);
         }
 
         // ts will be ignored for these modes
-        if (mode == kModeReadFirst ||
-                mode == kModeReadNext ||
-                mode == kModeReadLast ||
-                mode == kModeReadCurrent) {
+        if (mode == kReadModeFirst ||
+                mode == kReadModeNext ||
+                mode == kReadModeLast ||
+                mode == kReadModeCurrent) {
             ts = kMediaTimeInvalid;
         }
 
@@ -647,7 +647,7 @@ struct Mp4File : public MediaFile {
             size_t match;
             sampleIndex = findSampleIndex(track, ts.value, mode, &match);
 
-            if (mode != kModeReadPeek) {
+            if (mode != kReadModePeek) {
                 track->startTime = MediaTime(tbl[sampleIndex].dts,
                                              track->duration.timescale);
                 if (sampleIndex < match) {
@@ -655,23 +655,23 @@ struct Mp4File : public MediaFile {
                                                  track->duration.timescale);
                 }
             }
-        } else if (mode == kModeReadNextSync) {
+        } else if (mode == kReadModeNextSync) {
             while (sampleIndex < tbl.size()) {
                 Sample& s = tbl[sampleIndex];
                 if (s.flags & kFrameFlagSync) break;
                 else ++sampleIndex;
             }
-        } else if (mode == kModeReadLastSync) {
+        } else if (mode == kReadModeLastSync) {
             do {
                 Sample& s = tbl[sampleIndex];
                 if (s.flags & kFrameFlagSync) break;
                 else --sampleIndex;
             } while (sampleIndex > 0);
-        } else if (mode == kModeReadNext) {
+        } else if (mode == kReadModeNext) {
             ++sampleIndex;
-        } else if (mode == kModeReadLast) {
+        } else if (mode == kReadModeLast) {
             --sampleIndex;
-        } else if (mode == kModeReadFirst) {
+        } else if (mode == kReadModeFirst) {
             sampleIndex = 0;
         }
 
@@ -682,7 +682,7 @@ struct Mp4File : public MediaFile {
         }
 
         // save sample index
-        if (mode != kModeReadPeek) {
+        if (mode != kReadModePeek) {
             track->sampleIndex = sampleIndex;
         }
 

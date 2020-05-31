@@ -152,7 +152,7 @@ struct MediaSource : public IMediaSession {
                 mPackets[i].clear();
             }
             
-            sp<MediaPacket> packet = mMediaFile->read(kModeReadClosestSync, time);
+            sp<MediaPacket> packet = mMediaFile->read(kReadModeClosestSync, time);
             if (packet.isNIL()) {
                 INFO("eos");
                 return NIL;
@@ -170,7 +170,7 @@ struct MediaSource : public IMediaSession {
         }
         
         for (;;) {
-            sp<MediaPacket> packet = mMediaFile->read(kModeReadNext);
+            sp<MediaPacket> packet = mMediaFile->read(kReadModeNext);
             if (packet.isNIL()) {
                 INFO("eos");
                 break;

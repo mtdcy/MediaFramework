@@ -420,7 +420,7 @@ struct MatroskaFile : public MediaFile {
 
     virtual sp<Message> formats() const {
         sp<Message> info = new Message;
-        info->setInt32(kKeyFormat, MediaFile::Mkv);
+        info->setInt32(kKeyFormat, kFileFormatMkv);
         info->setInt32(kKeyCount, mTracks.size());
         info->setInt64(kKeyDuration, mDuration.useconds());
         for (size_t i = 0; i < mTracks.size(); ++i) {
@@ -523,7 +523,7 @@ struct MatroskaFile : public MediaFile {
 
     // https://matroska.org/technical/specs/notes.html#TimecodeScale
     // https://matroska.org/technical/specs/notes.html
-    virtual sp<MediaPacket> read(eModeReadType mode,
+    virtual sp<MediaPacket> read(eReadMode mode,
             const MediaTime& ts = kMediaTimeInvalid) {
 
         const size_t index = 0;     // FIXME
