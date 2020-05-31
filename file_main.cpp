@@ -37,7 +37,7 @@
 __USING_NAMESPACE_MPX
 
 int main(int argc, char **argv) {
-    sp<Content> pipe = Content::Create(argv[1]);
+    sp<Content> pipe = Content::Create(String(argv[1]));
     
     sp<ImageFile> image = ImageFile::Create(kFileFormatJPEG);
     image->init(pipe, NIL);

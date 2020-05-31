@@ -260,14 +260,17 @@ sp<MediaFile> CreateLibavformat(sp<Content>& pipe);
 sp<MediaFile> MediaFile::Create(sp<Content>& pipe, const eMode mode) {
     CHECK_TRUE(mode == Read, "TODO: only support read");
     
+    String env = GetEnvironmentValue("FORCE_AVFORMAT");
+    bool force = !env.equals("0") && !env.lower().equals("no");
+    
     const eFileFormat format = GetFormat(pipe);
     switch (format) {
         case kFileFormatMp3:
-            return CreateMp3File(pipe);
+            return force ? CreateLibavformat(pipe) : CreateMp3File(pipe);
         case kFileFormatMp4:
-            return CreateMp4File(pipe);
+            return force ? CreateLibavformat(pipe) : CreateMp4File(pipe);
         case kFileFormatMkv:
-            return CreateMatroskaFile(pipe);
+            return force ? CreateLibavformat(pipe) : CreateMatroskaFile(pipe);
         default:
             return CreateLibavformat(pipe);
     }
