@@ -367,6 +367,15 @@ struct MediaTime {
         }
         return *this;
     }
+    
+    // the least common multiple
+    static int64_t LCM(int64_t a, int64_t b) {
+        int64_t c, gcd;
+        for (c = 1; c <= a && c <= b; ++c) {
+            if (a % c == 0 && b % c == 0) gcd = c;
+        }
+        return (a * b) / gcd;
+    }
 
     FORCE_INLINE double seconds() const {
         return (double)value / timescale;
@@ -377,24 +386,26 @@ struct MediaTime {
     }
 
     FORCE_INLINE MediaTime operator+(const MediaTime& rhs) const {
-        if (timescale == rhs.timescale) return MediaTime(value + rhs.value, timescale);
-        else return MediaTime(value + (timescale * rhs.value) / rhs.timescale, timescale);
+        int64_t lcd = LCM(timescale, rhs.timescale);
+        return MediaTime(value * (lcd / timescale) + rhs.value * (lcd / rhs.timescale), lcd);
     }
 
     FORCE_INLINE MediaTime operator-(const MediaTime& rhs) const {
-        if (timescale == rhs.timescale) return MediaTime(value - rhs.value, timescale);
-        else return MediaTime(value - (timescale * rhs.value) / rhs.timescale, timescale);
+        int64_t lcd = LCM(timescale, rhs.timescale);
+        return MediaTime(value * (lcd / timescale) - rhs.value * (lcd / rhs.timescale), lcd);
     }
 
     FORCE_INLINE MediaTime& operator+=(const MediaTime& rhs) {
-        if (timescale == rhs.timescale) value += rhs.value;
-        else value += (timescale * rhs.value) / rhs.timescale;
+        int64_t lcd = LCM(timescale, rhs.timescale);
+        value *= (lcd / timescale); value += rhs.value * (lcd / rhs.timescale);
+        timescale = lcd;
         return *this;
     }
 
     FORCE_INLINE MediaTime& operator-=(const MediaTime& rhs) {
-        if (timescale == rhs.timescale) value -= rhs.value;
-        else value -= (timescale * rhs.value) / rhs.timescale;
+        int64_t lcd = LCM(timescale, rhs.timescale);
+        value *= (lcd / timescale); value -= rhs.value * (lcd / rhs.timescale);
+        timescale = lcd;
         return *this;
     }
 
