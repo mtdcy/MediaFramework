@@ -33,7 +33,7 @@
 //
 
 #define LOG_TAG   "Matroska"
-//#define LOG_NDEBUG 0
+#define LOG_NDEBUG 0
 #include "MediaDefs.h"
 
 #include <MediaFramework/MediaPacketizer.h>
@@ -166,7 +166,7 @@ struct MatroskaPacket : public MediaPacket {
     MatroskaPacket(MatroskaTrack& trak,
             const sp<Buffer>& _data,
             uint64_t timecode,
-            uint32_t _flags) {
+            eFrameType _type) {
         buffer  = _data;
         data    = (uint8_t*)buffer->data();
         size    = buffer->size();
@@ -186,7 +186,7 @@ struct MatroskaPacket : public MediaPacket {
         duration = trak.frametime;
 
         format  = trak.format;
-        flags   = _flags;
+        type   = _type;
     }
 };
 
@@ -347,7 +347,8 @@ struct MatroskaFile : public MediaFile {
             }
 
             if (trak.format == kAudioCodecFormatMP3) {
-                trak.packetizer = MediaPacketizer::Create(trak.format);
+                // FIXME: DO we need packetizer or not
+                //trak.packetizer = MediaPacketizer::Create(trak.format);
             }
 
             mTracks.push(trak);
@@ -498,24 +499,28 @@ struct MatroskaFile : public MediaFile {
 
         List<sp<EBMLElement> >::iterator it = mCluster->children.begin();
         for (; it != mCluster->children.end(); ++it) {
-            if ((*it)->id.u64 != ID_SIMPLEBLOCK) continue;
+            sp<EBMLBlockElement> block = *it;
+            if (block->id.u64 == ID_BLOCKGROUP) {
+                FATAL("FIXME: add support to BLOCKGROUP");
+            }
+            if (block->id.u64 != ID_SIMPLEBLOCK) continue;
 
             // TODO: handle BLOCKGROUP
             // handle each blocks
-            sp<EBMLBlockElement> block = *it;
+            eFrameType type = kFrameTypeUnknown;
+            if (block->Flags & kBlockFlagKey)           type |= kFrameTypeSync;
+            if (block->Flags & kBlockFlagDiscardable)   type |= kFrameTypeDisposal;
+            if (block->Flags & kBlockFlagInvisible)     type |= kFrameTypeReference;
+            
             for (size_t i = 0; i < mTracks.size(); ++i) {
                 if (mTracks[i].id == block->TrackNumber.u32 - 1) {
                     MatroskaTrack& trak = mTracks[i];
-                    uint32_t flags = 0;
-                    if (block->Flags & kBlockFlagKey)           flags |= kFrameFlagSync;
-                    if (block->Flags & kBlockFlagDiscardable)   flags |= kFrameFlagDisposal;
 
                     uint64_t timecode = (TIMECODE->vint.u64 + block->TimeCode) * mTimeScale;
                     List<sp<Buffer> >::const_iterator it = block->data.cbegin();
                     for (; it != block->data.cend(); ++it) {
-                        timecode += trak.frametime;
 
-                        sp<MatroskaPacket> packet = new MatroskaPacket(trak, *it, timecode, flags);
+                        sp<MatroskaPacket> packet = new MatroskaPacket(trak, *it, timecode, type);
 
                         if (trak.packetizer != NULL) {
                             if (trak.packetizer->enqueue(packet) != kMediaNoError) {
@@ -529,6 +534,8 @@ struct MatroskaFile : public MediaFile {
                             DEBUG("[%zu] packet %zu bytes", packet->index, packet->size);
                             mPackets.push(packet);
                         }
+                        
+                        timecode += trak.frametime;
                     }
                     break;
                 }
@@ -588,7 +595,7 @@ struct MatroskaFile : public MediaFile {
                     packet->size,
                     packet->pts.seconds(),
                     packet->dts.seconds(),
-                    packet->flags);
+                    packet->type);
             return packet;
         }
 

@@ -319,13 +319,13 @@ struct EBMLSkipElement : public EBMLElement {
 };
 
 enum eBlockFlags {
-    kBlockFlagKey           = 0x80,
-    kBlockFlagLace          = 0x6,
+    kBlockFlagKey           = 0x80,     ///< key frame @see kFrameFlagSync
+    kBlockFlagLace          = 0x6,      ///< frame lacing mask
     kBlockFlagXiph          = 0x2,
     kBlockFlagEBML          = 0x6,
     kBlockFlagFixed         = 0x4,
-    kBlockFlagInvisible     = 0x8,  // duration == 0
-    kBlockFlagDiscardable   = 0x1,
+    kBlockFlagInvisible     = 0x8,      ///< duration == 0 @see kFrameFlagReference
+    kBlockFlagDiscardable   = 0x1,      ///< discardable frame when decoder is slow @see kFrameFlagDisposal
 };
 
 struct EBMLBlockElement : public EBMLElement {

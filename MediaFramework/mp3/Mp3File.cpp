@@ -525,7 +525,7 @@ struct Mp3Packetizer : public MediaPacketizer {
         packet->pts         = mNextFrameTime;
         packet->dts         = mNextFrameTime;
         packet->duration    = mFrameTime;
-        packet->flags       = kFrameFlagSync;
+        packet->type        = kFrameTypeSync;
         packet->format      = kAudioCodecFormatMP3;
         packet->properties  = mProperties;
         mNextFrameTime      += mFrameTime;

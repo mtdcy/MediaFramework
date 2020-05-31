@@ -258,10 +258,10 @@ struct AVMediaPacket : public MediaPacket {
         size    = pkt->size;
         index   = pkt->stream_index;
         format  = GetCodecFormat(st->stream->codecpar->codec_id);
-        flags   = 0;
-        if (pkt->flags & AV_PKT_FLAG_KEY)           flags |= kFrameFlagSync;
-        if (pkt->flags & AV_PKT_FLAG_DISCARD)       flags |= kFrameFlagReference;
-        if (pkt->flags & AV_PKT_FLAG_DISPOSABLE)    flags |= kFrameFlagDisposal;
+        type    = kFrameTypeUnknown;
+        if (pkt->flags & AV_PKT_FLAG_KEY)           type |= kFrameTypeSync;
+        if (pkt->flags & AV_PKT_FLAG_DISCARD)       type |= kFrameTypeReference;
+        if (pkt->flags & AV_PKT_FLAG_DISPOSABLE)    type |= kFrameTypeDisposal;
         
         if (st->calc_dts) {
             if (pkt->duration == 0) {

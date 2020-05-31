@@ -820,10 +820,10 @@ struct LavcDecoder : public MediaDecoder {
 
             pkt->flags      = 0;
 
-            if (input->flags & kFrameFlagSync)
+            if (input->type & kFrameTypeSync)
                 pkt->flags |= AV_PKT_FLAG_KEY;
 
-            if (input->flags & kFrameFlagReference) {
+            if (input->type & kFrameTypeReference) {
                 INFO("reference frame, disposable");
                 pkt->flags |= AV_PKT_FLAG_DISCARD;
                 pkt->flags |= AV_PKT_FLAG_DISPOSABLE;

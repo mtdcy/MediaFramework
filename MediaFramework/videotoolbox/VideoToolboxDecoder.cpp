@@ -657,7 +657,7 @@ struct VideoToolboxDecoder : public MediaDecoder {
         VTDecodeFrameFlags decodeFlags = kVTDecodeFrame_EnableTemporalProcessing;
         //decodeFlags |= kVTDecodeFrame_EnableAsynchronousDecompression;
         //decodeFlags |= kVTDecodeFrame_1xRealTimePlayback;
-        if (input->flags & kFrameFlagReference) {
+        if (input->type & kFrameTypeReference) {
             INFO("reference frame");
             decodeFlags |= kVTDecodeFrame_DoNotOutputFrame;
         }

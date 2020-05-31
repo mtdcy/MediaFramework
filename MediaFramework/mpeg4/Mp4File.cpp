@@ -99,12 +99,11 @@ struct Sample {
 };
 
 struct Mp4Track : public SharedObject {
-    Mp4Track() : codec(kCodecFormatUnknown), trackIndex(0),
+    Mp4Track() : codec(kCodecFormatUnknown),
     sampleIndex(0), duration(kMediaTimeInvalid),
     startTime(kMediaTimeBegin) { }
 
     eCodecFormat        codec;
-    size_t              trackIndex;
     size_t              sampleIndex;
     MediaTime           duration;
     MediaTime           startTime;
@@ -202,12 +201,16 @@ static sp<Mp4Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderB
     // FIXME: no-output sample
     const uint64_t now = SystemTimeUs();
     uint64_t dts = 0;
+    
+    // init sampleTable with dts
     for (size_t i = 0; i < stts->entries.size(); ++i) {
         for (size_t j = 0; j < stts->entries[i].sample_count; ++j) {
             dts += stts->entries[i].sample_delta;
+            // ISO/IEC 14496-12:2015 Section 8.6.2.1
+            //  If the sync sample box is not present, every sample is a sync sample.
             Sample s = { 0/*offset*/, 0/*size*/,
                 dts, kTimeValueInvalid/*pts*/,
-                stss != NULL ? kFrameFlagNone : kFrameFlagSync};
+                stss != NULL ? kFrameTypeUnknown : kFrameTypeSync};
             track->sampleTable.push(s);
         }
     }
@@ -260,7 +263,7 @@ static sp<Mp4Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderB
     if (stss != NULL) {
         for (size_t i = 0; i < stss->entries.size(); ++i) {
             Sample& s = track->sampleTable[stss->entries[i] - 1];
-            s.flags |= kFrameFlagSync;
+            s.flags |= kFrameTypeSync;
             //INFO("sync frame %d", stss->entries[i]);
         }
         INFO("every %zu frame has one sync frame",
@@ -284,10 +287,15 @@ static sp<Mp4Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderB
                     sample_has_redundancy);
 #endif
             Sample& s = track->sampleTable[i];
-            if (sample_depends_on == 2)     s.flags |= kFrameFlagSync;
+            // does this sample depends others (e.g. is it an I‐picture)?
+            if (sample_depends_on == 2)     s.flags |= kFrameTypeSync;
+            // do no other samples depend on this one?
+            if (sample_is_depended_on == 2) s.flags |= kFrameTypeDisposal;
+            
+#if 0       // FIXME: handle is_leading & sample_has_redundacy properly
             if (is_leading == 2)            s.flags |= kFrameFlagLeading;
-            if (sample_is_depended_on == 2) s.flags |= kFrameFlagDisposal;
             if (sample_has_redundancy == 1) s.flags |= kFrameFlagRedundant;
+#endif
         }
     }
 
@@ -316,7 +324,7 @@ static sp<Mp4Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderB
     return track;
 }
 
-static size_t seekTrack(sp<Mp4Track>& track,
+static MediaError seekTrack(sp<Mp4Track>& track,
         const MediaTime& _ts,
         const eReadMode& mode) {
     const Vector<Sample>& tbl = track->sampleTable;
@@ -344,7 +352,7 @@ static size_t seekTrack(sp<Mp4Track>& track,
     // find sync sample index
     do {
         const Sample& s = tbl[first];
-        if (s.flags & kFrameFlagSync) break;
+        if (s.flags & kFrameTypeSync) break;
         if (first == 0) {
             WARN("track %zu: no sync at start");
             break;
@@ -354,7 +362,7 @@ static size_t seekTrack(sp<Mp4Track>& track,
 
     while (second < tbl.size()) {
         const Sample& s = tbl[second];
-        if (s.flags & kFrameFlagSync) break;
+        if (s.flags & kFrameTypeSync) break;
         ++second;
     }
 
@@ -370,13 +378,15 @@ static size_t seekTrack(sp<Mp4Track>& track,
             result = first;
     }
 
-    INFO("track %zu: seek %.3f(s) => [%zu - %zu - %zu] => %zu # %zu",
-         track->trackIndex, ts.seconds(),
+    INFO("seek %.3f(s) => [%zu - %zu - %zu] => %zu # %zu",
+            ts.seconds(),
             first, mid, second, result,
             search_count);
-    
+
     track->sampleIndex  = result;   // key sample index
     track->startTime    = MediaTime(tbl[mid].dts, track->duration.timescale);
+
+    return kMediaNoError;
 }
 
 struct Mp4Packet : public MediaPacket {
@@ -399,7 +409,7 @@ struct Mp4File : public MediaFile {
     Mp4File() : MediaFile(), mContent(NULL) { }
 
     virtual ~Mp4File() { }
-    
+
     virtual sp<Message> formats() const {
         sp<Message> info = new Message;
         info->setInt32(kKeyFormat, kFileFormatMp4);
@@ -589,7 +599,6 @@ struct Mp4File : public MediaFile {
 
             if (track == NULL) continue;
 
-            track->trackIndex = mTracks.size();
             mTracks.push(track);
         }
 
@@ -608,7 +617,7 @@ struct Mp4File : public MediaFile {
 
     virtual sp<MediaPacket> read(const eReadMode& mode,
             const MediaTime& ts = kMediaTimeInvalid) {
-        
+
         if (ts != kMediaTimeInvalid) {
             // seeking
             for (size_t i = 0; i < mTracks.size(); ++i) {
@@ -617,11 +626,11 @@ struct Mp4File : public MediaFile {
                 seekTrack(track, ts, mode);
             }
         }
-        
+
         // find the lowest pos
         size_t trackIndex = 0;
         int64_t los = mTracks[0]->sampleTable[mTracks[0]->sampleIndex].offset;
-        
+
         for (size_t i = 1; i < mTracks.size(); ++i) {
             sp<Mp4Track>& track = mTracks[i];
             int64_t pos = track->sampleTable[track->sampleIndex].offset;
@@ -630,8 +639,7 @@ struct Mp4File : public MediaFile {
                 trackIndex = i;
             }
         }
-        
-        
+
         sp<Mp4Track>& track = mTracks[trackIndex];
         Vector<Sample>& tbl = track->sampleTable;
         size_t sampleIndex = track->sampleIndex++;
@@ -658,12 +666,12 @@ struct Mp4File : public MediaFile {
 #if 1
         MediaTime dts( s.dts, track->startTime.timescale);
         if (dts < track->startTime) {
-            if (flags & kFrameFlagDisposal) {
+            if (flags & kFrameTypeDisposal) {
                 INFO("track %zu: drop frame", trackIndex);
                 return read(mode, kMediaTimeInvalid);
             } else {
                 INFO("track %zu: reference frame", trackIndex);
-                flags |= kFrameFlagReference;
+                flags |= kFrameTypeReference;
             }
         } else if (dts == track->startTime) {
             INFO("track %zu: hit starting...", trackIndex);
@@ -673,7 +681,7 @@ struct Mp4File : public MediaFile {
         sp<MediaPacket> packet  = new Mp4Packet(sample);
         packet->index           = trackIndex;
         packet->format          = track->codec;
-        packet->flags           = flags;
+        packet->type            = flags;
         if (s.pts == kTimeValueInvalid)
             packet->pts =       kMediaTimeInvalid;
         else
@@ -691,7 +699,7 @@ sp<MediaFile> CreateMp4File(sp<Content>& pipe) {
 
 int IsMp4File(const sp<Buffer>& data) {
     BitReader br(data->data(), data->size());
-    
+
     int score = 0;
     while (br.remianBytes() > 8 && score < 100) {
         size_t boxHeadLength    = 8;
@@ -699,35 +707,35 @@ int IsMp4File(const sp<Buffer>& data) {
         // if size is 0, then this box is the last one in the file
         uint64_t boxSize        = br.rb32();
         const String boxType    = br.readS(4);
-        
+
         if (boxSize == 1) {
             if (br.remianBytes() < 8) break;
-            
+
             boxSize             = br.rb64();
             boxHeadLength       = 16;
         }
-        
+
         DEBUG("file: %s %" PRIu64, boxType.c_str(), boxSize);
         if (boxType == "ftyp" || boxType == "moov" || boxType == "mdat") {
             score += 40;
         } else if (boxType == "ftyp" ||
-                   boxType == "mdat" ||
-                   boxType == "pnot" || /* detect movs with preview pics like ew.mov and april.mov */
-                   boxType == "udat" || /* Packet Video PVAuthor adds this and a lot of more junk */
-                   boxType == "wide" ||
-                   boxType == "ediw" || /* xdcam files have reverted first tags */
-                   boxType == "free" ||
-                   boxType == "junk" ||
-                   boxType == "pict") {
+                boxType == "mdat" ||
+                boxType == "pnot" || /* detect movs with preview pics like ew.mov and april.mov */
+                boxType == "udat" || /* Packet Video PVAuthor adds this and a lot of more junk */
+                boxType == "wide" ||
+                boxType == "ediw" || /* xdcam files have reverted first tags */
+                boxType == "free" ||
+                boxType == "junk" ||
+                boxType == "pict") {
             score += 10;
         }
-        
+
         if (boxSize - boxHeadLength > 0) {
             if (br.remianBytes() < boxSize - boxHeadLength) break;
             br.skipBytes(boxSize - boxHeadLength);
         }
     }
-    
+
     return score > 100 ? 100 : score;
 }
 

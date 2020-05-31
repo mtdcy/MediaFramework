@@ -279,15 +279,12 @@ typedef enum eReadMode {
 } eReadMode;
 
 enum {
-    kFrameFlagNone      = 0,
-    kFrameFlagSync      = (1<<0),   ///< I frame, sync frame
-    kFrameFlagPred      = (1<<1),   ///< P frame
-    kFrameFlagBi        = (1<<2),   ///< B frame
-    kFrameFlagReference = (1<<3),   ///< ref frame, no output
-    kFrameFlagLeading   = (1<<4),   ///< leading frame, depends on frame before I frame
-    kFrameFlagDisposal  = (1<<5),   ///< not be depended on, disposal
-    kFrameFlagRedundant = (1<<6),   ///< multiple (redundant) encodings
+    kFrameTypeUnknown       = 0,
+    kFrameTypeSync          = (1<<0),   ///< I frame, sync frame
+    kFrameTypeReference     = (1<<1),   ///< ref frame, no output
+    kFrameTypeDisposal      = (1<<2),   ///< not be depended on, disposal
 };
+typedef uint32_t    eFrameType;
 
 typedef enum {
     kMediaNoError                   = 0,
@@ -434,7 +431,7 @@ struct API_EXPORT MediaPacket : public SharedObject {
 
     size_t              index;      ///< track index, 0 based value
     eCodecFormat        format;     ///< packet format @see eCodecFormat
-    uint32_t            flags;      ///< @see kFrameFlag*
+    eFrameType          type;       ///< @see eFrameType
     MediaTime           dts;        ///< packet decoding time, mandatory
     MediaTime           pts;        ///< packet presentation time, mandatory if decoding order != presentation order
     MediaTime           duration;   ///< packet duration time
@@ -444,7 +441,7 @@ struct API_EXPORT MediaPacket : public SharedObject {
 
     MediaPacket() : data(NULL), size(0), index(0),
         format(kCodecFormatUnknown),
-        flags(kFrameFlagNone),
+        type(kFrameTypeUnknown),
         dts(kMediaTimeInvalid),
         pts(kMediaTimeInvalid),
         duration(kMediaTimeInvalid),
