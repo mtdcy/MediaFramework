@@ -129,7 +129,7 @@ static FORCE_INLINE eCodecFormat GetCodecFormat(const String& codec) {
 
 struct MatroskaTrack {
     MatroskaTrack() : id(0), format(kCodecFormatUnknown),
-    frametime(0), timescale(1.0), next_dts(kTimeBegin) { }
+    frametime(0), timescale(1.0), next_dts(kMediaTimeBegin) { }
 
     size_t                  id;         // ID_TRACKNUMBER
     eCodecFormat            format;     // ID_CODECID
@@ -524,7 +524,7 @@ struct MatroskaFile : public MediaFile {
     // https://matroska.org/technical/specs/notes.html#TimecodeScale
     // https://matroska.org/technical/specs/notes.html
     virtual sp<MediaPacket> read(eModeReadType mode,
-            const MediaTime& ts = kTimeInvalid) {
+            const MediaTime& ts = kMediaTimeInvalid) {
 
         const size_t index = 0;     // FIXME
         FATAL("FIXME");

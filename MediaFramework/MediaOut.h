@@ -67,7 +67,7 @@ struct API_EXPORT MediaOut : public SharedObject {
     virtual MediaError      prepare(const sp<Message>& format, const sp<Message>& options) = 0;
     /**
      * get status of this output device.
-     * @return return OK if everything is OK, otherwise error code
+     * @return return kMediaNoError if everything is kMediaNoError, otherwise error code
      */
     virtual MediaError      status() const = 0;
     /**
@@ -78,20 +78,20 @@ struct API_EXPORT MediaOut : public SharedObject {
     /**
      * configure this output device
      * @param options   option and parameter
-     * @return return OK on success, otherwise error code.
+     * @return return kMediaNoError on success, otherwise error code.
      */
     virtual MediaError      configure(const sp<Message>& options) = 0;
     /**
      * push a MediaFrame to this output device.
      * @param input     reference of MediaFrame
-     * @return return OK on success
+     * @return return kMediaNoError on success
      * @note push a NULL packet to notify codec of eos
-     * @note write in block way, always return OK if no error happens.
+     * @note write in block way, always return kMediaNoError if no error happens.
      */
     virtual MediaError      write(const sp<MediaFrame>& input) = 0;
     /**
      * flush context of this output device
-     * @return return OK on success, otherwise error code
+     * @return return kMediaNoError on success, otherwise error code
      */
     virtual MediaError      flush() = 0;
 };

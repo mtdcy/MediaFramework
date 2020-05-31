@@ -1,8 +1,6 @@
 #!/bin/bash
 
-if [ ! -d xcode ]; then
-    mkdir xcode 
-fi
+[ ! -d xcode ] && mkdir xcode 
 
 cd xcode
 rm -rf CMakeCache.txt

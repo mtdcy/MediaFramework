@@ -33,7 +33,7 @@
 //
 
 #define LOG_TAG   "Lavf"
-#define LOG_NDEBUG 0
+//#define LOG_NDEBUG 0
 #include <MediaFramework/MediaFile.h>
 
 #include <FFmpeg.h>
@@ -288,7 +288,7 @@ struct AVMediaPacket : public MediaPacket {
         if (pkt->duration > 0) {
             duration = MediaTime(pkt->duration * st->stream->time_base.num, st->stream->time_base.den);
         } else {
-            duration = kTimeInvalid;
+            duration = kMediaTimeInvalid;
         }
         
         // opaque
@@ -417,7 +417,7 @@ struct AVFormat : public MediaFile {
     }
     
     virtual sp<MediaPacket> read(eModeReadType mode, const MediaTime& ts) {
-        if (ts != kTimeInvalid) {
+        if (ts != kMediaTimeInvalid) {
             INFO("seek to %.3f(s)", ts.seconds());
             avformat_seek_file(mObject->context, -1,
                                0,

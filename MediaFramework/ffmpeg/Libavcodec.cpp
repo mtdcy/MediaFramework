@@ -264,7 +264,7 @@ struct AVMediaFrame : public MediaFrame {
         }
         // this may be wrong
         timecode    = MediaTime(frame->pts * avcc->time_base.num, avcc->time_base.den);
-        duration    = kTimeInvalid;
+        duration    = kMediaTimeInvalid;
     }
 
     virtual ~AVMediaFrame() {
@@ -322,7 +322,7 @@ static int get_buffer(AVCodecContext *avcc, AVFrame *frame, int flags) {
     return avcodec_default_get_buffer2(avcc, frame, flags);
 }
 
-static status_t setupHwAccelContext(AVCodecContext *avcc) {
+static MediaError setupHwAccelContext(AVCodecContext *avcc) {
 
     INFO("supported hwaccel: ");
     AVBufferRef *hw_device_ctx = NULL;
@@ -357,7 +357,7 @@ static status_t setupHwAccelContext(AVCodecContext *avcc) {
         avcc->get_format = get_format;
         av_buffer_unref(&hw_device_ctx);
     }
-    return OK;
+    return kMediaNoError;
 }
 
 static void parseAudioSpecificConfig(AVCodecContext *avcc, const sp<Buffer>& csd) {
@@ -385,7 +385,7 @@ static void parseESDS(AVCodecContext *avcc, const sp<Buffer>& esds) {
     parseAudioSpecificConfig(avcc, esd->decConfigDescr->decSpecificInfo->csd);
 }
 
-static status_t setupExtraData(AVCodecContext *avcc, const sp<Message>& formats) {
+static MediaError setupExtraData(AVCodecContext *avcc, const sp<Message>& formats) {
     // different extra data for  different decoder
     switch (avcc->codec->id) {
         case AV_CODEC_ID_AAC:
@@ -399,7 +399,7 @@ static status_t setupExtraData(AVCodecContext *avcc, const sp<Message>& formats)
                 parseAudioSpecificConfig(avcc, csd);
             } else {
                 ERROR("missing esds|csd for aac");
-                return ERROR_UNKNOWN;
+                return kMediaErrorUnknown;
             }
             break;
         case AV_CODEC_ID_H264:
@@ -412,7 +412,7 @@ static status_t setupExtraData(AVCodecContext *avcc, const sp<Message>& formats)
                 memcpy(avcc->extradata, avcC->data(), avcc->extradata_size);
             } else {
                 ERROR("missing avcC for h264");
-                return ERROR_UNKNOWN;
+                return kMediaErrorUnknown;
             }
             break;
         case AV_CODEC_ID_HEVC:
@@ -424,7 +424,7 @@ static status_t setupExtraData(AVCodecContext *avcc, const sp<Message>& formats)
                 memcpy(avcc->extradata, hvcC->data(), avcc->extradata_size);
             } else {
                 ERROR("missing hvcC for hevc");
-                return ERROR_UNKNOWN;
+                return kMediaErrorUnknown;
             } break;
         default:
             break;
@@ -432,7 +432,7 @@ static status_t setupExtraData(AVCodecContext *avcc, const sp<Message>& formats)
 
     // FIXME: ffmpeg have different codec id for different profile/version
 
-    return OK;
+    return kMediaNoError;
 }
 
 void av_log_callback(void *avcl, int level, const char *fmt, va_list vl) {

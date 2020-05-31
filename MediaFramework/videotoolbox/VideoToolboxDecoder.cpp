@@ -176,7 +176,7 @@ struct VTMediaFrame : public MediaFrame {
 
 struct VTContext : public SharedObject {
     FORCE_INLINE VTContext() : decompressionSession(NULL), formatDescription(NULL),
-    mInputEOS(false), mNextFrameTime(kTimeInvalid), mLastFrameTime(kTimeBegin) { }
+    mInputEOS(false), mNextFrameTime(kMediaTimeInvalid), mLastFrameTime(kMediaTimeBegin) { }
 
     FORCE_INLINE ~VTContext() {
         if (decompressionSession) {
@@ -258,7 +258,7 @@ static FORCE_INLINE void OutputCallback(void *decompressionOutputRefCon,
 
     MediaTime duration;
     if (CMTIME_IS_INVALID(presentationDuration)) {
-        duration = kTimeInvalid;
+        duration = kMediaTimeInvalid;
     } else {
         duration = MediaTime( presentationDuration.value, presentationDuration.timescale );
     }
@@ -496,15 +496,15 @@ static FORCE_INLINE CMSampleBufferRef createCMSampleBuffer(sp<VTContext>& vtc,
     CHECK_NULL(blockBuffer);
 
     CMSampleTimingInfo timingInfo[1];
-    CHECK_TRUE(packet->dts != kTimeInvalid);
+    CHECK_TRUE(packet->dts != kMediaTimeInvalid);
     timingInfo[0].decodeTimeStamp = CMTimeMake(packet->dts.value, packet->dts.timescale);
-    if (packet->pts != kTimeInvalid) {
+    if (packet->pts != kMediaTimeInvalid) {
         timingInfo[0].presentationTimeStamp = CMTimeMake(packet->pts.value, packet->pts.timescale);
     } else {
         // assume decoding order = presentation order
         timingInfo[0].presentationTimeStamp = timingInfo[0].decodeTimeStamp;
     }
-    if (packet->duration != kTimeInvalid) {
+    if (packet->duration != kMediaTimeInvalid) {
         timingInfo[0].duration = CMTimeMake(packet->duration.value, packet->duration.timescale);
     } else {
         timingInfo[0].duration = kCMTimeInvalid;
@@ -647,7 +647,7 @@ struct VideoToolboxDecoder : public MediaDecoder {
                 input->dts.seconds(),
                 input->pts.seconds());
 
-        CHECK_TRUE(input->dts != kTimeInvalid);
+        CHECK_TRUE(input->dts != kMediaTimeInvalid);
 
         CMSampleBufferRef sampleBuffer = createCMSampleBuffer(mVTContext, input);
 
@@ -701,7 +701,7 @@ struct VideoToolboxDecoder : public MediaDecoder {
         VTMediaFrame& frame = *mVTContext->mImages.begin();
         
         // set next frame time.
-        if (frame.duration != kTimeInvalid) {
+        if (frame.duration != kMediaTimeInvalid) {
             mVTContext->mNextFrameTime = frame.timecode + frame.duration;
         }
 

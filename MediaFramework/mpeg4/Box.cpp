@@ -58,7 +58,7 @@ FileTypeBox::FileTypeBox(const BitReader& br, size_t size) {
     INFO("compatible brands: %s", compatibles.c_str());
 }
 
-status_t Box::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError Box::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     if (full) {
         version     = br.r8();
         flags       = br.rb24();
@@ -68,18 +68,18 @@ status_t Box::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     }
     DEBUG("box %s #%zu version = %" PRIu32 " flags = %" PRIx32,
             name.c_str(), sz, version, flags);
-    return OK;
+    return kMediaNoError;
 }
 
 void Box::compose(BitWriter& bw, const FileTypeBox& ftyp) {
 }
 
-status_t ContainerBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError ContainerBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     DEBUGV("box %s %zu", name.c_str(), sz);
     Box::parse(br, sz, ftyp);
     return _parse(br, sz - Box::size(), ftyp);
 }
-status_t ContainerBox::_parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError ContainerBox::_parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     // FIXME: count is not used
     size_t next = 0;
     if (counted) {
@@ -139,7 +139,7 @@ status_t ContainerBox::_parse(const BitReader& br, size_t sz, const FileTypeBox&
 #else
             br.skipBytes(boxSize);
 #endif
-        } else if (box->parse(br, boxSize, ftyp) == OK) {
+        } else if (box->parse(br, boxSize, ftyp) == kMediaNoError) {
             child.push(box);
         }
         const size_t delta = br.offset() - offset;
@@ -178,7 +178,7 @@ status_t ContainerBox::_parse(const BitReader& br, size_t sz, const FileTypeBox&
     }
 
     DEBUGV("box %s: child.size() = %zu", name.c_str(), child.size());
-    return OK;
+    return kMediaNoError;
 }
 void ContainerBox::compose(BitWriter&, const FileTypeBox&) { }
 
@@ -207,7 +207,7 @@ static const bool isQuickTime(const FileTypeBox& ftyp) {
     return false;
 }
 
-status_t MetaBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError MetaBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     size_t next = Box::size();
     if (!isQuickTime(ftyp)) {
@@ -217,11 +217,11 @@ status_t MetaBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp)
     }
 
     ContainerBox::_parse(br, sz - next, ftyp);
-    return OK;
+    return kMediaNoError;
 }
 void MetaBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
-status_t MovieHeaderBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError MovieHeaderBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     DEBUGV("box %s %zu", name.c_str(), sz);
     Box::parse(br, sz, ftyp);
     CHECK_EQ(sz, 4 + ((version == 0) ? 96 : 108));
@@ -254,12 +254,12 @@ status_t MovieHeaderBox::parse(const BitReader& br, size_t sz, const FileTypeBox
     DEBUGV("box %s: rate %" PRIu32 ", volume %" PRIu16 ", next %" PRIu32,
             name.c_str(),
             rate, volume, next_track_ID);
-    return OK;
+    return kMediaNoError;
 }
 
 void MovieHeaderBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
-status_t TrackHeaderBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError TrackHeaderBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     if (version == 1) {
         creation_time       = br.rb64();
@@ -296,12 +296,12 @@ status_t TrackHeaderBox::parse(const BitReader& br, size_t sz, const FileTypeBox
             layer, alternate_group, volume,
             width, height);
 
-    return OK;
+    return kMediaNoError;
 }
 
 void TrackHeaderBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
-status_t TrackReferenceTypeBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError TrackReferenceTypeBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     CHECK_FALSE(sz % 4);
     size_t count = sz / 4;
@@ -310,7 +310,7 @@ status_t TrackReferenceTypeBox::parse(const BitReader& br, size_t sz, const File
         DEBUGV("box %s: %" PRIu32, name.c_str(), id);
         track_IDs.push(id);
     }
-    return OK;
+    return kMediaNoError;
 }
 void TrackReferenceTypeBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
@@ -323,7 +323,7 @@ static inline String languageCode(const BitReader& br) {
     return String(&lang[0], 3);
 }
 
-status_t MediaHeaderBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError MediaHeaderBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     if (version == 1) {
         creation_time           = br.rb64();
@@ -346,11 +346,11 @@ status_t MediaHeaderBox::parse(const BitReader& br, size_t sz, const FileTypeBox
     DEBUGV("box %s: lang %s", name.c_str(), language.c_str());
 
     br.skip(16);    // pre_defined
-    return OK;
+    return kMediaNoError;
 }
 void MediaHeaderBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
-status_t HandlerBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError HandlerBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     CHECK_GE(sz, 4 + 20 + 1);
 
@@ -361,11 +361,11 @@ status_t HandlerBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ft
 
     DEBUGV("box %s: type %s name %s", name.c_str(),
             handler_type.c_str(), handler_name.c_str());
-    return OK;
+    return kMediaNoError;
 }
 void HandlerBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
-status_t VideoMediaHeaderBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError VideoMediaHeaderBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     graphicsmode        = br.rb16();
     DEBUGV("box %s: graphicsmode %" PRIu16, 
@@ -375,21 +375,21 @@ status_t VideoMediaHeaderBox::parse(const BitReader& br, size_t sz, const FileTy
         DEBUGV("box %s: color %" PRIu16, name.c_str(), color);
         opcolor.push(color);
     }
-    return OK;
+    return kMediaNoError;
 }
 void VideoMediaHeaderBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
-status_t SoundMediaHeaderBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError SoundMediaHeaderBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     balance         = br.rb16();
     br.skip(16);    // reserved
 
     DEBUGV("box %s: balance %" PRIu16, name.c_str(), balance);
-    return OK;
+    return kMediaNoError;
 }
 void SoundMediaHeaderBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
-status_t HintMediaHeaderBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError HintMediaHeaderBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     maxPDUsize          = br.rb16();
     avgPDUsize          = br.rb16();
@@ -401,22 +401,22 @@ status_t HintMediaHeaderBox::parse(const BitReader& br, size_t sz, const FileTyp
             ", maxbitrate %" PRIu32 ", avgbitrate %" PRIu32,
             name.c_str(),
             maxPDUsize, avgPDUsize, maxbitrate, avgbitrate);
-    return OK;
+    return kMediaNoError;
 }
 void HintMediaHeaderBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
-status_t DataEntryUrlBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError DataEntryUrlBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     if (sz > 4) {
         location    = br.readS(sz - 4);
         DEBUGV("box %s: location %s", 
                 name.c_str(), location.c_str());
     }
-    return OK;
+    return kMediaNoError;
 }
 void DataEntryUrlBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
-status_t DataEntryUrnBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError DataEntryUrnBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     char c;
     while ((c = (char)br.r8()) != '\0') urn_name.append(String(c));
@@ -426,11 +426,11 @@ status_t DataEntryUrnBox::parse(const BitReader& br, size_t sz, const FileTypeBo
             name.c_str(), 
             urn_name.c_str(),
             location.c_str());
-    return OK;
+    return kMediaNoError;
 }
 void DataEntryUrnBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
-status_t TimeToSampleBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError TimeToSampleBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     uint32_t count  = br.rb32();
     for (uint32_t i = 0; i < count; i++) {
@@ -439,12 +439,12 @@ status_t TimeToSampleBox::parse(const BitReader& br, size_t sz, const FileTypeBo
                 e.sample_count, e.sample_delta);
         entries.push(e);
     }
-    return OK;
+    return kMediaNoError;
 }
 
 void TimeToSampleBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
-status_t CompositionOffsetBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError CompositionOffsetBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     uint32_t count          = br.rb32();
     for (uint32_t i = 0; i < count; i++) {
@@ -454,30 +454,30 @@ status_t CompositionOffsetBox::parse(const BitReader& br, size_t sz, const FileT
                 e.sample_count, e.sample_offset);
         entries.push(e);
     }
-    return OK;
+    return kMediaNoError;
 }
 void CompositionOffsetBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
-status_t SampleDependencyTypeBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError SampleDependencyTypeBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     for (size_t i = 0; i < sz - Box::size(); ++i) {
         dependency.push(br.r8());
     }
-    return OK;
+    return kMediaNoError;
 }
 void SampleDependencyTypeBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
 // AudioSampleEntry is different for isom and mov
-status_t SampleEntry::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError SampleEntry::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     const size_t offset = br.offset();
     Box::parse(br, sz, ftyp);
     _parse(br, sz - Box::size(), ftyp);
     const size_t n = (br.offset() - offset) / 8;
     ContainerBox::_parse(br, sz - n, ftyp);
     DEBUGV("box %s: child.size() = %zu", name.c_str(), child.size());
-    return OK;
+    return kMediaNoError;
 }
-status_t SampleEntry::_parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError SampleEntry::_parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     // 8 bytes
     br.skip(8 * 6);
     data_reference_index    = br.rb16();
@@ -556,45 +556,45 @@ status_t SampleEntry::_parse(const BitReader& br, size_t sz, const FileTypeBox& 
     } else {
         // NOTHING
     }
-    return OK;
+    return kMediaNoError;
 }
 void SampleEntry::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
-status_t ALACAudioSampleEntry::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError ALACAudioSampleEntry::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     const size_t offset = br.offset();
     Box::parse(br, sz, ftyp);
     SampleEntry::_parse(br, sz - Box::size(), ftyp);
     extra = br.readB(sz - (br.offset()- offset) / 8);
     DEBUG("box %s: %s", extra->string(true).c_str());
-    return OK;
+    return kMediaNoError;
 }
 void ALACAudioSampleEntry::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
-status_t SamplingRateBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError SamplingRateBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     sampling_rate   = br.rb32();
-    return OK;
+    return kMediaNoError;
 }
 void SamplingRateBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
-status_t CommonBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError CommonBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     data = br.readB(sz - Box::size());
     DEBUG("box %s: %s", data->string(true).c_str());
-    return OK;
+    return kMediaNoError;
 }
 void CommonBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
-status_t BitRateBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError BitRateBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     bufferSizeDB        = br.rb32();
     maxBitrate          = br.rb32();
     avgBitrate          = br.rb32();
-    return OK;
+    return kMediaNoError;
 }
 void BitRateBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
-status_t SampleSizeBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError SampleSizeBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     if (name == "stz2") {
         br.skip(24);            //reserved
@@ -622,11 +622,11 @@ status_t SampleSizeBox::parse(const BitReader& br, size_t sz, const FileTypeBox&
         DEBUGV("box %s: %" PRIu64, name.c_str(), entries[i]);
     }
 #endif 
-    return OK;
+    return kMediaNoError;
 }
 void SampleSizeBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
-status_t SampleToChunkBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError SampleToChunkBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     uint32_t count          = br.rb32();
     for (uint32_t i = 0; i < count; i++) {
@@ -641,11 +641,11 @@ status_t SampleToChunkBox::parse(const BitReader& br, size_t sz, const FileTypeB
 
         entries.push(e);
     }
-    return OK;
+    return kMediaNoError;
 }
 void SampleToChunkBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
-status_t ChunkOffsetBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError ChunkOffsetBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     uint32_t count          = br.rb32();
     if (name == "co64") { // offset64
@@ -661,11 +661,11 @@ status_t ChunkOffsetBox::parse(const BitReader& br, size_t sz, const FileTypeBox
             entries.push(e);
         }
     }
-    return OK;
+    return kMediaNoError;
 }
 void ChunkOffsetBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
-status_t SyncSampleBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError SyncSampleBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     uint32_t count      = br.rb32();
     for (uint32_t i = 0; i < count; i++) {
@@ -673,11 +673,11 @@ status_t SyncSampleBox::parse(const BitReader& br, size_t sz, const FileTypeBox&
         DEBUGV("box %s: %" PRIu32, name.c_str(), e);
         entries.push(e);
     }
-    return OK;
+    return kMediaNoError;
 }
 void SyncSampleBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
-status_t ShadowSyncSampleBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError ShadowSyncSampleBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     uint32_t count              = br.rb32();
     for (uint32_t i = 0; i < count; ++i) {
@@ -690,20 +690,20 @@ status_t ShadowSyncSampleBox::parse(const BitReader& br, size_t sz, const FileTy
                 e.shadowed_sample_number, e.sync_sample_number);
         entries.push(e);
     }
-    return OK;
+    return kMediaNoError;
 }
 void ShadowSyncSampleBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
-status_t DegradationPriorityBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError DegradationPriorityBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     CHECK_GT(sz, Box::size());
     size_t count = (sz - Box::size()) / 2;
     while (count--) { entries.push(br.rb16()); }
-    return OK;
+    return kMediaNoError;
 }
 void DegradationPriorityBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
-status_t PaddingBitsBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError PaddingBitsBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     uint32_t count  = br.rb32();
     for (uint32_t i = 0; i < (count + 1) / 2; i++) {
@@ -714,18 +714,18 @@ status_t PaddingBitsBox::parse(const BitReader& br, size_t sz, const FileTypeBox
         e.pad2  = br.read(3);
         entries.push(e);
     }
-    return OK;
+    return kMediaNoError;
 }
 void PaddingBitsBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
-status_t FreeSpaceBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError FreeSpaceBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     br.skipBytes(sz);
-    return OK;
+    return kMediaNoError;
 }
 void FreeSpaceBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
-status_t EditListBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError EditListBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     uint32_t count = br.rb32();
     for (uint32_t i = 0; i < count; i++) {
@@ -744,11 +744,11 @@ status_t EditListBox::parse(const BitReader& br, size_t sz, const FileTypeBox& f
                 e.segment_duration, e.media_time,
                 e.media_rate_integer, e.media_rate_fraction);
     };
-    return OK;
+    return kMediaNoError;
 }
 void EditListBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
-status_t NoticeBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError NoticeBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     CHECK_GE(sz, 4 + 2);
     language    = languageCode(br);
@@ -757,40 +757,40 @@ status_t NoticeBox::parse(const BitReader& br, size_t sz, const FileTypeBox& fty
         value       = br.readS(sz - 4 - 2);
     }
     DEBUGV("box %s: value = %s", name.c_str(), value.c_str());
-    return OK;
+    return kMediaNoError;
 }
 void NoticeBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
-status_t MovieExtendsHeaderBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError MovieExtendsHeaderBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     if (version == 1) {
         fragment_duration   = br.rb64();
     } else {
         fragment_duration   = br.rb32();
     }
-    return OK;
+    return kMediaNoError;
 }
 void MovieExtendsHeaderBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
-status_t TrackExtendsBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError TrackExtendsBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     track_ID                        = br.rb32();
     default_sample_description_index    = br.rb32();
     default_sample_duration         = br.rb32();
     default_sample_size             = br.rb32();
     default_sample_flags            = br.rb32();
-    return OK;
+    return kMediaNoError;
 }
 void TrackExtendsBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
-status_t MovieFragmentHeaderBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError MovieFragmentHeaderBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     sequence_number         = br.rb32();
-    return OK;
+    return kMediaNoError;
 }
 void MovieFragmentHeaderBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
-status_t TrackFragmentHeaderBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError TrackFragmentHeaderBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     track_ID    = br.rb32();
     if (flags & 0x1)    base_data_offset            = br.rb32();
@@ -798,18 +798,18 @@ status_t TrackFragmentHeaderBox::parse(const BitReader& br, size_t sz, const Fil
     if (flags & 0x8)    default_sample_duration     = br.rb32();
     if (flags & 0x10)   default_sample_size         = br.rb32();
     if (flags & 0x20)   default_sample_flags        = br.rb32();
-    return OK;
+    return kMediaNoError;
 }
 void TrackFragmentHeaderBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
-status_t PrimaryItemBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError PrimaryItemBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     item_ID     = br.rb16();
-    return OK;
+    return kMediaNoError;
 }
 void PrimaryItemBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
-status_t ColourInformationBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError ColourInformationBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     colour_type     = br.readS(4);
     if (colour_type == "nclx") {
@@ -827,12 +827,12 @@ status_t ColourInformationBox::parse(const BitReader& br, size_t sz, const FileT
         ERROR("box %s: TODO ICC_profile", name.c_str());
         br.skipBytes(sz - Box::size() - 4);
     }
-    return OK;
+    return kMediaNoError;
 }
 void ColourInformationBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
 #if 1
-status_t siDecompressionParam::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError siDecompressionParam::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     size_t next = Box::size();
 
@@ -881,7 +881,7 @@ status_t siDecompressionParam::parse(const BitReader& br, size_t sz, const FileT
 #else
             br.skipBytes(boxSize);
 #endif
-        } else if (box->parse(br, boxSize, ftyp) == OK) {
+        } else if (box->parse(br, boxSize, ftyp) == kMediaNoError) {
             child.push(box);
         }
         const size_t delta = br.offset() - offset;
@@ -900,7 +900,7 @@ status_t siDecompressionParam::parse(const BitReader& br, size_t sz, const FileT
         DEBUG("box %s: skip %zu bytes", name.c_str(), sz - next);
         br.skipBytes(sz - next);
     }
-    return OK;
+    return kMediaNoError;
 }
 void siDecompressionParam::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 #endif
@@ -919,14 +919,14 @@ void siDecompressionParam::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 //  |   |       |- name
 //  |- ctry
 //  |- lang
-status_t iTunesHeaderBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError iTunesHeaderBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     nextItemID  = br.rb32();
-    return OK;
+    return kMediaNoError;
 }
 void iTunesHeaderBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
-status_t CountryListBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError CountryListBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     uint32_t Entry_count    = br.rb32();
     uint16_t Country_count  = br.rb16();
@@ -937,11 +937,11 @@ status_t CountryListBox::parse(const BitReader& br, size_t sz, const FileTypeBox
         }
         entries.push(e);
     }
-    return OK;
+    return kMediaNoError;
 }
 void CountryListBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
-status_t LanguageListBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError LanguageListBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     uint32_t Entry_count    = br.rb32();
     uint16_t Language_count = br.rb16();
@@ -952,19 +952,19 @@ status_t LanguageListBox::parse(const BitReader& br, size_t sz, const FileTypeBo
         }
         entries.push(e);
     }
-    return OK;
+    return kMediaNoError;
 }
 void LanguageListBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
-status_t iTunesStringBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError iTunesStringBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     value       = br.readS(sz - Box::size());
     DEBUGV("box %s: %s", name.c_str(), value.c_str());
-    return OK;
+    return kMediaNoError;
 }
 void iTunesStringBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
-status_t iTunesDataBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError iTunesDataBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     CHECK_GE(sz, Box::size() + 8);
     // 8 bytes 
@@ -979,35 +979,35 @@ status_t iTunesDataBox::parse(const BitReader& br, size_t sz, const FileTypeBox&
         Value           = br.readB(sz - Box::size() - 8);
         DEBUGV("box %s: %s", name.c_str(), Value->string().c_str());
     }
-    return OK;
+    return kMediaNoError;
 }
 void iTunesDataBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
-status_t iTunesInfomationBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError iTunesInfomationBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     Item_ID     = br.rb32();
-    return OK;
+    return kMediaNoError;
 }
 void iTunesInfomationBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
-status_t iTunesNameBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError iTunesNameBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     Name = br.readS(sz - Box::size());
     DEBUGV("box %s: %s", name.c_str(), Name.c_str());
-    return OK;
+    return kMediaNoError;
 }
 void iTunesNameBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
-status_t iTunesMeanBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError iTunesMeanBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     Mean = br.readS(sz - Box::size());
     DEBUGV("box %s: %s", name.c_str(), Mean.c_str());
-    return OK;
+    return kMediaNoError;
 }
 void iTunesMeanBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
 #if 1
-status_t iTunesItemListBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError iTunesItemListBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     if (!isQuickTime(ftyp)) {
         return ContainerBox::parse(br, sz, ftyp);
     } else {
@@ -1021,43 +1021,43 @@ status_t iTunesItemListBox::parse(const BitReader& br, size_t sz, const FileType
             next            += _size;
             _size           -= 8;
             sp<Box> box      = new ContainerBox("*");
-            if (box->parse(br, _size, ftyp) == OK) {
+            if (box->parse(br, _size, ftyp) == kMediaNoError) {
                 key_index.push(index);
                 child.push(box);
             }
         }
-        return OK;
+        return kMediaNoError;
     }
 }
 void iTunesItemListBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 #endif
 
-status_t iTunesKeyDecBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError iTunesKeyDecBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     Key_namespace   = br.readS(4);
     Key_value       = br.readB(sz - Box::size() - 4);
     DEBUG("box %s: %s\n%s", name.c_str(), 
             Key_namespace.c_str(), Key_value->string().c_str());
-    return OK;
+    return kMediaNoError;
 }
 void iTunesKeyDecBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
 ///////////////////////////////////////////////////////////////////////////
 // ID3v2
-status_t ID3v2Box::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError ID3v2Box::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     CHECK_GT(sz, Box::size() + 2);
     language    = languageCode(br);
     ID3v2data   = br.readB(sz - 2 - Box::size());
-    return OK;
+    return kMediaNoError;
 }
 void ID3v2Box::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
-status_t ObjectDescriptorBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+MediaError ObjectDescriptorBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     iods = br.readB(sz - Box::size());
     DEBUGV("box %s: %s", name.c_str(), iods->string().c_str());
-    return OK;
+    return kMediaNoError;
 }
 void ObjectDescriptorBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
@@ -1184,10 +1184,10 @@ RegisterBox("keyd", iTunesKeyDecBox);
 #define IgnoreBox(NAME, BoxType)                                            \
     struct BoxType : public Box {                              \
         FORCE_INLINE BoxType() : Box(NAME) { }                              \
-        FORCE_INLINE virtual status_t parse(const BitReader& br, size_t sz, \
+        FORCE_INLINE virtual MediaError parse(const BitReader& br, size_t sz, \
                 const FileTypeBox& ftyp) {                                  \
             br.skipBytes(sz - Box::size());                                 \
-            return OK;                                                      \
+            return kMediaNoError;                                                      \
         }                                                                   \
         virtual void compose(BitWriter& bw, const FileTypeBox& ftyp) {}     \
     };                                                                      \

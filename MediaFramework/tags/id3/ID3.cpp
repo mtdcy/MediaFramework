@@ -309,13 +309,13 @@ struct ID3v2Header {
 
 static ssize_t isID3v2Header(const Buffer& data, ID3v2Header *header) {
     //CHECK_GE(data.size(), ID3v2::kHeaderLength);
-    if (data.size() < ID3v2::kHeaderLength) return ERROR_UNKNOWN;
+    if (data.size() < ID3v2::kHeaderLength) return kMediaErrorUnknown;
     
     BitReader br(data.data(), data.size());
     String magic        = br.readS(3);
     if (magic != "ID3") {
         DEBUG("no ID3v2 magic.");
-        return ERROR_UNKNOWN;
+        return kMediaErrorUnknown;
     }
     
     uint8_t major       = br.r8();
@@ -327,30 +327,30 @@ static ssize_t isID3v2Header(const Buffer& data, ID3v2Header *header) {
     if (major == 0xff || revision == 0xff) {
         DEBUG("invalid version number 2.%d.%d",
               major, revision);
-        return ERROR_UNKNOWN;
+        return kMediaErrorUnknown;
     }
     
     // check size
     if (size == 0) {
         DEBUG("invalid size %d", size);
-        return ERROR_UNKNOWN;
+        return kMediaErrorUnknown;
     }
     
     // check flags.
     if (major == 2) { // %xx000000
         if (flags & 0x3f) {
             DEBUG("invalid 2.2.%d flags %#x", revision, flags);
-            return ERROR_UNKNOWN;
+            return kMediaErrorUnknown;
         }
     } else if (major == 3) { // %abc00000
         if (flags & 0x1f) {
             DEBUG("invalid 2.3.%d flags %#x", revision, flags);
-            return ERROR_UNKNOWN;
+            return kMediaErrorUnknown;
         }
     } else if (major == 4) { // %abcd0000
         if (flags & 0xf) {
             DEBUG("invalid 2.4.%d flags %#x", revision, flags);
-            return ERROR_UNKNOWN;
+            return kMediaErrorUnknown;
         }
     }
     
@@ -683,7 +683,7 @@ static FORCE_INLINE ID3v2PictureText ID3v22Picture(const String& id, const char*
 
 // Frame ID       $xx xx xx
 // Size           $xx xx xx
-static status_t ID3v2_2(const Buffer& data,
+static MediaError ID3v2_2(const Buffer& data,
                         const ID3v2Header& header,
                         sp<Message>& values) {
     struct ID3v2Frame {
@@ -747,13 +747,13 @@ static status_t ID3v2_2(const Buffer& data,
         }
     }
     
-    return OK;
+    return kMediaNoError;
 }
 
 // Frame ID       $xx xx xx xx (four characters)
 // Size           $xx xx xx xx
 // Flags          $xx xx
-static status_t ID3v2_3(const Buffer& data,
+static MediaError ID3v2_3(const Buffer& data,
                         const ID3v2Header& header,
                         sp<Message>& values) {
     sp<Buffer> local;   // for de-unsync
@@ -889,10 +889,10 @@ static status_t ID3v2_3(const Buffer& data,
         }
     }
     
-    return OK;
+    return kMediaNoError;
 }
 
-static status_t ID3v2_4(const Buffer& data,
+static MediaError ID3v2_4(const Buffer& data,
                         const ID3v2Header& header,
                         sp<Message>& values) {
     struct ID3v2Frame {
@@ -1061,16 +1061,16 @@ static status_t ID3v2_4(const Buffer& data,
         
     }
     
-    return OK;
+    return kMediaNoError;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////
-status_t ID3v2::parse(const Buffer& data) {
+MediaError ID3v2::parse(const Buffer& data) {
     mValues.clear();
     CHECK_GE(data.size(), kHeaderLength);
     ID3v2Header header;
     if (isID3v2Header(data, &header) < 0) {
-        return ERROR_UNKNOWN;
+        return kMediaErrorUnknown;
     }
     
     if (data.size() < kHeaderLength + header.size) {
@@ -1082,7 +1082,7 @@ status_t ID3v2::parse(const Buffer& data) {
     DEBUG("ID3 v2.%d.%d length %d.", header.major, header.revision,
           header.size);
     
-    status_t status;
+    MediaError status;
     if (header.major == 4) {
         status = ID3v2_4(data, header, mValues);
     } else if (header.major == 3) {
@@ -1092,7 +1092,7 @@ status_t ID3v2::parse(const Buffer& data) {
     } else {
         ERROR("FIXME: unimplemented id3 v2.%d.%d",
               header.major, header.revision);
-        status = ERROR_UNKNOWN;
+        status = kMediaErrorUnknown;
     }
     
     String version = String::format("v2.%d.%d",
@@ -1118,18 +1118,18 @@ ssize_t ID3v2::isID3v2(const Buffer& data) {
     
     ID3v2Header header;
     if (isID3v2Header(data, &header) < 0) {
-        return ERROR_UNKNOWN;
+        return kMediaErrorUnknown;
     }
     return header.size;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////
-status_t ID3v1::parse(const Buffer& data) {
+MediaError ID3v1::parse(const Buffer& data) {
     CHECK_GE(data.size(), ID3v1::kLength);
     
     if (data != "TAG") {
         DEBUG("not id3v1");
-        return ERROR_UNKNOWN;
+        return kMediaErrorUnknown;
     }
     
     const char *buffer = data.data() + 3;
@@ -1188,7 +1188,7 @@ status_t ID3v1::parse(const Buffer& data) {
         mValues->setString(Media::Genre, ID3GenreList[genre]);
     }
     
-    return OK;
+    return kMediaNoError;
 }
 
 // static

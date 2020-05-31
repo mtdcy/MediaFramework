@@ -71,7 +71,7 @@ struct API_EXPORT MediaFile : public SharedObject {
     /**
      * configure this codec
      * @param options   option and parameter
-     * @return return OK on success, otherwise error code.
+     * @return return kMediaNoError on success, otherwise error code.
      */
     virtual MediaError      configure(const sp<Message>& options) { return kMediaErrorInvalidOperation; }
     
@@ -131,7 +131,7 @@ struct API_EXPORT MediaFile : public SharedObject {
      *       are read each track seperately
      */
     virtual sp<MediaPacket> read(eModeReadType mode,
-                                 const MediaTime& ts = kTimeInvalid) = 0;
+                                 const MediaTime& ts = kMediaTimeInvalid) = 0;
     
     /**
      * write packets to file object

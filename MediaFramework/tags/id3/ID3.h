@@ -44,7 +44,7 @@ class ID3v2 : public Tag::Parser {
     public:
         ID3v2() : Tag::Parser() { }
         virtual ~ID3v2() { }
-        virtual status_t        parse(const Buffer& data);
+        virtual MediaError      parse(const Buffer& data);
 
     public:
         // is data contains an id3v2 ?
@@ -59,7 +59,7 @@ class ID3v1 : public Tag::Parser {
     public:
         ID3v1() : Tag::Parser() { }
         virtual ~ID3v1() { }
-        virtual status_t        parse(const Buffer& data);
+        virtual MediaError      parse(const Buffer& data);
 
     public:
         // is data contains an id3v1 ?

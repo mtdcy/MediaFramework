@@ -153,7 +153,7 @@ static ssize_t decodeFrameHeader(uint32_t head, MPEGAudioFrameHeader *frameHeade
     if (version == 0x1 || layer == 0x0 || brIndex == 0xf ||
             srIndex == 0x3) {
         DEBUG("invalid head.");
-        return ERROR_INVALID;
+        return kMediaErrorBadValue;
     }
 
     uint32_t samplesPerFrame    = kSamplesPerFrameTable[version][layer];
@@ -214,7 +214,7 @@ static int64_t locateFirstFrame(const Buffer& data,
         }
     }
 
-    return ERROR_UNKNOWN;
+    return kMediaErrorUnknown;
 }
 
 static int64_t locateFrame(const Buffer& data, uint32_t common,
@@ -235,7 +235,7 @@ static int64_t locateFrame(const Buffer& data, uint32_t common,
 
         return i - 3;
     }
-    return ERROR_UNKNOWN;
+    return kMediaErrorUnknown;
 }
 
 bool decodeMPEGAudioFrameHeader(const Buffer& frame, uint32_t *sampleRate, uint32_t *numChannels) {
@@ -406,7 +406,7 @@ struct Mp3Packetizer : public MediaPacketizer {
     MediaTime   mFrameTime;
     sp<Message> mProperties;
 
-    Mp3Packetizer() : MediaPacketizer(), mBuffer(4096, kBufferTypeRing),
+    Mp3Packetizer() : MediaPacketizer(), mBuffer(4096, Buffer::Ring),
     mCommonHead(0), mNeedMoreData(true), mFlushing(false) { }
 
     virtual ~Mp3Packetizer() { }
@@ -422,14 +422,14 @@ struct Mp3Packetizer : public MediaPacketizer {
 
         if (__builtin_expect(mCommonHead == 0, false)) {
             mAnchorTime     = in->pts;
-            if (mAnchorTime == kTimeInvalid) {
-                mAnchorTime = kTimeBegin;
+            if (mAnchorTime == kMediaTimeInvalid) {
+                mAnchorTime = kMediaTimeBegin;
             }
         }
 
         while (mBuffer.empty() < in->size) {
             if (mNeedMoreData) {
-                CHECK_EQ(mBuffer.resize(mBuffer.capacity() * 2), OK);
+                CHECK_EQ(mBuffer.resize(mBuffer.capacity() * 2), kMediaNoError);
                 DEBUG("resize internal buffer => %zu", mBuffer.capacity());
             } else {
                 return kMediaErrorResourceBusy;
@@ -544,8 +544,8 @@ struct Mp3File : public MediaFile {
         mVBR(false),
         mNumFrames(0),
         mNumBytes(0),
-        mDuration(kTimeInvalid),
-        mAnchorTime(kTimeBegin),
+        mDuration(kMediaTimeInvalid),
+        mAnchorTime(kMediaTimeBegin),
         mRawPacket(NULL),
         mPacketizer(new Mp3Packetizer) { }
     
@@ -571,7 +571,7 @@ struct Mp3File : public MediaFile {
                     head->resize(ID3v2::kHeaderLength + length);
                     head->write(*data);
                     ID3v2 id3;
-                    if (id3.parse(*head) == OK) {
+                    if (id3.parse(*head) == kMediaNoError) {
                         const sp<Message>& values = id3.values();
                         DEBUG("id3v2 found: %s", values.string().c_str());
 #if 1
@@ -603,7 +603,7 @@ struct Mp3File : public MediaFile {
         sp<Buffer> tail = pipe->read(ID3v1::kLength);
         if (tail != NULL && tail->size() == ID3v1::kLength) {
             ID3v1 id3;
-            if (id3.parse(*tail) == OK) {
+            if (id3.parse(*tail) == kMediaNoError) {
                 outputFormat->setObject(Media::ID3v1, id3.values());
                 totalLength -= ID3v1::kLength;
             }
@@ -728,11 +728,11 @@ struct Mp3File : public MediaFile {
     }
 
     virtual sp<MediaPacket> read(eModeReadType mode,
-            const MediaTime& ts = kTimeInvalid) {
+            const MediaTime& ts = kMediaTimeInvalid) {
         CHECK_NE(mode, kModeReadPeek); // don't support this
         bool sawInputEOS = false;
 
-        if (ts != kTimeInvalid) {
+        if (ts != kMediaTimeInvalid) {
             int64_t pos = 0;
             double percent   = ts.seconds() / mDuration.seconds();
             if (percent < 0) percent = 0;
@@ -822,7 +822,7 @@ ssize_t locateFirstFrame(const Buffer& data, size_t *frameLength) {
     MPEGAudioFrameHeader mpa;
     ssize_t offset = locateFirstFrame(data, &mpa, NULL, NULL);
 
-    if (offset < 0) return ERROR_UNKNOWN;
+    if (offset < 0) return kMediaErrorUnknown;
 
     *frameLength    = mpa.frameLengthInBytes;
     return offset;

@@ -116,7 +116,7 @@ valid(false) {
     valid = true;
 }
 
-status_t AVCDecoderConfigurationRecord::compose(BitWriter& bw) const {
+MediaError AVCDecoderConfigurationRecord::compose(BitWriter& bw) const {
     CHECK_GE(bw.size(), size());
     bw.w8(1);                           // configurationVersion
     // TODO: get profile and level from sps
@@ -140,7 +140,7 @@ status_t AVCDecoderConfigurationRecord::compose(BitWriter& bw) const {
         bw.writeB(*pps);                // pps
     }
     bw.write();
-    return OK;
+    return kMediaNoError;
 }
 
 size_t AVCDecoderConfigurationRecord::size() const {

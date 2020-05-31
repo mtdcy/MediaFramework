@@ -104,41 +104,42 @@ MediaError ImageFrameToRGB(MediaFrameRef ref) {
 }
 
 struct UserFrameEvent : public MediaFrameEvent {
-    void (*callback)(MediaFrameRef, void *);
+    FrameCallback Callback;
     void * opaque;
     
-    UserFrameEvent(void (*cb)(MediaFrameRef, void *), void * user) :
-    MediaFrameEvent(), callback(cb), opaque(user) { }
+    UserFrameEvent(const Object<Looper>& lp, FrameCallback cb, void * user) :
+    MediaFrameEvent(lp), Callback(cb), opaque(user) { }
     
     virtual void onEvent(const Object<MediaFrame>& frame) {
-        callback(frame.get(), opaque);
+        Callback(frame.get(), opaque);
     }
 };
 
-FrameEventRef FrameEventCreate(void (*callback)(MediaFrameRef, void *), void * user) {
-    Object<UserFrameEvent> event = new UserFrameEvent(callback, user);
+FrameEventRef FrameEventCreate(LooperObjectRef ref, FrameCallback cb, void * user) {
+    Object<Looper> lp = ref;
+    Object<UserFrameEvent> event = new UserFrameEvent(lp, cb, user);
     return (FrameEventRef)event->RetainObject();
 }
 
 struct UserInfoEvent : public PlayerInfoEvent {
     void (*callback)(ePlayerInfoType, void *);
     void * opaque;
-    UserInfoEvent(void (*cb)(ePlayerInfoType, void *), void * user) :
-    PlayerInfoEvent(), callback(cb), opaque(user) { }
+    UserInfoEvent(const Object<Looper>& lp, void (*cb)(ePlayerInfoType, void *), void * user) :
+    PlayerInfoEvent(lp), callback(cb), opaque(user) { }
     
     virtual void onEvent(const ePlayerInfoType& info) {
         callback(info, opaque);
     }
 };
 
-PlayerInfoEventRef PlayerInfoEventCreate(void (*callback)(ePlayerInfoType, void *), void * user) {
-    Object<UserInfoEvent> event = new UserInfoEvent(callback, user);
+PlayerInfoEventRef PlayerInfoEventCreate(LooperObjectRef ref, void (*callback)(ePlayerInfoType, void *), void * user) {
+    Object<Looper> lp = ref;
+    Object<UserInfoEvent> event = new UserInfoEvent(lp, callback, user);
     return (PlayerInfoEventRef)event->RetainObject();
 }
 
 MediaPlayerRef MediaPlayerCreate(MessageObjectRef media, MessageObjectRef options) {
-    Object<IMediaPlayer> mp = IMediaPlayer::Create();
-    mp->init(media, options);
+    Object<IMediaPlayer> mp = IMediaPlayer::Create(media, options);
     return mp->RetainObject();
 }
 
@@ -149,43 +150,19 @@ MediaClockRef MediaPlayerGetClock(MediaPlayerRef ref) {
     else return (MediaClockRef)clock->RetainObject();
 }
 
-MessageObjectRef MediaPlayerGetInfo(const MediaPlayerRef ref) {
-    const Object<IMediaPlayer> mp = ref;
-    Object<Message> info = mp->info();
-    if (info == NULL) return NULL;
-    else return (MessageObjectRef)info->RetainObject();
-}
-
-MediaError MediaPlayerPrepare(MediaPlayerRef ref, int64_t us) {
+void MediaPlayerPrepare(MediaPlayerRef ref, int64_t us) {
     Object<IMediaPlayer> mp = ref;
     return mp->prepare(us);
 }
 
-MediaError MediaPlayerStart(MediaPlayerRef ref) {
+void MediaPlayerStart(MediaPlayerRef ref) {
     Object<IMediaPlayer> mp = ref;
     return mp->start();
 }
 
-MediaError MediaPlayerPause(MediaPlayerRef ref) {
+void MediaPlayerPause(MediaPlayerRef ref) {
     Object<IMediaPlayer> mp = ref;
     return mp->pause();
-}
-
-MediaError MediaPlayerFlush(MediaPlayerRef ref) {
-    Object<IMediaPlayer> mp = ref;
-    return mp->flush();
-}
-
-MediaError MediaPlayerRelease(MediaPlayerRef ref) {
-    Object<IMediaPlayer> mp = ref;
-    MediaError st = mp->release();
-    mp->ReleaseObject();
-    return st;
-}
-
-eStateType MediaPlayerGetState(const MediaPlayerRef ref) {
-    const Object<IMediaPlayer> mp = ref;
-    return mp->state();
 }
 
 MediaOutRef MediaOutCreate(eCodecType type, MessageObjectRef format, MessageObjectRef options) {

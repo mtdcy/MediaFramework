@@ -228,8 +228,8 @@ namespace mtdcy {
         return mFormats != 0 ? mFormats->string() : String("WaveFile");
     }
 
-    status_t WaveFile::status() const {
-        return mFormats != 0 ? OK : NO_INIT;
+    MediaError WaveFile::status() const {
+        return mFormats != 0 ? kMediaNoError : NO_INIT;
     }
 
     sp<Message> WaveFile::formats() const {
@@ -341,7 +341,7 @@ namespace mtdcy {
         return true;
     }
 
-    status_t WaveFile::seekTo(int64_t seekTimeUs, int option) {
+    MediaError WaveFile::seekTo(int64_t seekTimeUs, int option) {
         int64_t offset = (seekTimeUs * mBytesPerSec) / 1000000LL;
 
         if (offset > mDataLength) offset = mDataLength;
@@ -359,7 +359,7 @@ namespace mtdcy {
         }
 
         mOutputEOS  = false;
-        return OK;
+        return kMediaNoError;
     }
 
     sp<Buffer> WaveFile::readFrame() {

@@ -47,11 +47,11 @@ namespace mtdcy {
 
         public:
             virtual String          string() const;
-            virtual status_t        status() const;
+            virtual MediaError        status() const;
             virtual sp<Message>     formats() const;
-            virtual status_t        configure(const sp<Message>& options) { return INVALID_OPERATION; }
+            virtual MediaError        configure(const sp<Message>& options) { return INVALID_OPERATION; }
             virtual sp<Buffer>      readFrame();
-            virtual status_t        seekTo(int64_t timeus, int option = 0);
+            virtual MediaError        seekTo(int64_t timeus, int option = 0);
 
         private:
             bool                    parseFormat(const sp<Buffer>& ck); 

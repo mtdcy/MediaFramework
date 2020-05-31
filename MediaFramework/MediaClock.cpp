@@ -67,8 +67,8 @@ void SharedClock::start() {
 }
 
 void SharedClock::set(int64_t us) {
-    // NOT alter clock state here
     AutoLock _l(mLock);
+    CHECK_TRUE(mClockInt.mPaused, "please set clock in paused state");
     mClockInt.mMediaTime  = us;
     mClockInt.mSystemTime = SystemTimeUs();
     ++mGeneration;
@@ -231,10 +231,4 @@ int64_t Clock::get() const {
     return mClockInt.mMediaTime + (now - mClockInt.mSystemTime) * mClockInt.mSpeed;
 }
 
-void Clock::set(int64_t us) {
-    mClockInt.mMediaTime    = us;
-    mClockInt.mSystemTime   = SystemTimeUs();
-    mClock->update(mClockInt);
-    reload();
-}
 __END_NAMESPACE_MPX

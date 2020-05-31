@@ -39,7 +39,7 @@
 
 __BEGIN_NAMESPACE_MPX
 
-MediaFrame::MediaFrame() : timecode(kTimeInvalid), duration(kTimeInvalid) {
+MediaFrame::MediaFrame() : timecode(kMediaTimeInvalid), duration(kMediaTimeInvalid) {
     for (size_t i = 0; i < MEDIA_FRAME_NB_PLANES; ++i) {
         planes[i].data = NULL;
         planes[i].size = 0;

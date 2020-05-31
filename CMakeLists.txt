@@ -57,8 +57,12 @@ set (SOURCE_FILES
     MediaFramework/MediaFile.cpp
     MediaFramework/MediaFrame.cpp
     MediaFramework/MediaClock.cpp
-    MediaFramework/MediaPlayer.cpp
     MediaFramework/MediaSession.cpp
+    MediaFramework/DecodeSession.cpp
+    MediaFramework/RenderSession.cpp
+    MediaFramework/MediaSource.cpp 
+    MediaFramework/MediaPlayer.cpp
+    MediaFramework/Tiger.cpp 
     MediaFramework/tags/id3/ID3.cpp
     MediaFramework/audioresampler/AudioResampler.cpp
     MediaFramework/mp3/Mp3File.cpp

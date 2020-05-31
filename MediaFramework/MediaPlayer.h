@@ -40,19 +40,9 @@
 #include <MediaFramework/MediaDefs.h>
 #include <MediaFramework/MediaClock.h>
 #include <MediaFramework/MediaFrame.h>
+#include <MediaFramework/MediaSession.h>
 
 __BEGIN_DECLS
-
-typedef enum {
-    kStateInvalid,      ///< mp just allocated
-    kStateInitial,      ///< mp initialized with media
-    kStateReady,        ///< mp ready to play
-    kStatePlaying,      ///< mp is playing
-    kStateIdle,         ///< mp is not playing
-    kStateFlushed,      ///< mp context is reset, can be prepare again
-    kStateReleased,     ///< mp context is released
-    kStateMax,
-} eStateType;
 
 /**
  * player info -> client
@@ -62,12 +52,10 @@ typedef enum {
     /**
      * player state info
      */
-    kInfoPlayerInitialized,     ///< 
     kInfoPlayerReady,           ///<
     kInfoPlayerPlaying,         ///<
     kInfoPlayerPaused,          ///<
-    kInfoPlayerFlushed,         ///<
-    kInfoPlayerReleased,        ///<
+    kInfoPlayerError,           ///< 
     /**
      * player property info
      */
@@ -89,71 +77,72 @@ __BEGIN_NAMESPACE_MPX
 /**
  * for MediaPlayer streaming MediaFrame to client
  */
-typedef TypedEvent<Object<MediaFrame> >     MediaFrameEvent;
+typedef MediaEvent<Object<MediaFrame> >     MediaFrameEvent;
 
 /**
  * a generic event
  */
-typedef TypedEvent<ePlayerInfoType>         PlayerInfoEvent;
+typedef MediaEvent<ePlayerInfoType>         PlayerInfoEvent;
 
-struct API_EXPORT IMediaPlayer : public SharedObject {
-    IMediaPlayer() { }
-    virtual ~IMediaPlayer() { }
+/**
+ * add a media to player.
+ * about media (per media):
+ *  "url"                   - [String]                  - mandatory, url of the media
+ *  "VideoFrameEvent"       - [sp<MediaFrameEvent>]     - optional
+ *  "AudioFrameEvent"       - [sp<MediaFrameEvent>]     - optional
+ *  "StartTime"             - [double|seconds]          - optional
+ *  "EndTime"               - [double|seconds]          - optional
+ * about options (global):
+ *  "StatusEvent"           - [sp<StatusEvent>]         - optional
+ *  "PlayerInfoEvent"       - [sp<PlayerInfoEvent>]     - optional
+ * if MediaOut exists, external renderer will be used.
+ * @param media option and parameter for this media
+ * @return return kMediaNoError on success, otherwise error code
+ */
+class API_EXPORT IMediaPlayer : public IMediaSession {
+    public:
+        /**
+         * create a player with options
+         * @param options   option and parameter for player
+         */
+        static sp<IMediaPlayer> Create(const sp<Message>& media, const sp<Message>& options);
 
-    /**
-     * create a player with options
-     * @param options   option and parameter for player
-     */
-    static sp<IMediaPlayer> Create();
+    protected:
+        IMediaPlayer(const sp<Looper>& lp);
+
+        virtual ~IMediaPlayer() { }
+
+    public:
+        virtual sp<Clock>   clock() const;
+
+        /**
+         * prepare this player at given position
+         */
+        virtual void        prepare(const MediaTime&);
+
+        /**
+         * start this player.
+         * @note there must be at least one media exists and start success.
+         */
+        virtual void        start();
+        /**
+         * pause this player.
+         */
+        virtual void        pause();
     
-    virtual sp<Clock>   clock() const = 0;
-    virtual sp<Message> info() const = 0;
-
-    /**
-     *
-     */
-    virtual eStateType  state() const = 0;
-
-    /**
-     * add a media to player.
-     * about media (per media):
-     *  "url"                   - [String]                  - mandatory, url of the media
-     *  "VideoFrameEvent"       - [sp<MediaFrameEvent>]     - optional
-     *  "AudioFrameEvent"       - [sp<MediaFrameEvent>]     - optional
-     *  "StartTime"             - [double|seconds]          - optional
-     *  "EndTime"               - [double|seconds]          - optional
-     * about options (global):
-     *  "StatusEvent"           - [sp<StatusEvent>]         - optional
-     *  "PlayerInfoEvent"       - [sp<PlayerInfoEvent>]     - optional
-     * if MediaOut exists, external renderer will be used.
-     * @param media option and parameter for this media
-     * @return return OK on success, otherwise error code
-     */
-    virtual MediaError  init(const sp<Message>& media, const sp<Message>& options) = 0;
-    /**
-     * prepare player after add media
-     * @return return OK on success, otherwise error code
-     */
-    virtual MediaError  prepare(int64_t us) = 0;
-    /**
-     * start this player.
-     * @return return OK on success, otherwise error code.
-     * @note there must be at least one media exists and start success.
-     */
-    virtual MediaError  start() = 0;
-    /**
-     * pause this player.
-     * @return return OK on success, otherwise error code.
-     */
-    virtual MediaError  pause() = 0;
-    /**
-     * flush this player
-     */
-    virtual MediaError  flush() = 0;
-    /**
-     * release this player
-     */
-    virtual MediaError  release() = 0;
+    protected:
+        virtual void        onInit() = 0;
+    
+        // mLooper is accessable in onRelease()
+        virtual void        onRelease() = 0;
+        
+        struct PrepareJob;
+        struct StartPauseJob;
+        virtual void        onPrepare(const MediaTime&) = 0;
+        virtual void        onStartPause() = 0;
+        
+    protected:
+        sp<SharedClock> mClock;
 };
 __END_NAMESPACE_MPX
 #endif

@@ -106,7 +106,7 @@ namespace MPEG4 {
     // ISO/IEC 14495-15, 'avcC'
     struct AVCDecoderConfigurationRecord {
         AVCDecoderConfigurationRecord(const BitReader& br);
-        status_t compose(BitWriter& bw) const;
+        MediaError compose(BitWriter& bw) const;
         size_t size() const;
 
         bool        valid;

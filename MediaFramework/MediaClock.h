@@ -57,7 +57,7 @@ __END_DECLS
 #ifdef __cplusplus
 __BEGIN_NAMESPACE_MPX
 
-typedef TypedEvent<eClockState>  ClockEvent;
+typedef MediaEvent<eClockState> ClockEvent;
 
 /**
  * clock for av sync and speed control. all session share
@@ -188,8 +188,6 @@ class API_EXPORT Clock : public SharedObject {
          */
         void        update(int64_t);
         void        update(int64_t, int64_t);
-        /** @see SharedClock::set() */
-        void        set(int64_t);
 
     private:
         /**

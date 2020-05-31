@@ -210,10 +210,10 @@ static FORCE_INLINE EBMLSignedInteger EBMLGetSignedInteger(BitReader& br, size_t
     return svint;
 }
 
-status_t EBMLIntegerElement::parse(BitReader& br, size_t size) {
+MediaError EBMLIntegerElement::parse(BitReader& br, size_t size) {
     vint = EBMLGetInteger(br, size);
     DEBUGV("integer %#x", vint.u64);
-    return OK;
+    return kMediaNoError;
 }
 
 String EBMLIntegerElement::string() const {
@@ -221,10 +221,10 @@ String EBMLIntegerElement::string() const {
 
 }
 
-status_t EBMLSignedIntegerElement::parse(BitReader& br, size_t size) {
+MediaError EBMLSignedIntegerElement::parse(BitReader& br, size_t size) {
     svint = EBMLGetSignedInteger(br, size);
     DEBUGV("integer %#x", svint.i64);
-    return OK;
+    return kMediaNoError;
 }
 
 String EBMLSignedIntegerElement::string() const {
@@ -232,50 +232,50 @@ String EBMLSignedIntegerElement::string() const {
 
 }
 
-status_t EBMLStringElement::parse(BitReader& br, size_t size) {
+MediaError EBMLStringElement::parse(BitReader& br, size_t size) {
     str = br.readS(size);
     DEBUGV("string %s", str.c_str());
-    return OK;
+    return kMediaNoError;
 }
 
 String EBMLStringElement::string() const { return str; }
 
-status_t EBMLUTF8Element::parse(BitReader& br, size_t size) {
+MediaError EBMLUTF8Element::parse(BitReader& br, size_t size) {
     utf8 = br.readS(size);
     DEBUGV("utf8 %s", utf8.c_str());
-    return OK;
+    return kMediaNoError;
 }
 
 String EBMLUTF8Element::string() const { return utf8; }
 
-status_t EBMLBinaryElement::parse(BitReader& br, size_t size) {
+MediaError EBMLBinaryElement::parse(BitReader& br, size_t size) {
     data = br.readB(size);
     DEBUGV("binary %s", data->string(true).c_str());
-    return OK;
+    return kMediaNoError;
 }
 
 String EBMLBinaryElement::string() const {
     return String::format("%zu bytes binary", data->size());
 }
 
-status_t EBMLFloatElement::parse(BitReader& br, size_t size) {
+MediaError EBMLFloatElement::parse(BitReader& br, size_t size) {
     flt = EBMLGetFloat(br, size);
     DEBUGV("float %f", flt);
-    return OK;
+    return kMediaNoError;
 }
 
 String EBMLFloatElement::string() const {
     return String(flt);
 }
 
-status_t EBMLSkipElement::parse(BitReader& br, size_t size) {
+MediaError EBMLSkipElement::parse(BitReader& br, size_t size) {
     br.skipBytes(size);
-    return OK;
+    return kMediaNoError;
 }
 
 String EBMLSkipElement::string() const { return "*"; }
 
-status_t EBMLBlockElement::parse(BitReader& br, size_t size) {
+MediaError EBMLBlockElement::parse(BitReader& br, size_t size) {
     const size_t offset = br.offset();
     TrackNumber = EBMLGetInteger(br);
     TimeCode    = br.rb16();
@@ -320,7 +320,7 @@ status_t EBMLBlockElement::parse(BitReader& br, size_t size) {
     //CHECK_GT(size, (br.offset() - offset) / 8);
     data.push(br.readB(size - (br.offset() - offset) / 8)); // last frame length is not stored
 
-    return OK;
+    return kMediaNoError;
 }
 
 String EBMLBlockElement::string() const {
@@ -330,7 +330,7 @@ String EBMLBlockElement::string() const {
 
 static FORCE_INLINE sp<EBMLElement> MakeEBMLElement(EBMLInteger);
 
-status_t EBMLMasterElement::parse(BitReader& br, size_t size) {
+MediaError EBMLMasterElement::parse(BitReader& br, size_t size) {
     size_t remains = size;
     while (remains) {
         EBMLInteger id      = EBMLGetCodedInteger(br);
@@ -351,7 +351,7 @@ status_t EBMLMasterElement::parse(BitReader& br, size_t size) {
         }
 
         const int64_t offset = br.offset();
-        if (elem->parse(br, length.u32) != OK) {  // u32 is logical ok
+        if (elem->parse(br, length.u32) != kMediaNoError) {  // u32 is logical ok
             ERROR("parse element %s failed", elem->name);
             br.skip(br.offset() - offset);
             continue;
@@ -364,7 +364,7 @@ status_t EBMLMasterElement::parse(BitReader& br, size_t size) {
         children.push(elem);
     }
 
-    return OK;
+    return kMediaNoError;
 }
 
 String EBMLMasterElement::string() const {
@@ -645,7 +645,7 @@ sp<EBMLElement> EnumEBMLElement(sp<Content>& pipe) {
             } else {
                 sp<Buffer> data = pipe->read(size.u32);
                 BitReader br(data->data(), data->size());
-                if (element->parse(br, data->size()) != OK) {
+                if (element->parse(br, data->size()) != kMediaNoError) {
                     ERROR("ebml element %#x parse failed.", id.u64);
                 }
             }
@@ -701,7 +701,7 @@ sp<EBMLElement> ParseMatroska(sp<Content>& pipe, int64_t *segment_offset, int64_
             } else {
                 sp<Buffer> data = pipe->read(size.u32);
                 BitReader br(data->data(), data->size());
-                if (element->parse(br, data->size()) != OK) {
+                if (element->parse(br, data->size()) != kMediaNoError) {
                     ERROR("ebml element %#x parse failed.", id.u64);
                 } else {
                     master->children.push(element);
@@ -742,7 +742,7 @@ sp<EBMLElement> ReadEBMLElement(sp<Content>& pipe) {
     sp<Buffer> data = pipe->read(size.u32);     // u32 is logical ok
     BitReader br(data->data(), data->size());
 
-    if (ebml->parse(br, br.length() / 8) != OK) {
+    if (ebml->parse(br, br.length() / 8) != kMediaNoError) {
         ERROR("element %s parse failed", ebml->name);
         return NULL;
     }

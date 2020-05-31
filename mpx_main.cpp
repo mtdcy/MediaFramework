@@ -69,6 +69,7 @@ static double position = 0;
 static sp<MediaOut> g_out;
 static ImageFormat g_format;
 static sp<Clock> g_clock;
+static bool g_paused;
 static sp<MediaFrame> g_frame;  // keep ref current frame
 
 static void dumpCurrentFrameIntoFile() {
@@ -100,12 +101,27 @@ static void dumpCurrentFrameIntoFile() {
 }
 
 struct OnPlayerInfo : public PlayerInfoEvent {
+    OnPlayerInfo() : PlayerInfoEvent(Looper::Current()) { }
+    
     virtual void onEvent(const ePlayerInfoType& info) {
         switch (info) {
-            case kInfoPlayerInitialized:
+            case kInfoPlayerReady:
+                INFO("player is ready...");
                 g_clock = mp->clock();
+                g_paused = true;
+                mp->prepare(kMediaTimeBegin);
                 break;
-                
+            case kInfoPlayerPlaying:
+                g_paused = false;
+                break;
+            case kInfoPlayerPaused:
+                g_paused = true;
+                break;
+            case kInfoPlayerError:
+                ERROR("player report error");
+                Looper::Main()->flush();
+                Looper::Main()->terminate();
+                break;
             default:
                 break;
         }
@@ -153,8 +169,8 @@ struct OnFrameUpdate : public MediaFrameEvent {
     }
 };
 
-struct SDLRunnable : public Runnable {
-    virtual void run() {
+struct SDLJob : public Job {
+    virtual void onJob() {
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
             switch (event.type) {
@@ -166,15 +182,11 @@ struct SDLRunnable : public Runnable {
                     INFO("sdl keyup %s", SDL_GetKeyName(event.key.keysym.sym));
                     switch (event.key.keysym.sym) {
                         case SDLK_SPACE:
-                            if (mp->state() == kStatePlaying)
-                                mp->pause();
-                            else {
-                                mp->start();
-                            }
+                            if (g_paused) mp->start();
+                            else mp->pause();
                             break;
                         case SDLK_q:
                         case SDLK_ESCAPE:
-                            mp->flush();
                             break;
                         case SDLK_LEFT: {
                             int64_t pos = g_clock->get() - 5000000LL;
@@ -206,7 +218,7 @@ struct SDLRunnable : public Runnable {
             }
         }
         
-        Looper::Main()->post(new SDLRunnable, 200 * 1000LL);
+        Looper::Main()->post(new SDLJob, 200 * 1000LL);
     }
 };
 
@@ -265,36 +277,30 @@ int main (int argc, char **argv)
         INFO("gl version: %s", glGetString(GL_VERSION));
         INFO("glsl version: %s", glGetString(GL_SHADING_LANGUAGE_VERSION));
         
-        // create the mp
-        mp = IMediaPlayer::Create();
         
         // add media to the mp
         sp<Message> media = new Message;
         media->setString("url", url);
-        media->setInt32(kKeyMode, PREFER_MODE);
 #ifdef MAIN_THREAD_RENDER
         media->setObject("VideoFrameEvent", new OnFrameUpdate);
 #endif
         
         sp<Message> options = new Message;
         options->setObject("PlayerInfoEvent", new OnPlayerInfo);
-        mp->init(media, options);
+        options->setInt32(kKeyMode, PREFER_MODE);
         
-        // prepare the mp
-        mp->prepare(0);
-        
+        // create the mp
+        mp = IMediaPlayer::Create(media, options);
+                
         // loop
         mainLooper->profile();
-        mainLooper->post(new SDLRunnable);
+        mainLooper->post(new SDLJob);
         mainLooper->loop();
         
         // clearup
-        mp->release();
         mp.clear();
+        INFO("finished...");
         g_clock = NULL;
-        
-        // terminate threads
-        mainLooper->terminate();
         
         SDL_GL_DeleteContext(glc);
         SDL_DestroyWindow(window);

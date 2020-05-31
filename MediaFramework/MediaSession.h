@@ -34,78 +34,69 @@
  *
  */
 
-#ifndef _MPX_MEDIA_TRACK_H
-#define _MPX_MEDIA_TRACK_H
+#ifndef _MPX_MEDIA_SESSION_H
+#define _MPX_MEDIA_SESSION_H
 
 #include <MediaFramework/MediaDefs.h>
 #include <MediaFramework/MediaFrame.h>
 
-#ifdef __cplusplus
 __BEGIN_NAMESPACE_MPX
 
 /**
  * For pushing packets to target. when a packet is ready,
  * fire this event, and target will get the packet.
  */
-typedef TypedEvent<sp<MediaPacket> > PacketReadyEvent;
+typedef MediaEvent<sp<MediaPacket> > PacketReadyEvent;
 
 /**
  * For pull packets from packet source.
  */
-typedef TypedEvent<sp<PacketReadyEvent> > PacketRequestEvent;
+typedef MediaEvent2<sp<PacketReadyEvent>, MediaTime> PacketRequestEvent;
 
 /**
  * For pushing frames to target. when a frame is ready,
  * fire this event, and target will receive the frame.
  */
-typedef TypedEvent<sp<MediaFrame> > FrameReadyEvent;
+typedef MediaEvent<sp<MediaFrame> > FrameReadyEvent;
 
 /**
  * For pull frames from frame source
  */
-typedef TypedEvent<sp<FrameReadyEvent> > FrameRequestEvent;
+typedef MediaEvent2<sp<FrameReadyEvent>, MediaTime> FrameRequestEvent;
 
-/**
- * For MediaSession Info
- */
 typedef enum {
-    kSessionInfoReady,      ///< we are ready
-    kSessionInfoBegin,      ///< begin of stream, before first frame
-    kSessionInfoEnd,        ///< end of stream, after last frame
-    kSessionInfoError,      ///< we don't need the error code, just release the session after error
+    kSessionInfoReady,
+    kSessionInfoBegin,
+    kSessionInfoEnd,
+    kSessionInfoError,
 } eSessionInfoType;
-typedef TypedEvent<eSessionInfoType>    SessionInfoEvent;
 
-struct API_EXPORT IMediaSession : public SharedObject {
-    IMediaSession() { }
-    virtual ~IMediaSession() { }
+typedef MediaEvent2<eSessionInfoType, sp<Message> > SessionInfoEvent;
+
+class API_EXPORT IMediaSession : public SharedObject {
+    public:
+        static Object<IMediaSession> Create(const sp<Message>&, const sp<Message>&);
     
-    /**
-     * create a new media session
-     * "SessionInfoEvent"   - [sp<SessionInfoEvent>]    - optional
-     * @param formats   format of the media stream
-     * @param options   options of the media session
-     * @return return reference to the media session, or NIL if failed.
-     */
-    static sp<IMediaSession> create(const sp<Message>& formats, const sp<Message>& options);
-    
-    /**
-     * prepare media session
-     */
-    virtual void prepare() = 0;
-    
-    /**
-     * flush media session
-     */
-    virtual void flush() = 0;
-    
-    /**
-     * release media session
-     */
-    virtual void release() = 0;
+    public:
+        IMediaSession(const sp<Looper>& lp) : mLooper(lp) { }
+
+        virtual ~IMediaSession() { }
+
+    protected:
+        virtual void onFirstRetain();   //> onInit()
+        virtual void onLastRetain();    //> onRelease()
+
+        // these routine always run inside looper
+        struct InitJob;
+        struct ReleaseJob;
+        virtual void onInit() = 0;
+        virtual void onRelease() = 0;
+
+        sp<Looper> mLooper;
+
+        DISALLOW_EVILS(IMediaSession);
 };
 
 __END_NAMESPACE_MPX
-#endif
 
-#endif // _MPX_MEDIA_TRACK_H
+#endif // _MPX_MEDIA_SESSION_H

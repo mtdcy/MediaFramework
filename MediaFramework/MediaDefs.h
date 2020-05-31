@@ -393,9 +393,9 @@ struct MediaTime {
 
 };
 
-API_EXPORT const MediaTime  kTimeInvalid    ( kTimeValueInvalid, 1 );
-API_EXPORT const MediaTime  kTimeBegin      ( kTimeValueBegin, 1 );
-API_EXPORT const MediaTime  kTimeEnd        ( kTimeValueEnd, 1 );
+API_EXPORT const MediaTime  kMediaTimeInvalid   ( kTimeValueInvalid, 1 );
+API_EXPORT const MediaTime  kMediaTimeBegin     ( kTimeValueBegin, 1 );
+API_EXPORT const MediaTime  kMediaTimeEnd       ( kTimeValueEnd, 1 );
 
 /**
  * media packet class for compressed audio and video packets
@@ -414,8 +414,14 @@ struct API_EXPORT MediaPacket : public SharedObject {
     sp<Message>         properties; ///< extra properties of current frame
     void *              opaque;     ///< opaque
 
-    MediaPacket() : data(NULL), size(0), index(0), format(kCodecFormatUnknown),
-    flags(kFrameFlagNone), dts(kTimeInvalid), pts(kTimeInvalid), duration(kTimeInvalid), opaque(NULL) { }
+    MediaPacket() : data(NULL), size(0), index(0),
+        format(kCodecFormatUnknown),
+        flags(kFrameFlagNone),
+        dts(kMediaTimeInvalid),
+        pts(kMediaTimeInvalid),
+        duration(kMediaTimeInvalid),
+        opaque(NULL) { }
+        
     virtual ~MediaPacket() { }
 };
 
@@ -474,7 +480,7 @@ namespace Tag {
         public:
             FORCE_INLINE Parser() { }
             FORCE_INLINE virtual ~Parser() { }
-            virtual status_t parse(const Buffer& data) = 0;
+            virtual MediaError parse(const Buffer& data) = 0;
             FORCE_INLINE const sp<Message>& values() const { return mValues; }
 
         protected:
@@ -485,12 +491,62 @@ namespace Tag {
         public:
             FORCE_INLINE Writter() { }
             FORCE_INLINE virtual ~Writter() { }
-            virtual status_t synth(const Message& data) = 0;
+            virtual MediaError synth(const Message& data) = 0;
             //const Buffer&       values() const {  }
 
         protected:
             //Buffer              mBuffer;
     };
+};
+
+template <typename T>
+class ABE_EXPORT MediaEvent : public Job {
+    public:
+        MediaEvent(const Object<Looper>& lp) : Job() { bind(lp); }
+        virtual ~MediaEvent() { }
+        
+        virtual size_t fire(const T& value) {
+            mValues.push(value);
+            size_t id = Job::run();
+            return id;
+        }
+        
+    protected:
+        virtual void onEvent(const T& value) = 0;
+        
+    private:
+        LockFree::Queue<T> mValues;
+        
+        virtual void onJob() {
+            T value; mValues.pop(value);
+            onEvent(value);
+        }
+};
+
+template <typename T, typename U>
+class ABE_EXPORT MediaEvent2 : public Job {
+    public:
+        MediaEvent2(const Object<Looper>& lp) : Job() { bind(lp); }
+        virtual ~MediaEvent2() { }
+        
+        virtual size_t fire(const T& a, const U& b) {
+            Pair p; p.a = a; p.b = b;
+            mValues.push(p);
+            size_t id = Job::run();
+            return id;
+        }
+        
+    protected:
+        virtual void onEvent(const T& a, const U& b) = 0;
+        
+    private:
+        struct Pair { T a; U b; };
+        LockFree::Queue<Pair> mValues;
+        
+        virtual void onJob() {
+            Pair p; mValues.pop(p);
+            onEvent(p.a, p.b);
+        }
 };
 
 __END_NAMESPACE_MPX
@@ -539,7 +595,7 @@ __END_NAMESPACE_MPX
  * comman keys
  */
 #define kKeyCount       "count"     ///< int32_t
-#define kKeyResult      "result"    ///< int32_t, status_t
+#define kKeyResult      "result"    ///< int32_t, MediaError
 
 
 /**

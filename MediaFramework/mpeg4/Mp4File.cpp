@@ -74,19 +74,20 @@ static eCodecFormat get_codec_format(const String& name) {
 }
 
 // TODO:
-static status_t prepareMetaData(const sp<Box>& meta, const sp<Message>& target) {
+static MediaError prepareMetaData(const sp<Box>& meta, const sp<Message>& target) {
     if (meta == 0 || target == 0) {
         ERROR("bad parameters.");
-        return ERROR_UNKNOWN;
+        return kMediaErrorUnknown;
     }
 
     sp<iTunesItemKeysBox> keys = FindBox(meta, "keys");
     sp<iTunesItemListBox> ilst = FindBox(meta, "ilst");
     if (ilst == 0) {
         ERROR("ilst is missing.");
-        return ERROR_UNKNOWN;
+        return kMediaErrorUnknown;
     }
 
+    return kMediaNoError;
 }
 
 struct Sample {
@@ -99,8 +100,8 @@ struct Sample {
 
 struct Mp4Track : public SharedObject {
     Mp4Track() : codec(kCodecFormatUnknown), trackIndex(0),
-    sampleIndex(0), duration(kTimeInvalid),
-    startTime(kTimeInvalid) { }
+    sampleIndex(0), duration(kMediaTimeInvalid),
+    startTime(kMediaTimeInvalid) { }
 
     eCodecFormat        codec;
     size_t              trackIndex;
@@ -469,7 +470,7 @@ struct Mp4File : public MediaFile {
         sp<ID3v2Box> id32 = FindBoxInside(mMovieBox, "meta", "ID32");
         if (id32 != NULL) {
             ID3::ID3v2 parser;
-            if (parser.parse(*id32->ID3v2data) == OK) {
+            if (parser.parse(*id32->ID3v2data) == kMediaNoError) {
                 info.set<Message>(Media::ID3v2, parser.values());
             }
         }
@@ -571,7 +572,7 @@ struct Mp4File : public MediaFile {
         }
 
         sp<MovieBox> moov = new MovieBox;
-        if (moov->parse(BitReader(moovData->data(), moovData->size()), moovData->size(), ftyp) != OK) {
+        if (moov->parse(BitReader(moovData->data(), moovData->size()), moovData->size(), ftyp) != kMediaNoError) {
             ERROR("bad moov box?");
             return kMediaErrorBadFormat;
         }
@@ -610,7 +611,7 @@ struct Mp4File : public MediaFile {
     }
 
     virtual sp<MediaPacket> read(eModeReadType mode,
-            const MediaTime& _ts = kTimeInvalid) {
+            const MediaTime& _ts = kMediaTimeInvalid) {
         const size_t index = 0; // FIXME
         FATAL("FIXME");
         
@@ -620,10 +621,10 @@ struct Mp4File : public MediaFile {
         MediaTime ts = _ts;
 
         // first read, force mode = kModeReadFirst;
-        if (track->startTime == kTimeInvalid) {
+        if (track->startTime == kMediaTimeInvalid) {
             INFO("track %zu: read first pakcet", index);
             mode = kModeReadFirst;
-            track->startTime = kTimeBegin;
+            track->startTime = kMediaTimeInvalid;
             track->startTime.scale(track->duration.timescale);
         }
 
@@ -632,13 +633,13 @@ struct Mp4File : public MediaFile {
                 mode == kModeReadNext ||
                 mode == kModeReadLast ||
                 mode == kModeReadCurrent) {
-            ts = kTimeInvalid;
+            ts = kMediaTimeInvalid;
         }
 
         // calc sample index before read sample
         // determine direction and sample index based on mode
         int sampleIndex = track->sampleIndex;
-        if (ts != kTimeInvalid) {
+        if (ts != kMediaTimeInvalid) {
             // if ts exists, seek directly to new position,
             // seek() will take direction into account
             ts = ts.scale(track->duration.timescale);
@@ -703,7 +704,7 @@ struct Mp4File : public MediaFile {
         if (dts < track->startTime) {
             if (flags & kFrameFlagDisposal) {
                 INFO("track %zu: drop frame", index);
-                return read(mode, kTimeInvalid);
+                return read(mode, kMediaTimeInvalid);
             } else {
                 INFO("track %zu: reference frame", index);
                 flags |= kFrameFlagReference;
@@ -718,7 +719,7 @@ struct Mp4File : public MediaFile {
         packet->format  = track->codec;
         packet->flags   = flags;
         if (s.pts == kTimeValueInvalid)
-            packet->pts = kTimeInvalid;
+            packet->pts = kMediaTimeInvalid;
         else
             packet->pts = MediaTime(s.pts, track->duration.timescale);
         packet->dts     = MediaTime(s.dts, track->duration.timescale);
