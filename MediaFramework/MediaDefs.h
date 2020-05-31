@@ -270,17 +270,12 @@ API_EXPORT size_t       GetSampleFormatBytes(eSampleFormat);
  * read behavior modes
  */
 typedef enum eReadMode {
-    kReadModeFirst      = 0,    ///< read first sync packet, -ts
-    kReadModeNext,              ///< read next packet, -ts
-    kReadModeLast,              ///< read last packet, -ts
-    kReadModeCurrent,           ///< read current packet again, -ts
-    kReadModeNextSync,          ///< read next sync packet, -ts/+ts
-    kReadModeLastSync,          ///< read last sync packet, -ts/+ts
+    kReadModeNormal,            ///< read next packet, -ts
+    kReadModeNextSync,          ///< read next sync packet, +ts
+    kReadModeLastSync,          ///< read last sync packet, +ts
     kReadModeClosestSync,       ///< read closest sync packet, +ts
-    ///< @note only for seek, as direction can NOT be predict
-    kReadModeIndex,             ///< read sample of index, +ts as sample index
-    kReadModePeek,              ///< peek packet, +ts
-    kReadModeDefault = kReadModeNext
+    ///< @note special read mode
+    kReadModeDefault = kReadModeNormal
 } eReadMode;
 
 enum {
@@ -370,7 +365,10 @@ struct MediaTime {
     
     // the least common multiple
     static int64_t LCM(int64_t a, int64_t b) {
+        if (a % b == 0) return a;
+        if (b % a == 0) return b;
         int64_t c, gcd;
+        // FIXME: if a or b is very big, LCM will take a lot time.
         for (c = 1; c <= a && c <= b; ++c) {
             if (a % c == 0 && b % c == 0) gcd = c;
         }

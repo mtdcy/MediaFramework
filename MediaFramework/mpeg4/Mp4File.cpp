@@ -33,7 +33,7 @@
 //
 
 #define LOG_TAG   "Mp4File"
-#define LOG_NDEBUG 0
+//#define LOG_NDEBUG 0
 #include <ABE/ABE.h>
 
 #include "Systems.h"
@@ -101,7 +101,7 @@ struct Sample {
 struct Mp4Track : public SharedObject {
     Mp4Track() : codec(kCodecFormatUnknown), trackIndex(0),
     sampleIndex(0), duration(kMediaTimeInvalid),
-    startTime(kMediaTimeInvalid) { }
+    startTime(kMediaTimeBegin) { }
 
     eCodecFormat        codec;
     size_t              trackIndex;
@@ -316,11 +316,13 @@ static sp<Mp4Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderB
     return track;
 }
 
-static size_t findSampleIndex(const sp<Mp4Track>& track,
-        int64_t ts,
-        eReadMode mode,
-        size_t *match = NULL) {
+static size_t seekTrack(sp<Mp4Track>& track,
+        const MediaTime& _ts,
+        const eReadMode& mode) {
     const Vector<Sample>& tbl = track->sampleTable;
+    // dts&pts in tbl using duration's timescale
+    MediaTime ts = _ts;
+    ts.scale(track->duration.timescale);
 
     size_t first = 0;
     size_t second = tbl.size() - 1;
@@ -333,8 +335,8 @@ static size_t findSampleIndex(const sp<Mp4Track>& track,
         mid = (first + second) / 2; // truncated happens
         const Sample& s0 = tbl[mid];
         const Sample& s1 = tbl[mid + 1];
-        if (s0.dts <= ts && s1.dts > ts) first = second = mid;
-        else if (s0.dts > ts) second = mid;
+        if (s0.dts <= ts.value && s1.dts > ts.value) first = second = mid;
+        else if (s0.dts > ts.value) second = mid;
         else first = mid;
         ++search_count;
     }
@@ -345,7 +347,6 @@ static size_t findSampleIndex(const sp<Mp4Track>& track,
         if (s.flags & kFrameFlagSync) break;
         if (first == 0) {
             WARN("track %zu: no sync at start");
-            mode = kReadModeNextSync;
             break;
         }
         --first;
@@ -356,8 +357,6 @@ static size_t findSampleIndex(const sp<Mp4Track>& track,
         if (s.flags & kFrameFlagSync) break;
         ++second;
     }
-    // force last sync, if second sync pointer not exists
-    if (second == tbl.size()) mode = kReadModeLastSync;
 
     size_t result;
     if (mode == kReadModeLastSync) {
@@ -371,14 +370,13 @@ static size_t findSampleIndex(const sp<Mp4Track>& track,
             result = first;
     }
 
-
     INFO("track %zu: seek %.3f(s) => [%zu - %zu - %zu] => %zu # %zu",
-         track->trackIndex, (double)ts / track->duration.timescale,
+         track->trackIndex, ts.seconds(),
             first, mid, second, result,
             search_count);
-
-    if (match) *match = mid;
-    return result;
+    
+    track->sampleIndex  = result;   // key sample index
+    track->startTime    = MediaTime(tbl[mid].dts, track->duration.timescale);
 }
 
 struct Mp4Packet : public MediaPacket {
@@ -402,8 +400,6 @@ struct Mp4File : public MediaFile {
 
     virtual ~Mp4File() { }
     
-    virtual String string() const { return "Mp4File"; }
-
     virtual sp<Message> formats() const {
         sp<Message> info = new Message;
         info->setInt32(kKeyFormat, kFileFormatMp4);
@@ -610,80 +606,40 @@ struct Mp4File : public MediaFile {
         return kMediaNoError;
     }
 
-    virtual sp<MediaPacket> read(eReadMode mode,
-            const MediaTime& _ts = kMediaTimeInvalid) {
-        const size_t index = 0; // FIXME
-        FATAL("FIXME");
+    virtual sp<MediaPacket> read(const eReadMode& mode,
+            const MediaTime& ts = kMediaTimeInvalid) {
         
-        sp<Mp4Track>& track = mTracks[index];
-        Vector<Sample>& tbl = track->sampleTable;
-
-        MediaTime ts = _ts;
-
-        // first read, force mode = kReadModeFirst;
-        if (track->startTime == kMediaTimeInvalid) {
-            INFO("track %zu: read first pakcet", index);
-            mode = kReadModeFirst;
-            track->startTime = kMediaTimeInvalid;
-            track->startTime.scale(track->duration.timescale);
-        }
-
-        // ts will be ignored for these modes
-        if (mode == kReadModeFirst ||
-                mode == kReadModeNext ||
-                mode == kReadModeLast ||
-                mode == kReadModeCurrent) {
-            ts = kMediaTimeInvalid;
-        }
-
-        // calc sample index before read sample
-        // determine direction and sample index based on mode
-        int sampleIndex = track->sampleIndex;
         if (ts != kMediaTimeInvalid) {
-            // if ts exists, seek directly to new position,
-            // seek() will take direction into account
-            ts = ts.scale(track->duration.timescale);
-
-            size_t match;
-            sampleIndex = findSampleIndex(track, ts.value, mode, &match);
-
-            if (mode != kReadModePeek) {
-                track->startTime = MediaTime(tbl[sampleIndex].dts,
-                                             track->duration.timescale);
-                if (sampleIndex < match) {
-                    track->startTime = MediaTime(tbl[match].dts,
-                                                 track->duration.timescale);
-                }
+            // seeking
+            for (size_t i = 0; i < mTracks.size(); ++i) {
+                sp<Mp4Track>& track = mTracks[i];
+                // find new sample index
+                seekTrack(track, ts, mode);
             }
-        } else if (mode == kReadModeNextSync) {
-            while (sampleIndex < tbl.size()) {
-                Sample& s = tbl[sampleIndex];
-                if (s.flags & kFrameFlagSync) break;
-                else ++sampleIndex;
-            }
-        } else if (mode == kReadModeLastSync) {
-            do {
-                Sample& s = tbl[sampleIndex];
-                if (s.flags & kFrameFlagSync) break;
-                else --sampleIndex;
-            } while (sampleIndex > 0);
-        } else if (mode == kReadModeNext) {
-            ++sampleIndex;
-        } else if (mode == kReadModeLast) {
-            --sampleIndex;
-        } else if (mode == kReadModeFirst) {
-            sampleIndex = 0;
         }
+        
+        // find the lowest pos
+        size_t trackIndex = 0;
+        int64_t los = mTracks[0]->sampleTable[mTracks[0]->sampleIndex].offset;
+        
+        for (size_t i = 1; i < mTracks.size(); ++i) {
+            sp<Mp4Track>& track = mTracks[i];
+            int64_t pos = track->sampleTable[track->sampleIndex].offset;
+            if (pos < los) {
+                los = pos;
+                trackIndex = i;
+            }
+        }
+        
+        
+        sp<Mp4Track>& track = mTracks[trackIndex];
+        Vector<Sample>& tbl = track->sampleTable;
+        size_t sampleIndex = track->sampleIndex++;
 
         // eos check
         if (sampleIndex >= tbl.size() || sampleIndex < 0) {
             INFO("eos...");
             return NULL;
-        }
-
-        // save sample index
-        if (mode != kReadModePeek) {
-            track->sampleIndex = sampleIndex;
         }
 
         // read sample data
@@ -703,26 +659,26 @@ struct Mp4File : public MediaFile {
         MediaTime dts( s.dts, track->startTime.timescale);
         if (dts < track->startTime) {
             if (flags & kFrameFlagDisposal) {
-                INFO("track %zu: drop frame", index);
+                INFO("track %zu: drop frame", trackIndex);
                 return read(mode, kMediaTimeInvalid);
             } else {
-                INFO("track %zu: reference frame", index);
+                INFO("track %zu: reference frame", trackIndex);
                 flags |= kFrameFlagReference;
             }
         } else if (dts == track->startTime) {
-            INFO("track %zu: hit starting...", index);
+            INFO("track %zu: hit starting...", trackIndex);
         }
 #endif
         // init MediaPacket context
-        sp<MediaPacket> packet = new Mp4Packet(sample);
-        packet->index   = sampleIndex;
-        packet->format  = track->codec;
-        packet->flags   = flags;
+        sp<MediaPacket> packet  = new Mp4Packet(sample);
+        packet->index           = trackIndex;
+        packet->format          = track->codec;
+        packet->flags           = flags;
         if (s.pts == kTimeValueInvalid)
-            packet->pts = kMediaTimeInvalid;
+            packet->pts =       kMediaTimeInvalid;
         else
-            packet->pts = MediaTime(s.pts, track->duration.timescale);
-        packet->dts     = MediaTime(s.dts, track->duration.timescale);
+            packet->pts =       MediaTime(s.pts, track->duration.timescale);
+        packet->dts     =       MediaTime(s.dts, track->duration.timescale);
         return packet;
     }
 };

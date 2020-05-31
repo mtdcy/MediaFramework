@@ -416,7 +416,7 @@ struct AVFormat : public MediaFile {
         return kMediaErrorInvalidOperation;
     }
     
-    virtual sp<MediaPacket> read(eReadMode mode, const MediaTime& ts) {
+    virtual sp<MediaPacket> read(const eReadMode& mode, const MediaTime& ts) {
         if (ts != kMediaTimeInvalid) {
             INFO("seek to %.3f(s)", ts.seconds());
             avformat_seek_file(mObject->context, -1,

@@ -104,7 +104,7 @@ struct API_EXPORT MediaFile : public SharedObject {
      * @note the file may have to avoid seek too much, as we
      *       are read each track seperately
      */
-    virtual sp<MediaPacket> read(eReadMode mode,
+    virtual sp<MediaPacket> read(const eReadMode& mode = kReadModeDefault,
             const MediaTime& ts = kMediaTimeInvalid) = 0;
 
     /**

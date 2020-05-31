@@ -33,7 +33,7 @@
 //
 
 #define LOG_TAG "RenderSession"
-#define LOG_NDEBUG 0
+//#define LOG_NDEBUG 0
 #include "MediaSession.h"
 #include "MediaOut.h"
 #include "MediaClock.h"

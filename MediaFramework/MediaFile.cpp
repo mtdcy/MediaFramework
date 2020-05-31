@@ -262,14 +262,12 @@ sp<MediaFile> MediaFile::Create(sp<Content>& pipe, const eMode mode) {
     
     const eFileFormat format = GetFormat(pipe);
     switch (format) {
-#if 0
         case kFileFormatMp3:
             return CreateMp3File(pipe);
         case kFileFormatMp4:
             return CreateMp4File(pipe);
         case kFileFormatMkv:
             return CreateMatroskaFile(pipe);
-#endif
         default:
             return CreateLibavformat(pipe);
     }

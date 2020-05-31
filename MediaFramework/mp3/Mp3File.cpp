@@ -295,7 +295,15 @@ static bool parseXingHeader(const Buffer& firstFrame, XingHeader *head) {
             //mTOC.push((mNumBytes * pos) / 256 + mFirstFrameOffset);
             head->toc.push(br.r8());
         }
-        DEBUG("TOC: %d %d ... %d %d", head->toc[0], head->toc[1], head->toc[98], head->toc[99]);
+        //DEBUG("TOC: %d %d ... %d %d", head->toc[0], head->toc[1], head->toc[98], head->toc[99]);
+#if LOG_NDEBUG == 0
+        String tmp;
+        List<uint8_t>::iterator it = head->toc.begin();
+        for (; it != head->toc.end(); ++it) {
+            tmp += String::format("%u ", *it);
+        }
+        DEBUG("TOC: %s", tmp.c_str());
+#endif
     } else {
         DEBUG("Xing: no toc");
     }
@@ -387,11 +395,20 @@ static bool parseVBRIHeader(const Buffer& firstFrame, VBRIHeader *head) {
             head->toc.push(length * scaleFactor);
         }
         // end
-
+#if 0
         DEBUG("TOC: %d %d ... %d %d",
                 head->toc[0], head->toc[1],
                 head->toc[numEntries-2],
                 head->toc[numEntries-1]);
+#endif
+#if LOG_NDEBUG == 0
+        String tmp;
+        List<uint32_t>::iterator it = head->toc.begin();
+        for (; it != head->toc.end(); ++it) {
+            tmp += String::format("%u ", *it);
+        }
+        DEBUG("TOC: %s", tmp.c_str());
+#endif
     }
 
     return true;
@@ -402,12 +419,13 @@ struct Mp3Packetizer : public MediaPacketizer {
     uint32_t    mCommonHead;
     bool        mNeedMoreData;
     bool        mFlushing;
-    MediaTime   mAnchorTime;
+    MediaTime   mNextFrameTime;
     MediaTime   mFrameTime;
     sp<Message> mProperties;
 
     Mp3Packetizer() : MediaPacketizer(), mBuffer(4096, Buffer::Ring),
-    mCommonHead(0), mNeedMoreData(true), mFlushing(false) { }
+    mCommonHead(0), mNeedMoreData(true), mFlushing(false),
+    mNextFrameTime(kMediaTimeBegin), mFrameTime(kMediaTimeInvalid) { }
 
     virtual ~Mp3Packetizer() { }
     
@@ -421,9 +439,9 @@ struct Mp3Packetizer : public MediaPacketizer {
         }
 
         if (__builtin_expect(mCommonHead == 0, false)) {
-            mAnchorTime     = in->pts;
-            if (mAnchorTime == kMediaTimeInvalid) {
-                mAnchorTime = kMediaTimeBegin;
+            mNextFrameTime     = in->pts;
+            if (mNextFrameTime == kMediaTimeInvalid) {
+                mNextFrameTime = kMediaTimeBegin;
             }
         }
 
@@ -503,18 +521,21 @@ struct Mp3Packetizer : public MediaPacketizer {
         mBuffer.read((char*)packet->data, mpa.frameLengthInBytes);
         CHECK_EQ(mpa.frameLengthInBytes, packet->size);
 
-        mAnchorTime         += mFrameTime;
-        packet->pts         = mAnchorTime;
-        packet->dts         = mAnchorTime;
+        CHECK_TRUE(mFrameTime != kMediaTimeInvalid);
+        packet->pts         = mNextFrameTime;
+        packet->dts         = mNextFrameTime;
+        packet->duration    = mFrameTime;
         packet->flags       = kFrameFlagSync;
         packet->format      = kAudioCodecFormatMP3;
         packet->properties  = mProperties;
+        mNextFrameTime      += mFrameTime;
 
         return packet;
     }
     
     virtual void flush() {
         mBuffer.reset();
+        mNextFrameTime = kMediaTimeBegin;
         mCommonHead = 0;
         mNeedMoreData = true;
     }
@@ -549,8 +570,6 @@ struct Mp3File : public MediaFile {
         mRawPacket(NULL),
         mPacketizer(new Mp3Packetizer) { }
     
-    virtual String string() const { return "Mp3File"; }
-
     // refer to:
     // 1. http://gabriel.mp3-tech.org/mp3infotag.html#versionstring
     // 2. http://www.codeproject.com/Articles/8295/MPEG-Audio-Frame-Header
@@ -573,7 +592,7 @@ struct Mp3File : public MediaFile {
                     ID3v2 id3;
                     if (id3.parse(*head) == kMediaNoError) {
                         const sp<Message>& values = id3.values();
-                        DEBUG("id3v2 found: %s", values.string().c_str());
+                        DEBUG("id3v2 found: %s", values->string().c_str());
 #if 1
                         // information for gapless playback
                         // http://yabb.jriver.com/interact/index.php?topic=65076.msg436101#msg436101
@@ -680,7 +699,7 @@ struct Mp3File : public MediaFile {
 #endif
 
         DEBUG("number bytes of data %" PRId64 " pipe length %" PRId64,
-                mNumBytes, pipe->size());
+                mNumBytes, pipe->length());
 
         if (mNumFrames != 0) {
             DEBUG("calc duration based on frame count.");
@@ -727,9 +746,8 @@ struct Mp3File : public MediaFile {
         return info;
     }
 
-    virtual sp<MediaPacket> read(eReadMode mode,
+    virtual sp<MediaPacket> read(const eReadMode& mode,
             const MediaTime& ts = kMediaTimeInvalid) {
-        CHECK_NE(mode, kReadModePeek); // don't support this
         bool sawInputEOS = false;
 
         if (ts != kMediaTimeInvalid) {
@@ -754,6 +772,7 @@ struct Mp3File : public MediaFile {
                 pos = mNumBytes * percent + mFirstFrameOffset;
             }
 
+            DEBUG("seek to %" PRId64 " of %" PRId64, pos, mContent->length());
             mContent->seek(pos);
             // TODO: calc anchor time by index.
             mAnchorTime     = ts;
@@ -766,7 +785,7 @@ struct Mp3File : public MediaFile {
             if (mRawPacket == 0 && !sawInputEOS) {
                 DEBUG("read content at %" PRId64 "/%" PRId64,
                         mContent->tell(),
-                        mContent->size());
+                        mContent->length());
                 // mInternalBuffer must be twice of this
                 sp<Buffer> data = mContent->read(2048);
                 if (data == NULL) {

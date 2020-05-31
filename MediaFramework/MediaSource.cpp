@@ -56,7 +56,7 @@ struct MediaSource : public IMediaSession {
     MediaSource(const sp<Message>& media, const sp<Message>& options) :
     IMediaSession(new Looper("source")),
     mUrl(media->findString("url")),
-    mMediaFile(NULL), mLastReadTime(kMediaTimeInvalid)
+    mMediaFile(NULL), mLastReadTime(kMediaTimeBegin)
     {
         mInfoEvent = options->findObject("SessionInfoEvent");
     }
@@ -170,7 +170,7 @@ struct MediaSource : public IMediaSession {
         }
         
         for (;;) {
-            sp<MediaPacket> packet = mMediaFile->read(kReadModeNext);
+            sp<MediaPacket> packet = mMediaFile->read();
             if (packet.isNIL()) {
                 INFO("eos");
                 break;
