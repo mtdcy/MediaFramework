@@ -54,6 +54,31 @@ struct MyTest : public ::testing::Test {
     }
 };
 
+void testMediaTime() {
+    MediaTime time = kMediaTimeBegin;
+    
+    // operator+()
+    ASSERT_EQ(time + MediaTime(1, 2), MediaTime(1, 2));
+    
+    // operator+=()
+    time += MediaTime(1, 2);    // 1/2
+    time += MediaTime(1, 3);    // 1/2 + 1/3 = 5/6
+    ASSERT_EQ(time, MediaTime(5,6));
+    
+    // operator-()
+    ASSERT_EQ(time - MediaTime(1, 3), MediaTime(1,2));
+    
+    // operator-=()
+    time -= MediaTime(1,3);     // 5/6 - 1/3 = 1/2
+    ASSERT_EQ(time, MediaTime(1,2));
+    
+    // useconds()
+    ASSERT_EQ(time.useconds(), 500000LL);
+    
+    // seconds()
+    ASSERT_EQ(time.seconds(), 0.5f);
+}
+
 void testClock() {
     sp<SharedClock> clock = new SharedClock();
     sp<Clock> master = new Clock(clock, kClockRoleMaster);
@@ -87,6 +112,7 @@ void testClock() {
     ASSERT_EQ(slave->get(), 500);
     
     master->update(1000);
+    SleepTimeUs(1);
     ASSERT_GT(clock->get(), 1000);
     ASSERT_GT(master->get(), 1000);
     ASSERT_GT(slave->get(), 1000);
@@ -104,6 +130,7 @@ extern "C" void malloc_finalize();
         INFO("End Test MyTest."#FUNC);      \
     }
 
+TEST_ENTRY(testMediaTime);
 TEST_ENTRY(testClock);
 
 int main(int argc, char **argv) {
