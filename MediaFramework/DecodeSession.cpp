@@ -120,36 +120,18 @@ struct DecodeSession : public IMediaSession {
         CHECK_TRUE(mFormat->contains(kKeyFormat));
         eCodecFormat format = (eCodecFormat)mFormat->findInt32(kKeyFormat);
         eCodecType type = GetCodecType(format);
-
-        mCodec = MediaDecoder::Create(format, mMode);
-        if (mCodec.isNIL()) {
-            ERROR("%s: codec is not supported", mName.c_str());
-            notify(kSessionInfoError, NULL);
-            return;
-        }
-
+        
         Object<Message> options = new Message;
         options->setInt32(kKeyMode, mMode);
 
-        if (mCodec->init(mFormat, options) != kMediaNoError) {
-            ERROR("%s: create codec failed", mName.c_str());
-            mCodec.clear();
-
-#if 1
-            if (mMode != kModeTypeSoftware) {
-                options->setInt32(kKeyMode, kModeTypeSoftware);
-                mCodec = MediaDecoder::Create(format, kModeTypeSoftware);
-
-                if (mCodec->init(mFormat, options) != kMediaNoError) {
-                    ERROR("%s: create software codec failed", mName.c_str());
-                    mCodec.clear();
-                }
-            }
-#endif
+        mCodec = MediaDecoder::Create(mFormat, options);
+        if (mCodec.isNIL() && mMode == kModeTypeNormal) {
+            options->setInt32(kKeyMode, kModeTypeSoftware);
+            mCodec = MediaDecoder::Create(mFormat, options);
         }
-
+        
         if (mCodec.isNIL()) {
-            ERROR("%s: codec initial failed", mName.c_str());
+            ERROR("%s: codec is not supported", mName.c_str());
             notify(kSessionInfoError, NULL);
             return;
         }

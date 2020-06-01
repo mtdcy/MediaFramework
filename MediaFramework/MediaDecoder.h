@@ -65,13 +65,8 @@ struct API_EXPORT MediaDecoder : public SharedObject {
      * @param mode      @see eModeType
      * @return return reference to new codec if supported. otherwise return NULL.
      */
-    static sp<MediaDecoder> Create(eCodecFormat format, eModeType mode);
+    static sp<MediaDecoder> Create(const sp<Message>& formats, const sp<Message>& options);
 
-    /**
-     * get information of this codec.
-     * @return return a string of information
-     */
-    virtual String          string() const = 0;
     /**
      * get output format information of this codec.
      * about the output format:
@@ -85,13 +80,7 @@ struct API_EXPORT MediaDecoder : public SharedObject {
      * @return return Message contains output format information
      */
     virtual sp<Message>     formats() const = 0;
-    /**
-     * initial codec object with format and options
-     * @param format    stream format
-     * @param options   option and parameter for initial the object
-     * @return return kMediaNoError on success.
-     */
-    virtual MediaError      init(const sp<Message>& format, const sp<Message>& options) = 0;
+    
     /**
      * push MediaPacket to codec in decoding order.
      * @param input     reference of MediaPacket

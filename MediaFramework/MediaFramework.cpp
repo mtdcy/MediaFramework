@@ -96,34 +96,40 @@ __END_DECLS
 __BEGIN_NAMESPACE_MPX
 
 #ifdef __APPLE__
-sp<MediaDecoder> CreateVideoToolboxDecoder();
+sp<MediaDecoder> CreateVideoToolboxDecoder(const sp<Message>& formats, const sp<Message>& options);
 bool IsVideoToolboxSupported(eCodecFormat format);
 #endif
 #ifdef WITH_FFMPEG
-sp<MediaDecoder> CreateLavcDecoder(eModeType mode);
+sp<MediaDecoder> CreateLavcDecoder(const sp<Message>& formats, const sp<Message>& options);
 #endif
 
-sp<MediaDecoder> MediaDecoder::Create(eCodecFormat format, eModeType mode) {
-    sp<MediaDecoder> codec;
-    eCodecType type = GetCodecType(format);
+sp<MediaDecoder> MediaDecoder::Create(const sp<Message>& formats, const sp<Message>& options) {
+    eCodecFormat codec = (eCodecFormat)formats->findInt32(kKeyFormat);
+    eCodecType type = GetCodecType(codec);
+    eModeType mode = (eModeType)options->findInt32(kKeyMode, kModeTypeNormal);
 
+#ifdef WITH_FFMPEG
+    if (mode == kModeTypeSoftware) {
+        return CreateLavcDecoder(formats, options);
+    }
+#endif
+    
 #ifdef __APPLE__
     if (type == kCodecTypeVideo && mode != kModeTypeSoftware) {
-        if (!IsVideoToolboxSupported(format)) {
-            INFO("codec %d is not supported by VideoToolbox", format);
+        if (!IsVideoToolboxSupported(codec)) {
+            INFO("codec %#x is not supported by VideoToolbox", codec);
         } else {
-            codec = CreateVideoToolboxDecoder();
+            return CreateVideoToolboxDecoder(formats, options);
         }
     }
-    // FALL BACK TO SOFTWARE DECODER
 #endif
-    if (codec == NULL) {
+    
+    // FALLBACK
 #ifdef WITH_FFMPEG
-        codec = CreateLavcDecoder(mode);
+    return CreateLavcDecoder(formats, options);
+#else
+    return NULL;
 #endif
-    }
-
-    return codec;
 }
 
 sp<MediaPacketizer> CreateMp3Packetizer();

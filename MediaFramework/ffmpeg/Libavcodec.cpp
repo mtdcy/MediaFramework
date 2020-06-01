@@ -728,15 +728,13 @@ sp<MediaFrame> readVideoToolboxFrame(CVPixelBufferRef);
 #endif
 
 struct LavcDecoder : public MediaDecoder {
-    eModeType               mMode;
     AVCodecContext *        mContext;
 
     // statistics
     size_t                  mInputCount;
     size_t                  mOutputCount;
 
-    LavcDecoder(eModeType mode) : MediaDecoder(),
-    mMode(mode),
+    LavcDecoder() : MediaDecoder(),
     mContext(NULL),
     mInputCount(0),
     mOutputCount(0) { }
@@ -745,13 +743,10 @@ struct LavcDecoder : public MediaDecoder {
         releaseContext(mContext);
         mContext = NULL;
     }
-    
-    virtual String string() const {
-        return "LavcDecoder";
-    }
 
     virtual MediaError init(const sp<Message>& formats, const sp<Message>& options) {
-        mContext = initContext(mMode, formats, options);
+        eModeType mode = (eModeType)options->findInt32(kKeyMode, kModeTypeDefault);
+        mContext = initContext(mode, formats, options);
         if (mContext)   return kMediaNoError;
         else            return kMediaErrorNotSupported;
     }
@@ -928,7 +923,9 @@ struct LavcDecoder : public MediaDecoder {
     }
 };
 
-sp<MediaDecoder> CreateLavcDecoder(eModeType mode) {
-    return new LavcDecoder(mode);
+sp<MediaDecoder> CreateLavcDecoder(const sp<Message>& formats, const sp<Message>& options) {
+    sp<LavcDecoder> lavc = new LavcDecoder;
+    if (lavc->init(formats, options) == kMediaNoError) return lavc;
+    return NULL;
 }
 __END_NAMESPACE_MPX

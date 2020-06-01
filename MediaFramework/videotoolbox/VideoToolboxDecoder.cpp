@@ -606,8 +606,6 @@ struct VideoToolboxDecoder : public MediaDecoder {
     VideoToolboxDecoder() { }
     virtual ~VideoToolboxDecoder() { }
 
-    virtual String string() const { return ""; }
-
     virtual sp<Message> formats() const {
         sp<Message> info = new Message;
         info->setInt32(kKeyWidth, mVTContext->width);
@@ -736,8 +734,10 @@ bool IsVideoToolboxSupported(eCodecFormat format) {
     //return VTIsHardwareDecodeSupported(cm);
 }
 
-sp<MediaDecoder> CreateVideoToolboxDecoder() {
-    return new VideoToolboxDecoder();
+sp<MediaDecoder> CreateVideoToolboxDecoder(const sp<Message>& formats, const sp<Message>& options) {
+    sp<VideoToolboxDecoder> vt = new VideoToolboxDecoder();
+    if (vt->init(formats, options) == kMediaNoError) return vt;
+    return NULL;
 }
 
 __END_NAMESPACE_ABE
