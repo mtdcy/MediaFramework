@@ -98,7 +98,7 @@ struct RenderSession : public IMediaSession {
 
     MediaTime               mLastFrameTime;     // kTimeInvalid => first frame
     // clock context
-    MediaTime               mLastUpdateTime;    // last clock update time
+    int64_t                 mLastUpdateTime;    // last clock update time
     // statistics
     size_t                  mFramesRenderred;
 
@@ -115,7 +115,7 @@ struct RenderSession : public IMediaSession {
     mType(kCodecTypeAudio), mGeneration(0),
     mPresentFrame(new PresentJob(this)), mState(kRenderInitialized), mOutputEOS(false),
     mLastFrameTime(kMediaTimeInvalid),
-    mLastUpdateTime(kMediaTimeInvalid),
+    mLastUpdateTime(kTimeValueBegin),
     // statistics
     mFramesRenderred(0) {
         // setup external context
@@ -153,7 +153,7 @@ struct RenderSession : public IMediaSession {
 
         // reset flags
         mState = kRenderInitialized;
-        mLastUpdateTime = kMediaTimeBegin;
+        mLastUpdateTime = kTimeValueBegin;
         mOutputEOS = false;
         mLastFrameTime = kMediaTimeInvalid;
         mOutputQueue.clear();
@@ -442,10 +442,11 @@ struct RenderSession : public IMediaSession {
 
         // setup clock to tick if we are master clock
         // FIXME: if current frame is too big, update clock after write will cause clock advance too far
-        if (mClock != NULL && mClock->role() == kClockRoleMaster && !mClock->isTicking()) {
-            const int64_t realTime = SystemTimeUs();
-            INFO("%s: update clock %.3f(s)+%.3f(s)", mName.c_str(), frame->timecode.seconds(), realTime / 1E6);
-            mClock->update(frame->timecode.useconds() - mLatency, realTime);
+        int64_t now = SystemTimeUs();
+        if (mClock != NULL && mClock->role() == kClockRoleMaster && now - mLastUpdateTime > 1000000LL) {
+            mClock->update(frame->timecode.useconds() - mLatency);
+            INFO("%s: update clock %.3f(s) (%.3f)", mName.c_str(), frame->timecode.seconds(), mClock->get() / 1E6);
+            mLastUpdateTime = now;
         }
 
         // next frame render time.
@@ -485,8 +486,8 @@ struct RenderSession : public IMediaSession {
                 case kClockStatePaused:
                     thiz->onPauseRenderer();
                     break;
-                case kClockStateReset:
-                    thiz->onPauseRenderer();
+                case kClockStateTimeChanged:
+                    thiz->onPrepareRenderer();
                     break;
                 default:
                     break;
@@ -531,6 +532,10 @@ struct RenderSession : public IMediaSession {
             options->setInt32(kKeyPause, 1);
             mOut->configure(options);
         }
+    }
+    
+    void onPrepareRenderer() {
+        // TODO
     }
 };
 

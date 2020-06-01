@@ -49,7 +49,7 @@ enum eClockRole {
 enum eClockState {
     kClockStateTicking,
     kClockStatePaused,
-    kClockStateReset
+    kClockStateTimeChanged
 };
 
 __END_DECLS
@@ -70,10 +70,11 @@ class Clock;
 class API_EXPORT SharedClock : public SharedObject {
     public:
         SharedClock();
+        virtual ~SharedClock() { }
 
         /**
          * set clock time, without alter clock state
-         * @param   ts      media time
+         * @param   us      media time
          */
         void        set(int64_t us);
         /**
@@ -85,12 +86,6 @@ class API_EXPORT SharedClock : public SharedObject {
          * time won't update, get() always return the same time.
          */
         void        pause();
-        /**
-         * reset this clock to paused state with initial media time
-         * and system time.
-         * have to start again.
-         */
-        void        reset();
         /**
          * get this clock's state.
          * @return return true if paused.
@@ -124,12 +119,12 @@ class API_EXPORT SharedClock : public SharedObject {
         Atomic<int>     mGeneration;
         Atomic<int>     mMasterClock;
         // clock internal context
-        mutable Mutex   mLock;
+        mutable Mutex   mLock;          ///< lock for ClockInt
         struct ClockInt {
             ClockInt();
             int64_t     mMediaTime;
             int64_t     mSystemTime;
-            bool        mPaused;
+            bool        mStarted;       ///< clock state, only start() & pause() can alter it
             bool        mTicking;
             double      mSpeed;
         };
@@ -141,7 +136,7 @@ class API_EXPORT SharedClock : public SharedObject {
         HashTable<const void *, sp<ClockEvent> > mListeners;
 
         int64_t         get_l() const;
-    private:
+
         DISALLOW_EVILS(SharedClock);
 };
 
@@ -157,7 +152,7 @@ class API_EXPORT Clock : public SharedObject {
          * @param role  @see SharedClock::eClockRole
          */
         Clock(const sp<SharedClock>& sc, eClockRole role = kClockRoleSlave);
-        ~Clock();
+        virtual ~Clock();
 
     public:
         /**
@@ -178,21 +173,21 @@ class API_EXPORT Clock : public SharedObject {
 
         /** @see SharedClock::isPaused() */
         bool        isPaused() const;
-        bool        isTicking() const;
+        //bool        isTicking() const;
 
         /** @see SharedClock::speed() */
         double      speed() const;
         /**
-         * @see SharedClock::update();
+         * update clock media time
+         * @param us media time
          * @note update method is only for master clock
          */
-        void        update(int64_t);
-        void        update(int64_t, int64_t);
+        void        update(int64_t us);
 
     private:
         /**
-         * shadow SharedClock internal context if generation
-         * changed. otherwise do NOTHING.
+         * shadow SharedClock internal context if generation changed.
+         * otherwise do NOTHING.
          */
         void        reload() const;
 
@@ -210,7 +205,6 @@ class API_EXPORT Clock : public SharedObject {
          */
         mutable SharedClock::ClockInt   mClockInt;
 
-    private:
         DISALLOW_EVILS(Clock);
 };
 
