@@ -261,7 +261,7 @@ sp<MediaFile> MediaFile::Create(sp<Content>& pipe, const eMode mode) {
     CHECK_TRUE(mode == Read, "TODO: only support read");
     
     String env = GetEnvironmentValue("FORCE_AVFORMAT");
-    bool force = !env.equals("0") && !env.lower().equals("no");
+    bool force = env.equals("1") || env.lower().equals("yes");
     
     const eFileFormat format = GetFormat(pipe);
     switch (format) {
