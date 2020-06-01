@@ -700,10 +700,14 @@ static AVCodecContext * initContext(eModeType mode, const sp<Message>& formats, 
     } else {
         avcc->thread_count      = 1;
     }
+    avcc->pkt_timebase.num      = 1;
+    avcc->pkt_timebase.den      = 1000000LL;
     
     MediaError st = kMediaNoError;
     if (type == kCodecTypeAudio) {
         st = openAudio(avcc, formats, options);
+        avcc->pkt_timebase.num  = 1;
+        avcc->pkt_timebase.den  = avcc->sample_rate;
     } else if (type == kCodecTypeVideo) {
         st = openVideo(avcc, mode, formats, options);
     } else {
@@ -726,7 +730,6 @@ sp<MediaFrame> readVideoToolboxFrame(CVPixelBufferRef);
 struct LavcDecoder : public MediaDecoder {
     eModeType               mMode;
     AVCodecContext *        mContext;
-    List<MediaTime>         mTimestamps;
 
     // statistics
     size_t                  mInputCount;
@@ -803,33 +806,25 @@ struct LavcDecoder : public MediaDecoder {
             AVPacket *pkt   = av_packet_alloc();
             pkt->data       = input->data;
             pkt->size       = input->size;
-#if 0
-            // FIXME:
-            if (input->pts != kTimeInvalid)
+
+            CHECK_TRUE(input->dts != kMediaTimeInvalid);
+            pkt->dts        = input->dts.seconds() * avcc->pkt_timebase.den;
+            if (input->pts == kMediaTimeInvalid)
+                pkt->pts    = pkt->dts;
+            else
                 pkt->pts    = input->pts.seconds() * avcc->pkt_timebase.den;
-            else
-                pkt->pts    = AV_NOPTS_VALUE;
-            if (input->dts != kTimeInvalid)
-                pkt->dts    = input->dts.seconds() * avcc->pkt_timebase.den;
-            else
-                pkt->dts    = AV_NOPTS_VALUE;
-#else
-            pkt->pts        = AV_NOPTS_VALUE;
-            pkt->dts        = AV_NOPTS_VALUE;
-#endif
 
             pkt->flags      = 0;
-
-            if (input->type & kFrameTypeSync)
+            if (input->type & kFrameTypeSync) {
                 pkt->flags |= AV_PKT_FLAG_KEY;
+            }
 
             if (input->type & kFrameTypeReference) {
-                INFO("reference frame, disposable");
                 pkt->flags |= AV_PKT_FLAG_DISCARD;
+            }
+            
+            if (input->type & kFrameTypeDisposal) {
                 pkt->flags |= AV_PKT_FLAG_DISPOSABLE;
-            } else {
-                mTimestamps.push(input->pts);
-                mTimestamps.sort();
             }
 
             int ret = avcodec_send_packet(avcc, pkt);
@@ -893,11 +888,6 @@ struct LavcDecoder : public MediaDecoder {
             out = new AVMediaFrame(avcc, internal);
         }
 
-#if 1
-        out->timecode       = *mTimestamps.begin();
-        mTimestamps.pop();
-#endif
-
 #if LOG_NDEBUG == 0
         if (avcc->codec_type == AVMEDIA_TYPE_VIDEO) {
             CHECK_EQ(avcc->pix_fmt, internal->format);
@@ -933,7 +923,6 @@ struct LavcDecoder : public MediaDecoder {
         if (avcc && avcodec_is_open(avcc)) {
             avcodec_flush_buffers(avcc);
         }
-        mTimestamps.clear();
         mInputCount = mOutputCount = 0;
         return kMediaNoError;
     }
