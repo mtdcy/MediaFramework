@@ -448,8 +448,13 @@ MediaError CompositionOffsetBox::parse(const BitReader& br, size_t sz, const Fil
     Box::parse(br, sz, ftyp);
     uint32_t count          = br.rb32();
     for (uint32_t i = 0; i < count; i++) {
-        Entry e = { br.rb32(), br.rb32() };
-        DEBUGV("box %s: entry %" PRIu32 " %" PRIu32, 
+        // version 0, sample_offset is uint32_t
+        // version 1, sample_offset is int32_t
+        // some writer ignore this rule, always write in int32_t
+        // and sample_offset will no be very big,
+        // so it is ok to always read sample_offset as int32_t
+        Entry e = { br.rb32(), (int32_t)br.rb32() };
+        DEBUGV("box %s: entry %" PRIu32 " %" PRIu32,
                 name.c_str(),
                 e.sample_count, e.sample_offset);
         entries.push(e);

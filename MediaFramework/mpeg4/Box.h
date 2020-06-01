@@ -320,7 +320,7 @@ struct TimeToSampleBox : public FullBox {
 struct CompositionOffsetBox : public FullBox {
     struct Entry {
         uint32_t        sample_count;
-        uint32_t        sample_offset;  // int32_t in version 1
+        int32_t         sample_offset;
     };
     Vector<Entry>       entries;
     
