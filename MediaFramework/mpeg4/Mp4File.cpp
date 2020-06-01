@@ -200,18 +200,18 @@ static sp<Mp4Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderB
 
     // FIXME: no-output sample
     const uint64_t now = SystemTimeUs();
-    uint64_t dts = 0;
     
     // init sampleTable with dts
     for (size_t i = 0; i < stts->entries.size(); ++i) {
+        uint64_t dts = 0;
         for (size_t j = 0; j < stts->entries[i].sample_count; ++j) {
-            dts += stts->entries[i].sample_delta;
             // ISO/IEC 14496-12:2015 Section 8.6.2.1
             //  If the sync sample box is not present, every sample is a sync sample.
             Sample s = { 0/*offset*/, 0/*size*/,
                 dts, kTimeValueInvalid/*pts*/,
                 stss != NULL ? kFrameTypeUnknown : kFrameTypeSync};
             track->sampleTable.push(s);
+            dts += stts->entries[i].sample_delta;
         }
     }
 
