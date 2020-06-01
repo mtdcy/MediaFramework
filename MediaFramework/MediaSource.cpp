@@ -96,6 +96,52 @@ struct MediaSource : public IMediaSession {
         }
         
         notify(kSessionInfoReady, formats);
+        
+        // make sure each track has at least one packet
+        fillPacket();
+        DEBUG("we are ready...");
+    }
+    
+    void fillPacket(const MediaTime& time = kMediaTimeInvalid) {
+        BitSet trackMask;
+        
+        // avoid seek multitimes by different track
+        bool seek = time != kMediaTimeInvalid && time != mLastReadTime;
+        if (seek) {
+            // flush packet list before seek
+            for (size_t i = 0; i < mPackets.size(); ++i) {
+                mPackets[i].clear();
+                trackMask.set(i);
+            }
+        } else {
+            for (size_t i = 0; i < mPackets.size(); ++i) {
+                if (mPackets[i].empty()) trackMask.set(i);
+            }
+        }
+                
+        while (!trackMask.empty()) {
+            sp<MediaPacket> packet;
+            if (ABE_UNLIKELY(seek)) {
+                INFO("seek to %.3f", time.seconds());
+                packet = mMediaFile->read(kReadModeClosestSync, time);
+                mLastReadTime   = time;
+            } else {
+                packet = mMediaFile->read();
+            }
+            
+            if (packet.isNIL()) {
+                INFO("End Of File...");
+                break;
+            }
+            
+            PacketList& list = mPackets[packet->index];
+            list.push(packet);
+            DEBUG("[%zu] fill one packet, total %zu", packet->index, list.size());
+            
+            trackMask.clear(packet->index);
+        }
+        
+        if (trackMask.empty()) DEBUG("packet lists are ready");
     }
     
     virtual void onRelease() {
@@ -127,12 +173,23 @@ struct MediaSource : public IMediaSession {
     
     void onRequestPacket(const size_t index, sp<PacketReadyEvent> event, const MediaTime& time) {
         DEBUG("onRequestPacket [%zu] @ %.3f", index, time.seconds());
-        sp<MediaPacket> packet = read(index, time);
-        if (packet.isNIL()) {
-            INFO("End Of Input");
-            notify(kSessionInfoEnd, NULL);
+        
+        if (time != kMediaTimeInvalid) fillPacket(time);
+        
+        PacketList& list = mPackets[index];
+        
+        if (list.empty()) {
+            INFO("[%zu] End Of Stream", index);
+            event->fire(NULL);
+            return;
         }
+        
+        sp<MediaPacket> packet = list.front();
+        list.pop();
+        
         event->fire(packet);
+        
+        fillPacket();
     }
     
     void onEnableTrack(const size_t index) {
@@ -142,48 +199,6 @@ struct MediaSource : public IMediaSession {
     
     void onDisableTrack(const size_t index) {
         mTrackMask.clear(index);
-    }
-    
-    sp<MediaPacket> read(size_t index, const MediaTime& time) {
-        if (time != kMediaTimeInvalid && time != mLastReadTime) {
-            INFO("performing seek by track %zu", index);
-            // FIXME: seek only once
-            for (size_t i = 0; i < mPackets.size(); ++i) {
-                mPackets[i].clear();
-            }
-            
-            sp<MediaPacket> packet = mMediaFile->read(kReadModeClosestSync, time);
-            if (packet.isNIL()) {
-                INFO("eos");
-                return NIL;
-            }
-            
-            mPackets[packet->index].push(packet);
-            mLastReadTime = time;
-        }
-        
-        PacketList& list = mPackets[index];
-        if (list.size()) {
-            sp<MediaPacket> packet = list.front();
-            list.pop();
-            return packet;
-        }
-        
-        for (;;) {
-            sp<MediaPacket> packet = mMediaFile->read();
-            if (packet.isNIL()) {
-                INFO("eos");
-                break;
-            }
-            
-            if (packet->index == index) {
-                return packet;
-            }
-            
-            mPackets[packet->index].push(packet);
-        }
-        
-        return NIL;
     }
 };
 
