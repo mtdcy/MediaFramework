@@ -49,20 +49,20 @@
 // https://matroska.org/technical/specs/index.html
 // https://matroska.org/files/matroska.pdf
 
-    __BEGIN_NAMESPACE_MPX
-__USING_NAMESPACE(EBML)
+__BEGIN_NAMESPACE_MPX;
+__USING_NAMESPACE(EBML);
 
 #define IS_ZERO(x)  ((x) < 0.0000001 || -(x) < 0.0000001)
 
-    enum eTrackType {
-        kTrackTypeVideo     = 0x1,
-        kTrackTypeAudio     = 0x2,
-        kTrackTypeComplex   = 0x3,
-        kTrackTypeLogo      = 0x10,
-        kTrackTypeSubtitle  = 0x11,
-        kTrackTypeButton    = 0x12,
-        kTrackTypeControl   = 0x20
-    };
+enum eTrackType {
+    kTrackTypeVideo     = 0x1,
+    kTrackTypeAudio     = 0x2,
+    kTrackTypeComplex   = 0x3,
+    kTrackTypeLogo      = 0x10,
+    kTrackTypeSubtitle  = 0x11,
+    kTrackTypeButton    = 0x12,
+    kTrackTypeControl   = 0x20
+};
 
 enum eTrackFlags {
     kTrackFlagEnabled   = 0x1,
@@ -511,7 +511,7 @@ struct MatroskaFile : public MediaFile {
             if (block->Flags & kBlockFlagKey)           type |= kFrameTypeSync;
             if (block->Flags & kBlockFlagDiscardable)   type |= kFrameTypeDisposal;
             if (block->Flags & kBlockFlagInvisible)     type |= kFrameTypeReference;
-            
+
             for (size_t i = 0; i < mTracks.size(); ++i) {
                 if (mTracks[i].id == block->TrackNumber.u32 - 1) {
                     MatroskaTrack& trak = mTracks[i];
@@ -534,7 +534,7 @@ struct MatroskaFile : public MediaFile {
                             DEBUG("[%zu] packet %zu bytes", packet->index, packet->size);
                             mPackets.push(packet);
                         }
-                        
+
                         timecode += trak.frametime;
                     }
                     break;
