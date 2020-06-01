@@ -203,9 +203,28 @@ else()
         )
 endif()
 
+#------------------------------------------------------------------------------#
 # example/test code, NO build or install by default
 add_executable(mpx EXCLUDE_FROM_ALL mpx_main.cpp)
 target_link_libraries(mpx MediaFramework)
 
 add_executable(files EXCLUDE_FROM_ALL file_main.cpp)
 target_link_libraries(files MediaFramework)
+
+#------------------------------------------------------------------------------#
+# unit test 
+remove_definitions(-Werror=non-virtual-dtor)
+
+add_subdirectory(gtest-1.7.0 EXCLUDE_FROM_ALL)
+include_directories(BEFORE ${gtest_SOURCE_DIR}/include)
+
+add_executable (test test.cpp)
+target_link_libraries(test ${PROJECT_NAME})
+target_link_libraries(test gtest gtest_main)
+
+add_custom_target(${PROJECT_NAME}_test ALL
+    DEPENDS test 
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    COMMAND echo test
+    COMMAND ${BASH} test ${CMAKE_CURRENT_SOURCE_DIR}
+    )
