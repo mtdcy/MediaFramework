@@ -208,7 +208,7 @@ static sp<Mp4Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderB
             // ISO/IEC 14496-12:2015 Section 8.6.2.1
             //  If the sync sample box is not present, every sample is a sync sample.
             Sample s = { 0/*offset*/, 0/*size*/,
-                dts, kTimeValueInvalid/*pts*/,
+                dts, dts/*init pts with dts*/,
                 stss != NULL ? kFrameTypeUnknown : kFrameTypeSync};
             track->sampleTable.push(s);
             dts += stts->entries[i].sample_delta;
@@ -224,13 +224,9 @@ static sp<Mp4Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderB
                 s.pts = s.dts + ctts->entries[i].sample_offset;
             }
         }
-    } else if (hdlr->handler_type == "soun") {
-        // for audio, pts == dts
-        for (size_t i = 0; i < track->sampleTable.size(); ++i) {
-            Sample& s = track->sampleTable[i];
-            s.pts = s.dts;
-        }
-    } else {
+    }
+    
+    if (hdlr->handler_type == "vide" && ctts == NULL) {
         ERROR("ctts is not present. pts will be missing");
     }
 
@@ -491,6 +487,7 @@ struct Mp4File : public MediaFile {
         FileTypeBox ftyp;
         sp<Buffer>  moovData;  // this is our target
         bool mdat = false;
+        int64_t startPosition = 0;  // where mdat start
 
         while (!mdat || moovData == NULL) {
             sp<Buffer> boxHeader    = pipe->read(8);
@@ -518,6 +515,7 @@ struct Mp4File : public MediaFile {
 
             if (boxType == "mdat") {
                 mdat = true;
+                startPosition = pipe->tell();
                 // ISO/IEC 14496-12: Section 8.2 Page 23
                 DEBUG("skip media data box");
                 pipe->skip(boxSize - boxHeadLength);
@@ -611,6 +609,7 @@ struct Mp4File : public MediaFile {
 
         INFO("%zu tracks ready", mTracks.size());
 
+        pipe->seek(startPosition);
         mContent = pipe;
         return kMediaNoError;
     }
@@ -652,6 +651,11 @@ struct Mp4File : public MediaFile {
 
         // read sample data
         Sample& s = tbl[sampleIndex];
+        
+        DEBUG("[%zu] read sample @%" PRId64 "(%" PRId64 "), %zu bytes, dts %" PRId64 ", pts %" PRId64,
+              trackIndex, s.offset, mContent->tell(),
+              s.size, s.dts, s.pts);
+        
         mContent->seek(s.offset);
 
         sp<Buffer> sample = mContent->read(s.size);
