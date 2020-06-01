@@ -167,26 +167,18 @@ struct MatroskaPacket : public MediaPacket {
             const sp<Buffer>& _data,
             uint64_t timecode,
             eFrameType _type) {
-        buffer  = _data;
-        data    = (uint8_t*)buffer->data();
-        size    = buffer->size();
-        index   = trak.id;
+        buffer      = _data;
+        data        = (uint8_t*)buffer->data();
+        size        = buffer->size();
+        index       = trak.id;
 
-        pts     = MediaTime(timecode / trak.timescale, 1000000000LL);
-#if 0
-        dts     = kTimeInvalid;
-#else
-        if (trak.frametime > 0) {
-            dts = trak.next_dts;
-            trak.next_dts = dts + MediaTime((trak.frametime) / trak.timescale, 1000000000LL);
-        } else {
-            dts = pts;
-        }
-#endif
-        duration = trak.frametime;
+        // it seems matroska don't have pts records
+        dts         = MediaTime(timecode / trak.timescale, 1000000000LL);
+        pts         = kMediaTimeInvalid;
+        duration    = MediaTime(trak.frametime / trak.timescale, 1000000000LL);
 
-        format  = trak.format;
-        type   = _type;
+        format      = trak.format;
+        type        = _type;
     }
 };
 
