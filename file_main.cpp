@@ -37,10 +37,44 @@
 __USING_NAMESPACE_MPX
 
 int main(int argc, char **argv) {
-    sp<Content> pipe = Content::Create(String(argv[1]));
+    CHECK_GT(argc, 1);
+    const String url = argv[1];
     
-    sp<ImageFile> image = ImageFile::Create(kFileFormatJPEG);
-    image->init(pipe, NIL);
+    // how many packet to dump
+    size_t count = 3;
+    if (argc > 2) count = String(argv[2]).toInt32();
     
+    sp<Content> pipe = Content::Create(url);
+    
+    sp<MediaFile> file = MediaFile::Create(pipe);
+    
+    if (file.isNIL()) {
+        ERROR("create MediaFile for %s failed", url.c_str());
+        return 1;
+    }
+    
+    sp<Message> formats = file->formats();
+    
+    size_t numTracks = formats->findInt32(kKeyCount);
+    for (size_t i = 0; i < numTracks; ++i) {
+        
+    }
+    
+    for (size_t i = 0; i < count; ++i) {
+        sp<MediaPacket> packet = file->read();
+        if (packet.isNIL()) {
+            INFO("eos or error, exit.");
+            return 1;
+        }
+        
+        String pathname = String::format("%zu_%07lld@%zu",
+                                         packet->index,
+                                         packet->dts.useconds(),
+                                         packet->size);
+        
+        sp<Content> out = Content::Create(pathname, Content::Write);
+        CHECK_EQ(out->write((const char *)packet->data, packet->size), packet->size);
+    }
+
     return 0;
 }
