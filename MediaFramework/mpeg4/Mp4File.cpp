@@ -101,7 +101,8 @@ struct Sample {
 struct Mp4Track : public SharedObject {
     Mp4Track() : codec(kCodecFormatUnknown),
     sampleIndex(0), duration(kMediaTimeInvalid),
-    startTime(kMediaTimeBegin) { }
+    startTime(kMediaTimeBegin),
+    samplesRead(0) { }
 
     eCodecFormat        codec;
     size_t              sampleIndex;
@@ -120,6 +121,9 @@ struct Mp4Track : public SharedObject {
         } audio;
     };
     sp<CommonBox>       esds;
+    
+    // statistics
+    size_t              samplesRead;
 };
 
 static sp<Mp4Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderBox>& mvhd) {
@@ -401,8 +405,14 @@ struct Mp4File : public MediaFile {
         size_t              offset;
         size_t              length;
     } meta;
+    
+    // statistics
+    size_t                  mNumPacketsRead;
 
-    Mp4File() : MediaFile(), mContent(NULL) { }
+    Mp4File() : MediaFile(), mContent(NULL),
+    mDuration(kMediaTimeInvalid),
+    mNumPacketsRead(0)
+    { }
 
     virtual ~Mp4File() { }
 
@@ -627,27 +637,28 @@ struct Mp4File : public MediaFile {
         }
 
         // find the lowest pos
-        size_t trackIndex = 0;
-        int64_t los = mTracks[0]->sampleTable[mTracks[0]->sampleIndex].offset;
+        size_t trackIndex = mTracks.size();
+        int64_t los = mContent->tell();
 
-        for (size_t i = 1; i < mTracks.size(); ++i) {
+        for (size_t i = 0; i < mTracks.size(); ++i) {
             sp<Mp4Track>& track = mTracks[i];
+            if (track->sampleIndex >= track->sampleTable.size()) continue;
+            
             int64_t pos = track->sampleTable[track->sampleIndex].offset;
-            if (pos < los) {
+            if (pos <= los) {
                 los = pos;
                 trackIndex = i;
             }
+        }
+        
+        if (trackIndex >= mTracks.size()) {
+            INFO("eos...");
+            return NULL;
         }
 
         sp<Mp4Track>& track = mTracks[trackIndex];
         Vector<Sample>& tbl = track->sampleTable;
         size_t sampleIndex = track->sampleIndex++;
-
-        // eos check
-        if (sampleIndex >= tbl.size() || sampleIndex < 0) {
-            INFO("eos...");
-            return NULL;
-        }
 
         // read sample data
         Sample& s = tbl[sampleIndex];
@@ -661,9 +672,13 @@ struct Mp4File : public MediaFile {
         sp<Buffer> sample = mContent->read(s.size);
 
         if (sample == 0 || sample->size() < s.size) {
-            ERROR("EOS or error.");
+            ERROR("read return error, corrupt file?.");
             return NULL;
         }
+        
+        // statistics
+        ++mNumPacketsRead;
+        ++track->samplesRead;
 
         // setup flags
         uint32_t flags  = s.flags;
