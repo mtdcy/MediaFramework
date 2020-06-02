@@ -345,7 +345,7 @@ struct RenderSession : public IMediaSession {
         }
 
         // always render the first video
-        if (mLastFrameTime == kMediaTimeInvalid) {
+        if (mLastFrameTime == kMediaTimeInvalid && mOutputQueue.size()) {
             sp<MediaFrame> frame = *mOutputQueue.begin();
             INFO("%s: first frame %.3f(s)", mName.c_str(), frame->timecode.seconds());
 
