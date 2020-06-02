@@ -192,6 +192,9 @@ struct Tiger : public IMediaPlayer {
     void onDecoderInfo(const size_t id, const eSessionInfoType& info, const sp<Message>& payload) {
         DEBUG("onDecoderInfo [%zu] %d", id, info);
         switch (info) {
+            case kSessionInfoError:
+                onTrackError(id);
+                break;
             case kSessionInfoReady:
                 onInitRenderer(id, payload);
                 break;
@@ -200,7 +203,19 @@ struct Tiger : public IMediaPlayer {
         }
     }
     
-    void onInitRenderer(const size_t id, const sp<Message>& format) {
+    void onTrackError(const size_t& id) {
+        ERROR("onTrackError [%zu]", id);
+        // on decoder error, release current track
+        sp<TrackContext>& track = mTracks[id];
+        track->mMediaSource.clear();
+        track->mDecodeSession.clear();
+        track->mRenderSession.clear();
+        mTracks.erase(id);
+        
+        if (mTracks.empty()) notify(kInfoPlayerError);
+    }
+    
+    void onInitRenderer(const size_t& id, const sp<Message>& format) {
         DEBUG("onInitRenderer [%zu] %s", id, format->string().c_str());
         sp<TrackContext>& track = mTracks[id];
         
@@ -268,24 +283,27 @@ struct Tiger : public IMediaPlayer {
         }
     };
 
-    void onRendererInfo(size_t id, const eSessionInfoType& info, const sp<Message>& payload) {
+    void onRendererInfo(const size_t& id, const eSessionInfoType& info, const sp<Message>& payload) {
         DEBUG("onRendererInfo [%zu] %d", id, info);
         switch (info) {
             case kSessionInfoReady:
-                INFO("track %zu is ready", id);
-                mReadyMask.clear(id);
-                if (mReadyMask.empty()) {
-                    INFO("all tracks are ready");
-                    notify(kInfoPlayerReady);
-                }
+                onRendererReady(id, payload);
                 break;
             case kSessionInfoError:
-                INFO("track %zu report error", id);
-                notify(kInfoPlayerError);
-                // TODO: stop everything
+                onTrackError(id);
                 break;
             default:
                 break;
+        }
+    }
+    
+    void onRendererReady(const size_t& id, const sp<Message>& payload) {
+        DEBUG("onRendererReady [%zu] %s", id, payload.isNIL() ? "" : payload->string().c_str());
+        const sp<TrackContext>& track = mTracks[id];
+        mReadyMask.clear(id);
+        if (mReadyMask.empty()) {
+            INFO("all tracks are ready");
+            notify(kInfoPlayerReady);
         }
     }
 
