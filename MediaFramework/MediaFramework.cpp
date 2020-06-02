@@ -149,20 +149,21 @@ sp<ImageFile> ImageFile::Create() {
     return CreateJPEG();
 }
 
-sp<MediaOut> CreateGLVideo();
+sp<MediaOut> CreateGLVideo(const sp<Message>& formats, const sp<Message>& options);
 #ifdef WITH_SDL
-sp<MediaOut> CreateSDLAudio();
+sp<MediaOut> CreateSDLAudio(const sp<Message>& formats, const sp<Message>& options);
 #endif
-sp<MediaOut> MediaOut::Create(eCodecType type) {
+sp<MediaOut> MediaOut::Create(const sp<Message>& formats, const sp<Message>& options) {
+    eCodecType type = (eCodecType)formats->findInt32(kKeyCodecType);
     switch (type) {
         case kCodecTypeAudio:
 #ifdef WITH_SDL
-            return CreateSDLAudio();
+            return CreateSDLAudio(formats, options);
 #else
             return NULL;
 #endif
         case kCodecTypeVideo:
-            return CreateGLVideo();
+            return CreateGLVideo(formats, options);
         default:
             return NULL;
     }

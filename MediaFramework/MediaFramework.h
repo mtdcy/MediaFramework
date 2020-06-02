@@ -113,8 +113,8 @@ API_EXPORT PlayerInfoEventRef   PlayerInfoEventCreate(LooperObjectRef, void (*Ca
 // MediaOut
 typedef SharedObjectRef         MediaOutRef;
 
-API_EXPORT MediaOutRef          MediaOutCreate(eCodecType, MessageObjectRef, MessageObjectRef);
-API_EXPORT MediaOutRef          MediaOutCreateForImage(const ImageFormat *, MessageObjectRef);
+API_EXPORT MediaOutRef          MediaOutCreate(MessageObjectRef, MessageObjectRef);
+//API_EXPORT MediaOutRef          MediaOutCreateForImage(const ImageFormat *, MessageObjectRef);
 #define MediaOutRelease(x)      SharedObjectRelease((SharedObjectRef)x)
 
 API_EXPORT MediaError           MediaOutWrite(MediaOutRef, MediaFrameRef);

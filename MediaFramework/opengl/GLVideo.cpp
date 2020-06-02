@@ -53,7 +53,7 @@ struct GLVideo : public MediaOut {
     
     GLVideo() : MediaOut(), mOpenGL(NULL) { }
     
-    virtual MediaError prepare(const sp<Message>& format, const sp<Message>& options) {
+    MediaError prepare(const sp<Message>& format, const sp<Message>& options) {
         CHECK_TRUE(format != NULL);
         INFO("gl video => %s", format->string().c_str());
         if (options != NULL) {
@@ -72,15 +72,7 @@ struct GLVideo : public MediaOut {
 
         return mOpenGL->init(mFormat);
     }
-
-    virtual String string() const {
-        return "";
-    }
-
-    virtual MediaError status() const {
-        return mOpenGL != NULL ? kMediaNoError : kMediaErrorNotInitialied;
-    }
-
+    
     virtual sp<Message> formats() const {
         sp<Message> info = new Message;
         info->setInt32(kKeyWidth,   mFormat.width);
@@ -115,7 +107,10 @@ struct GLVideo : public MediaOut {
     }
 };
 
-sp<MediaOut> CreateGLVideo() {
-    return new GLVideo();
+sp<MediaOut> CreateGLVideo(const sp<Message>& formats, const sp<Message>& options) {
+    sp<GLVideo> gl = new GLVideo();
+    if (gl->prepare(formats, options) == kMediaNoError)
+        return gl;
+    return NULL;
 }
 __END_NAMESPACE_MPX

@@ -141,14 +141,15 @@ struct OnFrameUpdate : public MediaFrameEvent {
             g_format = frame->v;
             
             // setup local context
-            g_out = MediaOut::Create(kCodecTypeVideo);
             sp<Message> format = new Message;
             sp<Message> options = new Message;
             format->setInt32(kKeyFormat, g_format.format);
             format->setInt32(kKeyWidth,  g_format.width);
             format->setInt32(kKeyHeight, g_format.height);
+            format->setInt32(kKeyCodecType, kCodecTypeVideo);
             
-            CHECK_TRUE(g_out->prepare(format, options) == kMediaNoError);
+            g_out = MediaOut::Create(format, options);
+            CHECK_FALSE(g_out.isNIL());
         }
         
         g_frame = frame;

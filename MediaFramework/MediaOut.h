@@ -52,24 +52,7 @@ struct API_EXPORT MediaOut : public SharedObject {
     MediaOut() : SharedObject() { }
     virtual ~MediaOut() { }
 
-    static sp<MediaOut> Create(eCodecType);
-
-    /**
-     * get information of this output device.
-     * @return return a string of information
-     */
-    virtual String          string() const = 0;
-    /**
-     * prepare a output device based on provided parameters
-     * @param options   option and parameter for creating device
-     * @return return reference to a new output device
-     */
-    virtual MediaError      prepare(const sp<Message>& format, const sp<Message>& options) = 0;
-    /**
-     * get status of this output device.
-     * @return return kMediaNoError if everything is kMediaNoError, otherwise error code
-     */
-    virtual MediaError      status() const = 0;
+    static sp<MediaOut> Create(const sp<Message>& format, const sp<Message>& options);
     /**
      * get information of this output device
      * @return return message reference of this output device.

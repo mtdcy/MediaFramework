@@ -211,10 +211,8 @@ struct SDLAudio : public MediaOut {
         if (mSDL != NULL) closeDevice(mSDL);
         mSDL.clear();
     }
-
-    virtual String string() const { return "SDLAudio"; }
-
-    virtual MediaError prepare(const sp<Message>& format, const sp<Message>& options) {
+    
+    MediaError prepare(const sp<Message>& format, const sp<Message>& options) {
         AudioFormat a;
         
         a.format    = (eSampleFormat)format->findInt32(kKeyFormat);
@@ -238,9 +236,6 @@ struct SDLAudio : public MediaOut {
         return mSDL != NULL ? kMediaNoError : kMediaErrorBadFormat;
     }
 
-    virtual MediaError status() const {
-        return mSDL != NULL ? kMediaNoError : kMediaErrorNotInitialied;
-    }
     virtual sp<Message> formats() const {
         sp<Message> info = new Message;
         info->setInt32(kKeyFormat, mSDL->mAudioFormat.format);
@@ -331,7 +326,10 @@ struct SDLAudio : public MediaOut {
 
 };
 
-sp<MediaOut> CreateSDLAudio() {
-    return new SDLAudio;
+sp<MediaOut> CreateSDLAudio(const sp<Message>& formats, const sp<Message>& options) {
+    sp<SDLAudio> sdl = new SDLAudio;
+    if (sdl->prepare(formats, options) == kMediaNoError)
+        return sdl;
+    return NULL;
 }
 __END_NAMESPACE_MPX

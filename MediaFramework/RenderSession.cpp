@@ -184,10 +184,11 @@ struct RenderSession : public IMediaSession {
         
         // if external out device exists
         if (mMediaFrameEvent.isNIL()) {
-            mOut = MediaOut::Create(mType);
-
+            mFormat->setInt32(kKeyCodecType, mType);
             sp<Message> options = new Message;
-            if (mOut->prepare(mFormat, options) != kMediaNoError) {
+            mOut = MediaOut::Create(mFormat, options);
+
+            if (mOut.isNIL()) {
                 ERROR("%s: create out failed", mName.c_str());
                 notify(kSessionInfoError, NULL);
                 return;

@@ -587,6 +587,12 @@ __END_NAMESPACE_MPX
  */
 #define kKeyFormat      "format"    ///< int32_t, mandatory
 #define kKeyRequestFormat   "request-format"    ///< int32_t
+    
+/**
+ * key of codec type
+ * @see eCodecType
+ */
+#define kKeyCodecType   "codec-type"    ///< int32_t
 
 /**
  * key of mode

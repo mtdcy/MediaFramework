@@ -165,14 +165,12 @@ void MediaPlayerPause(MediaPlayerRef ref) {
     return mp->pause();
 }
 
-MediaOutRef MediaOutCreate(eCodecType type, MessageObjectRef format, MessageObjectRef options) {
-    Object<MediaOut> out = MediaOut::Create(type);
-    if (out->prepare(format, options) != kMediaNoError) {
-        return NULL;
-    }
+MediaOutRef MediaOutCreate(MessageObjectRef format, MessageObjectRef options) {
+    Object<MediaOut> out = MediaOut::Create(format, options);
     return (MediaOutRef)out->RetainObject();
 }
 
+#if 0
 MediaOutRef MediaOutCreateForImage(const ImageFormat * image, MessageObjectRef options) {
     Object<MediaOut> out = MediaOut::Create(kCodecTypeVideo);
     Object<Message> format = new Message;
@@ -184,6 +182,7 @@ MediaOutRef MediaOutCreateForImage(const ImageFormat * image, MessageObjectRef o
     }
     return (MediaOutRef)out->RetainObject();
 }
+#endif
 
 MediaError MediaOutWrite(MediaOutRef ref, MediaFrameRef frame) {
     Object<MediaOut> out = ref;
