@@ -37,27 +37,15 @@
 #include "MediaSession.h"
 #include "MediaDecoder.h"
 
-// TODO: calc count based on duration
-// max count: 1s
-// min count: 500ms
-#define MIN_COUNT (4)
-#define MAX_COUNT (16)
-
-// media session <= control session
-//  packet ready event
-//          v
-//  decode session  <= looper
-//          v
-//  frame request event
-//          v
-//  frame ready event
-//          v
-//  render session  <= control session
-//                  <= clock event
-//                  <= looper(external)
-
 __USING_NAMESPACE_MPX
 
+// onPacketReady ----- MediaPacket ----> DecodeSession
+//      ^                                   |
+//      |                                   |
+// OnRequestPacket                       MediaDecoder
+//      |                                   |
+//      |                                   v
+// PacketRequestEvent <-- OnPacketReady -- requestPacket
 struct DecodeSession : public IMediaSession {
     // external static context
     Object<Message>         mFormat;
@@ -152,7 +140,6 @@ struct DecodeSession : public IMediaSession {
         // request packets
         requestPacket(kMediaTimeBegin);
         // -> onPacketReady
-        // MIN_COUNT packets
         
         sp<Message> formats = mCodec->formats()->dup();
         formats->setObject("FrameRequestEvent", new OnFrameRequest(this));
@@ -169,11 +156,11 @@ struct DecodeSession : public IMediaSession {
     }
 
 
-    void requestPacket(MediaTime time) {
+    void requestPacket(const MediaTime& time = kMediaTimeInvalid) {
         DEBUG("%s: requestPacket @ %.3f", mName.c_str(), time.seconds());
         if (mInputEOS) return;
 
-        if (mInputQueue.size() >= MAX_COUNT) {
+        if (mInputQueue.size() >= 1) {
             DEBUG("%s: input queue is full", mName.c_str());
             return;
         }
