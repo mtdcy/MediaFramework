@@ -67,9 +67,10 @@ int main(int argc, char **argv) {
             return 1;
         }
         
-        String pathname = String::format("%zu_%07lld@%zu",
+        String pathname = String::format("%zu_%07" PRId64 "_%07" PRId64 "@%zu",
                                          packet->index,
                                          packet->dts.useconds(),
+                                         packet->pts.useconds(),
                                          packet->size);
         
         sp<Content> out = Content::Create(pathname, Content::Write);
