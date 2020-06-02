@@ -66,6 +66,7 @@ static eFileFormat GetFormat(const String& name) {
         }
     }
     
+    ERROR("unknown format %s", name.c_str());
     return kFileFormatAny;
 }
 
@@ -77,6 +78,8 @@ struct {
     { AV_CODEC_ID_PCM_F16LE,    kAudioCodecFormatPCM},
     { AV_CODEC_ID_FLAC,         kAudioCodecFormatFLAC},
     { AV_CODEC_ID_MP3,          kAudioCodecFormatMP3},
+    { AV_CODEC_ID_MP2,          kAudioCodecFormatMP3},  // mpeg layer info store in packet head, client don't need to known
+    { AV_CODEC_ID_MP1,          kAudioCodecFormatMP3},
     { AV_CODEC_ID_VORBIS,       kAudioCodecFormatVorbis},
     { AV_CODEC_ID_AAC,          kAudioCodecFormatAAC},
     { AV_CODEC_ID_AC3,          kAudioCodecFormatAC3},
@@ -102,6 +105,8 @@ static eCodecFormat GetCodecFormat(AVCodecID id) {
     for (size_t i = 0; kCodecMap[i].id != AV_CODEC_ID_NONE; ++i) {
         if (kCodecMap[i].id == id) return kCodecMap[i].format;
     }
+    
+    ERROR("unknown codec %s", avcodec_get_name(id));
     return kCodecFormatUnknown;
 }
 
@@ -328,8 +333,6 @@ struct AVFormat : public MediaFile {
         mObject = openInput(pipe);
         return mObject.isNIL() ? kMediaErrorUnknown : kMediaNoError;
     }
-    
-    virtual String string() const { return ""; }
     
     virtual sp<Message> formats() const {
         sp<Message> info = new Message;
