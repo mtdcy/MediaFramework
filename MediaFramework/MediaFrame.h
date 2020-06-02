@@ -74,11 +74,6 @@ struct API_EXPORT MediaFrame : public SharedObject {
     static sp<MediaFrame>   Create(const ImageFormat&, const sp<Buffer>&);
     static sp<MediaFrame>   Create(const AudioFormat&);
     
-    /**
-     * for debug
-     */
-    //virtual String      string() const;
-    
     /** features below is not designed for realtime playback **/
     
     /**
@@ -137,6 +132,8 @@ protected:
 API_EXPORT String   GetPixelFormatString(const ePixelFormat&);
 API_EXPORT String   GetImageFormatString(const ImageFormat&);
 API_EXPORT String   GetImageFrameString(const sp<MediaFrame>&);
+API_EXPORT size_t   GetImageFormatPlaneLength(const ImageFormat&, size_t);
+API_EXPORT size_t   GetImageFormatBufferLength(const ImageFormat& image);
 
 // AudioFormat
 API_EXPORT String   GetAudioFormatString(const AudioFormat&);

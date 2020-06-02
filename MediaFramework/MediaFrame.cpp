@@ -36,6 +36,9 @@
 #define LOG_NDEBUG 0
 #include "MediaFrame.h"
 #include <libyuv.h>
+#ifdef __APPLE__
+#include <VideoToolbox/VideoToolbox.h>
+#endif
 
 __BEGIN_NAMESPACE_MPX
 
@@ -48,7 +51,15 @@ MediaFrame::MediaFrame() : timecode(kMediaTimeInvalid), duration(kMediaTimeInval
     opaque = NULL;
 }
 
+#ifdef __APPLE__
+sp<Buffer> readVideoToolboxPlane(CVPixelBufferRef pixbuf, size_t i);
+#endif
 sp<Buffer> MediaFrame::readPlane(size_t index) const {
+#ifdef __APPLE__
+    if (opaque && v.format == kPixelFormatVideoToolbox) {
+        return readVideoToolboxPlane((CVPixelBufferRef)opaque, index);
+    }
+#endif
     if (planes[index].data == NULL) return NULL;
     return new Buffer((const char *)planes[index].data, planes[index].size);
 }
@@ -60,6 +71,19 @@ sp<MediaFrame> MediaFrame::Create(const ImageFormat& image) {
     
     Object<Buffer> buffer = new Buffer(bytes);
     return MediaFrame::Create(image, buffer);
+}
+
+size_t GetImageFormatPlaneLength(const ImageFormat& image, size_t i) {
+    const PixelDescriptor * desc = GetPixelFormatDescriptor(image.format);
+    CHECK_NULL(desc);
+    return (image.width * image.height * desc->plane[i].bpp) /
+            (8 * desc->plane[i].hss * desc->plane[i].vss);
+}
+
+size_t GetImageFormatBufferLength(const ImageFormat& image) {
+    const PixelDescriptor * desc = GetPixelFormatDescriptor(image.format);
+    CHECK_NULL(desc);
+    return (image.width * image.height * desc->bpp) / 8;;
 }
 
 sp<MediaFrame> MediaFrame::Create(const ImageFormat& image, const sp<Buffer>& buffer) {
