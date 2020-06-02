@@ -211,6 +211,9 @@ target_link_libraries(mpx MediaFramework)
 add_executable(files EXCLUDE_FROM_ALL file_main.cpp)
 target_link_libraries(files MediaFramework)
 
+add_executable(codec EXCLUDE_FROM_ALL codec_main.cpp)
+target_link_libraries(codec MediaFramework)
+
 #------------------------------------------------------------------------------#
 # unit test 
 remove_definitions(-Werror=non-virtual-dtor)
