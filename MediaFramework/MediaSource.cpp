@@ -125,6 +125,7 @@ struct MediaSource : public IMediaSession {
                 INFO("seek to %.3f", time.seconds());
                 packet = mMediaFile->read(kReadModeClosestSync, time);
                 mLastReadTime   = time;
+                seek            = false;
             } else {
                 packet = mMediaFile->read();
             }

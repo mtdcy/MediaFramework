@@ -242,14 +242,16 @@ struct RenderSession : public IMediaSession {
         if (time != kMediaTimeInvalid) {
             INFO("%s: flush renderer @ %.3f", mName.c_str(), time.seconds());
             
+            // clear state
+            mFirstFrame     = true;
+            mLastFrameTime  = kMediaTimeInvalid;
+            mOutputEOS      = false;
+            mOutputQueue.clear();
+            
             // update generation
             mFrameReadyEvent = new OnFrameReady(this, ++mGeneration);
 
-            // remove present runnable
-            Looper::Current()->remove(mPresentFrame);
-
             // flush output
-            mOutputQueue.clear();
             if (!mMediaFrameEvent.isNIL()) mMediaFrameEvent->fire(NULL);
             else if (!mOut.isNIL()) mOut->flush();
 
@@ -334,11 +336,6 @@ struct RenderSession : public IMediaSession {
                 WARN("%s: unordered frame %.3f(s) < last %.3f(s)",
                         mName.c_str(), frame->timecode.seconds(),
                         mLastFrameTime.seconds());
-            }
-
-            if (frame->timecode.useconds() < mClock->get()) {
-                WARN("%s: frame late %.3f(s), current media time %.3f(s)", mName.c_str(),
-                        frame->timecode.seconds(), mClock->get() / 1E6);
             }
             mOutputQueue.push(frame);
         }
@@ -539,7 +536,9 @@ struct RenderSession : public IMediaSession {
     }
     
     void onPrepareRenderer() {
-        // TODO
+        const MediaTime pos = MediaTime(mClock->get());
+        INFO("%s: prepare render @ %.3f", mName.c_str(), pos.seconds());
+        requestFrame(pos);
     }
 };
 

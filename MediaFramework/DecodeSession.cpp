@@ -79,7 +79,8 @@ struct DecodeSession : public IMediaSession {
     // internal static context
     mCodec(NULL), mPacketReadyEvent(NULL),
     // internal mutable context
-    mGeneration(0), mInputEOS(false), mSignalCodecEOS(false), mLastPacketTime(kMediaTimeInvalid),
+    mGeneration(0), mInputEOS(false), mSignalCodecEOS(false), mOutputEOS(false),
+    mLastPacketTime(kMediaTimeInvalid),
     // statistics
     mPacketsReceived(0), mPacketsComsumed(0), mFramesDecoded(0)
     {
@@ -127,21 +128,11 @@ struct DecodeSession : public IMediaSession {
         // update generation
         mPacketReadyEvent = new OnPacketReady(this, ++mGeneration);
 
-        // reset flags
-        mInputEOS = false;
-        mOutputEOS = false;
-        mSignalCodecEOS = false;
-        mLastPacketTime = kMediaTimeBegin;
-
-        mPacketsReceived = 0;
-        mPacketsComsumed = 0;
-        mFramesDecoded = 0;
-
         // request packets
         requestPacket(kMediaTimeBegin);
         // -> onPacketReady
         
-        sp<Message> formats = mCodec->formats()->dup();
+        sp<Message> formats = mCodec->formats();
         formats->setObject("FrameRequestEvent", new OnFrameRequest(this));
         notify(kSessionInfoReady, formats);
     }
@@ -233,17 +224,25 @@ struct DecodeSession : public IMediaSession {
         }
     };
 
-    void onRequestFrame(const sp<FrameReadyEvent>& event, MediaTime time) {
+    void onRequestFrame(const sp<FrameReadyEvent>& event, const MediaTime& time) {
         DEBUG("%s: onRequestFrame @ %.3f", mName.c_str(), time.seconds());
         CHECK_TRUE(event != NULL);
         
         if (time != kMediaTimeInvalid) {
             INFO("%s: flush on frame request, time %.3f", mName.c_str(), time.seconds());
-            ++mGeneration;
+            
+            // clear state
+            mInputEOS       = false;
+            mOutputEOS      = false;
+            mLastPacketTime = kMediaTimeInvalid;
             mInputQueue.clear();
+            
+            // update generation
+            mPacketReadyEvent   = new OnPacketReady(this, ++mGeneration);
+            
+            // flush codec
             mCodec->flush();
             mFrameRequests.clear();
-            mInputEOS = mOutputEOS = false;
         }
 
         // request next frame

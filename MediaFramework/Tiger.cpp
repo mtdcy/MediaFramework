@@ -39,6 +39,8 @@
 #include "MediaDecoder.h"
 #include "MediaClock.h"
 
+#define MIN_SEEK_TIME   200000LL    // 200ms
+
 __USING_NAMESPACE_MPX
 
 struct TrackContext : public SharedObject {
@@ -47,6 +49,14 @@ struct TrackContext : public SharedObject {
     sp<IMediaSession>   mMediaSource;
     sp<IMediaSession>   mDecodeSession;
     sp<IMediaSession>   mRenderSession;
+    
+    TrackContext() : mCodec(kCodecFormatUnknown), mTrackIndex(0) { }
+    
+    ~TrackContext() {
+        mMediaSource.clear();
+        mDecodeSession.clear();
+        mRenderSession.clear();
+    }
 };
 
 struct Tiger : public IMediaPlayer {
@@ -207,9 +217,6 @@ struct Tiger : public IMediaPlayer {
         ERROR("onTrackError [%zu]", id);
         // on decoder error, release current track
         sp<TrackContext>& track = mTracks[id];
-        track->mMediaSource.clear();
-        track->mDecodeSession.clear();
-        track->mRenderSession.clear();
         mTracks.erase(id);
         
         if (mTracks.empty()) notify(kInfoPlayerError);
@@ -256,7 +263,7 @@ struct Tiger : public IMediaPlayer {
         options->setObject("FrameRequestEvent", fre);
         options->setObject("SessionInfoEvent", new OnRendererInfo(this, id));
 
-        if (kCodecTypeAudio == type || mTracks.size() == 1) {
+        if (kCodecTypeVideo == type || mTracks.size() == 1) {
             options->setObject("Clock", new Clock(mClock, kClockRoleMaster));
         } else {
             options->setObject("Clock", new Clock(mClock));
@@ -326,6 +333,13 @@ struct Tiger : public IMediaPlayer {
 
     virtual void onPrepare(const MediaTime& pos) {
         DEBUG("onPrepare @ %.3f", pos.seconds());
+        int64_t delta = abs(pos.useconds() - mClock->get());
+        if (delta < MIN_SEEK_TIME) {
+            INFO("ignore seek, request @ %.3f, current %.3f",
+                 pos.seconds(), mClock->get() / 1E6);
+            return;
+        }
+        
         Looper::Current()->remove(mDeferStart);
 
         // -> ready by prepare

@@ -638,7 +638,7 @@ struct Mp4File : public MediaFile {
 
         // find the lowest pos
         size_t trackIndex = mTracks.size();
-        int64_t los = mContent->tell();
+        int64_t los = mContent->length();
 
         for (size_t i = 0; i < mTracks.size(); ++i) {
             sp<Mp4Track>& track = mTracks[i];
