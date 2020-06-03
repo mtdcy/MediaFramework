@@ -193,6 +193,7 @@ void Clock::setListener(const sp<ClockEvent> &ce) {
 
 void Clock::update(int64_t us) {
     CHECK_EQ(mRole, (uint32_t)kClockRoleMaster, "only master clock can update");
+    reload();
     if (mClockInt.mTicking) {
         int64_t delta = us - get();
         mClockInt.mMediaTime    += delta;
