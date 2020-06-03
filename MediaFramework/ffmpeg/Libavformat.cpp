@@ -41,6 +41,11 @@
 #include "mpeg4/Audio.h"
 #include "mpeg4/Video.h"
 
+static FORCE_INLINE const char * av_error_string(int err) {
+    static char s[AV_ERROR_MAX_STRING_SIZE];
+    return av_make_error_string(s, AV_ERROR_MAX_STRING_SIZE, err);
+}
+
 __BEGIN_NAMESPACE_MPX
 
 struct {
@@ -435,7 +440,7 @@ struct AVFormat : public MediaFile {
         int ret = av_read_frame(mObject->context, pkt);
         
         if (ret < 0) {
-            ERROR("av_read_frame error %s", av_err2str(ret));
+            ERROR("av_read_frame error %s", av_error_string(ret));
             av_packet_free(&pkt);
             return NIL;
         }

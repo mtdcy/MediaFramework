@@ -123,6 +123,8 @@ if (APPLE)
     target_link_libraries(${PROJECT_NAME} "-framework CoreVideo")
     target_link_libraries(${PROJECT_NAME} "-framework VideoToolbox")
     target_link_libraries(${PROJECT_NAME} "-framework OpenGL")
+else()
+    target_link_libraries(${PROJECT_NAME} -lGL)
 endif()
 
 if (XCODE)

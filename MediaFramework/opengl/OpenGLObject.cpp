@@ -53,6 +53,7 @@
 #if defined(__MINGW32__)
 #include <GL/glew.h>   // glCreateShader ...
 #endif
+#define GL_GLEXT_PROTOTYPES
 #include <GL/gl.h>
 #endif
 
@@ -690,9 +691,12 @@ static MediaError drawFrame(const sp<OpenGLContext>& glc, const sp<MediaFrame>& 
     
     glVertexAttribPointer(glc->mTextureCoord, 2, GL_FLOAT, 0, 0, rect);
     
+#ifdef __APPLE__
     if (frame->v.format == kPixelFormatVideoToolbox) {
         drawVideoToolboxFrame(glc, frame);
-    } else {
+    } else
+#endif
+    {
         GLint index[glc->mOpenGLConfig->n_textures];
         for (size_t i = 0; i < glc->mOpenGLConfig->n_textures; ++i) {
             glActiveTexture(GL_TEXTURE0 + i);
