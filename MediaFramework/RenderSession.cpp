@@ -94,11 +94,10 @@ struct RenderSession : public IMediaSession {
     sp<PresentJob>          mPresentFrame;      // for present current frame
     List<sp<MediaFrame> >   mOutputQueue;       // output frame queue
     eRenderState            mState;
+    bool                    mFirstFrame;
     bool                    mOutputEOS;
 
     MediaTime               mLastFrameTime;     // kTimeInvalid => first frame
-    // clock context
-    int64_t                 mLastUpdateTime;    // last clock update time
     // statistics
     size_t                  mFramesRenderred;
 
@@ -113,9 +112,9 @@ struct RenderSession : public IMediaSession {
     mOut(NULL), mClock(NULL), mLatency(0),
     // render context
     mType(kCodecTypeAudio), mGeneration(0),
-    mPresentFrame(new PresentJob(this)), mState(kRenderInitialized), mOutputEOS(false),
+    mPresentFrame(new PresentJob(this)), mState(kRenderInitialized),
+    mFirstFrame(true), mOutputEOS(false),
     mLastFrameTime(kMediaTimeInvalid),
-    mLastUpdateTime(kTimeValueBegin),
     // statistics
     mFramesRenderred(0) {
         // setup external context
@@ -150,13 +149,6 @@ struct RenderSession : public IMediaSession {
         
         // update generation
         mFrameReadyEvent = new OnFrameReady(this, ++mGeneration);
-
-        // reset flags
-        mState = kRenderInitialized;
-        mLastUpdateTime = kTimeValueBegin;
-        mOutputEOS = false;
-        mLastFrameTime = kMediaTimeInvalid;
-        mOutputQueue.clear();
         
         if (!mClock.isNIL()) {
             mClock->setListener(new OnClockEvent(this));
@@ -312,25 +304,42 @@ struct RenderSession : public IMediaSession {
             // NOTHING TO DO
             return;
         }
+        
+        // if no clock exists. write frames directly
+        if (mClock.isNIL()) {
+            writeFrame(frame);
+            return;
+        }
 
         // check pts, kTimeInvalid < kTimeBegin
         if (frame->timecode < kMediaTimeBegin) {
             ERROR("%s: bad pts", mName.c_str());
             // FIXME:
         }
+        
+        if (mLastFrameTime == kMediaTimeInvalid) {
+            INFO("%s: first frame %.3f(s)", mName.c_str(), frame->timecode.seconds());
 
-        // queue frame, frames must be pts order
-        DEBUG("%s: %.3f(s)", mName.c_str(), frame->timecode.seconds());
-        if (frame->timecode <= mLastFrameTime) {
-            WARN("%s: unordered frame %.3f(s) < last %.3f(s)",
-                    mName.c_str(), frame->timecode.seconds(),
-                    mLastFrameTime.seconds());
+            // notify about the first render postion
+            notify(kSessionInfoBegin, NULL);
         }
-
-        if (!mClock.isNIL() && frame->timecode.useconds() < mClock->get()) {
-            WARN("%s: frame late %.3f(s) vs current %.3f(s)", mName.c_str(),
-                    frame->timecode.seconds(), mClock->get() / 1E6);
+        
+        // always render the first video
+        if (mLastFrameTime == kMediaTimeInvalid && mType == kCodecTypeVideo) {
+            writeFrame(frame);
         } else {
+            // queue frame, frames must be pts order
+            DEBUG("%s: %.3f(s)", mName.c_str(), frame->timecode.seconds());
+            if (frame->timecode <= mLastFrameTime) {
+                WARN("%s: unordered frame %.3f(s) < last %.3f(s)",
+                        mName.c_str(), frame->timecode.seconds(),
+                        mLastFrameTime.seconds());
+            }
+
+            if (frame->timecode.useconds() < mClock->get()) {
+                WARN("%s: frame late %.3f(s), current media time %.3f(s)", mName.c_str(),
+                        frame->timecode.seconds(), mClock->get() / 1E6);
+            }
             mOutputQueue.push(frame);
         }
 
@@ -342,27 +351,6 @@ struct RenderSession : public IMediaSession {
             INFO("%s: prepare done", mName.c_str());
             mState = kRenderReady;
             notify(kSessionInfoReady, NULL);
-        }
-
-        // always render the first video
-        if (mLastFrameTime == kMediaTimeInvalid && mOutputQueue.size()) {
-            sp<MediaFrame> frame = *mOutputQueue.begin();
-            INFO("%s: first frame %.3f(s)", mName.c_str(), frame->timecode.seconds());
-
-            // notify about the first render postion
-            notify(kSessionInfoBegin, NULL);
-
-            if (mType == kCodecTypeVideo) {
-                if (mMediaFrameEvent != NULL) mMediaFrameEvent->fire(frame);
-                else mOut->write(frame);
-            }
-
-#if 0
-            if (mClock != NULL && mClock->role() == kClockRoleMaster) {
-                INFO("%s: set clock time %.3f(s)", mName.c_str(), frame->timecode.seconds());
-                mClock->set(frame->timecode.useconds());
-            }
-#endif
         }
 
         // remember last frame pts
@@ -378,76 +366,79 @@ struct RenderSession : public IMediaSession {
     };
 
     void onRender() {
-        int64_t next = REFRESH_RATE;
-
-        if (mClock != NULL && mClock->isPaused() && mClock->role() == kClockRoleSlave) {
-            INFO("%s: clock is paused", mName.c_str());
-        } else if (mOutputQueue.size()) {
-            next = renderCurrent();
-        } else if (mOutputEOS) {
-            INFO("%s: eos, stop render", mName.c_str());
-            // NOTHING
+        CHECK_FALSE(mClock.isNIL());
+    
+        // always render the first video frame
+        if (mClock->isPaused() || mOutputEOS) {
             return;
-        } else {
-            ERROR("%s: codec underrun...", mName.c_str());
         }
-
-        if (next < 0) { // too early
-            //INFO("renderer %zu: overrun by %.3f(s)...", mFormat, - next / 1E6);
-            Looper::Current()->post(mPresentFrame, -next);
+        
+        int64_t next = REFRESH_RATE;
+        if (mOutputQueue.size()) {
+            next = renderCurrent();
+            CHECK_GE(next, 0);
         } else {
-            //INFO("renderer %zu: render next @ %.3f(s)...", mFormat, next / 1E6);
-            Looper::Current()->post(mPresentFrame, next);
+            WARN("%s: underrun happens, please check codec ...", mName.c_str());
         }
+        
+        Looper::Current()->post(mPresentFrame, next);
 
         requestFrame(kMediaTimeInvalid);
 
         // -> onRender
     }
-
-    // render current frame
-    // return negtive value if render current frame too early
-    // return postive value for next frame render time
-    FORCE_INLINE int64_t renderCurrent() {
+    
+    FORCE_INLINE void writeFrame(const sp<MediaFrame>& frame) {
+        if (mOut != NULL) CHECK_TRUE(mOut->write(frame) == kMediaNoError);
+        else mMediaFrameEvent->fire(frame);
+    }
+    
+    FORCE_INLINE int64_t renderAudio() {
+        sp<MediaFrame> frame = mOutputQueue.front();
+        CHECK_TRUE(frame != NULL);
+        mOutputQueue.pop();
+        
+        writeFrame(frame);
+        ++mFramesRenderred;
+        
+        return 0;
+    }
+    
+    FORCE_INLINE int64_t renderVideo() {
         DEBUG("%s: render with %zu frame ready", mName.c_str(), mOutputQueue.size());
 
         sp<MediaFrame> frame = mOutputQueue.front();
         CHECK_TRUE(frame != NULL);
 
-        if (mClock != NULL) {
-            // check render time
-            if (mClock->role() == kClockRoleSlave) {
-                // render too early or late ?
-                int64_t late = mClock->get() - frame->timecode.useconds();
-                if (late > REFRESH_RATE) {
-                    // render late: drop current frame
-                    WARN("%s: render late by %.3f(s)|%.3f(s), drop frame... [%zu]",
-                            mName.c_str(), late/1E6, frame->timecode.seconds(), mOutputQueue.size());
-                    mOutputQueue.pop();
-                    return 0;
-                } else if (late < -REFRESH_RATE/2) {
-                    // FIXME: sometimes render too early for unknown reason
-                    DEBUG("%s: overrun by %.3f(s)|%.3f(s)...",
-                            mName.c_str(), -late/1E6, frame->timecode.seconds());
-                    return -late;
-                }
+        if (!mFirstFrame) {
+            int64_t early = frame->timecode.useconds() - mClock->get();
+            
+            if (early > REFRESH_RATE) {  // 5ms
+                DEBUG("%s: overrun by %.3f(s)|%.3f(s)...", mName.c_str(),
+                      early/1E6, frame->timecode.seconds());
+                return early;
+            } else if (-early > REFRESH_RATE) {
+                WARN("%s: render late by %.3f(s)|%.3f(s), drop frame...", mName.c_str(),
+                     -early/1E6, frame->timecode.seconds());
+                mOutputQueue.pop();
+                return 0;
             }
         }
 
         DEBUG("%s: render frame %.3f(s)", mName.c_str(), frame->timecode.seconds());
-        MediaError rt = kMediaNoError;
-        if (mOut != NULL) CHECK_TRUE(mOut->write(frame) == kMediaNoError);
-        else mMediaFrameEvent->fire(frame);
+        writeFrame(frame);
         mOutputQueue.pop();
         ++mFramesRenderred;
 
         // setup clock to tick if we are master clock
         // FIXME: if current frame is too big, update clock after write will cause clock advance too far
-        int64_t now = SystemTimeUs();
-        if (mClock != NULL && mClock->role() == kClockRoleMaster && now - mLastUpdateTime > 1000000LL) {
-            mClock->update(frame->timecode.useconds() - mLatency);
-            INFO("%s: update clock %.3f(s) (%.3f)", mName.c_str(), frame->timecode.seconds(), mClock->get() / 1E6);
-            mLastUpdateTime = now;
+        if (mFirstFrame) {
+            if (mClock != NULL && mClock->role() == kClockRoleMaster) {
+                mClock->update(frame->timecode.useconds() - mLatency);
+                INFO("%s: update clock %.3f(s) (%.3f)", mName.c_str(),
+                     frame->timecode.seconds(), mClock->get() / 1E6);
+            }
+            mFirstFrame = false;
         }
 
         // next frame render time.
@@ -469,8 +460,19 @@ struct RenderSession : public IMediaSession {
 
             notify(kSessionInfoEnd, NULL);
         }
+        
         INFO("refresh rate");
         return REFRESH_RATE;
+    }
+
+    // render current frame
+    // return next frame render time
+    FORCE_INLINE int64_t renderCurrent() {
+        if (mType == kCodecTypeVideo) {
+            return renderVideo();
+        } else {
+            return renderAudio();
+        }
     }
 
     // using clock to control render session, start|pause|...
@@ -499,6 +501,7 @@ struct RenderSession : public IMediaSession {
     void onStartRenderer() {
         INFO("%s: start", mName.c_str());
         //onPrintStat();
+        mFirstFrame = true;
 
         // check
         if (Looper::Current()->exists(mPresentFrame)) {
