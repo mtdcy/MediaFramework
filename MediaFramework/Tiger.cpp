@@ -72,6 +72,7 @@ struct Tiger : public IMediaPlayer {
 
     // mutable context
     sp<IMediaSession>       mMediaSource;
+    sp<Message>             mFileFormats;
     size_t                  mTrackID;
     HashTable<size_t, sp<TrackContext> > mTracks;
     bool                    mHasAudio;
@@ -104,9 +105,9 @@ struct Tiger : public IMediaPlayer {
             }
         }
 
-    void notify(ePlayerInfoType info) {
+    void notify(ePlayerInfoType info, const sp<Message>& payload = NULL) {
         if (mInfoEvent != NULL) {
-            mInfoEvent->fire(info);
+            mInfoEvent->fire(info, payload);
         }
     }
 
@@ -185,6 +186,7 @@ struct Tiger : public IMediaPlayer {
         if (mTracks.empty()) {
             notify(kInfoPlayerError);
         }
+        mFileFormats = formats;
     }
     
     struct OnDecoderInfo : public SessionInfoEvent {
@@ -310,7 +312,8 @@ struct Tiger : public IMediaPlayer {
         mReadyMask.clear(id);
         if (mReadyMask.empty()) {
             INFO("all tracks are ready");
-            notify(kInfoPlayerReady);
+            CHECK_FALSE(mFileFormats.isNIL());
+            notify(kInfoPlayerReady, mFileFormats);
         }
     }
 

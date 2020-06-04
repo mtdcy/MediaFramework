@@ -103,11 +103,10 @@ static void dumpCurrentFrameIntoFile() {
 struct OnPlayerInfo : public PlayerInfoEvent {
     OnPlayerInfo() : PlayerInfoEvent(Looper::Current()) { }
     
-    virtual void onEvent(const ePlayerInfoType& info) {
+    virtual void onEvent(const ePlayerInfoType& info, const sp<Message>& payload) {
         switch (info) {
             case kInfoPlayerReady:
                 INFO("player is ready...");
-                g_clock = mp->clock();
                 g_paused = true;
                 mp->prepare(kMediaTimeBegin);
                 break;
@@ -292,6 +291,8 @@ int main (int argc, char **argv)
         
         // create the mp
         mp = IMediaPlayer::Create(media, options);
+        
+        g_clock = mp->clock();
                 
         // loop
         mainLooper->profile();

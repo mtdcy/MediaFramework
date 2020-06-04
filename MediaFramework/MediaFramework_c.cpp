@@ -122,19 +122,19 @@ FrameEventRef FrameEventCreate(LooperObjectRef ref, FrameCallback cb, void * use
 }
 
 struct UserInfoEvent : public PlayerInfoEvent {
-    void (*callback)(ePlayerInfoType, void *);
-    void * opaque;
-    UserInfoEvent(const Object<Looper>& lp, void (*cb)(ePlayerInfoType, void *), void * user) :
-    PlayerInfoEvent(lp), callback(cb), opaque(user) { }
+    PlayerInfoCallback Callback;
+    void * User;
+    UserInfoEvent(const Object<Looper>& lp, PlayerInfoCallback cb, void * user) :
+    PlayerInfoEvent(lp), Callback(cb), User(user) { }
     
-    virtual void onEvent(const ePlayerInfoType& info) {
-        callback(info, opaque);
+    virtual void onEvent(const ePlayerInfoType& info, const sp<Message>& payload) {
+        Callback(info, payload.get(), User);
     }
 };
 
-PlayerInfoEventRef PlayerInfoEventCreate(LooperObjectRef ref, void (*callback)(ePlayerInfoType, void *), void * user) {
+PlayerInfoEventRef PlayerInfoEventCreate(LooperObjectRef ref, PlayerInfoCallback cb, void * user) {
     Object<Looper> lp = ref;
-    Object<UserInfoEvent> event = new UserInfoEvent(lp, callback, user);
+    Object<UserInfoEvent> event = new UserInfoEvent(lp, cb, user);
     return (PlayerInfoEventRef)event->RetainObject();
 }
 

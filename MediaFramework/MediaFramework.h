@@ -92,7 +92,6 @@ API_EXPORT MediaPlayerRef       MediaPlayerCreate(MessageObjectRef, MessageObjec
  * @note remember to release after use
  */
 API_EXPORT MediaClockRef        MediaPlayerGetClock(const MediaPlayerRef);
-API_EXPORT MessageObjectRef     MediaPlayerGetInfo(const MediaPlayerRef);
 
 API_EXPORT void                 MediaPlayerPrepare(MediaPlayerRef, int64_t);
 API_EXPORT void                 MediaPlayerStart(MediaPlayerRef);
@@ -107,7 +106,8 @@ typedef void (*FrameCallback)(MediaFrameRef, void *);
 API_EXPORT FrameEventRef        FrameEventCreate(LooperObjectRef, void (*Callback)(MediaFrameRef, void *), void *);
 #define FrameEventRelease(x)    SharedObjectRelease((SharedObjectRef)x)
 
-API_EXPORT PlayerInfoEventRef   PlayerInfoEventCreate(LooperObjectRef, void (*Callback)(ePlayerInfoType, void *), void *);
+typedef void (*PlayerInfoCallback)(ePlayerInfoType, const MessageObjectRef, void *);
+API_EXPORT PlayerInfoEventRef   PlayerInfoEventCreate(LooperObjectRef, PlayerInfoCallback, void *);
 #define PlayerInfoEventRelease(x) SharedObjectRelease((SharedObjectRef)x)
 
 // MediaOut

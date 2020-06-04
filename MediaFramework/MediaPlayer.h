@@ -82,7 +82,7 @@ typedef MediaEvent<Object<MediaFrame> >     MediaFrameEvent;
 /**
  * a generic event
  */
-typedef MediaEvent<ePlayerInfoType>         PlayerInfoEvent;
+typedef MediaEvent2<ePlayerInfoType, sp<Message> >  PlayerInfoEvent;
 
 /**
  * add a media to player.

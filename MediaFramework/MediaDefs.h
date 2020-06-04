@@ -577,6 +577,8 @@ class ABE_EXPORT MediaEvent2 : public Job {
 __END_NAMESPACE_MPX
 
 #endif // __cplusplus
+    
+__BEGIN_DECLS
 
 /**
  * key of format
@@ -661,6 +663,8 @@ __END_NAMESPACE_MPX
  * for MediaOut
  */
 #define kKeyRotate              "rotate"    // eRotate
+    
+__END_DECLS
 
 #endif // _MEDIA_MODULES_MEDIADEFS_H
 

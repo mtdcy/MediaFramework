@@ -40,6 +40,7 @@
 #include <MediaFramework/MediaDefs.h>
 #include <MediaFramework/MediaFrame.h>
 
+#ifdef __cplusplus
 __BEGIN_NAMESPACE_MPX
 
 /**
@@ -98,5 +99,6 @@ class API_EXPORT IMediaSession : public SharedObject {
 };
 
 __END_NAMESPACE_MPX
+#endif // __cplusplus
 
 #endif // _MPX_MEDIA_SESSION_H
