@@ -145,17 +145,15 @@ struct VTMediaFrame : public MediaFrame {
         
         if (CVPixelBufferIsPlanar(pixbuf)) {
             size_t n = CVPixelBufferGetPlaneCount(pixbuf);
-            if (index < n) {
-                plane = new Buffer((const char *)CVPixelBufferGetBaseAddressOfPlane(pixbuf, index),
-                          CVPixelBufferGetBytesPerRowOfPlane(pixbuf, index) *
-                          CVPixelBufferGetHeightOfPlane(pixbuf, index));
-            }
+            CHECK_LT(index, n);
+            plane = new Buffer((const char *)CVPixelBufferGetBaseAddressOfPlane(pixbuf, index),
+                      CVPixelBufferGetBytesPerRowOfPlane(pixbuf, index) *
+                      CVPixelBufferGetHeightOfPlane(pixbuf, index));
         } else {
-            if (index == 0) {
-                plane = new Buffer((const char *)CVPixelBufferGetBaseAddress(pixbuf),
-                              CVPixelBufferGetBytesPerRow(pixbuf) *
-                              CVPixelBufferGetHeight(pixbuf));
-            }
+            CHECK_EQ(index, 0);
+            plane = new Buffer((const char *)CVPixelBufferGetBaseAddress(pixbuf),
+                          CVPixelBufferGetBytesPerRow(pixbuf) *
+                          CVPixelBufferGetHeight(pixbuf));
         }
         CVPixelBufferUnlockBaseAddress(pixbuf, kCVPixelBufferLock_ReadOnly);
         return plane;
@@ -503,41 +501,6 @@ static FORCE_INLINE CMSampleBufferRef createCMSampleBuffer(sp<VTContext>& vtc,
     } else {
         return sampleBuffer;
     }
-}
-
-sp<Buffer> readVideoToolboxPlane(CVPixelBufferRef pixbuf, size_t i) {
-    CVReturn err = CVPixelBufferLockBaseAddress(pixbuf, kCVPixelBufferLock_ReadOnly);
-    if (err != kCVReturnSuccess) {
-        ERROR("Error locking the pixel buffer");
-        return NULL;
-    }
-    
-    sp<Buffer> plane;
-    ImageFormat format;
-    format.format = get_pix_format(CVPixelBufferGetPixelFormatType(pixbuf));
-    format.width = CVPixelBufferGetWidth(pixbuf);
-    format.height = CVPixelBufferGetHeight(pixbuf);
-    if (CVPixelBufferIsPlanar(pixbuf)) {
-        size_t planes = CVPixelBufferGetPlaneCount(pixbuf);
-        if (i < planes) {
-            plane = new Buffer(GetImageFormatPlaneLength(format, i));
-            size_t size = CVPixelBufferGetBytesPerRowOfPlane(pixbuf, i) * CVPixelBufferGetHeightOfPlane(pixbuf, i);
-            CHECK_LE(size, plane->capacity());
-            memcpy(plane->data(), CVPixelBufferGetBaseAddressOfPlane(pixbuf, i), size);
-            plane->step(size);
-        }
-    } else {
-        if (i == 0) {
-            plane = new Buffer(GetImageFormatBufferLength(format));
-            const size_t size = CVPixelBufferGetBytesPerRow(pixbuf) * CVPixelBufferGetHeight(pixbuf);
-            CHECK_LE(size, plane->capacity());
-            memcpy(plane->data(), CVPixelBufferGetBaseAddress(pixbuf), size);
-            plane->step(size);
-        }
-    }
-    
-    CVPixelBufferUnlockBaseAddress(pixbuf, kCVPixelBufferLock_ReadOnly);
-    return plane;
 }
 
 sp<MediaFrame> readVideoToolboxFrame(CVPixelBufferRef pixbuf) {

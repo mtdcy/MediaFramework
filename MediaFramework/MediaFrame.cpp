@@ -51,15 +51,7 @@ MediaFrame::MediaFrame() : timecode(kMediaTimeInvalid), duration(kMediaTimeInval
     opaque = NULL;
 }
 
-#ifdef __APPLE__
-sp<Buffer> readVideoToolboxPlane(CVPixelBufferRef pixbuf, size_t i);
-#endif
 sp<Buffer> MediaFrame::readPlane(size_t index) const {
-#ifdef __APPLE__
-    if (opaque && v.format == kPixelFormatVideoToolbox) {
-        return readVideoToolboxPlane((CVPixelBufferRef)opaque, index);
-    }
-#endif
     if (planes[index].data == NULL) return NULL;
     return new Buffer((const char *)planes[index].data, planes[index].size);
 }
