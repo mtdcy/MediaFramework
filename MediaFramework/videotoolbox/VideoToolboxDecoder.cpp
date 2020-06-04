@@ -595,7 +595,7 @@ struct VideoToolboxDecoder : public MediaDecoder {
 
         MediaError err = kMediaNoError;
         mVTContext = createSession(format, options, &err);
-        return err;
+        return mVTContext.isNIL() ? kMediaErrorNotSupported : kMediaNoError;
     }
 
     virtual MediaError write(const sp<MediaPacket>& input) {
