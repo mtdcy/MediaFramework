@@ -263,7 +263,7 @@ struct AVMediaFrame : public MediaFrame {
             FATAL("FIXME");
         }
         // this may be wrong
-        timecode    = MediaTime(frame->pts * avcc->time_base.num, avcc->time_base.den);
+        timecode    = MediaTime(frame->pts * avcc->pkt_timebase.num, avcc->pkt_timebase.den);
         duration    = kMediaTimeInvalid;
     }
 
