@@ -796,18 +796,18 @@ struct LavcDecoder : public MediaDecoder {
                     avcodec_get_name(avcc->codec_id),
                     input->pts.seconds(),
                     input->dts.seconds(),
-                    input->flags);
+                    input->type);
 
             AVPacket *pkt   = av_packet_alloc();
             pkt->data       = input->data;
             pkt->size       = input->size;
 
             CHECK_TRUE(input->dts != kMediaTimeInvalid);
-            pkt->dts        = input->dts.seconds() * avcc->pkt_timebase.den;
+            pkt->dts        = (input->dts.seconds() * avcc->pkt_timebase.den) / avcc->pkt_timebase.num;
             if (input->pts == kMediaTimeInvalid)
                 pkt->pts    = pkt->dts;
             else
-                pkt->pts    = input->pts.seconds() * avcc->pkt_timebase.den;
+                pkt->pts    = (input->pts.seconds() * avcc->pkt_timebase.den) / avcc->pkt_timebase.num;
 
             pkt->flags      = 0;
             if (input->type & kFrameTypeSync) {
@@ -877,6 +877,9 @@ struct LavcDecoder : public MediaDecoder {
 #ifdef __APPLE__
         if (internal->format == AV_PIX_FMT_VIDEOTOOLBOX) {
             out = readVideoToolboxFrame((CVPixelBufferRef)internal->data[3]);
+            // fix timecode
+            out->timecode   = MediaTime(internal->pts * avcc->time_base.num, avcc->time_base.den);
+            out->duration   = kMediaTimeInvalid;
         } else
 #endif
         {
@@ -888,7 +891,7 @@ struct LavcDecoder : public MediaDecoder {
             CHECK_EQ(avcc->pix_fmt, internal->format);
             DEBUG("frame %s %.3f(s) => %d x %d => {%d %d %d %d}",
                     av_get_pix_fmt_name((AVPixelFormat)internal->format),
-                    out->pts.seconds(),
+                    out->timecode.seconds(),
                     out->v.width,
                     out->v.height,
                     out->v.rect.x,
@@ -898,7 +901,7 @@ struct LavcDecoder : public MediaDecoder {
         } else {
             DEBUG("frame %s %.3f(s), %d %d nb_samples %d",
                     av_get_sample_fmt_name((AVSampleFormat)internal->format),
-                    out->pts.seconds(),
+                    out->timecode.seconds(),
                     out->a.channels,
                     out->a.freq,
                     internal->nb_samples);
