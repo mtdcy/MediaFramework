@@ -130,23 +130,11 @@ struct VTMediaFrame : public MediaFrame {
         opaque = CVPixelBufferRetain(pixbuf);
     }
 
-    FORCE_INLINE VTMediaFrame(const VTMediaFrame& rhs) {
-        planes[0].data  = NULL;
-        timecode    = rhs.timecode;
-        duration    = rhs.duration;
-        v           = rhs.v;
-        opaque      = CVPixelBufferRetain((CVPixelBufferRef)rhs.opaque);
-    }
-
     FORCE_INLINE ~VTMediaFrame() {
         CVPixelBufferRelease((CVPixelBufferRef)opaque);
     }
-
-    FORCE_INLINE bool operator<(const VTMediaFrame& rhs) const {
-        return timecode < rhs.timecode;
-    }
     
-    virtual sp<Buffer> getData(size_t index) const {
+    virtual sp<Buffer> readPlane(size_t index) const {
         CVPixelBufferRef pixbuf = (CVPixelBufferRef)opaque;
         sp<Buffer> plane;
         CVReturn err = CVPixelBufferLockBaseAddress(pixbuf, kCVPixelBufferLock_ReadOnly);
@@ -176,7 +164,7 @@ struct VTMediaFrame : public MediaFrame {
 
 struct VTContext : public SharedObject {
     FORCE_INLINE VTContext() : decompressionSession(NULL), formatDescription(NULL),
-    mInputEOS(false), mNextFrameTime(kMediaTimeInvalid), mLastFrameTime(kMediaTimeBegin) { }
+    mInputEOS(false) { }
 
     FORCE_INLINE ~VTContext() {
         if (decompressionSession) {
@@ -195,29 +183,9 @@ struct VTContext : public SharedObject {
 
     Mutex                           mLock;
     bool                            mInputEOS;
-    List<VTMediaFrame>              mImages;
-    MediaTime                       mNextFrameTime;
-    
-    MediaTime                       mLastFrameTime;
+    List<sp<VTMediaFrame> >         mImages;
+    sp<VTMediaFrame>                mUnorderImage;
 };
-
-static FORCE_INLINE bool IsFrameReady(const sp<VTContext>& vtc) {
-    if (vtc->mImages.empty()) return false;
-    
-#if 0
-    // TODO
-    if (vtc->mNextFrameTime != kTimeInvalid) {
-        const VTMediaFrame& image = vtc->mImages.front();
-        if (image.timecode <= vtc->mNextFrameTime) {
-            return true;
-        }
-        return false;
-    }
-#endif
-    
-    if (vtc->mImages.size() < 4) return false;
-    return true;
-}
 
 static FORCE_INLINE void OutputCallback(void *decompressionOutputRefCon,
         void *sourceFrameRefCon,
@@ -229,14 +197,12 @@ static FORCE_INLINE void OutputCallback(void *decompressionOutputRefCon,
 
     CHECK_NULL(decompressionOutputRefCon);
     CHECK_NULL(sourceFrameRefCon);  // strong ref to the packet
-    sp<MediaPacket> packet = sourceFrameRefCon;
-
-    DEBUG("packet %p, status %d, infoFlags %#x, imageBuffer %p, presentationTimeStamp %.3f(s)/%.3f(s)",
-            packet->data, status, infoFlags, imageBuffer,
+    MediaPacket *packet = (MediaPacket*)sourceFrameRefCon;
+    packet->ReleaseObject();
+    DEBUG("status %d, infoFlags %#x, imageBuffer %p, presentationTimeStamp %.3f(s)/%.3f(s)",
+            status, infoFlags, imageBuffer,
             CMTimeGetSeconds(presentationTimeStamp),
             CMTimeGetSeconds(presentationDuration));
-
-    packet.get()->ReleaseObject();
 
     if (status || imageBuffer == NULL) {
         ERROR("decode frame failed, st = %d", status);
@@ -249,23 +215,35 @@ static FORCE_INLINE void OutputCallback(void *decompressionOutputRefCon,
     CHECK_TRUE(CMTIME_IS_VALID(presentationTimeStamp));
     MediaTime pts = MediaTime( presentationTimeStamp.value, presentationTimeStamp.timescale );
 
-#if 0
-    if (pts < vtc->mLastFrameTime) {
-        ERROR("unorderred frame %.3f(s) < %.3f(s)", pts.seconds(), vtc->mLastFrameTime.seconds());
-    }
-    vtc->mLastFrameTime = pts;
-#endif
-
     MediaTime duration;
     if (CMTIME_IS_INVALID(presentationDuration)) {
         duration = kMediaTimeInvalid;
     } else {
         duration = MediaTime( presentationDuration.value, presentationDuration.timescale );
     }
-    VTMediaFrame frame(imageBuffer, pts, duration);
+    sp<VTMediaFrame> frame = new VTMediaFrame(imageBuffer, pts, duration);
 
-    vtc->mImages.push(frame);
-    vtc->mImages.sort();
+    // fix the width & height
+    frame->v.rect.w  = vtc->width;
+    frame->v.rect.h  = vtc->height;
+
+    // vt feed on packet in dts order and output is also in dts order
+    // we have to reorder frames in pts order
+    if (vtc->mUnorderImage.isNIL()) {
+        vtc->mUnorderImage = frame;
+    } else {
+        if (frame->timecode > vtc->mUnorderImage->timecode) {
+            vtc->mImages.push(vtc->mUnorderImage);
+            vtc->mUnorderImage = frame;
+        } else {
+            vtc->mImages.push(frame);
+        }
+    }
+    
+    if (vtc->mInputEOS) {
+        vtc->mImages.push(vtc->mUnorderImage);
+        vtc->mUnorderImage.clear();
+    }
 }
 
 static FORCE_INLINE CFDictionaryRef setupFormatDescriptionExtension(const sp<Message>& formats,
@@ -365,7 +343,6 @@ static FORCE_INLINE CFDictionaryRef setupImageBufferAttributes(int32_t width, in
     CFRelease(h);
 
     return attr;
-
 }
 
 // https://github.com/jyavenard/DecodeTest/blob/master/DecodeTest/VTDecoder.mm
@@ -373,8 +350,9 @@ static FORCE_INLINE sp<VTContext> createSession(const sp<Message>& formats, cons
     sp<VTContext> vtc = new VTContext;
 
     eCodecFormat codec = (eCodecFormat)formats->findInt32(kKeyFormat);
-    int32_t width = formats->findInt32(kKeyWidth);
-    int32_t height = formats->findInt32(kKeyHeight);
+    vtc->width  = formats->findInt32(kKeyWidth);
+    vtc->height = formats->findInt32(kKeyHeight);
+    vtc->pixel  = kPixelFormatVideoToolbox;
 
     CMVideoCodecType cm_codec_type = get_cm_codec_type(codec);
     if (cm_codec_type == 0) {
@@ -411,8 +389,8 @@ static FORCE_INLINE sp<VTContext> createSession(const sp<Message>& formats, cons
     OSStatus status = CMVideoFormatDescriptionCreate(
             kCFAllocatorDefault,
             cm_codec_type,
-            width,
-            height,
+            vtc->width,
+            vtc->height,
             videoDecoderSpecification,
             &vtc->formatDescription);
     if (status) {
@@ -422,8 +400,8 @@ static FORCE_INLINE sp<VTContext> createSession(const sp<Message>& formats, cons
     }
 
     CFDictionaryRef destinationImageBufferAttributes = setupImageBufferAttributes(
-            width,
-            height);
+            vtc->width,
+            vtc->height);
 
     VTDecompressionOutputCallbackRecord callback;
     callback.decompressionOutputCallback = OutputCallback;
@@ -462,14 +440,7 @@ static FORCE_INLINE sp<VTContext> createSession(const sp<Message>& formats, cons
             break;
     }
 
-    if (status) {
-        return NULL;
-    } else {
-        vtc->width  = width;
-        vtc->height = height;
-        vtc->pixel  = kPixelFormatVideoToolbox;
-        return vtc;
-    }
+    return status ? NULL : vtc;
 }
 
 static FORCE_INLINE CMSampleBufferRef createCMSampleBuffer(sp<VTContext>& vtc,
@@ -651,7 +622,7 @@ struct VideoToolboxDecoder : public MediaDecoder {
     }
 
     virtual MediaError configure(const Message& options) {
-        return kMediaErrorNotSupported;
+        return kMediaErrorInvalidOperation;
     }
 
     virtual MediaError init(const sp<Message>& format, const sp<Message>& options) {
@@ -659,10 +630,9 @@ struct VideoToolboxDecoder : public MediaDecoder {
 
         DEBUG("VTDecompressionSessionGetTypeID: %#x", VTDecompressionSessionGetTypeID());
 
-        MediaError err = kMediaErrorUnknown;
+        MediaError err = kMediaNoError;
         mVTContext = createSession(format, options, &err);
-        if (mVTContext == NULL) return err;
-        return kMediaNoError;
+        return err;
     }
 
     virtual MediaError write(const sp<MediaPacket>& input) {
@@ -686,7 +656,6 @@ struct VideoToolboxDecoder : public MediaDecoder {
 
         // FIXME:
         // kVTDecodeFrame_EnableTemporalProcessing is not working as expected.
-        // it may be something wrong with the packet's pts => find out!!!
         VTDecodeFrameFlags decodeFlags = kVTDecodeFrame_EnableTemporalProcessing;
         //decodeFlags |= kVTDecodeFrame_EnableAsynchronousDecompression;
         //decodeFlags |= kVTDecodeFrame_1xRealTimePlayback;
@@ -695,11 +664,6 @@ struct VideoToolboxDecoder : public MediaDecoder {
             decodeFlags |= kVTDecodeFrame_DoNotOutputFrame;
         }
         VTDecodeInfoFlags infoFlagsOut;
-        /**
-         * NOTE:
-         * kVTDecodeFrame_EnableTemporalProcessing may not working as expected,
-         * if the pts is not set properly.
-         */
         OSStatus status = VTDecompressionSessionDecodeFrame(
                 mVTContext->decompressionSession,   // VTDecompressionSessionRef
                 sampleBuffer,                       // CMSampleBufferRef
@@ -719,36 +683,17 @@ struct VideoToolboxDecoder : public MediaDecoder {
     }
 
     virtual sp<MediaFrame> read() {
-        if (mVTContext->mInputEOS && mVTContext->mImages.empty()) {
-            INFO("eos...");
-            return NULL;
-        }
-
-        // for frame reordering
-        if (IsFrameReady(mVTContext) == false) {
-            INFO("no frames ready");
-            return NULL;
-        }
-
         AutoLock _l(mVTContext->mLock);
-        VTMediaFrame& frame = *mVTContext->mImages.begin();
-        
-        // set next frame time.
-        if (frame.duration != kMediaTimeInvalid) {
-            mVTContext->mNextFrameTime = frame.timecode + frame.duration;
+        if (mVTContext->mImages.empty()) {
+            if (mVTContext->mInputEOS) INFO("eos...");
+            else INFO("no frames ready");
+            return NULL;
         }
-
-        // fix the width & height
-        frame.v.rect.w  = mVTContext->width;
-        frame.v.rect.h  = mVTContext->height;
-
-#if 0
-        sp<MediaFrame> out = readVideoToolboxFrame((CVPixelBufferRef)frame.opaque);
-#else
-        sp<MediaFrame> out = new VTMediaFrame(frame);
-#endif
+        
+        sp<VTMediaFrame> frame = mVTContext->mImages.front();
         mVTContext->mImages.pop();
-        return out;
+
+        return frame;
     }
 
     virtual MediaError flush() {
@@ -757,6 +702,7 @@ struct VideoToolboxDecoder : public MediaDecoder {
 
         AutoLock _l(mVTContext->mLock);
         mVTContext->mImages.clear();
+        mVTContext->mUnorderImage.clear();
         return kMediaNoError;
     }
 };
