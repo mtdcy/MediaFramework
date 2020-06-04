@@ -105,6 +105,13 @@ __BEGIN_DECLS
 #define ID_VIDEO                0xE0        // master, #<=1
 #define ID_AUDIO                0xE1        // master, #<=1
 #define ID_CONTENTENCODINGS     0x6D80      // master, #<=1
+#define ID_CONTENTENCODING      0x6240      // master, #>=1
+#define ID_CONTENTENCODINGORDER 0x5031      // uint, #=1
+#define ID_CONTENTENCODINGSCOPE 0x5032      // uint, #=1
+#define ID_CONTENTENCODINGTYPE  0x5033      // uint, #=1
+#define ID_CONTENTCOMPRESSION   0x5034      // master, #<=1
+#define ID_CONTENTCOMPALGO      0x4254      // uint, #=1
+#define ID_CONTENTCOMPSETTINGS  0x4255      // binary, #<=1
 
 // the VIDEO element's children
 #define ID_PIXELWIDTH           0xB0        // uint, #=1
@@ -217,6 +224,7 @@ enum EBMLElementType {
     // custom type
     kEBMLElementSkip,
     kEBMLElementBlock,
+    kEBMLElementSimpleBlock,
 };
 
 struct EBMLInteger {
@@ -328,13 +336,22 @@ enum eBlockFlags {
     kBlockFlagDiscardable   = 0x1,      ///< discardable frame when decoder is slow @see kFrameFlagDisposal
 };
 
-struct EBMLBlockElement : public EBMLElement {
+struct EBMLSimpleBlockElement : public EBMLElement {
     EBMLInteger         TrackNumber;
     int16_t             TimeCode;
     uint8_t             Flags;
     List<sp<Buffer> >   data;
 
-    FORCE_INLINE EBMLBlockElement(const char *_name, EBMLInteger& _id) : EBMLElement(_name, _id, kEBMLElementBlock) { }
+    FORCE_INLINE EBMLSimpleBlockElement(const char *_name, EBMLInteger& _id) : EBMLElement(_name, _id, kEBMLElementSimpleBlock) { }
+    virtual MediaError parse(BitReader&, size_t);
+    virtual String string() const;
+};
+
+struct EBMLBlockElement : public EBMLBinaryElement {
+    EBMLInteger         TrackNumber;
+    int16_t             TimeCode;
+    
+    FORCE_INLINE EBMLBlockElement(const char *name, EBMLInteger& id) : EBMLBinaryElement(name, id) { }
     virtual MediaError parse(BitReader&, size_t);
     virtual String string() const;
 };
@@ -350,6 +367,8 @@ sp<EBMLElement> EnumEBMLElement(sp<Content>& pipe);
 sp<EBMLElement> ParseMatroska(sp<Content>& pipe, int64_t *segment_offset, int64_t *clusters_offset);
 
 sp<EBMLElement> ReadEBMLElement(sp<Content>& pipe);
+
+int IsMatroskaFile(const sp<Buffer>& data);
 
 __END_NAMESPACE(EBML)
 __END_NAMESPACE_MPX

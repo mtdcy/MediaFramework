@@ -28,6 +28,12 @@ set (CMAKE_C_EXTENSIONS OFF)    # no gnu extensions
 set (CMAKE_CXX_STANDARD 98)     # c++98
 set (CMAKE_CXX_EXTENSIONS OFF)  # no gnu extensions
 
+# gnucc definitions
+if (CMAKE_COMPILER_IS_GNUCC)
+    add_definitions(-Wno-attributes)
+    add_definitions(-fPIC)
+endif()
+
 if (WITH_FFMPEG)
     add_definitions(-DWITH_FFMPEG)
 endif()
@@ -74,6 +80,7 @@ set (SOURCE_FILES
     MediaFramework/mpeg4/Box.cpp
     MediaFramework/matroska/EBML.cpp
     MediaFramework/matroska/MatroskaFile.cpp
+    MediaFramework/ms/BITMAPINFOHEADER.cpp
     MediaFramework/opengl/OpenGLObject.cpp
     MediaFramework/opengl/GLVideo.cpp
     MediaFramework/jpeg/TIFF.cpp

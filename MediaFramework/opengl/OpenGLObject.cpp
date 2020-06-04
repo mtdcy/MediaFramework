@@ -742,10 +742,6 @@ MediaError OpenGLObject::init(const ImageFormat& image, bool offscreen) {
 }
 
 MediaError OpenGLObject::draw(const Object<MediaFrame>& frame) {
-    // clear before draw
-    glClearColor(0, 0, 0, 0);
-    glClear(GL_COLOR_BUFFER_BIT);
-    
     return drawFrame(mOpenGL, frame);
 }
 

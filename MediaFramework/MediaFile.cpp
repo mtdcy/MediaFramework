@@ -42,6 +42,7 @@
 #include "MediaFile.h"
 #include <MediaFramework/MediaDefs.h>
 #include <MediaFramework/tags/id3/ID3.h>
+#include "matroska/EBML.h"
 
 #define MAX(a, b) (a > b ? a : b)
 #define MIN(a, b) (a > b ? b : a)
@@ -149,10 +150,10 @@ static eFileFormat GetFormat(sp<Content>& pipe) {
         int (*scanner)(const sp<Buffer>& data);
         eFileFormat format;
     } kScanners[] = {
-        { IsMp4File,    kFileFormatMp4      },
-        { scanMatroska, kFileFormatMkv      },
-        { scanMP3,      kFileFormatMp3      },
-        { NULL,         kFileFormatInvalid  }
+        { IsMp4File,            kFileFormatMp4      },
+        { EBML::IsMatroskaFile, kFileFormatMkv      },
+        { scanMP3,              kFileFormatMp3      },
+        { NULL,                 kFileFormatInvalid  }
     };
 
     eFileFormat format = kFileFormatInvalid;
@@ -182,74 +183,6 @@ int scanMP3(const sp<Buffer>& data) {
     }
 
     return 0;
-}
-
-int scanMatroska(const sp<Buffer>& data) {
-    // refer to:
-    // 1. http://www.matroska.org/technical/specs/index.html
-    // 2. ffmpeg::libavformat::matroskadec.c
-    int score = 0;
-    if (!data->compare("\x1A\x45\xDF\xA3", 4)) {
-        DEBUG("Media::File::MKV");
-        score = 20;
-
-        BitReader br(data->data(), data->size());
-        br.skipBytes(4);   // skip EBML ID
-
-        uint32_t headerLength   = br.r8();
-        size_t lengthBytes = __builtin_clz(headerLength) - 24; // excluding the first 24 bits
-
-        headerLength &= MASK(8-lengthBytes-1);
-        while (lengthBytes--) {
-            headerLength = (headerLength << 8) | br.r8();
-        }
-
-        DEBUG("headerLength %d", headerLength);
-
-        int done = 0;
-        while (score < 100 && !done && br.remains() >= 3 * 8) {
-            uint16_t Id     = br.rb16();   // EBML ID
-            uint32_t size   = br.r8();
-            size_t bytes    = __builtin_clz(size) - 24;
-            size            &= MASK(8-bytes-1);
-
-            if (br.remains() < size * 8) break;
-
-            while (bytes--) size = (size << 8) | br.r8();
-
-            DEBUG("EMBL ID %#x size %d", Id, size);
-
-            switch (Id) {
-                case 0x4282:    // DocType
-                    {
-                        String docType = br.readS(size);
-                        if (docType.startsWith("matroska")) {
-                            DEBUG("scanMatroska found DocType matroska");
-                            score = 100;
-                        } else if (docType.startsWith("webm")) {
-                            DEBUG("scanMatroska found DocType webm");
-                            score = 100;
-                        } else {
-                            DEBUG("unknown docType %s", docType.c_str());
-                            score += 10;
-                        }
-                    } break;
-                case 0x4286:    // EBMLVersion
-                case 0x42F7:    // EBMLReadVersion
-                case 0x42F2:    // EBMLMaxIDLength
-                case 0x42F3:    // EBMLMaxSizeLength
-                case 0x4287:    // DocTypeVersion
-                    br.skipBytes(size);
-                    score += 10;
-                    break;
-                default:
-                    done = 1;
-                    ERROR("unknown ebml id %" PRIx16, Id);
-                    break;
-            } // switch
-        } // while
-    } // if
-    return score;
 }
 
 sp<MediaFile> CreateMp3File(sp<Content>& pipe);

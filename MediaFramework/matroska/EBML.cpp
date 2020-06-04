@@ -45,12 +45,23 @@
 #define DEBUGV(fmt, ...) do {} while(0)
 #endif
 
+// https://github.com/cellar-wg/ebml-specification/blob/master/specification.markdown#data-size-values
+#define UNKNOWN_DATA_SIZE   0x7f
+
 // reference:
 // https://matroska.org/technical/specs/index.html
 // https://matroska.org/files/matroska.pdf
 
 __BEGIN_NAMESPACE_MPX
 __BEGIN_NAMESPACE(EBML)
+
+static FORCE_INLINE bool EBMLIsValidID(uint64_t x) {
+    if (x >= 0x81 && x <= 0xFE) return true;
+    if (x >= 0x407F && x <= 0x7FFE) return true;
+    if (x >= 0x203FFF && x <= 0x3FFFFE) return true;
+    if (x >= 0x101FFFFF && x <= 0x1FFFFFFE) return true;
+    return false;
+}
 
 static FORCE_INLINE size_t EBMLCodeBytesLength(uint64_t x) {
     size_t n = 0;
@@ -275,7 +286,7 @@ MediaError EBMLSkipElement::parse(BitReader& br, size_t size) {
 
 String EBMLSkipElement::string() const { return "*"; }
 
-MediaError EBMLBlockElement::parse(BitReader& br, size_t size) {
+MediaError EBMLSimpleBlockElement::parse(BitReader& br, size_t size) {
     const size_t offset = br.offset();
     TrackNumber = EBMLGetInteger(br);
     TimeCode    = br.rb16();
@@ -323,9 +334,20 @@ MediaError EBMLBlockElement::parse(BitReader& br, size_t size) {
     return kMediaNoError;
 }
 
-String EBMLBlockElement::string() const {
+String EBMLSimpleBlockElement::string() const {
     return String::format("[%zu] % " PRId16 " Flags %#x",
             (size_t)TrackNumber.u64, TimeCode, Flags);
+}
+
+MediaError EBMLBlockElement::parse(BitReader& br, size_t size) {
+    TrackNumber = EBMLGetInteger(br);
+    TimeCode    = br.rb16();
+    return EBMLBinaryElement::parse(br, size - TrackNumber.length - 2);
+}
+
+String EBMLBlockElement::string() const {
+    return String::format("[%zu] %" PRId16,
+            (size_t)TrackNumber.u64, TimeCode) + EBMLBinaryElement::string();
 }
 
 static FORCE_INLINE sp<EBMLElement> MakeEBMLElement(EBMLInteger);
@@ -433,6 +455,13 @@ static const struct {
     ITEM(   CODECPRIVATE,               kEBMLElementBinary      ),
     ITEM(   CODECNAME,                  kEBMLElementUTF8        ),
     ITEM(   ATTACHMENTLINK,             kEBMLElementInteger     ),
+    ITEM(   CONTENTENCODING,            kEBMLElementMaster      ),
+    ITEM(   CONTENTENCODINGORDER,       kEBMLElementInteger     ),
+    ITEM(   CONTENTENCODINGSCOPE,       kEBMLElementInteger     ),
+    ITEM(   CONTENTENCODINGTYPE,        kEBMLElementInteger     ),
+    ITEM(   CONTENTCOMPRESSION,         kEBMLElementMaster      ),
+    ITEM(   CONTENTCOMPALGO,            kEBMLElementInteger     ),
+    ITEM(   CONTENTCOMPSETTINGS,        kEBMLElementBinary      ),
     // VIDEO
     ITEM(   VIDEO,                      kEBMLElementMaster      ),
     ITEM(   PIXELWIDTH,                 kEBMLElementInteger     ),
@@ -463,7 +492,7 @@ static const struct {
     ITEM(   POSITION,                   kEBMLElementInteger     ),
     ITEM(   PREVSIZE,                   kEBMLElementInteger     ),
     ITEM(   BLOCKGROUP,                 kEBMLElementMaster      ),
-    ITEM(   SIMPLEBLOCK,                kEBMLElementBlock       ),  // kEBMLElementBinary
+    ITEM(   SIMPLEBLOCK,                kEBMLElementSimpleBlock ),  // kEBMLElementBinary
     // BLOCKGROUP
     ITEM(   BLOCK,                      kEBMLElementBlock       ),  // kEBMLElementBinary
     ITEM(   REFERENCEBLOCK,             kEBMLElementSignedInteger   ),
@@ -557,6 +586,8 @@ static FORCE_INLINE sp<EBMLElement> MakeEBMLElement(EBMLInteger id) {
                     return new EBMLSkipElement(ELEMENTS[i].NAME, id);
                 case kEBMLElementBlock:
                     return new EBMLBlockElement(ELEMENTS[i].NAME, id);
+                case kEBMLElementSimpleBlock:
+                    return new EBMLSimpleBlockElement(ELEMENTS[i].NAME, id);
                 default:
                     FATAL("FIXME");
                     break;
@@ -747,6 +778,54 @@ sp<EBMLElement> ReadEBMLElement(sp<Content>& pipe) {
         return NULL;
     }
     return ebml;
+}
+
+int IsMatroskaFile(const sp<Buffer>& data) {
+    BitReader br(data->data(), data->size());
+    
+    int score = 0;
+    while (br.remianBytes() >= 16 && score < 100) {
+        EBMLInteger ID      = EBMLGetCodedInteger(br);
+        EBMLInteger size    = EBMLGetLength(br);
+        if (!EBMLIsValidID(ID.u64)) {
+            ERROR("bad element %#x, length %zu", ID.u64, size.u64);
+            break;
+        }
+        INFO("found element %#x, length %zu[%zu]", ID.u64, size.u64, size.length);
+        
+        switch (ID.u64) {
+            case ID_EBMLHEADER:
+            case ID_SEGMENT:    score += 20; break;
+            case ID_EBMLVERSION:
+            case ID_EBMLREADVERSION:
+            case ID_EBMLMAXIDLENGTH:
+            case ID_EBMLMAXSIZELENGTH:
+            case ID_DOCTYPE:
+            case ID_DOCTYPEVERSION:
+            case ID_DOCTYPEREADVERSION:
+            case ID_SEEKHEAD:
+            case ID_TRACKS:
+            case ID_CUES:
+            case ID_ATTACHMENTS:
+            case ID_CHAPTERS:
+            case ID_VOID:       score += 5;  break;
+            case ID_CLUSTER:    score += 10; break;
+            default: break;
+        }
+        
+        if (size.length == 1 && size.u64 == UNKNOWN_DATA_SIZE) {
+            INFO("found element with unknown size");
+        }
+        
+        if (ID_EBMLHEADER == ID.u64 || ID_SEGMENT == ID.u64) {
+            continue;
+        }
+        
+        if (br.remianBytes() < size.u32) break;
+        br.skipBytes(size.u32);
+    }
+    INFO("IsMatroskaFile return with score %d", score);
+    return score;
 }
 
 __END_NAMESPACE(EBML)

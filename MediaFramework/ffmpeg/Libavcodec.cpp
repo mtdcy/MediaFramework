@@ -42,6 +42,7 @@
 
 #include <mpeg4/Systems.h>
 #include <mpeg4/Audio.h>
+#include "ms/BITMAPINFOHEADER.h"
 
 // 57.35
 // avcodec_send_packet && avcodec_receive_frame
@@ -70,6 +71,7 @@ struct {
     {kVideoCodecFormatH264,     AV_CODEC_ID_H264    },
     {kVideoCodecFormatHEVC,     AV_CODEC_ID_H265    },
     {kVideoCodecFormatMPEG4,    AV_CODEC_ID_MPEG4   },
+    {kVideoCodecFormatMSMPEG4,  AV_CODEC_ID_MSMPEG4V3 },
     {kVideoCodecFormatVC1,      AV_CODEC_ID_VC1     },
 
     // END OF LIST
@@ -647,6 +649,25 @@ static AVCodecContext * initContext(eModeType mode, const sp<Message>& formats, 
     eCodecType type = GetCodecType(codec);
     AVCodecID id = get_av_codec_id(codec);
     
+#if 1
+    // fix MSMPEG4 version
+    if (formats->contains(kKeyVCM)) {
+        sp<Buffer> vcm = formats->findObject(kKeyVCM);
+        if (vcm->size() >= BITMAPINFOHEADER_MIN_LENGTH) {
+            BitReader br(vcm->data(), vcm->size());
+            MS::BITMAPINFOHEADER biHEAD(br);
+            switch (biHEAD.biCompression) {
+                case '24PM':    // MP42
+                    id = AV_CODEC_ID_MSMPEG4V2;
+                    break;
+                case '14PM':    // MP41
+                    id = AV_CODEC_ID_MSMPEG4V1;
+                    break;
+            }
+        }
+    }
+#endif
+    
     AVCodec *avc = avcodec_find_decoder(id);
     
 #if 1 // force fixed decoder if available
@@ -705,9 +726,9 @@ static AVCodecContext * initContext(eModeType mode, const sp<Message>& formats, 
     
     MediaError st = kMediaNoError;
     if (type == kCodecTypeAudio) {
-        st = openAudio(avcc, formats, options);
         avcc->pkt_timebase.num  = 1;
         avcc->pkt_timebase.den  = avcc->sample_rate;
+        st = openAudio(avcc, formats, options);
     } else if (type == kCodecTypeVideo) {
         st = openVideo(avcc, mode, formats, options);
     } else {
@@ -745,6 +766,7 @@ struct LavcDecoder : public MediaDecoder {
     }
 
     virtual MediaError init(const sp<Message>& formats, const sp<Message>& options) {
+        INFO("create lavc for %s", formats->string().c_str());
         eModeType mode = (eModeType)options->findInt32(kKeyMode, kModeTypeDefault);
         mContext = initContext(mode, formats, options);
         if (mContext)   return kMediaNoError;

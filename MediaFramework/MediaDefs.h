@@ -103,6 +103,9 @@ typedef enum eCodecFormat {
     kVideoCodecFormatH264,
     kVideoCodecFormatHEVC,
     kVideoCodecFormatMPEG4,
+    kVideoCodecFormatVP8,
+    kVideoCodecFormatVP9,
+    kVideoCodecFormatMSMPEG4,
     kVideoCodecFormatVC1,
     kVideoCodecFormatH263,
     kVideoCodecFormatLast   = 0x300 - 1,
@@ -654,6 +657,7 @@ __BEGIN_DECLS
 #define kKeyESDS                "esds"  ///< Buffer
 #define kKeyavcC                "avcC"  ///< Buffer
 #define kKeyhvcC                "hvcC"  ///< Buffer
+#define kKeyVCM                 "VCM"   ///< Buffer, for Microsoft only
 /**
  * raw codec specific data
  */

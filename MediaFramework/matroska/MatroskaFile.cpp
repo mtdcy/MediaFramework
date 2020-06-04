@@ -42,6 +42,7 @@
 #include "mpeg4/Audio.h"
 #include "mpeg4/Video.h"
 #include "mpeg4/Systems.h"
+#include "ms/BITMAPINFOHEADER.h"
 
 #include "EBML.h"
 
@@ -107,10 +108,15 @@ static struct {
     { "V_MPEG4/ISO/AVC",        kVideoCodecFormatH264   },
     { "V_MPEG4/ISO/ASP",        kVideoCodecFormatMPEG4  },
     { "V_MPEGH/ISO/HEVC",       kVideoCodecFormatHEVC   },
+    { "V_MPEG4/ISO/",           kVideoCodecFormatMPEG4  },
+    { "V_MPEG4/MS/V3",          kVideoCodecFormatMSMPEG4},
+    { "V_VP8",                  kVideoCodecFormatVP8    },
+    { "V_VP9",                  kVideoCodecFormatVP9    },
     // audio
     { "A_AAC",                  kAudioCodecFormatAAC    },
     { "A_AC3",                  kAudioCodecFormatAC3    },
     { "A_DTS",                  kAudioCodecFormatDTS    },
+    { "A_MPEG/L1",              kAudioCodecFormatMP3    },
     { "A_MPEG/L2",              kAudioCodecFormatMP3    },
     { "A_MPEG/L3",              kAudioCodecFormatMP3    },
     // END OF LIST
@@ -127,6 +133,23 @@ static FORCE_INLINE eCodecFormat GetCodecFormat(const String& codec) {
     return kCodecFormatUnknown;
 }
 
+static struct {
+    const uint32_t      fourcc;
+    const eCodecFormat  format;
+} kFourCCMap[] = {
+    {'24PM',        kVideoCodecFormatMSMPEG4  },
+    // END OF LIST
+    {'****',        kCodecFormatUnknown     }
+};
+
+static eCodecFormat GetCodecFormatFromFourCC(uint32_t fourcc) {
+    for (size_t i = 0; i < NELEM(kFourCCMap); ++i) {
+        if (kFourCCMap[i].fourcc == fourcc)
+            return kFourCCMap[i].format;
+    }
+    return kCodecFormatUnknown;
+}
+
 struct TOCEntry {
     TOCEntry() : time(0), pos(0) { }
     uint64_t    time;
@@ -135,7 +158,7 @@ struct TOCEntry {
 
 struct MatroskaTrack {
     MatroskaTrack() : index(0), format(kCodecFormatUnknown),
-    frametime(0), timescale(1.0) { }
+    frametime(0), timescale(1.0), compAlgo(4) { }
     size_t                  index;
     
     eCodecFormat            format;     // ID_CODECID
@@ -153,6 +176,9 @@ struct MatroskaTrack {
     };
     sp<Buffer>              csd;
     List<TOCEntry>          toc;
+    
+    uint8_t                 compAlgo;       // ID_CONTENTCOMPALGO, 0 - zlib, 1 - bzlib, 2 - lzo1x, 3 - header strip
+    sp<Buffer>              compSettings;   //
 
     sp<MediaPacketizer>     packetizer;
 };
@@ -162,10 +188,16 @@ struct MatroskaPacket : public MediaPacket {
     sp<Buffer>  buffer;
 
     MatroskaPacket(MatroskaTrack& trak,
-            const sp<Buffer>& _data,
+            const sp<Buffer>& block,
             uint64_t timecode,
             eFrameType _type) {
-        buffer      = _data;
+        if (trak.compAlgo == 3) {
+            buffer  = new Buffer(trak.compSettings->size() + block->size());
+            buffer->write(*trak.compSettings);
+            buffer->write(*block);
+        } else {
+            buffer  = block;
+        }
         data        = (uint8_t*)buffer->data();
         size        = buffer->size();
         index       = trak.index;
@@ -266,9 +298,17 @@ struct MatroskaFile : public MediaFile {
             sp<EBMLIntegerElement> TRACKNUMBER = FindEBMLElement(TRACKENTRY, ID_TRACKNUMBER);
 
             sp<EBMLStringElement> CODECID = FindEBMLElement(TRACKENTRY, ID_CODECID);
+            sp<EBMLBinaryElement> CODECPRIVATE = FindEBMLElement(TRACKENTRY, ID_CODECPRIVATE);
 
             INFO("track codec %s", CODECID->str.c_str());
-            trak.format = GetCodecFormat(CODECID->str);
+            if (CODECID->str == "V_MS/VFW/FOURCC") {
+                BitReader br(CODECPRIVATE->data->data(), CODECPRIVATE->data->size());
+                MS::BITMAPINFOHEADER biHead(br);
+                trak.format = GetCodecFormatFromFourCC(biHead.biCompression);
+            } else {
+                trak.format = GetCodecFormat(CODECID->str);
+            }
+            
             if (trak.format == kCodecFormatUnknown) {
                 ERROR("unknown codec %s", CODECID->str.c_str());
                 continue;
@@ -288,8 +328,7 @@ struct MatroskaFile : public MediaFile {
                     trak.timescale = 1.0f;
                 }
             }
-
-            sp<EBMLBinaryElement> CODECPRIVATE = FindEBMLElement(TRACKENTRY, ID_CODECPRIVATE);
+            
             if (CODECPRIVATE != NULL) {
                 trak.csd = CODECPRIVATE->data;  // handle csd in format()
             }
@@ -300,8 +339,11 @@ struct MatroskaFile : public MediaFile {
                 sp<EBMLFloatElement> SAMPLINGFREQUENCY = FindEBMLElementInside(TRACKENTRY, ID_AUDIO, ID_SAMPLINGFREQUENCY);
                 sp<EBMLIntegerElement> CHANNELS = FindEBMLElementInside(TRACKENTRY, ID_AUDIO, ID_CHANNELS);
 
-                trak.a.sampleRate = SAMPLINGFREQUENCY->flt;
-                trak.a.channels = CHANNELS->vint.u32;
+                if (!SAMPLINGFREQUENCY.isNIL())
+                    trak.a.sampleRate = SAMPLINGFREQUENCY->flt;
+                
+                if (!CHANNELS.isNIL())
+                    trak.a.channels = CHANNELS->vint.u32;
 
                 // I hate this: for some format, the mandatory properties always missing in header,
                 // we have to decode blocks to get these properties
@@ -337,6 +379,21 @@ struct MatroskaFile : public MediaFile {
             if (trak.format == kAudioCodecFormatMP3) {
                 // FIXME: DO we need packetizer or not
                 //trak.packetizer = MediaPacketizer::Create(trak.format);
+            }
+            
+            sp<EBMLMasterElement> CONTENTENCODING = FindEBMLElementInside(TRACKENTRY, ID_CONTENTENCODINGS, ID_CONTENTENCODING);
+            if (CONTENTENCODING != NULL) {
+                sp<EBMLMasterElement> CONTENTCOMPRESSION = FindEBMLElement(CONTENTENCODING, ID_CONTENTCOMPRESSION);
+                if (CONTENTCOMPRESSION != NULL) {
+                    sp<EBMLIntegerElement> CONTENTCOMPALGO = FindEBMLElement(CONTENTCOMPRESSION, ID_CONTENTCOMPALGO);
+                    sp<EBMLBinaryElement> CONTENTCOMPSETTINGS = FindEBMLElement(CONTENTCOMPRESSION, ID_CONTENTCOMPSETTINGS);
+                    
+                    trak.compAlgo = CONTENTCOMPALGO->vint.u8;
+                    if (trak.compAlgo == 3) {
+                        CHECK_FALSE(CONTENTCOMPSETTINGS.isNIL());
+                        trak.compSettings = CONTENTCOMPSETTINGS->data;
+                    }
+                }
             }
 
             trak.index  = mTracks.size();
@@ -453,6 +510,8 @@ struct MatroskaFile : public MediaFile {
                     trakInfo->setObject(kKeyhvcC, trak.csd);
                 } else if (trak.format == kVideoCodecFormatMPEG4) {
                     trakInfo->setObject(kKeyESDS, trak.csd);
+                } else if (trak.format == kVideoCodecFormatMSMPEG4) {
+                    trakInfo->setObject(kKeyVCM, trak.csd);
                 }
             }
 
@@ -497,19 +556,31 @@ struct MatroskaFile : public MediaFile {
                 return kMediaErrorNoMoreData;
             }
 
-#if LOG_NDEBUG == 0
+//#if LOG_NDEBUG == 0
             PrintEBMLElements(mCluster);
-#endif
+//#endif
         }
 
         sp<EBMLIntegerElement> TIMECODE = FindEBMLElement(mCluster, ID_TIMECODE);
 
         List<sp<EBMLElement> >::iterator it = mCluster->children.begin();
         for (; it != mCluster->children.end(); ++it) {
-            sp<EBMLBlockElement> block = *it;
-            if (block->id.u64 == ID_BLOCKGROUP) {
-                FATAL("FIXME: add support to BLOCKGROUP");
+            if ((*it)->id.u64 == ID_BLOCKGROUP) {
+                sp<EBMLMasterElement> BLOCKGROUP = *it;
+                sp<EBMLBlockElement> BLOCK = FindEBMLElement(BLOCKGROUP, ID_BLOCK);
+                
+                if (mTracks.find(BLOCK->TrackNumber.u32) == NULL) continue;
+                MatroskaTrack& trak = mTracks[BLOCK->TrackNumber.u32];
+                uint64_t timecode = (TIMECODE->vint.u64 + BLOCK->TimeCode) * mTimeScale;
+                eFrameType type = kFrameTypeReference;
+                sp<MatroskaPacket> packet = new MatroskaPacket(trak,
+                                                               BLOCK->data,
+                                                               timecode,
+                                                               type);
+                continue;
             }
+            
+            sp<EBMLSimpleBlockElement> block = *it;
             if (block->id.u64 != ID_SIMPLEBLOCK) continue;
 
             // TODO: handle BLOCKGROUP
@@ -519,6 +590,7 @@ struct MatroskaFile : public MediaFile {
             if (block->Flags & kBlockFlagDiscardable)   type |= kFrameTypeDisposal;
             if (block->Flags & kBlockFlagInvisible)     type |= kFrameTypeReference;
             
+            if (mTracks.find(block->TrackNumber.u32) == NULL) continue;
             MatroskaTrack& trak = mTracks[block->TrackNumber.u32];
             uint64_t timecode = (TIMECODE->vint.u64 + block->TimeCode) * mTimeScale;
             List<sp<Buffer> >::const_iterator it0 = block->data.cbegin();
