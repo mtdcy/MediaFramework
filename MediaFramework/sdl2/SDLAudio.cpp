@@ -43,9 +43,7 @@
 #include "AudioResampler.h"
 
 #include <SDL.h>
-
-#define FORCE_FREQ  48000   // for testing
-#define FORCE_FMT   kSampleFormatS32
+#define NB_SAMPLES  2048    // buffer sample count
 
 __BEGIN_NAMESPACE_MPX
 
@@ -53,6 +51,7 @@ struct {
     eSampleFormat   a;
     SDL_AudioFormat b;
 } kSampleMap[] = {
+    {kSampleFormatU8,       AUDIO_U8},
     {kSampleFormatS16,      AUDIO_S16SYS},
     {kSampleFormatS32,      AUDIO_S32SYS},
     {kSampleFormatFLT,      AUDIO_F32SYS},
@@ -83,13 +82,13 @@ struct SDLAudioContext : public SharedObject {
     
     mutable Mutex           mLock;
     Condition               mWait;
-    sp<Buffer>              mPendingFrame;
-    size_t                  mBytesLeft;
+    bool                    mInputEOS;
+    sp<MediaFrame>          mPendingFrame;
+    size_t                  mBytesRead;
     bool                    mFlushing;
-    size_t                  mSilence;
 
     SDLAudioContext() : SharedObject(), mInitByUs(false),
-    mPendingFrame(0), mFlushing(false), mSilence(0) { }
+    mInputEOS(false), mBytesRead(0), mFlushing(false) { }
 };
 
 static void SDLAudioCallback(void *opaque, uint8_t *stream, int len);
@@ -111,7 +110,7 @@ static FORCE_INLINE sp<SDLAudioContext> openDevice(const AudioFormat& format) {
     wanted_spec.freq        = format.freq;
     wanted_spec.format      = get_sdl_sample_format((eSampleFormat)format.format);
     wanted_spec.silence     = 0;
-    wanted_spec.samples     = 2048;
+    wanted_spec.samples     = NB_SAMPLES;
     wanted_spec.callback    = SDLAudioCallback;
     wanted_spec.userdata    = sdl.get();
 
@@ -133,7 +132,7 @@ static FORCE_INLINE void closeDevice(sp<SDLAudioContext>& sdl) {
     {
         AutoLock _l(sdl->mLock);
         sdl->mFlushing = true;
-        sdl->mWait.signal();
+        sdl->mWait.broadcast();
     }
     SDL_CloseAudio();
 
@@ -148,32 +147,36 @@ static void SDLAudioCallback(void *opaque, uint8_t *buffer, int len) {
     DEBUG("eatFrame %p %d", buffer, len);
 
     AutoLock _l(sdl->mLock);
-    if (sdl->mSilence) {
-        memset(buffer, 0, len);
-        --sdl->mSilence;
-        return;
-    }
-
-    while (len > 0 && !sdl->mFlushing) {
-        if (sdl->mPendingFrame == NULL || sdl->mPendingFrame->ready() == 0) {
-            DEBUG("wait for input");
+    
+    while (len && !sdl->mFlushing) {
+        if (sdl->mPendingFrame.isNIL()) {
+            if (sdl->mInputEOS) {
+                INFO("End Of Audio...");
+                memset(buffer, 0, len);
+                SDL_PauseAudio(1);
+                break;
+            }
             sdl->mWait.signal();
             sdl->mWait.wait(sdl->mLock);
             continue;
         }
-
-        size_t copyBytes = len;
-        if (sdl->mPendingFrame->ready() < copyBytes) {
-            copyBytes = sdl->mPendingFrame->ready();
+        
+        size_t copy = len;
+        size_t left = sdl->mPendingFrame->planes[0].size - sdl->mBytesRead;
+        if (copy > left) copy = left;
+        
+        memcpy(buffer, sdl->mPendingFrame->planes[0].data + sdl->mBytesRead, copy);
+        sdl->mBytesRead     += copy;
+        buffer              += copy;
+        len                 -= copy;
+        
+        if (sdl->mBytesRead == sdl->mPendingFrame->planes[0].size) {
+            sdl->mPendingFrame.clear();
+            sdl->mWait.signal();
         }
-        memcpy(buffer, sdl->mPendingFrame->data(), copyBytes);
-        sdl->mPendingFrame->skip(copyBytes);
-        DEBUG("mPendingFrame %s", mPendingFrame->string().c_str());
-
-        len     -= copyBytes;
-        buffer  += copyBytes;
     }
-
+    
+    // play silence until close device
     if (sdl->mFlushing) {
         INFO("flush complete");
         memset(buffer, 0, len);
@@ -184,27 +187,36 @@ static void SDLAudioCallback(void *opaque, uint8_t *buffer, int len) {
     }
 }
 
-template <class TYPE> FORCE_INLINE sp<Buffer> interleave(const sp<MediaFrame>& frame) {
+struct PackedAudioFrame : public MediaFrame {
+    sp<Buffer> data;
+    PackedAudioFrame(size_t n) : data(new Buffer(n)) {
+        planes[0].data      = (uint8_t*)data->data();
+        planes[0].size      = n;
+        for (size_t i = 1; i < MEDIA_FRAME_NB_PLANES; ++i) {
+            planes[i].data  = NULL;
+            planes[i].size  = 0;
+        }
+    }
+};
+
+template <class TYPE> FORCE_INLINE sp<MediaFrame> interleave(const sp<MediaFrame>& frame) {
+    sp<MediaFrame> out = new PackedAudioFrame(frame->planes[0].size * frame->a.channels);
+    out->a = frame->a;
+    
     TYPE * p[MEDIA_FRAME_NB_PLANES];
     for (size_t i = 0; i < frame->a.channels; ++i)
         p[i] = (TYPE*)frame->planes[i].data;
 
-    size_t n = frame->planes[0].size * frame->a.channels;
-    sp<Buffer> out = new Buffer(n);
-    TYPE * dest = (TYPE*)out->data();
-
+    TYPE * dest = (TYPE*)out->planes[0].data;
     for (size_t i = 0; i < frame->a.samples; ++i)
         for (size_t j = 0; j < frame->a.channels; ++j)
             dest[frame->a.channels * i + j] = p[j][i];
-
-    out->step(n);
 
     return out;
 }
 
 struct SDLAudio : public MediaOut {
     sp<SDLAudioContext>     mSDL;
-    Object<AudioResampler>  mResampler;
 
     FORCE_INLINE SDLAudio() : MediaOut(), mSDL(NULL) { }
     FORCE_INLINE virtual ~SDLAudio() {
@@ -218,21 +230,7 @@ struct SDLAudio : public MediaOut {
         a.format    = (eSampleFormat)format->findInt32(kKeyFormat);
         a.freq      = format->findInt32(kKeySampleRate);
         a.channels  = format->findInt32(kKeyChannels);
-#ifdef FORCE_FREQ
-        AudioFormat _a  = a;
-        _a.freq         = FORCE_FREQ;
-#ifdef FORCE_FMT
-        _a.format       = FORCE_FMT;
-#endif
-        
-        mSDL = openDevice(_a);
-        if (_a != a) {
-            sp<Message> options = new Message;
-            mResampler = AudioResampler::Create(a, _a, options);
-        }
-#else
-        mSDL = openDevice(format);
-#endif
+        mSDL = openDevice(a);
         return mSDL != NULL ? kMediaNoError : kMediaErrorBadFormat;
     }
 
@@ -241,8 +239,10 @@ struct SDLAudio : public MediaOut {
         info->setInt32(kKeyFormat, mSDL->mAudioFormat.format);
         info->setInt32(kKeySampleRate, mSDL->mAudioFormat.freq);
         info->setInt32(kKeyChannels, mSDL->mAudioFormat.channels);
+        info->setInt32(kKeyLatency, 2 * (1000000LL * NB_SAMPLES) / mSDL->mAudioFormat.freq);
         return info;
     }
+    
     virtual MediaError configure(const sp<Message>& options) {
         if (options->contains(kKeyPause)) {
             bool pause = options->findInt32(kKeyPause);
@@ -260,54 +260,47 @@ struct SDLAudio : public MediaOut {
 
     virtual MediaError write(const sp<MediaFrame>& input) {
         DEBUG("write");
-        if (input == NULL) return flush();
-
-        if (mResampler == NULL && input->a != mSDL->mAudioFormat) {
-            closeDevice(mSDL);
-            mSDL = openDevice(input->a);
-        }
-        
-        sp<MediaFrame> frame = input;
-        if (mResampler != NULL) {
-            frame = mResampler->resample(input);
-        }
-
         AutoLock _l(mSDL->mLock);
+        if (input == NULL) {
+            mSDL->mInputEOS = true;
+            mSDL->mWait.signal();
+            return kMediaNoError;
+        }
 
         //DEBUG("write %s", input->string().c_str());
         if (SDL_GetAudioStatus() != SDL_AUDIO_PLAYING) {
             INFO("SDL_PauseAudio 0");
             SDL_PauseAudio(0);
-            //mSilence = 1;
+        }
+        
+        // wait until pending frame finished
+        while (!mSDL->mPendingFrame.isNIL()) {
+            DEBUG("wait for callback");
+            mSDL->mWait.wait(mSDL->mLock);
         }
 
-        if (frame->planes[1].data != NULL) {
+        if (input->planes[1].data != NULL) {
             switch (mSDL->mAudioFormat.format) {
                 case kSampleFormatS16:
-                    mSDL->mPendingFrame   = interleave<int16_t>(frame);
+                    mSDL->mPendingFrame   = interleave<int16_t>(input);
                     break;
                 case kSampleFormatS32:
-                    mSDL->mPendingFrame   = interleave<int32_t>(frame);
+                    mSDL->mPendingFrame   = interleave<int32_t>(input);
                     break;
                 case kSampleFormatFLT:
-                    mSDL->mPendingFrame   = interleave<float>(frame);
+                    mSDL->mPendingFrame   = interleave<float>(input);
                     break;
                 default:
                     FATAL("FIXME");
                     break;
             }
         } else {
-            //INFO("frame %zu %d %d %d", input->planes[0].size, input->a.channels, input->a.freq, input->a.samples);
-            mSDL->mPendingFrame   = new Buffer((const char *)frame->planes[0].data,
-                    frame->planes[0].size);
+            mSDL->mPendingFrame = input;
         }
+        mSDL->mBytesRead    = 0;
 
+        // wake up callback
         mSDL->mWait.signal();
-        while (mSDL->mPendingFrame->ready() > 0) {
-            DEBUG("wait for eat frame");
-            mSDL->mWait.wait(mSDL->mLock);
-        }
-        mSDL->mPendingFrame.clear();
 
         return kMediaNoError;
     }
@@ -316,10 +309,13 @@ struct SDLAudio : public MediaOut {
         AutoLock _l(mSDL->mLock);
         INFO("flushing in state %d...", SDL_GetAudioStatus());
 
+        mSDL->mInputEOS = false;
+        mSDL->mPendingFrame.clear();
+        
+        // stop callback
         if (SDL_GetAudioStatus() == SDL_AUDIO_PLAYING) {
             mSDL->mFlushing = true;
             mSDL->mWait.signal();
-            mSDL->mWait.wait(mSDL->mLock);
         }
         return kMediaNoError;
     }
