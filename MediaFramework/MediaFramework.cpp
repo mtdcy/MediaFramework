@@ -107,6 +107,11 @@ sp<MediaDecoder> MediaDecoder::Create(const sp<Message>& formats, const sp<Messa
     eCodecFormat codec = (eCodecFormat)formats->findInt32(kKeyFormat);
     eCodecType type = GetCodecType(codec);
     eModeType mode = (eModeType)options->findInt32(kKeyMode, kModeTypeNormal);
+    
+    String env = GetEnvironmentValue("FORCE_AVCODEC");
+    bool force = env.equals("1") || env.lower().equals("yes");
+    
+    if (force) mode = kModeTypeSoftware;
 
 #ifdef WITH_FFMPEG
     if (mode == kModeTypeSoftware) {
@@ -154,6 +159,7 @@ sp<MediaOut> CreateGLVideo(const sp<Message>& formats, const sp<Message>& option
 sp<MediaOut> CreateSDLAudio(const sp<Message>& formats, const sp<Message>& options);
 #endif
 sp<MediaOut> MediaOut::Create(const sp<Message>& formats, const sp<Message>& options) {
+    CHECK_TRUE(formats->contains(kKeyCodecType));
     eCodecType type = (eCodecType)formats->findInt32(kKeyCodecType);
     switch (type) {
         case kCodecTypeAudio:
