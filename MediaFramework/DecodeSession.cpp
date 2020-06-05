@@ -62,14 +62,10 @@ struct DecodeSession : public IMediaSession {
     // internal mutable context
     // TODO: clock for decoder, handle late frames
     Atomic<int>             mGeneration;
-    List<sp<MediaPacket> >  mInputQueue;        // input packets queue
     bool                    mInputEOS;          // end of input ?
-    bool                    mSignalCodecEOS;    // tell codec eos
-    bool                    mOutputEOS;         // end of output ?
     MediaTime               mLastPacketTime;    // test packets in dts order?
-    List<sp<FrameReadyEvent> > mFrameRequests;  // requests queue
+    List<sp<FrameReadyEvent> > mPendingRequests;
     // statistics
-    size_t                  mPacketsReceived;
     size_t                  mPacketsComsumed;
     size_t                  mFramesDecoded;
 
@@ -79,10 +75,10 @@ struct DecodeSession : public IMediaSession {
     // internal static context
     mCodec(NULL), mPacketReadyEvent(NULL),
     // internal mutable context
-    mGeneration(0), mInputEOS(false), mSignalCodecEOS(false), mOutputEOS(false),
+    mGeneration(0), mInputEOS(false),
     mLastPacketTime(kMediaTimeInvalid),
     // statistics
-    mPacketsReceived(0), mPacketsComsumed(0), mFramesDecoded(0)
+    mPacketsComsumed(0), mFramesDecoded(0)
     {
         DEBUG("init << %s << %s", format->string().c_str(), options->string().c_str());
         CHECK_TRUE(options->contains("PacketRequestEvent"));
@@ -128,10 +124,6 @@ struct DecodeSession : public IMediaSession {
 
         // update generation
         mPacketReadyEvent = new OnPacketReady(this, ++mGeneration);
-
-        // request packets
-        requestPacket(kMediaTimeBegin);
-        // -> onPacketReady
         
         sp<Message> formats = mCodec->formats();
         formats->setObject("FrameRequestEvent", new OnFrameRequest(this));
@@ -147,22 +139,13 @@ struct DecodeSession : public IMediaSession {
         // can NOT flush looper here
     }
 
-
     void requestPacket(const MediaTime& time = kMediaTimeInvalid) {
         DEBUG("%s: requestPacket @ %.3f", mName.c_str(), time.seconds());
         if (mInputEOS) return;
-
-        if (mInputQueue.size() >= 1) {
-            DEBUG("%s: input queue is full", mName.c_str());
-            return;
-        }
-
-        DEBUG("%s: request packet", mName.c_str());
-
+        if (mPendingRequests.empty()) return;
+        
         CHECK_FALSE(mPacketReadyEvent.isNIL());
         mPacketRequestEvent->fire(mPacketReadyEvent, time);
-
-        // -> onPacketReady
     }
 
     struct OnPacketReady : public PacketReadyEvent {
@@ -184,34 +167,85 @@ struct DecodeSession : public IMediaSession {
             return;
         }
 
-        if (pkt == NULL) {
-            INFO("%s: eos detected", mName.c_str());
-            mInputEOS = true;
-        } else {
+        if (!pkt.isNIL()) {
             DEBUG("%s: packet %.3f|%.3f(s) ready", mName.c_str(),
                   pkt->dts.seconds(), pkt->pts.seconds());
 
-            if (mPacketsReceived == 0) {
+            if (mPacketsComsumed == 0) {
                 INFO("%s: first packet @ %.3f(s)|%.3f(s)", mName.c_str(),
                      pkt->pts.seconds(), pkt->dts.seconds());
             }
 
-            ++mPacketsReceived;
             // @see MediaFile::read(), packets should in dts order.
             if (pkt->dts < mLastPacketTime) {
                 WARN("%s: unorderred packet %.3f(s) < last %.3f(s)", mName.c_str(),
                      pkt->dts.seconds(), mLastPacketTime.seconds());
             }
             mLastPacketTime = pkt->dts;
-            mInputQueue.push(pkt);
         }
-
-        // always decode as long as there is packet exists.
-        while (mFrameRequests.size() && mInputQueue.size()) {
-            onDecode();
+        
+        if (mPendingRequests.empty()) {
+            FATAL("%s: request packet for no reason", mName.c_str());
         }
-
-        requestPacket(kMediaTimeInvalid);
+        
+        decode(pkt);
+        
+        // contine request packet if pending request exists
+        if (mPendingRequests.size()) {
+            DEBUG("%s: we are on underrun state, request more packet", mName.c_str());
+            requestPacket();
+        }
+    }
+    
+    void decode(const sp<MediaPacket>& packet) {
+        CHECK_TRUE(mPendingRequests.size());
+        // only flush once on input eos
+        if (!mInputEOS) {
+            MediaError st = mCodec->write(packet);
+            // try again
+            if (kMediaErrorResourceBusy == st) {
+                sp<MediaFrame> frame = drain();
+                CHECK_FALSE(frame.isNIL());
+                sp<FrameReadyEvent> request = mPendingRequests.front();
+                mPendingRequests.pop();
+                request->fire(frame);
+            }
+            
+            if (kMediaNoError != st) {
+                ERROR("%s: decoder write() return error", mName.c_str());
+                notify(kSessionInfoError, NULL);
+                return;
+            }
+        }
+        
+        if (packet.isNIL()) {
+            INFO("%s: eos detected", mName.c_str());
+            mInputEOS = true;
+        } else {
+            mPacketsComsumed++;
+        }
+        
+        sp<MediaFrame> frame = drain();
+        if (frame.isNIL() && !mInputEOS) {
+            // codec is initializing
+        } else {
+            sp<FrameReadyEvent> request = mPendingRequests.front();
+            mPendingRequests.pop();
+            request->fire(frame);
+        }
+    }
+    
+    FORCE_INLINE sp<MediaFrame> drain() {
+        sp<MediaFrame> frame = mCodec->read();
+        if (frame.isNIL()) {
+            if (mInputEOS) {
+                INFO("%s: codec eos...", mName.c_str());
+                notify(kSessionInfoEnd, NULL);
+            } else {
+                INFO("%s: codec is initializing...", mName.c_str());
+            }
+        }
+        return frame;
     }
     
     struct OnFrameRequest : public FrameRequestEvent {
@@ -225,7 +259,7 @@ struct DecodeSession : public IMediaSession {
         }
     };
 
-    void onRequestFrame(const sp<FrameReadyEvent>& event, const MediaTime& time) {
+    void onRequestFrame(sp<FrameReadyEvent> event, const MediaTime& time) {
         DEBUG("%s: onRequestFrame @ %.3f", mName.c_str(), time.seconds());
         CHECK_TRUE(event != NULL);
         
@@ -234,92 +268,29 @@ struct DecodeSession : public IMediaSession {
             
             // clear state
             mInputEOS       = false;
-            mOutputEOS      = false;
             mLastPacketTime = kMediaTimeInvalid;
-            mInputQueue.clear();
+            mPendingRequests.clear();
             
             // update generation
-            mPacketReadyEvent   = new OnPacketReady(this, ++mGeneration);
+            mPacketReadyEvent = new OnPacketReady(this, ++mGeneration);
             
             // flush codec
             mCodec->flush();
-            mFrameRequests.clear();
-        }
-
-        if (mOutputEOS) {
-            DEBUG("%s: request frame at eos", mName.c_str());
-            return;
         }
         
-        // request next frame
-        mFrameRequests.push(event);
-        // case 2: packet is ready
-        // decode the first packet
-        // or drain the codec if input eos
-        if (mInputEOS || mInputQueue.size()) {
-            onDecode();
-        }
-        // case 3: packet is not ready && not eos
-        // request packet + pending a decode request
-        else {
-            requestPacket(time);
-        }
-    }
-
-    void onDecode() {
-        DEBUG("%s: with %zu packets ready", mName.c_str(), mInputQueue.size());
-        CHECK_TRUE(mInputQueue.size() || mInputEOS);
-        CHECK_FALSE(mOutputEOS);
-
-        // push packets to codec
-        if (mInputQueue.size()) {
-            sp<MediaPacket> packet = *mInputQueue.begin();
-            CHECK_TRUE(packet != NULL);
-
-            DEBUG("%s: decode pkt %.3f(s)", mName.c_str(), packet->dts.seconds());
-            MediaError err = mCodec->write(packet);
-            if (err == kMediaErrorResourceBusy) {
-                DEBUG("%s: codec is full with frames", mName.c_str());
-            } else {
-                if (err != kMediaNoError) {
-                    ERROR("%s: write packet failed.", mName.c_str());
-                }
-                mInputQueue.pop();
-                ++mPacketsComsumed;
-            }
-        } else if (!mSignalCodecEOS) {
-            CHECK_TRUE(mInputEOS);
-            // tell codec about eos
-            mCodec->write(NULL);
-            mSignalCodecEOS = true;
-        }
-
-        // drain from codec
-        sp<MediaFrame> frame = mCodec->read();
-        if (frame == NULL && !mInputEOS) {
-            INFO("%s: is initializing...", mName.c_str());
+        if (mInputEOS) {
+            // drain decoder until eos
+            event->fire(drain());
         } else {
-            sp<FrameReadyEvent>& event = mFrameRequests.front();
-
-            if (frame != NULL) {
-                DEBUG("%s: decoded frame %.3f(s) ready", mName.c_str(), frame->timecode.seconds());
-                ++mFramesDecoded;
-            } else {
-                INFO("%s: codec eos detected", mName.c_str());
-                notify(kSessionInfoEnd, NULL);
-                mOutputEOS = true;
-            }
-            event->fire(frame);
-
-            if (mOutputEOS) {
-                mFrameRequests.clear(); // clear requests
-            } else {
-                mFrameRequests.pop();
+            mPendingRequests.push(event);
+            // start request packets
+            // this should be the common case,
+            // decoder should be fast than renderer, or underrun hapens
+            if (mPendingRequests.size() == 1) {
+                DEBUG("%s: request packet on frame request", mName.c_str());
+                requestPacket();
             }
         }
-
-        // request more packets
-        requestPacket(kMediaTimeInvalid);
     }
 };
 
