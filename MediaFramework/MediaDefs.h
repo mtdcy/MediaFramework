@@ -303,6 +303,7 @@ typedef enum {
     kMediaErrorBadFormat            = -10007,   ///<
     kMediaErrorNoMoreData           = -10008,   ///<
     kMediaErrorOutOfMemory          = -10009,   ///< Out Of Memory
+    kMediaErrorBadContent           = -10010,
 } MediaError;
 
 typedef struct AudioFormat {
@@ -632,6 +633,8 @@ __BEGIN_DECLS
  */
 #define kKeyCount       "count"     ///< int32_t
 #define kKeyResult      "result"    ///< int32_t, MediaError
+#define kKeyBitrate     "bitrate"   ///< int32_t
+#define kKeyBits        "bits"      ///< int32_t
 
 
 /**

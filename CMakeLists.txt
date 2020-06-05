@@ -72,6 +72,7 @@ set (SOURCE_FILES
     MediaFramework/tags/id3/ID3.cpp
     MediaFramework/audioresampler/AudioResampler.cpp
     MediaFramework/asf/Asf.cpp
+    MediaFramework/wave/WaveFile.cpp
     MediaFramework/mp3/Mp3File.cpp
     MediaFramework/mpeg4/Mp4File.cpp
     MediaFramework/mpeg4/Systems.cpp
