@@ -134,8 +134,8 @@ struct RenderSession : public IMediaSession {
         }
 
         CHECK_TRUE(mFormat->contains(kKeyFormat));
-        eCodecFormat codec = (eCodecFormat)mFormat->findInt32(kKeyFormat);
-        mName = String::format("render-%x", codec);
+        uint32_t codec = mFormat->findInt32(kKeyFormat);
+        mName = String::format("render-%4s", (char*)&codec);
     }
 
     void notify(eSessionInfoType info, const sp<Message>& payload) {

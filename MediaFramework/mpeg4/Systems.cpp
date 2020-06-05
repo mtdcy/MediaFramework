@@ -42,25 +42,25 @@
 __BEGIN_NAMESPACE_MPX
 __BEGIN_NAMESPACE(MPEG4)
 
-eCodecFormat translateObjectTypeIndication(eObjectTypeIndication objectTypeIndication) {
+uint32_t translateObjectTypeIndication(eObjectTypeIndication objectTypeIndication) {
     switch (objectTypeIndication) {
         case ISO_IEC_14496_2             :        // MPEG4 visual
-            return kVideoCodecFormatMPEG4;
+            return kVideoCodecMPEG4;
         case ISO_IEC_14496_10            :        // H264
-            return kVideoCodecFormatH264;
+            return kVideoCodecH264;
         case ISO_IEC_23008_2             :        // H265
-            return kVideoCodecFormatHEVC;
+            return kVideoCodecHEVC;
         case ISO_IEC_14496_3             :        // MPEG4 sound / AAC
-            return kAudioCodecFormatAAC;
+            return kAudioCodecAAC;
         case ISO_IEC_13818_7_Main        :        // MPEG2 AAC Main
         case ISO_IEC_13818_7_LC          :        // MPEG2 AAC LC
         case ISO_IEC_13818_7_SSR         :        // MPEG2 AAC SSR
-            return kAudioCodecFormatAAC;
+            return kAudioCodecAAC;
         case ISO_IEC_13818_3             :        // MP3
-            return kAudioCodecFormatMP3;
+            return kAudioCodecMP3;
         default:
             ERROR("unknown objectTypeIndication 0x%" PRIx8, objectTypeIndication);
-            return kCodecFormatUnknown;
+            return kAudioCodecUnknown;
     }
 }
 

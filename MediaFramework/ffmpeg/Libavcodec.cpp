@@ -54,41 +54,41 @@
 __BEGIN_NAMESPACE_MPX
 
 struct {
-    eCodecFormat    a;
+    uint32_t        a;
     AVCodecID       b;
 } kCodecMap[] = {
     // audio
-    {kAudioCodecFormatAAC,      AV_CODEC_ID_AAC     },
-    {kAudioCodecFormatMP3,      AV_CODEC_ID_MP3     },
-    {kAudioCodecFormatAPE,      AV_CODEC_ID_APE     },
-    {kAudioCodecFormatFLAC,     AV_CODEC_ID_FLAC    },
-    {kAudioCodecFormatWMA,      AV_CODEC_ID_WMAV2   },
-    {kAudioCodecFormatVorbis,   AV_CODEC_ID_VORBIS  },
-    {kAudioCodecFormatDTS,      AV_CODEC_ID_DTS     },
-    {kAudioCodecFormatAC3,      AV_CODEC_ID_AC3     },
+    {kAudioCodecAAC,        AV_CODEC_ID_AAC         },
+    {kAudioCodecMP3,        AV_CODEC_ID_MP3         },
+    {kAudioCodecAPE,        AV_CODEC_ID_APE         },
+    {kAudioCodecFLAC,       AV_CODEC_ID_FLAC        },
+    {kAudioCodecWMA,        AV_CODEC_ID_WMAV2       },
+    {kAudioCodecVorbis,     AV_CODEC_ID_VORBIS      },
+    {kAudioCodecDTS,        AV_CODEC_ID_DTS         },
+    {kAudioCodecAC3,        AV_CODEC_ID_AC3         },
 
     // video
-    {kVideoCodecFormatH264,     AV_CODEC_ID_H264    },
-    {kVideoCodecFormatHEVC,     AV_CODEC_ID_H265    },
-    {kVideoCodecFormatMPEG4,    AV_CODEC_ID_MPEG4   },
-    {kVideoCodecFormatMSMPEG4,  AV_CODEC_ID_MSMPEG4V3 },
-    {kVideoCodecFormatVC1,      AV_CODEC_ID_VC1     },
+    {kVideoCodecH264,       AV_CODEC_ID_H264        },
+    {kVideoCodecHEVC,       AV_CODEC_ID_H265        },
+    {kVideoCodecMPEG4,      AV_CODEC_ID_MPEG4       },
+    {kVideoCodecMP42,       AV_CODEC_ID_MSMPEG4V2   },
+    {kVideoCodecVC1,        AV_CODEC_ID_VC1         },
 
     // END OF LIST
-    {kCodecFormatUnknown,       AV_CODEC_ID_NONE}
+    {kAudioCodecUnknown,    AV_CODEC_ID_NONE        }
 };
 
-static eCodecFormat get_codec_format(AVCodecID b) {
+static uint32_t get_codec_format(AVCodecID b) {
     for (size_t i = 0; kCodecMap[i].b != AV_CODEC_ID_NONE; ++i) {
         if (kCodecMap[i].b == b)
             return kCodecMap[i].a;
     }
     FATAL("fix the map <= %s", avcodec_get_name(b));
-    return kCodecFormatUnknown;
+    return kAudioCodecUnknown;
 }
 
-static AVCodecID get_av_codec_id(eCodecFormat a) {
-    for (size_t i = 0; kCodecMap[i].a != kCodecFormatUnknown; ++i) {
+static AVCodecID get_av_codec_id(uint32_t a) {
+    for (size_t i = 0; kCodecMap[i].b != AV_CODEC_ID_NONE; ++i) {
         if (kCodecMap[i].a == a)
             return kCodecMap[i].b;
     }
@@ -645,8 +645,9 @@ static AVCodecContext * initContext(eModeType mode, const sp<Message>& formats, 
     av_log_set_callback(av_log_callback);
 #endif
     
-    eCodecFormat codec = (eCodecFormat)formats->findInt32(kKeyFormat);
-    eCodecType type = GetCodecType(codec);
+    CHECK_TRUE(formats->contains(kKeyCodecType));
+    eCodecType type = (eCodecType)formats->findInt32(kKeyCodecType);
+    uint32_t codec = formats->findInt32(kKeyFormat);
     AVCodecID id = get_av_codec_id(codec);
     
 #if 1

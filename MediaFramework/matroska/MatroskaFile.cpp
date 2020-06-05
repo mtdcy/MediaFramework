@@ -102,52 +102,52 @@ static sp<EBMLElement> getSegmentElement(sp<Content>& pipe,
 // https://matroska.org/technical/specs/codecid/index.html
 static struct {
     const char *        codec;
-    const eCodecFormat  format;
+    const uint32_t      format;
 } kCodecMap[] = {
     // video
-    { "V_MPEG4/ISO/AVC",        kVideoCodecFormatH264   },
-    { "V_MPEG4/ISO/ASP",        kVideoCodecFormatMPEG4  },
-    { "V_MPEGH/ISO/HEVC",       kVideoCodecFormatHEVC   },
-    { "V_MPEG4/ISO/",           kVideoCodecFormatMPEG4  },
-    { "V_MPEG4/MS/V3",          kVideoCodecFormatMSMPEG4},
-    { "V_VP8",                  kVideoCodecFormatVP8    },
-    { "V_VP9",                  kVideoCodecFormatVP9    },
+    { "V_MPEG4/ISO/AVC",        kVideoCodecH264    },
+    { "V_MPEG4/ISO/ASP",        kVideoCodecMPEG4   },
+    { "V_MPEGH/ISO/HEVC",       kVideoCodecHEVC    },
+    { "V_MPEG4/ISO/",           kVideoCodecMPEG4   },
+    { "V_MPEG4/MS/V3",          kVideoCodecMP42    },
+    { "V_VP8",                  kVideoCodecVP8     },
+    { "V_VP9",                  kVideoCodecVP9     },
     // audio
-    { "A_AAC",                  kAudioCodecFormatAAC    },
-    { "A_AC3",                  kAudioCodecFormatAC3    },
-    { "A_DTS",                  kAudioCodecFormatDTS    },
-    { "A_MPEG/L1",              kAudioCodecFormatMP3    },
-    { "A_MPEG/L2",              kAudioCodecFormatMP3    },
-    { "A_MPEG/L3",              kAudioCodecFormatMP3    },
+    { "A_AAC",                  kAudioCodecAAC     },
+    { "A_AC3",                  kAudioCodecAC3     },
+    { "A_DTS",                  kAudioCodecDTS     },
+    { "A_MPEG/L1",              kAudioCodecMP3     },
+    { "A_MPEG/L2",              kAudioCodecMP3     },
+    { "A_MPEG/L3",              kAudioCodecMP3     },
     // END OF LIST
-    { "",                       kCodecFormatUnknown     },
+    { "",                       kAudioCodecUnknown },
 };
 #define NELEM(x)    sizeof(x)/sizeof(x[0])
 
-static FORCE_INLINE eCodecFormat GetCodecFormat(const String& codec) {
+static FORCE_INLINE uint32_t GetCodecFormat(const String& codec) {
     for (size_t i = 0; i < NELEM(kCodecMap); ++i) {
         if (codec.startsWith(kCodecMap[i].codec)) {
             return kCodecMap[i].format;
         }
     }
-    return kCodecFormatUnknown;
+    return kAudioCodecUnknown;
 }
 
 static struct {
     const uint32_t      fourcc;
-    const eCodecFormat  format;
+    const uint32_t      format;
 } kFourCCMap[] = {
-    {'24PM',        kVideoCodecFormatMSMPEG4  },
+    {FOURCC('MP42'),    kVideoCodecMP42    },
     // END OF LIST
-    {'****',        kCodecFormatUnknown     }
+    {0,                 kAudioCodecUnknown }
 };
 
-static eCodecFormat GetCodecFormatFromFourCC(uint32_t fourcc) {
+static uint32_t GetCodecFormatFromFourCC(uint32_t fourcc) {
     for (size_t i = 0; i < NELEM(kFourCCMap); ++i) {
         if (kFourCCMap[i].fourcc == fourcc)
             return kFourCCMap[i].format;
     }
-    return kCodecFormatUnknown;
+    return kAudioCodecUnknown;
 }
 
 struct TOCEntry {
@@ -157,11 +157,13 @@ struct TOCEntry {
 };
 
 struct MatroskaTrack {
-    MatroskaTrack() : index(0), format(kCodecFormatUnknown),
+    MatroskaTrack() : index(0), format(0),
     frametime(0), timescale(1.0), compAlgo(4) { }
     size_t                  index;
     
-    eCodecFormat            format;     // ID_CODECID
+    eCodecType              type;
+    // eAudioCodec eVideoCodec
+    uint32_t                format;     // ID_CODECID
     int64_t                 frametime;  // ID_DEFAULTDURATION
     double                  timescale;  // ID_TRACKTIMECODESCALE, DEPRECATED
     union {
@@ -207,7 +209,6 @@ struct MatroskaPacket : public MediaPacket {
         pts         = kMediaTimeInvalid;
         duration    = MediaTime(trak.frametime / trak.timescale, 1000000000LL);
 
-        format      = trak.format;
         type        = _type;
     }
 };
@@ -309,7 +310,7 @@ struct MatroskaFile : public MediaFile {
                 trak.format = GetCodecFormat(CODECID->str);
             }
             
-            if (trak.format == kCodecFormatUnknown) {
+            if (trak.format == kAudioCodecUnknown) {
                 ERROR("unknown codec %s", CODECID->str.c_str());
                 continue;
             }
@@ -334,8 +335,11 @@ struct MatroskaFile : public MediaFile {
             }
 
             sp<EBMLIntegerElement> TRACKTYPE = FindEBMLElement(TRACKENTRY, ID_TRACKTYPE);
+            if (TRACKTYPE->vint.u32 & kTrackTypeAudio) trak.type = kCodecTypeAudio;
+            else if (TRACKTYPE->vint.u32 & kTrackTypeVideo) trak.type = kCodecTypeVideo;
+            else if (TRACKTYPE->vint.u32 & kTrackTypeSubtitle) trak.type = kCodecTypeSubtitle;
 
-            if (TRACKTYPE->vint.u32 & kTrackTypeAudio) {
+            if (trak.type == kCodecTypeAudio) {
                 sp<EBMLFloatElement> SAMPLINGFREQUENCY = FindEBMLElementInside(TRACKENTRY, ID_AUDIO, ID_SAMPLINGFREQUENCY);
                 sp<EBMLIntegerElement> CHANNELS = FindEBMLElementInside(TRACKENTRY, ID_AUDIO, ID_CHANNELS);
 
@@ -347,7 +351,7 @@ struct MatroskaFile : public MediaFile {
 
                 // I hate this: for some format, the mandatory properties always missing in header,
                 // we have to decode blocks to get these properties
-                if (trak.format == kAudioCodecFormatAAC && trak.csd != NULL) {
+                if (trak.format == kAudioCodecAAC && trak.csd != NULL) {
                     // FIXME: strip audio properties from ADTS headers if csd is not exists
                     // AudioSpecificConfig
                     BitReader br(trak.csd->data(), trak.csd->size());
@@ -363,7 +367,7 @@ struct MatroskaFile : public MediaFile {
                     WARN("%s: track miss mandatory properties", CODECID->str.c_str());
                     stage2 = true;
                 }
-            } else if (TRACKTYPE->vint.u32 & kTrackTypeVideo) {
+            } else if (trak.type == kCodecTypeVideo) {
                 // XXX: pixel width vs display width
                 sp<EBMLIntegerElement> WIDTH = FindEBMLElementInside(TRACKENTRY, ID_VIDEO, ID_DISPLAYWIDTH);
                 if (WIDTH == NULL) WIDTH = FindEBMLElementInside(TRACKENTRY, ID_VIDEO, ID_PIXELWIDTH);
@@ -376,7 +380,7 @@ struct MatroskaFile : public MediaFile {
                 ERROR("TODO: track type %#x", TRACKTYPE->vint.u32);
             }
 
-            if (trak.format == kAudioCodecFormatMP3) {
+            if (trak.format == kAudioCodecMP3) {
                 // FIXME: DO we need packetizer or not
                 //trak.packetizer = MediaPacketizer::Create(trak.format);
             }
@@ -473,12 +477,12 @@ struct MatroskaFile : public MediaFile {
         for (; it != mTracks.cend(); ++it) {
             sp<Message> trakInfo = new Message;
             const MatroskaTrack& trak = it.value();
+            trakInfo->setInt32(kKeyCodecType, trak.type);
             trakInfo->setInt32(kKeyFormat, trak.format);
-            eCodecType type = GetCodecType(trak.format);
-            if (type == kCodecTypeAudio) {
+            if (trak.type == kCodecTypeAudio) {
                 trakInfo->setInt32(kKeySampleRate, trak.a.sampleRate);
                 trakInfo->setInt32(kKeyChannels, trak.a.channels);
-            } else if (type == kCodecTypeVideo) {
+            } else if (trak.type == kCodecTypeVideo) {
                 trakInfo->setInt32(kKeyWidth, trak.v.width);
                 trakInfo->setInt32(kKeyHeight, trak.v.height);
             } else {
@@ -490,7 +494,7 @@ struct MatroskaFile : public MediaFile {
             // https://tools.ietf.org/id/draft-lhomme-cellar-codec-00.html
             if (trak.csd != NULL) {
                 DEBUG("csd: %s", trak.csd->string(true).c_str());
-                if (trak.format == kAudioCodecFormatAAC) {
+                if (trak.format == kAudioCodecAAC) {
                     // AudioSpecificConfig -> ESDS
                     sp<Buffer> esds = MPEG4::MakeAudioESDS(trak.csd->data(), trak.csd->size());
                     if (esds.isNIL()) {
@@ -498,7 +502,7 @@ struct MatroskaFile : public MediaFile {
                         esds = MPEG4::MakeAudioESDS(asc);
                     }
                     trakInfo->setObject(kKeyESDS, esds);
-                } else if (trak.format == kVideoCodecFormatH264) {
+                } else if (trak.format == kVideoCodecH264) {
                     BitReader br(trak.csd->data(), trak.csd->size());
                     MPEG4::AVCDecoderConfigurationRecord avcC(br);
                     if (avcC.valid) {
@@ -506,11 +510,11 @@ struct MatroskaFile : public MediaFile {
                     } else {
                         ERROR("bad avcC");
                     }
-                } else if (trak.format == kVideoCodecFormatHEVC) {
+                } else if (trak.format == kVideoCodecHEVC) {
                     trakInfo->setObject(kKeyhvcC, trak.csd);
-                } else if (trak.format == kVideoCodecFormatMPEG4) {
+                } else if (trak.format == kVideoCodecMPEG4) {
                     trakInfo->setObject(kKeyESDS, trak.csd);
-                } else if (trak.format == kVideoCodecFormatMSMPEG4) {
+                } else if (trak.format == kVideoCodecMP42) {
                     trakInfo->setObject(kKeyVCM, trak.csd);
                 }
             }
@@ -556,9 +560,9 @@ struct MatroskaFile : public MediaFile {
                 return kMediaErrorNoMoreData;
             }
 
-//#if LOG_NDEBUG == 0
+#if LOG_NDEBUG == 0
             PrintEBMLElements(mCluster);
-//#endif
+#endif
         }
 
         sp<EBMLIntegerElement> TIMECODE = FindEBMLElement(mCluster, ID_TIMECODE);

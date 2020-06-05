@@ -272,6 +272,7 @@ const PixelDescriptor * GetPixelFormatDescriptor(ePixelFormat pixel) {
         }
     }
     ERROR("missing pixel descriptor for %#x", pixel);
+    ERROR("missing pixel descriptor for %s", String((uint32_t)pixel).c_str());
     return NULL;
 }
 

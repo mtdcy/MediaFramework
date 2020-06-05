@@ -526,7 +526,6 @@ struct Mp3Packetizer : public MediaPacketizer {
         packet->dts         = mNextFrameTime;
         packet->duration    = mFrameTime;
         packet->type        = kFrameTypeSync;
-        packet->format      = kAudioCodecFormatMP3;
         packet->properties  = mProperties;
         mNextFrameTime      += mFrameTime;
 
@@ -736,7 +735,8 @@ struct Mp3File : public MediaFile {
         info->setInt64(kKeyDuration, mDuration.useconds());
 
         sp<Message> trak = new Message;
-        trak->setInt32(kKeyFormat, kAudioCodecFormatMP3);
+        trak->setInt32(kKeyCodecType, kCodecTypeAudio);
+        trak->setInt32(kKeyFormat, kAudioCodecMP3);
         // FIXME:
         //ast->setInt32(Media::Bitrate, mBitRate);
         trak->setInt32(kKeyChannels, mHeader.numChannels);

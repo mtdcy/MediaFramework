@@ -44,13 +44,13 @@
 __USING_NAMESPACE_MPX
 
 struct TrackContext : public SharedObject {
-    eCodecFormat        mCodec;
+    eCodecType          mType;
     size_t              mTrackIndex;
     sp<IMediaSession>   mMediaSource;
     sp<IMediaSession>   mDecodeSession;
     sp<IMediaSession>   mRenderSession;
     
-    TrackContext() : mCodec(kCodecFormatUnknown), mTrackIndex(0) { }
+    TrackContext() : mType(kCodecTypeUnknown), mTrackIndex(0) { }
     
     ~TrackContext() {
         mMediaSource.clear();
@@ -149,15 +149,9 @@ struct Tiger : public IMediaPlayer {
 
             DEBUG("track %zu: %s", i, trackFormat->string().c_str());
 
-            eCodecFormat codec = (eCodecFormat)trackFormat->findInt32(kKeyFormat);
-            if (codec == kCodecFormatUnknown) {
-                ERROR("ignore unknown codec");
-                continue;
-            }
-
-            eCodecType type = GetCodecType(codec);
-            //if (type == kCodecTypeAudio) continue;
-
+            CHECK_TRUE(trackFormat->contains(kKeyCodecType));
+            eCodecType type = (eCodecType)trackFormat->findInt32(kKeyCodecType);
+            
             CHECK_TRUE(trackFormat->findObject("PacketRequestEvent"));
             sp<PacketRequestEvent> pre = trackFormat->findObject("PacketRequestEvent");
 
@@ -173,8 +167,8 @@ struct Tiger : public IMediaPlayer {
             }
             
             sp<TrackContext> track = new TrackContext;
-            track->mCodec           = codec;
             track->mTrackIndex      = i;
+            track->mType            = type;
             track->mMediaSource     = mMediaSource;
             track->mDecodeSession   = session;
             
@@ -228,8 +222,7 @@ struct Tiger : public IMediaPlayer {
         DEBUG("onInitRenderer [%zu] %s", id, format->string().c_str());
         sp<TrackContext>& track = mTracks[id];
         
-        eCodecType type = GetCodecType(track->mCodec);
-        if (type == kCodecTypeAudio) {
+        if (track->mType == kCodecTypeAudio) {
             if (format->findInt32(kKeySampleRate) == 0 ||
                     format->findInt32(kKeyChannels) == 0) {
                 ERROR("missing mandatory format infomation, playback may be broken");
@@ -241,7 +234,7 @@ struct Tiger : public IMediaPlayer {
             } else {
                 mHasAudio = true;
             }
-        } else if (type == kCodecTypeVideo) {
+        } else if (track->mType == kCodecTypeVideo) {
             if (format->findInt32(kKeyWidth) == 0 ||
                     format->findInt32(kKeyHeight) == 0) {
                 ERROR("missing mandatory format infomation, playback may be broken");
@@ -252,12 +245,12 @@ struct Tiger : public IMediaPlayer {
 
         sp<Message> options = new Message;
         options->setInt32(kKeyMode, mMode);
-        if (type == kCodecTypeVideo) {
+        if (track->mType == kCodecTypeVideo) {
             if (!mVideoFrameEvent.isNIL()) {
                 options->setObject("MediaFrameEvent", mVideoFrameEvent);
             }
             options->setInt32(kKeyRequestFormat, kPixelFormat420YpCbCrSemiPlanar);
-        } else if (type == kCodecTypeAudio) {
+        } else if (track->mType == kCodecTypeAudio) {
             if (!mAudioFrameEvent.isNIL()) {
                 options->setObject("MediaFrameEvent", mAudioFrameEvent);
             }
@@ -265,7 +258,7 @@ struct Tiger : public IMediaPlayer {
         options->setObject("FrameRequestEvent", fre);
         options->setObject("SessionInfoEvent", new OnRendererInfo(this, id));
 
-        if (kCodecTypeVideo == type || mTracks.size() == 1) {
+        if (kCodecTypeVideo == track->mType || mTracks.size() == 1) {
             options->setObject("Clock", new Clock(mClock, kClockRoleMaster));
         } else {
             options->setObject("Clock", new Clock(mClock));

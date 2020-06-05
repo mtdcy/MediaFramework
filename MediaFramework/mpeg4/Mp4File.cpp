@@ -55,22 +55,22 @@ using namespace MPEG4;
 
 struct {
     const char *        name;
-    const eCodecFormat  format;
+    const uint32_t      format;
 } kCodecMap[] = {
-    {"mp4a",        kAudioCodecFormatAAC},
-    {"avc1",        kVideoCodecFormatH264},
-    {"avc2",        kVideoCodecFormatH264},
-    {"hvc1",        kVideoCodecFormatHEVC},
+    {"mp4a",        kAudioCodecAAC     },
+    {"avc1",        kVideoCodecH264    },
+    {"avc2",        kVideoCodecH264    },
+    {"hvc1",        kVideoCodecHEVC    },
     // END OF LIST
-    {"",            kCodecFormatUnknown},
+    {"",            kAudioCodecUnknown },
 };
 
-static eCodecFormat get_codec_format(const String& name) {
-    for (size_t i = 0; kCodecMap[i].format != kCodecFormatUnknown; ++i) {
+static uint32_t get_codec_format(const String& name) {
+    for (size_t i = 0; kCodecMap[i].format != kAudioCodecUnknown; ++i) {
         if (name == kCodecMap[i].name)
             return kCodecMap[i].format;
     }
-    return kCodecFormatUnknown;
+    return kAudioCodecUnknown;
 }
 
 // TODO:
@@ -99,12 +99,13 @@ struct Sample {
 };
 
 struct Mp4Track : public SharedObject {
-    Mp4Track() : codec(kCodecFormatUnknown),
+    Mp4Track() : type(kCodecTypeUnknown), codec(0),
     sampleIndex(0), duration(kMediaTimeInvalid),
     startTime(kMediaTimeBegin),
     samplesRead(0) { }
 
-    eCodecFormat        codec;
+    eCodecType          type;
+    uint32_t            codec;  // eAudioCodec|eVideoCodec
     size_t              sampleIndex;
     MediaTime           duration;
     MediaTime           startTime;
@@ -170,12 +171,13 @@ static sp<Mp4Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderB
     // find sample infomations
     sp<SampleEntry> sampleEntry = stsd->child[0];
     track->codec = get_codec_format(sampleEntry->name);
-    if (track->codec == kCodecFormatUnknown) {
+    if (track->codec == kAudioCodecUnknown) {
         ERROR("unsupported track sample '%s'", sampleEntry->name.c_str());
         return track;
     }
 
     if (hdlr->handler_type == "soun") {
+        track->type = kCodecTypeAudio;
         track->audio.channelCount = sampleEntry->sound.channelcount;
         if (sampleEntry->sound.samplerate) {
             track->audio.sampleRate = sampleEntry->sound.samplerate;
@@ -184,6 +186,7 @@ static sp<Mp4Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderB
             track->audio.sampleRate = mdhd->timescale;
         }
     } else if (hdlr->handler_type == "vide") {
+        track->type = kCodecTypeVideo;
         track->video.width = sampleEntry->visual.width;
         track->video.height = sampleEntry->visual.height;
     }
@@ -426,14 +429,14 @@ struct Mp4File : public MediaFile {
             const sp<Mp4Track>& trak = mTracks[i];
 
             sp<Message> trakInfo = new Message;
+            trakInfo->setInt32(kKeyCodecType, trak->type);
             trakInfo->setInt32(kKeyFormat, trak->codec);
             trakInfo->setInt64(kKeyDuration, trak->duration.useconds());
 
-            eCodecType type = GetCodecType(trak->codec);
-            if (type == kCodecTypeAudio) {
+            if (trak->type == kCodecTypeAudio) {
                 trakInfo->setInt32(kKeySampleRate, trak->audio.sampleRate);
                 trakInfo->setInt32(kKeyChannels, trak->audio.channelCount);
-            } else if (type == kCodecTypeVideo) {
+            } else if (trak->type == kCodecTypeVideo) {
                 trakInfo->setInt32(kKeyWidth, trak->video.width);
                 trakInfo->setInt32(kKeyHeight, trak->video.height);
             }
@@ -699,7 +702,6 @@ struct Mp4File : public MediaFile {
         // init MediaPacket context
         sp<MediaPacket> packet  = new Mp4Packet(sample);
         packet->index           = trackIndex;
-        packet->format          = track->codec;
         packet->type            = flags;
         if (s.pts == kTimeValueInvalid)
             packet->pts =       kMediaTimeInvalid;

@@ -56,32 +56,32 @@
 __BEGIN_NAMESPACE_MPX
 
 struct {
-    eCodecFormat        a;
+    eVideoCodec         a;
     CMVideoCodecType    b;
 } kCodecMap[] = {
-    {kVideoCodecFormatH263,     kCMVideoCodecType_H263},
-    {kVideoCodecFormatH264,     kCMVideoCodecType_H264},
-    {kVideoCodecFormatHEVC,     kCMVideoCodecType_HEVC},
-    {kVideoCodecFormatMPEG4,    kCMVideoCodecType_MPEG4Video},
+    {kVideoCodecH263,       kCMVideoCodecType_H263},
+    {kVideoCodecH264,       kCMVideoCodecType_H264},
+    {kVideoCodecHEVC,       kCMVideoCodecType_HEVC},
+    {kVideoCodecMPEG4,      kCMVideoCodecType_MPEG4Video},
     // END OF LIST
-    {kCodecFormatUnknown,       0},
+    {kVideoCodecUnknown,    0},
 };
 
-static FORCE_INLINE CMVideoCodecType get_cm_codec_type(eCodecFormat a) {
-    for (size_t i = 0; kCodecMap[i].a != kCodecFormatUnknown; ++i) {
+static FORCE_INLINE CMVideoCodecType get_cm_codec_type(eVideoCodec a) {
+    for (size_t i = 0; kCodecMap[i].a != kVideoCodecUnknown; ++i) {
         if (kCodecMap[i].a == a)
             return kCodecMap[i].b;
     }
     return 0;
 }
 
-static FORCE_INLINE eCodecFormat get_codec_format(CMVideoCodecType b) {
-    for (size_t i = 0; kCodecMap[i].a != kCodecFormatUnknown; ++i) {
+static FORCE_INLINE eVideoCodec get_codec_format(CMVideoCodecType b) {
+    for (size_t i = 0; kCodecMap[i].a != kVideoCodecUnknown; ++i) {
         if (kCodecMap[i].b == b)
             return kCodecMap[i].a;
     }
     FATAL("FIXME");
-    return kCodecFormatUnknown;
+    return kVideoCodecUnknown;
 }
 
 struct {
@@ -347,7 +347,7 @@ static FORCE_INLINE CFDictionaryRef setupImageBufferAttributes(int32_t width, in
 static FORCE_INLINE sp<VTContext> createSession(const sp<Message>& formats, const sp<Message>& options, MediaError *err) {
     sp<VTContext> vtc = new VTContext;
 
-    eCodecFormat codec = (eCodecFormat)formats->findInt32(kKeyFormat);
+    eVideoCodec codec = (eVideoCodec)formats->findInt32(kKeyFormat);
     vtc->width  = formats->findInt32(kKeyWidth);
     vtc->height = formats->findInt32(kKeyHeight);
     vtc->pixel  = kPixelFormatVideoToolbox;
@@ -671,7 +671,7 @@ struct VideoToolboxDecoder : public MediaDecoder {
 };
 
 // FIXME: VTIsHardwareDecodeSupported is not working as expected
-bool IsVideoToolboxSupported(eCodecFormat format) {
+bool IsVideoToolboxSupported(eVideoCodec format) {
     CMPixelFormatType cm = get_cm_codec_type(format);
     if (cm == 0) return false;
     return true;

@@ -64,74 +64,91 @@ __BEGIN_DECLS
  * @note framework internal constrants & types should define inside class
  */
 
+#undef FOURCC // FOURCC may be defined by others
+#define FOURCC(x) (((uint32_t)(x) >> 24) & 0xff)        \
+                | (((uint32_t)(x) >> 8) & 0xff00)       \
+                | (((uint32_t)(x) << 8) & 0xff0000)     \
+                | (((uint32_t)(x) << 24) & 0xff000000)
+
 // nobody really care about file format
 typedef enum eFileFormat {
     kFileFormatInvalid  = 0,
-    kFileFormatAny      = '****',       ///< it is a usefull file without details
+    kFileFormatAny      = FOURCC('****'),       ///< it is a usefull file without details
     // audio
-    kFileFormatWave     = 'WAVE',
-    kFileFormatMp3      = 'mp3 ',
-    kFileFormatFlac     = 'fLaC',
-    kFileFormatApe      = 'APE ',
+    kFileFormatWave     = FOURCC('WAVE'),
+    kFileFormatMp3      = FOURCC('mp3 '),
+    kFileFormatFlac     = FOURCC('fLaC'),
+    kFileFormatApe      = FOURCC('APE '),
     // video
-    kFileFormatMp4      = 'Mp4 ',       ///< mp4 & m4a
-    kFileFormatMkv      = 'mkv ',
-    kFileFormatAvi      = 'avi ',
+    kFileFormatMp4      = FOURCC('mp4 '),       ///< mp4 & m4a
+    kFileFormatMkv      = FOURCC('mkv '),
+    kFileFormatAvi      = FOURCC('avi '),
     // images
-    kFileFormatJpeg     = 'jpeg',
-    kFileFormatGif      = 'gif ',
-    kFileFormatPng      = 'png ',
+    kFileFormatJpeg     = FOURCC('jpeg'),
+    kFileFormatGif      = FOURCC('gif '),
+    kFileFormatPng      = FOURCC('png '),
 } eFileFormat;
 
-typedef enum eCodecFormat {
-    kCodecFormatUnknown     = 0,
-    // audio
-    kAudioCodecFormatFirst  = 0x100,
-    kAudioCodecFormatPCM,
-    kAudioCodecFormatFLAC,
-    kAudioCodecFormatMP3,
-    kAudioCodecFormatVorbis,
-    kAudioCodecFormatAAC,
-    kAudioCodecFormatAC3,
-    kAudioCodecFormatWMA,
-    kAudioCodecFormatAPE,
-    kAudioCodecFormatDTS,
-    kAudioCodecFormatLast   = 0x200 - 1,
-    kAudioCodecFormatFFmpeg = kAudioCodecFormatLast - 1,    // extend our capability using ffmpeg
-    // video
-    kVideoCodecFormatFirst  = 0x200,
-    kVideoCodecFormatH264,
-    kVideoCodecFormatHEVC,
-    kVideoCodecFormatMPEG4,
-    kVideoCodecFormatVP8,
-    kVideoCodecFormatVP9,
-    kVideoCodecFormatMSMPEG4,
-    kVideoCodecFormatVC1,
-    kVideoCodecFormatH263,
-    kVideoCodecFormatLast   = 0x300 - 1,
-    kVideoCodecFormatFFmpeg = kVideoCodecFormatLast - 1,    // extend our capability using ffmpeg
-    // subtitle
-    kSubtitleFormatFirst    = 0x300,
-    kSubtitleFormatLast     = 0x400 - 1,
-    // image
-    kImageCodecFormatFirst  = 0x400,
-    kImageCodecFormatPNG,
-    kImageCodecFormatJPEG,
-    kImageCodecFormatBMP,
-    kImageCodecFormatGIF,
-    kImageCodecFormatLast   = 0x500 - 1,
-} eCodecFormat;
+typedef enum eAudioCodec {
+    kAudioCodecUnknown,
+    kAudioCodecPCM      = FOURCC('PCM '),
+    kAudioCodecFLAC     = FOURCC('fLaC'),
+    kAudioCodecMP3      = FOURCC('mp-3'),
+    kAudioCodecVorbis   = FOURCC('Vorb'),
+    kAudioCodecAAC      = FOURCC('aac '),
+    kAudioCodecAC3      = FOURCC('ac-3'),
+    kAudioCodecWMA      = FOURCC('wma '),
+    kAudioCodecAPE      = FOURCC('APE '),
+    kAudioCodecDTS      = FOURCC('DTS '),
+    kAudioCodecFFmpeg   = FOURCC('lavc'),   // extend our capability by ffmpeg
+} eAudioCodec;
+
+typedef enum eVideoCodec {
+    kVideoCodecUnknown,
+    kVideoCodecH264     = FOURCC('avc1'),
+    kVideoCodecHEVC     = FOURCC('HEVC'),
+    kVideoCodecMPEG4    = FOURCC('mp4v'),
+    kVideoCodecVP8      = FOURCC('VP80'),
+    kVideoCodecVP9      = FOURCC('VP90'),
+    kVideoCodecVC1      = FOURCC('vc1 '),
+    kVideoCodecH263     = FOURCC('s263'),
+    kVideoCodecMP42     = FOURCC('MP42'),   // Microsoft version MPEG4 v2
+    kVideoCodecFFmpeg   = FOURCC('lavc'),   // extend our capability by ffmpeg
+} eVideoCodec;
+
+typedef enum eTextFormat {
+    // TODO
+} eTextFormat;
+
+typedef enum eImageCodec {
+    kImageCodecUnknown,
+    kImageCodecPNG      = FOURCC('png '),
+    kImageCodecJPEG     = FOURCC('jpeg'),
+    kImageCodecBMP      = FOURCC('bmp '),
+    kImageCodecGIF      = FOURCC('gif '),
+} eImageCodec;
 
 typedef enum eCodecType {
-    kCodecTypeUnknown       = 0,
-    kCodecTypeVideo         = 1,
-    kCodecTypeAudio         = 2,
-    kCodecTypeSubtitle      = 3,
-    kCodecTypeImage         = 4,
-    kCodecTypeMax,
+    kCodecTypeUnknown,
+    kCodecTypeVideo         = FOURCC('vide'),
+    kCodecTypeAudio         = FOURCC('audi'),
+    kCodecTypeSubtitle      = FOURCC('subt'),
+    kCodecTypeImage         = FOURCC('imag'),
 } eCodecType;
 
-API_EXPORT eCodecType GetCodecType(eCodecFormat format);
+// FIXME: code sample infomation into format
+/**
+ * we always use planar data instead of interleaved,
+ * which is very common in audio processing
+ */
+typedef enum eSampleFormat {
+    kSampleFormatUnknown,
+    kSampleFormatU8         = FOURCC('u8  '),
+    kSampleFormatS16        = FOURCC('s16 '),
+    kSampleFormatS32        = FOURCC('s32 '),
+    kSampleFormatFLT        = FOURCC('flt '),
+    kSampleFormatDBL        = FOURCC('dbl '),
+} eSampleFormat;
 
 /**
  * about byte-order and word-order of pixels:
@@ -146,53 +163,53 @@ API_EXPORT eCodecType GetCodecType(eCodecFormat format);
  *
  */
 typedef enum ePixelFormat {
-    kPixelFormatUnknown     = 0,            ///< Unknown
+    kPixelFormatUnknown,                ///< Unknown
 
     /** Y'CbCr color space section **/
     /** Y'CbCr 420 family **/
-    kPixelFormat420YpCbCrPlanar = 0x100,    ///< Planar Y'CbCr 8-bit 4:2:0, 12bpp, 3 planes: Y'/Cb/Cr,
-    kPixelFormat420YpCrCbPlanar,            ///< Planar Y'CbCr 8-bit 4:2:0, 12bpp, 3 planes: Y'/Cr/Cb, aka yv12
-    kPixelFormat420YpCbCrSemiPlanar,        ///< Planar Y'CbCr 8-bit 4:2:0, 12bpp, 2 planes: Y'/Cb&Cr(interleaved), aka nv12
-    kPixelFormat420YpCrCbSemiPlanar,        ///< Planar Y'CbCr 8-bit 4:2:0, 12bpp, 2 planes: Y'/Cr&Cb(interleaved), aka nv21
+    kPixelFormat420YpCbCrPlanar         = FOURCC('I420'),   ///< Planar Y'CbCr 8-bit 4:2:0, 12bpp, 3 planes: Y'/Cb/Cr,
+    kPixelFormat420YpCrCbPlanar         = FOURCC('YV12'),   ///< Planar Y'CbCr 8-bit 4:2:0, 12bpp, 3 planes: Y'/Cr/Cb, aka yv12
+    kPixelFormat420YpCbCrSemiPlanar     = FOURCC('NV12'),   ///< Planar Y'CbCr 8-bit 4:2:0, 12bpp, 2 planes: Y'/Cb&Cr(interleaved), aka nv12
+    kPixelFormat420YpCrCbSemiPlanar     = FOURCC('NV21'),   ///< Planar Y'CbCr 8-bit 4:2:0, 12bpp, 2 planes: Y'/Cr&Cb(interleaved), aka nv21
     
     /** Y'CbCr 422 family **/
-    kPixelFormat422YpCbCrPlanar = 0x110,    ///< Planar Y'CbCr 8-bit 4:2:2, 16bpp, 3 planes: Y'/Cb/Cr
-    kPixelFormat422YpCrCbPlanar,            ///< Planar Y'CbCr 8-bit 4:2:2, 16bpp, 3 planes: Y'/Cr/Cb
-    kPixelFormat422YpCbCr,                  ///< Packed Y'CbCr 8-bit 4:2:2, 16bpp, Y'0 Cb Y'1 Cr
-    kPixelFormat422YpCrCb,                  ///< Packed Y'CbCr 8-bit 4:2:2, 16bpp, Y'0 Cr Y'1 Cb
+    kPixelFormat422YpCbCrPlanar         = FOURCC('I422'),   ///< Planar Y'CbCr 8-bit 4:2:2, 16bpp, 3 planes: Y'/Cb/Cr
+    kPixelFormat422YpCrCbPlanar         = FOURCC('YV16'),   ///< Planar Y'CbCr 8-bit 4:2:2, 16bpp, 3 planes: Y'/Cr/Cb, aka yv16
+    kPixelFormat422YpCbCr               = FOURCC('YUY2'),   ///< Packed Y'CbCr 8-bit 4:2:2, 16bpp, Y'0 Cb Y'1 Cr
+    kPixelFormat422YpCrCb               = FOURCC('YVYU'),   ///< Packed Y'CbCr 8-bit 4:2:2, 16bpp, Y'0 Cr Y'1 Cb
     
     /** Y'CbCr 444 family **/
-    kPixelFormat444YpCbCrPlanar = 0x120,    ///< Planar Y'CbCr 8-bit 4:4:4, 24bpp, 3 planes: Y'/Cb/Cr
-    kPixelFormat444YpCbCr,                  ///< Packed Y'CbCr 8-bit 4:4:4, 24bpp,
+    kPixelFormat444YpCbCrPlanar         = FOURCC('I444'),   ///< Planar Y'CbCr 8-bit 4:4:4, 24bpp, 3 planes: Y'/Cb/Cr
+    kPixelFormat444YpCbCr               = FOURCC('P444'),   ///< Packed Y'CbCr 8-bit 4:4:4, 24bpp, Y'CbCr(interleaved)
     
     /** Y'CbCr others **/
 
     /** Y'CbCr 10-bit family **/
-    kPixelFormat420YpCbCr10Planar = 0x140,  ///< Planar Y'CbCr 10-bit 4:2:0, 15bpp, 3 planes: Y'/Cb/Cr
+    kPixelFormat420YpCbCr10Planar       = FOURCC('v210'),  ///< Planar Y'CbCr 10-bit 4:2:0, 15bpp, 3 planes: Y'/Cb/Cr
     
     /** RGB color space section **/
-    kPixelFormatRGB565 = 0x200,             ///< packed RGB 5:6:5, 16 bpp,
-    kPixelFormatBGR565,                     ///< packed BGR 5:6:5, 16 bpp, RGB565 in word-order
-    kPixelFormatRGB,                        ///< packed RGB 8:8:8, 24 bpp, byte-order
-    kPixelFormatBGR,                        ///< packed BGR 8:8:8, 24 bpp, RGB in word-order
-    kPixelFormatARGB,                       ///< packed ARGB, 32 bpp, AARRGGBB, byte-order
-    kPixelFormatBGRA,                       ///< packed BGRA, 32 bpp, BBGGRRAA, ARGB in word-order
-    kPixelFormatRGBA,                       ///< packed RGBA, 32 bpp, RRGGBBAA, byte-order
-    kPixelFormatABGR,                       ///< packed ABGR, 32 bpp, AABBGGRR, RGBA in word-order
+    kPixelFormatRGB565                  = FOURCC('RGB '),   ///< packed RGB 5:6:5, 16 bpp,
+    kPixelFormatBGR565                  = FOURCC('BGR '),   ///< packed BGR 5:6:5, 16 bpp, RGB565 in word-order
+    kPixelFormatRGB                     = FOURCC('24RG'),   ///< packed RGB 8:8:8, 24 bpp, byte-order
+    kPixelFormatBGR                     = FOURCC('24BG'),   ///< packed BGR 8:8:8, 24 bpp, RGB in word-order
+    kPixelFormatARGB                    = FOURCC('ARGB'),   ///< packed ARGB, 32 bpp, AARRGGBB, byte-order
+    kPixelFormatBGRA                    = FOURCC('BGRA'),   ///< packed BGRA, 32 bpp, BBGGRRAA, ARGB in word-order
+    kPixelFormatRGBA                    = FOURCC('RGBA'),   ///< packed RGBA, 32 bpp, RRGGBBAA, byte-order
+    kPixelFormatABGR                    = FOURCC('ABGR'),   ///< packed ABGR, 32 bpp, AABBGGRR, RGBA in word-order
     
     /** hardware pixel format section **/
-    kPixelFormatVideoToolbox = 0x300,       ///< hardware frame from video toolbox
+    kPixelFormatVideoToolbox            = FOURCC('vt  '),   ///< hardware frame from video toolbox
     
     /** alias section. TODO: set alias to platform preferred **/
-    kPixelFormatRGB16   = kPixelFormatBGR565,
-    KPixelFormatRGB24   = kPixelFormatBGR,
-    kPixelFormatRGB32   = kPixelFormatBGRA, ///< ARGB in word-order, application usally using this
+    kPixelFormatRGB16                   = kPixelFormatBGR565,
+    KPixelFormatRGB24                   = kPixelFormatBGR,
+    kPixelFormatRGB32                   = kPixelFormatBGRA, ///< ARGB in word-order, application usally using this
 } ePixelFormat;
 
 typedef enum eColorSpace {
     kColorUnknown,
-    kColorYpCbCr,
-    kColorRGB
+    kColorYpCbCr        = FOURCC('Cyuv'),
+    kColorRGB           = FOURCC('Crgb')
 } eColorSpace;
 
 typedef struct PixelDescriptor {
@@ -218,15 +235,15 @@ API_EXPORT const PixelDescriptor *  GetPixelFormatDescriptor(ePixelFormat);
  * @note don't put range infomation into pixel format
  */
 typedef enum eYpCbCrRange {
-    kYpCbCrFullRange    = 0,
-    kYpCbCrVideoRange   = 1,
+    kYpCbCrFullRange    = FOURCC('CRfu'),
+    kYpCbCrVideoRange   = FOURCC('CRvi'),
 } eYpCbCrRange;
 
 typedef enum eRotate {
-    kRotate0,
-    kRotate90,
-    kRotate180,
-    kRotate270
+    kRotate0            = FOURCC('R000'),
+    kRotate90           = FOURCC('R090'),
+    kRotate180          = FOURCC('R180'),
+    kRotate270          = FOURCC('R270')
 } eRotate;
 
 typedef struct ImageRect {
@@ -242,21 +259,6 @@ typedef struct ImageFormat {
     int32_t             height;         ///< plane height
     ImageRect           rect;           ///< display rectangle
 } ImageFormat;
-
-// FIXME: code sample infomation into format
-/**
- * we always use planar data instead of interleaved,
- * which is very common in audio processing
- */
-typedef enum eSampleFormat {
-    kSampleFormatUnknown    = 0,
-    kSampleFormatU8,
-    kSampleFormatS16,
-    kSampleFormatS32,
-    kSampleFormatFLT,
-    kSampleFormatDBL,
-    kSampleFormatLast = 0x100 - 1   ///< make sure: audio sample format < pixel format
-} eSampleFormat;
 
 typedef struct SampleDescriptor {
     const char *    name;
@@ -433,7 +435,6 @@ struct API_EXPORT MediaPacket : public SharedObject {
     size_t              size;       ///< data size in bytes
 
     size_t              index;      ///< track index, 0 based value
-    eCodecFormat        format;     ///< packet format @see eCodecFormat
     eFrameType          type;       ///< @see eFrameType
     MediaTime           dts;        ///< packet decoding time, mandatory
     MediaTime           pts;        ///< packet presentation time, mandatory if decoding order != presentation order
@@ -443,7 +444,6 @@ struct API_EXPORT MediaPacket : public SharedObject {
     void *              opaque;     ///< opaque
 
     MediaPacket() : data(NULL), size(0), index(0),
-        format(kCodecFormatUnknown),
         type(kFrameTypeUnknown),
         dts(kMediaTimeInvalid),
         pts(kMediaTimeInvalid),

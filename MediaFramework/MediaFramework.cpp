@@ -43,19 +43,6 @@
 
 __BEGIN_DECLS
 
-eCodecType GetCodecType(eCodecFormat format) {
-    if (format > kAudioCodecFormatFirst && format < kAudioCodecFormatLast)
-        return kCodecTypeAudio;
-    else if (format > kVideoCodecFormatFirst && format < kVideoCodecFormatLast)
-        return kCodecTypeVideo;
-    else if (format > kSubtitleFormatFirst && format < kSubtitleFormatLast)
-        return kCodecTypeSubtitle;
-    else if (format > kImageCodecFormatFirst && format < kImageCodecFormatLast)
-        return kCodecTypeImage;
-    else
-        return kCodecTypeUnknown;
-}
-
 size_t GetSampleFormatBytes(eSampleFormat format) {
     switch (format) {
         case kSampleFormatU8:       return sizeof(uint8_t);
@@ -97,15 +84,15 @@ __BEGIN_NAMESPACE_MPX
 
 #ifdef __APPLE__
 sp<MediaDecoder> CreateVideoToolboxDecoder(const sp<Message>& formats, const sp<Message>& options);
-bool IsVideoToolboxSupported(eCodecFormat format);
+bool IsVideoToolboxSupported(eVideoCodec format);
 #endif
 #ifdef WITH_FFMPEG
 sp<MediaDecoder> CreateLavcDecoder(const sp<Message>& formats, const sp<Message>& options);
 #endif
 
 sp<MediaDecoder> MediaDecoder::Create(const sp<Message>& formats, const sp<Message>& options) {
-    eCodecFormat codec = (eCodecFormat)formats->findInt32(kKeyFormat);
-    eCodecType type = GetCodecType(codec);
+    CHECK_TRUE(formats->contains(kKeyCodecType));
+    eCodecType type = (eCodecType)formats->findInt32(kKeyCodecType);
     eModeType mode = (eModeType)options->findInt32(kKeyMode, kModeTypeNormal);
     
     String env = GetEnvironmentValue("FORCE_AVCODEC");
@@ -121,6 +108,7 @@ sp<MediaDecoder> MediaDecoder::Create(const sp<Message>& formats, const sp<Messa
     
 #ifdef __APPLE__
     if (type == kCodecTypeVideo && mode != kModeTypeSoftware) {
+        eVideoCodec codec = (eVideoCodec)formats->findInt32(kKeyFormat);
         if (!IsVideoToolboxSupported(codec)) {
             INFO("codec %#x is not supported by VideoToolbox", codec);
         } else {
@@ -139,9 +127,9 @@ sp<MediaDecoder> MediaDecoder::Create(const sp<Message>& formats, const sp<Messa
 
 sp<MediaPacketizer> CreateMp3Packetizer();
 
-sp<MediaPacketizer> MediaPacketizer::Create(eCodecFormat format) {
+sp<MediaPacketizer> MediaPacketizer::Create(uint32_t format) {
     switch (format) {
-        case kAudioCodecFormatMP3:
+        case kAudioCodecMP3:
             return CreateMp3Packetizer();
         default:
             INFO("no packetizer for codec %d", format);

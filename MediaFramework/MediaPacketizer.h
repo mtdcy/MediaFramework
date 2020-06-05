@@ -45,7 +45,7 @@ struct API_EXPORT MediaPacketizer : public SharedObject {
     MediaPacketizer() {}
     virtual ~MediaPacketizer() {}
 
-    static sp<MediaPacketizer> Create(eCodecFormat format);
+    static sp<MediaPacketizer> Create(uint32_t format);     // @see eAudioCodec @see eVideoCodec
 
     virtual String          string() const = 0;
 

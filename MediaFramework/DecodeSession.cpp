@@ -92,7 +92,8 @@ struct DecodeSession : public IMediaSession {
             mInfoEvent = options->findObject("SessionInfoEvent");
         }
         
-        mName = String::format("codec-%x", mFormat->findInt32(kKeyFormat));
+        uint32_t codec = mFormat->findInt32(kKeyFormat);
+        mName = String::format("codec-%4s", (char *)&codec);
 
         mMode = (eModeType)options->findInt32(kKeyMode, kModeTypeDefault);
     }
@@ -106,9 +107,9 @@ struct DecodeSession : public IMediaSession {
     void onInit() {
         DEBUG("%s: onInit...", mName.c_str());
         // setup decoder...
+        CHECK_TRUE(mFormat->contains(kKeyCodecType));
         CHECK_TRUE(mFormat->contains(kKeyFormat));
-        eCodecFormat format = (eCodecFormat)mFormat->findInt32(kKeyFormat);
-        eCodecType type = GetCodecType(format);
+        eCodecType type = (eCodecType)mFormat->findInt32(kKeyCodecType);
         
         Object<Message> options = new Message;
         options->setInt32(kKeyMode, mMode);

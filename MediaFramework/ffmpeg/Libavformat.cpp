@@ -77,42 +77,42 @@ static eFileFormat GetFormat(const String& name) {
 
 struct {
     AVCodecID           id;
-    eCodecFormat        format;
+    uint32_t            format;
 } kCodecMap[] = {
     // AUDIO
-    { AV_CODEC_ID_PCM_F16LE,    kAudioCodecFormatPCM},
-    { AV_CODEC_ID_FLAC,         kAudioCodecFormatFLAC},
-    { AV_CODEC_ID_MP3,          kAudioCodecFormatMP3},
-    { AV_CODEC_ID_MP2,          kAudioCodecFormatMP3},  // mpeg layer info store in packet head, client don't need to known
-    { AV_CODEC_ID_MP1,          kAudioCodecFormatMP3},
-    { AV_CODEC_ID_VORBIS,       kAudioCodecFormatVorbis},
-    { AV_CODEC_ID_AAC,          kAudioCodecFormatAAC},
-    { AV_CODEC_ID_AC3,          kAudioCodecFormatAC3},
-    { AV_CODEC_ID_WMV2,         kAudioCodecFormatWMA},
-    { AV_CODEC_ID_APE,          kAudioCodecFormatAPE},
-    { AV_CODEC_ID_DTS,          kAudioCodecFormatDTS},
+    { AV_CODEC_ID_PCM_F16LE,    kAudioCodecPCM},
+    { AV_CODEC_ID_FLAC,         kAudioCodecFLAC},
+    { AV_CODEC_ID_MP3,          kAudioCodecMP3},
+    { AV_CODEC_ID_MP2,          kAudioCodecMP3},  // mpeg layer info store in packet head, client don't need to known
+    { AV_CODEC_ID_MP1,          kAudioCodecMP3},
+    { AV_CODEC_ID_VORBIS,       kAudioCodecVorbis},
+    { AV_CODEC_ID_AAC,          kAudioCodecAAC},
+    { AV_CODEC_ID_AC3,          kAudioCodecAC3},
+    { AV_CODEC_ID_WMV2,         kAudioCodecWMA},
+    { AV_CODEC_ID_APE,          kAudioCodecAPE},
+    { AV_CODEC_ID_DTS,          kAudioCodecDTS},
     // video
-    { AV_CODEC_ID_H264,         kVideoCodecFormatH264},
-    { AV_CODEC_ID_H265,         kVideoCodecFormatHEVC},
-    { AV_CODEC_ID_MPEG4,        kVideoCodecFormatMPEG4},
-    { AV_CODEC_ID_VC1,          kVideoCodecFormatVC1},
-    { AV_CODEC_ID_H263,         kVideoCodecFormatH263},
+    { AV_CODEC_ID_H264,         kVideoCodecH264},
+    { AV_CODEC_ID_H265,         kVideoCodecHEVC},
+    { AV_CODEC_ID_MPEG4,        kVideoCodecMPEG4},
+    { AV_CODEC_ID_VC1,          kVideoCodecVC1},
+    { AV_CODEC_ID_H263,         kVideoCodecH263},
     // image
-    { AV_CODEC_ID_PNG,          kImageCodecFormatPNG},
-    { AV_CODEC_ID_MJPEG,        kImageCodecFormatJPEG},
-    { AV_CODEC_ID_BMP,          kImageCodecFormatBMP},
-    { AV_CODEC_ID_GIF,          kImageCodecFormatGIF},
+    { AV_CODEC_ID_PNG,          kImageCodecPNG},
+    { AV_CODEC_ID_MJPEG,        kImageCodecJPEG},
+    { AV_CODEC_ID_BMP,          kImageCodecBMP},
+    { AV_CODEC_ID_GIF,          kImageCodecGIF},
     // END OF LIST
-    { AV_CODEC_ID_NONE,         kCodecFormatUnknown}
+    { AV_CODEC_ID_NONE,         kAudioCodecUnknown}
 };
 
-static eCodecFormat GetCodecFormat(AVCodecID id) {
+static uint32_t GetCodecFormat(AVCodecID id) {
     for (size_t i = 0; kCodecMap[i].id != AV_CODEC_ID_NONE; ++i) {
         if (kCodecMap[i].id == id) return kCodecMap[i].format;
     }
     
     ERROR("unknown codec %s", avcodec_get_name(id));
-    return kCodecFormatUnknown;
+    return kAudioCodecUnknown;
 }
 
 static int content_bridge_read_packet(void * opaque, uint8_t * buf, int length) {
@@ -267,7 +267,6 @@ struct AVMediaPacket : public MediaPacket {
         data    = pkt->data;
         size    = pkt->size;
         index   = pkt->stream_index;
-        format  = GetCodecFormat(st->stream->codecpar->codec_id);
         type    = kFrameTypeUnknown;
         if (pkt->flags & AV_PKT_FLAG_KEY)           type |= kFrameTypeSync;
         if (pkt->flags & AV_PKT_FLAG_DISCARD)       type |= kFrameTypeReference;
