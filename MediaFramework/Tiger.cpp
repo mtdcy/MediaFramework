@@ -50,12 +50,75 @@ struct TrackContext : public SharedObject {
     sp<IMediaSession>   mDecodeSession;
     sp<IMediaSession>   mRenderSession;
     
+    // for tunnel
+    union {
+        AudioFormat     mAudioFormat;
+        ImageFormat     mVideoFormat;
+    };
+    sp<PacketRequestEvent>  mPacketRequestEvent;
+    
     TrackContext() : mType(kCodecTypeUnknown), mTrackIndex(0) { }
     
     ~TrackContext() {
         mMediaSource.clear();
         mDecodeSession.clear();
         mRenderSession.clear();
+    }
+};
+
+struct MediaFrameTunnel : public MediaFrame {
+    sp<MediaPacket>     mPacket;
+    
+    MediaFrameTunnel(const sp<TrackContext>& track, const sp<MediaPacket>& packet) {
+        for (size_t i = 0; i < MEDIA_FRAME_NB_PLANES; ++i) {
+            planes[i].data = NULL;
+            planes[i].size = 0;
+        }
+        planes[0].data  = packet->data;
+        planes[0].size  = packet->size;
+        timecode        = packet->dts;
+        duration        = packet->duration;
+        
+        if (track->mType == kCodecTypeAudio) {
+            a           = track->mAudioFormat;
+        } else if (track->mType == kCodecTypeVideo) {
+            v           = track->mVideoFormat;
+        }
+        mPacket         = packet;
+    }
+};
+
+struct PacketReadyTunnel : public PacketReadyEvent {
+    sp<TrackContext>    mTrack;
+    sp<FrameReadyEvent> mFrameReadyEvent;
+    
+    PacketReadyTunnel(const sp<TrackContext>& track, const sp<FrameReadyEvent>& event) :
+    PacketReadyEvent(Looper::Current()),
+    mTrack(track),
+    mFrameReadyEvent(event) { }
+    
+    virtual void onEvent(const sp<MediaPacket>& packet) {
+        // EOS
+        if (packet.isNIL()) {
+            mFrameReadyEvent->fire(NULL);
+            return;
+        }
+        
+        sp<MediaFrameTunnel> frame = new MediaFrameTunnel(mTrack, packet);
+        mFrameReadyEvent->fire(frame);
+    }
+};
+
+struct FrameRequestTunnel : public FrameRequestEvent {
+    sp<TrackContext>    mTrack;
+    
+    FrameRequestTunnel(const sp<TrackContext>& track) :
+    FrameRequestEvent(Looper::Current()),
+    mTrack(track) { }
+    
+    virtual void onEvent(const sp<FrameReadyEvent>& request, const MediaTime& time) {
+        sp<PacketReadyEvent> event = new PacketReadyTunnel(mTrack, request);
+        mTrack->mPacketRequestEvent->fire(event, time);
     }
 };
 
@@ -151,26 +214,50 @@ struct Tiger : public IMediaPlayer {
 
             CHECK_TRUE(trackFormat->contains(kKeyCodecType));
             eCodecType type = (eCodecType)trackFormat->findInt32(kKeyCodecType);
+            int32_t codec = trackFormat->findInt32(kKeyFormat);
             
             CHECK_TRUE(trackFormat->findObject("PacketRequestEvent"));
             sp<PacketRequestEvent> pre = trackFormat->findObject("PacketRequestEvent");
-
-            sp<Message> options = new Message;
-            options->setInt32(kKeyMode, mMode);
-            options->setObject("PacketRequestEvent", pre);
-            options->setObject("SessionInfoEvent", new OnDecoderInfo(this, mTrackID));
-
-            sp<IMediaSession> session = IMediaSession::Create(trackFormat, options);
-            if (session == NULL) {
-                ERROR("create session failed", i);
-                continue;
-            }
             
-            sp<TrackContext> track = new TrackContext;
+            sp<TrackContext> track  = new TrackContext;
             track->mTrackIndex      = i;
             track->mType            = type;
             track->mMediaSource     = mMediaSource;
-            track->mDecodeSession   = session;
+
+            sp<SessionInfoEvent> infoEvent = new OnDecoderInfo(this, mTrackID);
+            if (codec == kAudioCodecPCM) {
+                track->mPacketRequestEvent  = pre;
+                int32_t bits = trackFormat->findInt32(kKeyBits, 16);
+                switch (bits) {
+                    case 8:     track->mAudioFormat.format = kSampleFormatU8;   break;
+                    case 16:    track->mAudioFormat.format = kSampleFormatS16;  break;
+                    case 32:    track->mAudioFormat.format = kSampleFormatS32;  break;
+                        // TODO: handle flt & dbl
+                }
+                track->mAudioFormat.channels = trackFormat->findInt32(kKeyChannels);
+                track->mAudioFormat.freq = trackFormat->findInt32(kKeySampleRate);
+                
+                sp<Message> sampleFormat = new Message;
+                sampleFormat->setInt32(kKeyFormat, track->mAudioFormat.format);
+                sampleFormat->setInt32(kKeyChannels, track->mAudioFormat.channels);
+                sampleFormat->setInt32(kKeySampleRate, track->mAudioFormat.freq);
+                sampleFormat->setObject("FrameRequestEvent", new FrameRequestTunnel(track));
+                
+                infoEvent->fire(kSessionInfoReady, sampleFormat);
+                // > onInitRenderer
+            } else {
+                sp<Message> options = new Message;
+                options->setInt32(kKeyMode, mMode);
+                options->setObject("PacketRequestEvent", pre);
+                options->setObject("SessionInfoEvent", infoEvent);
+
+                sp<IMediaSession> session = IMediaSession::Create(trackFormat, options);
+                if (session == NULL) {
+                    ERROR("create session failed", i);
+                    continue;
+                }
+                track->mDecodeSession   = session;
+            }
             
             mTracks.insert(mTrackID++, track);
             
