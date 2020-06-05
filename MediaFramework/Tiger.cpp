@@ -140,6 +140,7 @@ struct Tiger : public IMediaPlayer {
     HashTable<size_t, sp<TrackContext> > mTracks;
     bool                    mHasAudio;
     BitSet                  mReadyMask;     // set when not ready
+    BitSet                  mEndMask;       // set when not eos
 
     Tiger(const sp<Message>& media, const sp<Message>& options) :
         IMediaPlayer(new Looper("tiger")),
@@ -259,9 +260,8 @@ struct Tiger : public IMediaPlayer {
                 track->mDecodeSession   = session;
             }
             
+            mReadyMask.set(mTrackID);
             mTracks.insert(mTrackID++, track);
-            
-            mReadyMask.set(i);
         }
         
         if (mTracks.empty()) {
@@ -358,6 +358,7 @@ struct Tiger : public IMediaPlayer {
         }
         
         track->mRenderSession = session;
+        mEndMask.set(id);
     }
 
     struct OnRendererInfo : public SessionInfoEvent {
@@ -378,6 +379,9 @@ struct Tiger : public IMediaPlayer {
             case kSessionInfoReady:
                 onRendererReady(id, payload);
                 break;
+            case kSessionInfoEnd:
+                onRendererEnd(id);
+                break;
             case kSessionInfoError:
                 onTrackError(id);
                 break;
@@ -394,6 +398,16 @@ struct Tiger : public IMediaPlayer {
             INFO("all tracks are ready");
             CHECK_FALSE(mFileFormats.isNIL());
             notify(kInfoPlayerReady, mFileFormats);
+        }
+    }
+    
+    void onRendererEnd(const size_t& id) {
+        DEBUG("onRendererEnd [%zu]", id);
+        mEndMask.clear(id);
+        if (mEndMask.empty()) {
+            INFO("all tracks are eos");
+            mClock->pause();
+            notify(kInfoPlayerPaused);
         }
     }
 
@@ -437,6 +451,11 @@ struct Tiger : public IMediaPlayer {
 
         if (!paused) {
             Looper::Current()->post(mDeferStart, kDeferTimeUs);
+        }
+        
+        HashTable<size_t, sp<TrackContext> >::const_iterator it = mTracks.cbegin();
+        for (; it != mTracks.cend(); ++it) {
+            mEndMask.set(it.key());
         }
 
         return;

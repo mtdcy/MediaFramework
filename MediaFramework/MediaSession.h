@@ -67,7 +67,6 @@ typedef MediaEvent2<sp<FrameReadyEvent>, MediaTime> FrameRequestEvent;
 
 typedef enum {
     kSessionInfoReady,
-    kSessionInfoBegin,
     kSessionInfoEnd,
     kSessionInfoError,
 } eSessionInfoType;

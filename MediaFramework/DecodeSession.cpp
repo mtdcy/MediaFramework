@@ -246,12 +246,12 @@ struct DecodeSession : public IMediaSession {
             mFrameRequests.clear();
         }
 
-        // request next frame
         if (mOutputEOS) {
-            ERROR("%s: request frame at eos", mName.c_str());
+            DEBUG("%s: request frame at eos", mName.c_str());
             return;
         }
-
+        
+        // request next frame
         mFrameRequests.push(event);
         // case 2: packet is ready
         // decode the first packet
@@ -297,7 +297,7 @@ struct DecodeSession : public IMediaSession {
         // drain from codec
         sp<MediaFrame> frame = mCodec->read();
         if (frame == NULL && !mInputEOS) {
-            WARN("%s: is initializing...", mName.c_str());
+            INFO("%s: is initializing...", mName.c_str());
         } else {
             sp<FrameReadyEvent>& event = mFrameRequests.front();
 
@@ -306,6 +306,7 @@ struct DecodeSession : public IMediaSession {
                 ++mFramesDecoded;
             } else {
                 INFO("%s: codec eos detected", mName.c_str());
+                notify(kSessionInfoEnd, NULL);
                 mOutputEOS = true;
             }
             event->fire(frame);

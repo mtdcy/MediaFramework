@@ -321,9 +321,6 @@ struct RenderSession : public IMediaSession {
         
         if (mLastFrameTime == kMediaTimeInvalid) {
             INFO("%s: first frame %.3f(s)", mName.c_str(), frame->timecode.seconds());
-
-            // notify about the first render postion
-            notify(kSessionInfoBegin, NULL);
         }
         
         // always render the first video
@@ -367,6 +364,9 @@ struct RenderSession : public IMediaSession {
     
         // always render the first video frame
         if (mClock->isPaused() || mOutputEOS) {
+            if (mOutputEOS) {
+                notify(kSessionInfoEnd, NULL);
+            }
             return;
         }
         
@@ -397,6 +397,15 @@ struct RenderSession : public IMediaSession {
         
         writeFrame(frame);
         ++mFramesRenderred;
+        
+        if (mFirstFrame) {
+            if (mClock != NULL && mClock->role() == kClockRoleMaster) {
+                mClock->update(frame->timecode.useconds() - mLatency);
+                INFO("%s: update clock %.3f(s) (%.3f)", mName.c_str(),
+                     frame->timecode.seconds(), mClock->get() / 1E6);
+            }
+            mFirstFrame = false;
+        }
         
         return 0;
     }

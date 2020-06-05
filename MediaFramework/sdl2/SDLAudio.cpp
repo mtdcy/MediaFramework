@@ -264,6 +264,10 @@ struct SDLAudio : public MediaOut {
         if (input == NULL) {
             mSDL->mInputEOS = true;
             mSDL->mWait.signal();
+            // wait for playback finished
+            while (!mSDL->mPendingFrame.isNIL()) {
+                mSDL->mWait.wait(mSDL->mLock);
+            }
             return kMediaNoError;
         }
 
