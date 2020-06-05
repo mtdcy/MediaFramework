@@ -71,6 +71,7 @@ set (SOURCE_FILES
     MediaFramework/Tiger.cpp 
     MediaFramework/tags/id3/ID3.cpp
     MediaFramework/audioresampler/AudioResampler.cpp
+    MediaFramework/asf/Asf.cpp
     MediaFramework/mp3/Mp3File.cpp
     MediaFramework/mpeg4/Mp4File.cpp
     MediaFramework/mpeg4/Systems.cpp
@@ -80,7 +81,6 @@ set (SOURCE_FILES
     MediaFramework/mpeg4/Box.cpp
     MediaFramework/matroska/EBML.cpp
     MediaFramework/matroska/MatroskaFile.cpp
-    MediaFramework/ms/BITMAPINFOHEADER.cpp
     MediaFramework/opengl/OpenGLObject.cpp
     MediaFramework/opengl/GLVideo.cpp
     MediaFramework/jpeg/TIFF.cpp

@@ -42,7 +42,7 @@
 
 #include <mpeg4/Systems.h>
 #include <mpeg4/Audio.h>
-#include "ms/BITMAPINFOHEADER.h"
+#include "asf/Asf.h"
 
 // 57.35
 // avcodec_send_packet && avcodec_receive_frame
@@ -654,17 +654,12 @@ static AVCodecContext * initContext(eModeType mode, const sp<Message>& formats, 
     // fix MSMPEG4 version
     if (formats->contains(kKeyVCM)) {
         sp<Buffer> vcm = formats->findObject(kKeyVCM);
-        if (vcm->size() >= BITMAPINFOHEADER_MIN_LENGTH) {
-            BitReader br(vcm->data(), vcm->size());
-            MS::BITMAPINFOHEADER biHEAD(br);
-            switch (biHEAD.biCompression) {
-                case '24PM':    // MP42
-                    id = AV_CODEC_ID_MSMPEG4V2;
-                    break;
-                case '14PM':    // MP41
-                    id = AV_CODEC_ID_MSMPEG4V1;
-                    break;
-            }
+        BitReader br(vcm->data(), vcm->size());
+        ASF::BITMAPINFOHEADER biHEAD;
+        if (biHEAD.parse(br) != kMediaNoError) {
+            ERROR("bad BITMAPINFOHEADER");
+        } else {
+            // DO THINGS HERE
         }
     }
 #endif

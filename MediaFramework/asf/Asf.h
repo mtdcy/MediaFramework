@@ -32,76 +32,90 @@
 //          1. 20160701     initial version
 //
 
-#ifndef _MEDIA_MODULES_ASF_UTILS_H
-#define _MEDIA_MODULES_ASF_UTILS_H
+#ifndef _MPX_MEDIA_ASF_H
+#define _MPX_MEDIA_ASF_H
 
-#include <toolkit/Toolkit.h>
+#include "MediaDefs.h"
 
-#ifdef __cplusplus 
+__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE(ASF)
 
-namespace mtdcy {
-    namespace ASF {
-
-        //! refer to ffmpeg::riff.c::ff_codec_wav_tags
-        enum {
-            TAG_WMA_V1              = 0x160,
-            TAG_WMA_V2              = 0x161,
-            TAG_WMA_PRO             = 0x162,
-            TAG_WMA_LOSSLESS        = 0x163,
-        };
-
-        static uint8_t subformat_base_guid[] = {
-            0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71
-        };
-
-        // refer to:
-        // 1. http://wiki.multimedia.cx/index.php?title=WAVEFORMATEX
-        typedef struct { 
-            uint16_t wFormatTag; 
-            uint16_t nChannels; 
-            uint32_t nSamplesPerSec; 
-            uint32_t nAvgBytesPerSec; 
-            uint16_t nBlockAlign; 
-            uint16_t wBitsPerSample; 
-            uint16_t cbSize; 
-        } WAVEFORMATEX; 
-
-        // refer to:
-        // 1. http://wiki.multimedia.cx/index.php?title=WAVEFORMATEXTENSIBLE
-        typedef struct {
-            uint16_t wFormatTag; 
-            uint16_t nChannels; 
-            uint32_t nSamplesPerSec; 
-            uint32_t nAvgBytesPerSec; 
-            uint16_t nBlockAlign; 
-            uint16_t wBitsPerSample; 
-            uint16_t cbSize; 
-            union {
-                uint16_t wValidBitsPerSample;
-                uint16_t wSamplesPerBlock;
-                uint16_t wReserved;
-            };
-            uint32_t dwChannelMask; 
-            uint8_t subFormat[16];
-        } WAVEFORMATEXTENSIBLE;
-
-        // refer to:
-        // 1. http://msdn.microsoft.com/en-us/library/dd183376.aspx
-        struct BITMAPINFOHEADER {
-            uint32_t biSize;
-            uint32_t biWidth;
-            uint32_t biHeight;
-            uint16_t biPlanes;
-            uint16_t biBitCount;
-            uint32_t biCompression;
-            uint32_t biSizeImage;
-            uint32_t biXPelsPerMeter;
-            uint32_t biYPelsPerMeter;
-            uint32_t biClrUsed;
-            uint32_t biClrImportant;
-        };
-    };
+//! refer to ffmpeg::riff.c::ff_codec_wav_tags
+enum {
+    TAG_WMA_V1              = 0x160,
+    TAG_WMA_V2              = 0x161,
+    TAG_WMA_PRO             = 0x162,
+    TAG_WMA_LOSSLESS        = 0x163,
 };
-#endif // __cplusplus 
 
-#endif // tkMODULES_ASF_UTILS_H;
+static uint8_t subformat_base_guid[12] = {
+    0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71
+};
+
+// refer to: https://tools.ietf.org/html/rfc2361
+enum {
+    WAVE_FORMAT_PCM         = 0x0001,
+    WAVE_FORMAT_IEEE_FLOAT  = 0x0003,
+    WAVE_FORMAT_EXTENSIBLE  = 0xFFFE,
+};
+
+// refer to:
+// 1. http://wiki.multimedia.cx/index.php?title=WAVEFORMATEX
+// 2. http://wiki.multimedia.cx/index.php?title=WAVEFORMATEXTENSIBLE
+
+#define WAVEFORMATEX_MIN_LENGTH (16)
+struct WAVEFORMATEX {
+    // >> 16 bytes
+    uint16_t wFormatTag; 
+    uint16_t nChannels; 
+    uint32_t nSamplesPerSec; 
+    uint32_t nAvgBytesPerSec; 
+    uint16_t nBlockAlign; 
+    uint16_t wBitsPerSample;
+    // < 16 bytes
+    uint16_t cbSize;
+    // < 18 bytes
+    
+    union {
+        uint16_t wSamplesPerBlock;
+        uint16_t wReserved;
+        uint16_t wValidBitsPerSample;   // cbSize >= 22
+    };
+    uint32_t dwChannelMask;
+    uint16_t wSubFormat;
+    uint8_t  subFormat[16];
+    // < 40 bytes
+    
+    WAVEFORMATEX();
+    
+    MediaError parse(BitReader& br);
+};
+
+// refer to:
+// 1. http://msdn.microsoft.com/en-us/library/dd183376.aspx
+#define BITMAPINFOHEADER_MIN_LENGTH (40)
+struct BITMAPINFOHEADER {
+    uint32_t     biSize;
+    uint32_t     biWidth;
+    uint32_t     biHeight;
+    uint16_t     biPlanes;
+    uint16_t     biBitCount;
+    uint32_t     biCompression;
+    uint32_t     biSizeImage;
+    uint32_t     biXPelsPerMeter;
+    uint32_t     biYPelsPerMeter;
+    uint32_t     biClrUsed;
+    uint32_t     biClrImportant;
+    // 40 bytes
+    
+    BITMAPINFOHEADER();
+    
+    MediaError parse(BitReader& br);
+};
+
+eVideoCodec GetVideoCodec(uint32_t fourcc);
+
+__END_NAMESPACE(ASF)
+__END_NAMESPACE_MPX
+
+#endif // _MPX_MEDIA_ASF_H;

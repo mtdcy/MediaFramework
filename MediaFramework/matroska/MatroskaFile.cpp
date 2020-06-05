@@ -42,7 +42,7 @@
 #include "mpeg4/Audio.h"
 #include "mpeg4/Video.h"
 #include "mpeg4/Systems.h"
-#include "ms/BITMAPINFOHEADER.h"
+#include "asf/Asf.h"
 
 #include "EBML.h"
 
@@ -129,23 +129,6 @@ static FORCE_INLINE uint32_t GetCodecFormat(const String& codec) {
         if (codec.startsWith(kCodecMap[i].codec)) {
             return kCodecMap[i].format;
         }
-    }
-    return kAudioCodecUnknown;
-}
-
-static struct {
-    const uint32_t      fourcc;
-    const uint32_t      format;
-} kFourCCMap[] = {
-    {FOURCC('MP42'),    kVideoCodecMP42    },
-    // END OF LIST
-    {0,                 kAudioCodecUnknown }
-};
-
-static uint32_t GetCodecFormatFromFourCC(uint32_t fourcc) {
-    for (size_t i = 0; i < NELEM(kFourCCMap); ++i) {
-        if (kFourCCMap[i].fourcc == fourcc)
-            return kFourCCMap[i].format;
     }
     return kAudioCodecUnknown;
 }
@@ -304,8 +287,12 @@ struct MatroskaFile : public MediaFile {
             INFO("track codec %s", CODECID->str.c_str());
             if (CODECID->str == "V_MS/VFW/FOURCC") {
                 BitReader br(CODECPRIVATE->data->data(), CODECPRIVATE->data->size());
-                MS::BITMAPINFOHEADER biHead(br);
-                trak.format = GetCodecFormatFromFourCC(biHead.biCompression);
+                ASF::BITMAPINFOHEADER biHead;
+                if (biHead.parse(br) != kMediaNoError) {
+                    ERROR("parse BITMAPINFOHEADER failed");
+                    continue;
+                }
+                trak.format = ASF::GetVideoCodec(biHead.biCompression);
             } else {
                 trak.format = GetCodecFormat(CODECID->str);
             }
