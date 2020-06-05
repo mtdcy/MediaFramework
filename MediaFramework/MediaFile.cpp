@@ -60,33 +60,14 @@ int IsMp4File(const sp<Buffer>& data);
 
 static eFileFormat GetFormat(sp<Content>& pipe) {
     int score = 0;
+
+    // skip id3v2
+    ID3::SkipID3v2(pipe);
     
     sp<Buffer> header = pipe->read(kCommonHeadLength);
     if (header == 0) {
         ERROR("content size is too small");
         return kFileFormatInvalid;
-    }
-
-    // skip id3v2
-    if (!header->compare("ID3")) {
-        ssize_t id3Len = ID3::ID3v2::isID3v2(*header);
-        if (id3Len < 0) {
-            ERROR("invalid id3v2 header.");
-        } else {
-            INFO("id3 len = %lu", id3Len);
-
-            if (pipe->length() < 10 + id3Len + 32) {
-                return kFileFormatInvalid;
-            }
-
-            pipe->skip(10 + id3Len - kCommonHeadLength);
-
-            header = pipe->read(kCommonHeadLength);
-            if (header == 0) {
-                ERROR("not enough data after skip id3v2");
-                return kFileFormatInvalid;
-            }
-        }
     }
 
     const int64_t startPos = pipe->tell() - kCommonHeadLength;

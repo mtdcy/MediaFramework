@@ -49,7 +49,6 @@
 
 __BEGIN_NAMESPACE_MPX
 
-using namespace ID3;
 const static int kScanLength = 32 * 1024;
 
 
@@ -579,54 +578,35 @@ struct Mp3File : public MediaFile {
         sp<Message> outputFormat    = new Message;
         sp<Message> ast             = new Message;
 
-        pipe->seek(0);
-        sp<Buffer> head     = pipe->read(ID3v2::kHeaderLength);
-        if (head != NULL && head->size() == ID3v2::kHeaderLength) {
-            ssize_t length  = ID3v2::isID3v2(*head);
-            if (length > 0) {
-                sp<Buffer> data = pipe->read(length);
-                if (data != NULL) {
-                    head->resize(ID3v2::kHeaderLength + length);
-                    head->write(*data);
-                    ID3v2 id3;
-                    if (id3.parse(*head) == kMediaNoError) {
-                        const sp<Message>& values = id3.values();
-                        DEBUG("id3v2 found: %s", values->string().c_str());
+        sp<Message> id3v2   = ID3::ReadID3v2(pipe);
+        if (!id3v2.isNIL()) {
 #if 1
-                        // information for gapless playback
-                        // http://yabb.jriver.com/interact/index.php?topic=65076.msg436101#msg436101
-                        const char *iTunSMPB = values->findString("iTunSMPB");
-                        if (iTunSMPB != 0) {
-                            int32_t encodeDelay, encodePadding;
-                            int32_t originalSampleCount;
-                            if (sscanf(iTunSMPB, " %*x %x %x %x %*x",
-                                        &encodeDelay, &encodePadding, &originalSampleCount) == 3) {
-                                INFO("iTunSMPB: mEncodePadding %d mEncodePadding %d originalSampleCount %d",
-                                        encodeDelay, encodePadding, originalSampleCount);
-                                ast->setInt32("encoder-delay", encodeDelay);
-                                ast->setInt32("encoder-padding", encodePadding);
-                            }
-                        }
-#endif
-                        outputFormat->setObject(Media::ID3v2, values);
-                        mFirstFrameOffset = pipe->tell();
-                    }
+            // information for gapless playback
+            // http://yabb.jriver.com/interact/index.php?topic=65076.msg436101#msg436101
+            const char *iTunSMPB = id3v2->findString("iTunSMPB");
+            if (iTunSMPB != 0) {
+                int32_t encodeDelay, encodePadding;
+                int32_t originalSampleCount;
+                if (sscanf(iTunSMPB, " %*x %x %x %x %*x",
+                            &encodeDelay, &encodePadding, &originalSampleCount) == 3) {
+                    INFO("iTunSMPB: mEncodePadding %d mEncodePadding %d originalSampleCount %d",
+                            encodeDelay, encodePadding, originalSampleCount);
+                    ast->setInt32("encoder-delay", encodeDelay);
+                    ast->setInt32("encoder-padding", encodePadding);
                 }
             }
+#endif
+            outputFormat->setObject(Media::ID3v2, id3v2);
         }
-
+        mFirstFrameOffset = pipe->tell();
+        
+        sp<Message> id3v1 = ID3::ReadID3v1(pipe);
+        
         size_t totalLength = pipe->length();
-        DEBUG("totalLength %zu", totalLength);
-        pipe->seek(totalLength - ID3v1::kLength);
-        sp<Buffer> tail = pipe->read(ID3v1::kLength);
-        if (tail != NULL && tail->size() == ID3v1::kLength) {
-            ID3v1 id3;
-            if (id3.parse(*tail) == kMediaNoError) {
-                outputFormat->setObject(Media::ID3v1, id3.values());
-                totalLength -= ID3v1::kLength;
-            }
+        if (!id3v1.isNIL()) {
+            totalLength -= ID3::ID3v1::kLength;
+            outputFormat->setObject(Media::ID3v1, id3v1);
         }
-
         pipe->seek(mFirstFrameOffset);
 
         sp<Buffer> scanData = pipe->read(kScanLength);

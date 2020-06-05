@@ -70,6 +70,17 @@ class ID3v1 : public Tag::Parser {
         static const size_t     kLength;
 };
 
+// skip ID3v2 and put content at ID3v2 end
+MediaError  SkipID3v2(sp<Content>& pipe);
+
+// read ID3v2 and put content at ID3v2 end
+// if not exists, content pos will not change
+sp<Message> ReadID3v2(sp<Content>& pipe);
+
+// read ID3v1 and put content at ID3v1 begin
+// if not exists, content pos will change to end
+sp<Message> ReadID3v1(sp<Content>& pipe);
+
 __END_NAMESPACE(ID3)
 __END_NAMESPACE_MPX
 

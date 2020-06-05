@@ -1200,6 +1200,82 @@ bool ID3v1::isID3v1(const Buffer& data) {
     return true;
 }
 
+MediaError SkipID3v2(sp<Content>& pipe) {
+    const int64_t pos = pipe->tell();
+    sp<Buffer> head = pipe->read(ID3v2::kHeaderLength);
+    if (head.isNIL() || head->size() != ID3v2::kHeaderLength) {
+        pipe->seek(pos);
+        return kMediaErrorBadContent;
+    }
+    
+    ssize_t length  = ID3v2::isID3v2(*head);
+    if (length <= 0) {
+        pipe->seek(pos);
+        return kMediaErrorBadContent;
+    }
+    pipe->skip(length);
+    // stop at the end position of id3v2
+    return kMediaNoError;
+}
+
+sp<Message> ReadID3v2(sp<Content>& pipe) {
+    const int64_t pos = pipe->tell();
+    sp<Buffer> head = pipe->read(ID3v2::kHeaderLength);
+    if (head.isNIL() || head->size() != ID3v2::kHeaderLength) {
+        pipe->seek(pos);
+        return NULL;
+    }
+    
+    ssize_t length  = ID3v2::isID3v2(*head);
+    if (length <= 0) {
+        pipe->seek(pos);
+        return NULL;
+    }
+    
+    sp<Buffer> data = pipe->read(length);
+    if (data.isNIL() || data->size() != length) {
+        pipe->seek(pos);
+        return NULL;
+    }
+    
+    head->resize(ID3v2::kHeaderLength + length);
+    head->write(*data);
+    ID3v2 id3;
+    if (id3.parse(*head) != kMediaNoError) {
+        pipe->seek(pos);
+        return NULL;
+    }
+    
+    // stop at the end position of id3v2
+    return id3.values();
+}
+
+sp<Message> ReadID3v1(sp<Content>& pipe) {
+    const int64_t pos = pipe->length();
+    const int64_t id3v1Position = pipe->length() - ID3v1::kLength;
+    
+    if (pipe->seek(id3v1Position) != id3v1Position) {
+        // don't support seek
+        return NULL;
+    }
+    
+    sp<Buffer> tail = pipe->read(ID3v1::kLength);
+    if (tail.isNIL() || tail->size() != ID3v1::kLength) {
+        pipe->seek(pos);
+        return NULL;
+    }
+    
+    ID3v1 id3;
+    if (id3.parse(*tail) != kMediaNoError) {
+        pipe->seek(pos);
+        return NULL;
+    }
+    
+    // stop at the begin position of id3v1
+    pipe->seek(pipe->tell() - ID3v1::kLength);
+    return id3.values();
+}
+
 __END_NAMESPACE(ID3)
 __END_NAMESPACE_MPX
 
