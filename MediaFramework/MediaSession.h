@@ -44,6 +44,11 @@
 __BEGIN_NAMESPACE_MPX
 
 /**
+ * For choose tracks
+ */
+typedef MediaEvent<size_t> TrackSelectEvent;
+
+/**
  * For pushing packets to target. when a packet is ready,
  * fire this event, and target will get the packet.
  */

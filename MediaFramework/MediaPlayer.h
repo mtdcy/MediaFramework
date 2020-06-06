@@ -55,6 +55,7 @@ typedef enum {
     kInfoPlayerReady,           ///<
     kInfoPlayerPlaying,         ///<
     kInfoPlayerPaused,          ///<
+    kInfoPlayerEnd,             ///<
     kInfoPlayerError,           ///< 
     /**
      * player property info
@@ -137,9 +138,11 @@ class API_EXPORT IMediaPlayer : public IMediaSession {
         virtual void        onRelease() = 0;
         
         struct PrepareJob;
-        struct StartPauseJob;
+        struct StartJob;
+        struct PauseJob;
         virtual void        onPrepare(const MediaTime&) = 0;
-        virtual void        onStartPause() = 0;
+        virtual void        onStart() = 0;
+        virtual void        onPause() = 0;
         
     protected:
         sp<SharedClock> mClock;

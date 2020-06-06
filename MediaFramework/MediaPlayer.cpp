@@ -52,13 +52,23 @@ sp<Clock> IMediaPlayer::clock() const {
     return new Clock(mClock);
 }
 
-struct IMediaPlayer::StartPauseJob : public Job {
+struct IMediaPlayer::StartJob : public Job {
     IMediaPlayer *thiz;
     
-    StartPauseJob(IMediaPlayer *p) : thiz(p) { }
+    StartJob(IMediaPlayer *p) : thiz(p) { }
     
     virtual void onJob() {
-        thiz->onStartPause();
+        thiz->onStart();
+    }
+};
+
+struct IMediaPlayer::PauseJob : public Job {
+    IMediaPlayer *thiz;
+    
+    PauseJob(IMediaPlayer *p) : thiz(p) { }
+    
+    virtual void onJob() {
+        thiz->onPause();
     }
 };
 
@@ -74,11 +84,11 @@ struct IMediaPlayer::PrepareJob : public Job {
 };
 
 void IMediaPlayer::start() {
-    mLooper->post(new StartPauseJob(this));
+    mLooper->post(new StartJob(this));
 }
 
 void IMediaPlayer::pause() {
-    mLooper->post(new StartPauseJob(this));
+    mLooper->post(new PauseJob(this));
 }
 
 void IMediaPlayer::prepare(const MediaTime& pos) {

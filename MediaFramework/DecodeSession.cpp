@@ -132,7 +132,7 @@ struct DecodeSession : public IMediaSession {
 
     void onRelease() {
         DEBUG("%s: onRelease...", mName.c_str());
-
+        Looper::Current()->flush();
         mCodec.clear();
         mPacketReadyEvent.clear();
         mPacketRequestEvent.clear();

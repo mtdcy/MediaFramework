@@ -43,8 +43,10 @@
 // max count: 1s
 // min count: 500ms
 #define MIN_COUNT (4)
-#define MAX_COUNT (16)
+#define MAX_COUNT (8)
 #define REFRESH_RATE (10000LL)    // 10ms
+#define MIN_LENGTH  200000LL    // 200ms
+#define MAX_LENGTH  500000LL    // 500ms
 
 // media session <= control session
 //  packet ready event
@@ -80,7 +82,6 @@ struct RenderSession : public IMediaSession {
 
     // internal static context
     String                  mName;  // for Log
-    Object<IMediaSession>   mDecoder;
     sp<FrameReadyEvent>     mFrameReadyEvent;
     sp<MediaFrameEvent>     mMediaFrameEvent;
     sp<MediaOut>            mOut;
@@ -90,12 +91,12 @@ struct RenderSession : public IMediaSession {
     // render scope context
     eCodecType              mType;
     Atomic<int>             mGeneration;
-    struct PresentJob;
-    sp<PresentJob>          mPresentFrame;      // for present current frame
+    struct RenderJob;
+    sp<RenderJob>           mRenderJob;      // for present current frame
     List<sp<MediaFrame> >   mOutputQueue;       // output frame queue
     eRenderState            mState;
-    bool                    mFirstFrame;
-    bool                    mOutputEOS;
+    bool                    mClockUpdated;
+    bool                    mInputEOS;
 
     MediaTime               mLastFrameTime;     // kTimeInvalid => first frame
     // statistics
@@ -112,8 +113,8 @@ struct RenderSession : public IMediaSession {
     mOut(NULL), mClock(NULL), mLatency(0),
     // render context
     mType(kCodecTypeAudio), mGeneration(0),
-    mPresentFrame(new PresentJob(this)), mState(kRenderInitialized),
-    mFirstFrame(true), mOutputEOS(false),
+    mRenderJob(new RenderJob(this)), mState(kRenderInitialized),
+    mClockUpdated(false), mInputEOS(false),
     mLastFrameTime(kMediaTimeInvalid),
     // statistics
     mFramesRenderred(0) {
@@ -197,14 +198,17 @@ struct RenderSession : public IMediaSession {
         }
 
         // if no clock, start render directly
-        if (mClock == NULL && !Looper::Current()->exists(mPresentFrame)) {
+        if (mClock == NULL && !Looper::Current()->exists(mRenderJob)) {
             onStartRenderer();
         }
     }
 
     virtual void onRelease() {
-        mDecoder.clear();
-        mOut.clear();
+        Looper::Current()->flush();
+        if (!mOut.isNIL()) {
+            mOut->flush();
+            mOut.clear();
+        }
     }
     
     // init MediaOut based on MediaFrame
@@ -243,30 +247,33 @@ struct RenderSession : public IMediaSession {
             INFO("%s: flush renderer @ %.3f", mName.c_str(), time.seconds());
             
             // clear state
-            mFirstFrame     = true;
+            mClockUpdated   = false;
             mLastFrameTime  = kMediaTimeInvalid;
-            mOutputEOS      = false;
+            mInputEOS       = false;
             mOutputQueue.clear();
             
             // update generation
             mFrameReadyEvent = new OnFrameReady(this, ++mGeneration);
 
             // flush output
-            if (!mMediaFrameEvent.isNIL()) mMediaFrameEvent->fire(NULL);
-            else if (!mOut.isNIL()) mOut->flush();
+            if (!mOut.isNIL()) mOut->flush();
 
             mState = kRenderFlushed;
         }
         
         // don't request frame if eos detected.
-        if (mOutputEOS) return;
+        if (mInputEOS) return;
 
-        // output queue: kMaxFrameNum at most
-        if (mOutputQueue.size() >= MAX_COUNT) {
-            DEBUG("%s: output queue is full", mName.c_str());
-            return;
+        if (mOutputQueue.size()) {
+            sp<MediaFrame>& first = mOutputQueue.front();
+            sp<MediaFrame>& last = mOutputQueue.back();
+            MediaTime length = last->timecode - first->timecode;
+            if (length.useconds() >= MAX_LENGTH) {
+                DEBUG("%s: output queue is full", mName.c_str());
+                return;
+            }
         }
-
+        
         mFrameRequestEvent->fire(mFrameReadyEvent, time);
         DEBUG("%s: request more frames", mName.c_str());
         // -> onFrameReady
@@ -298,7 +305,7 @@ struct RenderSession : public IMediaSession {
         // case 1: eos
         if (frame == NULL) {
             INFO("%s: eos detected", mName.c_str());
-            mOutputEOS = true;
+            mInputEOS = true;
             if (mLastFrameTime == kMediaTimeInvalid) {
                 WARN("%s: eos at start", mName.c_str());
                 notify(kSessionInfoEnd, NULL);
@@ -341,7 +348,7 @@ struct RenderSession : public IMediaSession {
         requestFrame(kMediaTimeInvalid);
 
         // prepare done ?
-        if (mState == kRenderInitialized && (mOutputQueue.size() >= MIN_COUNT || mOutputEOS)) {
+        if (mState == kRenderInitialized && (mOutputQueue.size() >= MIN_COUNT || mInputEOS)) {
             INFO("%s: prepare done", mName.c_str());
             mState = kRenderReady;
             notify(kSessionInfoReady, NULL);
@@ -351,9 +358,9 @@ struct RenderSession : public IMediaSession {
         mLastFrameTime = frame->timecode;
     }
 
-    struct PresentJob : public Job {
+    struct RenderJob : public Job {
         RenderSession *thiz;
-        PresentJob(RenderSession *s) : Job(), thiz(s) { }
+        RenderJob(RenderSession *s) : Job(), thiz(s) { }
         virtual void onJob() {
             thiz->onRender();
         }
@@ -361,27 +368,29 @@ struct RenderSession : public IMediaSession {
 
     void onRender() {
         CHECK_FALSE(mClock.isNIL());
+        DEBUG("%s: output queue size %zu", mName.c_str(), mOutputQueue.size());
     
-        // always render the first video frame
-        if (mClock->isPaused() || mOutputEOS) {
-            if (mOutputEOS) {
-                notify(kSessionInfoEnd, NULL);
-            }
+        if (mClock->isPaused()) {
+            INFO("%s: clock is paused", mName.c_str());
+            return;
+        } else if (mInputEOS && mOutputQueue.empty()) {
+            // tell out device about eos
+            INFO("%s: eos...", mName.c_str());
+            writeFrame(NULL);
+            notify(kSessionInfoEnd, NULL);
             return;
         }
         
         int64_t next = REFRESH_RATE;
-        if (mOutputQueue.size()) {
-            next = renderCurrent();
-            CHECK_GE(next, 0);
+        if (!mInputEOS && mOutputQueue.empty()) {
+            WARN("%s: underrun happens ...", mName.c_str());
         } else {
-            WARN("%s: underrun happens, please check codec ...", mName.c_str());
+            next = render();
+            CHECK_GE(next, 0);
         }
         
-        Looper::Current()->post(mPresentFrame, next);
-
+        Looper::Current()->post(mRenderJob, next);
         requestFrame(kMediaTimeInvalid);
-
         // -> onRender
     }
     
@@ -389,34 +398,18 @@ struct RenderSession : public IMediaSession {
         if (mOut != NULL) CHECK_TRUE(mOut->write(frame) == kMediaNoError);
         else mMediaFrameEvent->fire(frame);
     }
-    
-    FORCE_INLINE int64_t renderAudio() {
-        sp<MediaFrame> frame = mOutputQueue.front();
-        CHECK_TRUE(frame != NULL);
-        mOutputQueue.pop();
-        
-        writeFrame(frame);
-        ++mFramesRenderred;
-        
-        if (mFirstFrame) {
-            if (mClock != NULL && mClock->role() == kClockRoleMaster) {
-                mClock->update(frame->timecode.useconds() - mLatency);
-                INFO("%s: update clock %.3f(s) (%.3f)", mName.c_str(),
-                     frame->timecode.seconds(), mClock->get() / 1E6);
-            }
-            mFirstFrame = false;
-        }
-        
-        return 0;
-    }
-    
-    FORCE_INLINE int64_t renderVideo() {
+
+    // render current frame
+    // return next frame render time
+    FORCE_INLINE int64_t render() {
         DEBUG("%s: render with %zu frame ready", mName.c_str(), mOutputQueue.size());
 
         sp<MediaFrame> frame = mOutputQueue.front();
         CHECK_TRUE(frame != NULL);
 
-        if (!mFirstFrame) {
+        // render immediately until clock updated
+        // render immediately for audio
+        if (mClockUpdated && mType != kCodecTypeAudio) {
             int64_t early = frame->timecode.useconds() - mClock->get();
             
             if (early > REFRESH_RATE) {  // 5ms
@@ -438,47 +431,25 @@ struct RenderSession : public IMediaSession {
 
         // setup clock to tick if we are master clock
         // FIXME: if current frame is too big, update clock after write will cause clock advance too far
-        if (mFirstFrame) {
-            if (mClock != NULL && mClock->role() == kClockRoleMaster) {
-                mClock->update(frame->timecode.useconds() - mLatency);
-                INFO("%s: update clock %.3f(s) (%.3f)", mName.c_str(),
-                     frame->timecode.seconds(), mClock->get() / 1E6);
-            }
-            mFirstFrame = false;
+        if (!mClockUpdated && mClock->role() == kClockRoleMaster) {
+            mClock->update(frame->timecode.useconds() - mLatency);
+            INFO("%s: update clock %.3f(s) (%.3f)", mName.c_str(),
+                 frame->timecode.seconds(), mClock->get() / 1E6);
+            mClockUpdated = true;
         }
 
         // next frame render time.
-        if (mOutputQueue.size()) {
-            if (mClock == NULL) {
-                // if no clock exists, render next immediately
-                return 0;
-            }
-
+        if (mType == kCodecTypeAudio) {
+            return 0;
+        } else if (mOutputQueue.size()) {
             sp<MediaFrame> next = mOutputQueue.front();
             int64_t delay = next->timecode.useconds() - mClock->get();
             if (delay < 0)  return 0;
             else            return delay;
-        } else if (mOutputEOS) {
-            INFO("%s: eos...", mName.c_str());
-            // tell out device about eos
-            if (mOut != NULL) mOut->write(NULL);
-            else mMediaFrameEvent->fire(NULL);
-
-            notify(kSessionInfoEnd, NULL);
         }
         
-        INFO("refresh rate");
+        DEBUG("refresh rate");
         return REFRESH_RATE;
-    }
-
-    // render current frame
-    // return next frame render time
-    FORCE_INLINE int64_t renderCurrent() {
-        if (mType == kCodecTypeVideo) {
-            return renderVideo();
-        } else {
-            return renderAudio();
-        }
     }
 
     // using clock to control render session, start|pause|...
@@ -487,7 +458,7 @@ struct RenderSession : public IMediaSession {
         OnClockEvent(RenderSession *session) : ClockEvent(Looper::Current()), thiz(session) { }
 
         virtual void onEvent(const eClockState& cs) {
-            INFO("clock state => %d", cs);
+            DEBUG("clock state => %d", cs);
             switch (cs) {
                 case kClockStateTicking:
                     thiz->onStartRenderer();
@@ -505,37 +476,28 @@ struct RenderSession : public IMediaSession {
     };
 
     void onStartRenderer() {
-        INFO("%s: start", mName.c_str());
+        INFO("%s: start @ %.3f(s)", mName.c_str(), mClock->get() / 1E6);
         //onPrintStat();
-        mFirstFrame = true;
 
         // check
-        if (Looper::Current()->exists(mPresentFrame)) {
+        if (Looper::Current()->exists(mRenderJob)) {
             ERROR("%s: already started", mName.c_str());
             return;
         }
 
-        // start
-        // case 1: start at eos
-        if (mOutputEOS && mOutputQueue.empty()) {
-            // eos, do nothing
-            ERROR("%s: start at eos", mName.c_str());
+        if (mOut != NULL) {
+            sp<Message> options = new Message;
+            options->setInt32(kKeyPause, 0);
+            mOut->configure(options);
         }
-        // case 3: frames ready
-        else {
-            if (mOut != NULL) {
-                sp<Message> options = new Message;
-                options->setInt32(kKeyPause, 0);
-                mOut->configure(options);
-            }
 
-            onRender();
-        }
+        mClockUpdated = false;
+        onRender();
     }
 
     void onPauseRenderer() {
-        INFO("%s: pause at %.3f(s)", mName.c_str(), mClock->get() / 1E6);
-        Looper::Current()->remove(mPresentFrame);
+        INFO("%s: pause @ %.3f(s)", mName.c_str(), mClock->get() / 1E6);
+        Looper::Current()->remove(mRenderJob);
 
         if (mOut != NULL) {
             sp<Message> options = new Message;
@@ -546,7 +508,8 @@ struct RenderSession : public IMediaSession {
     
     void onPrepareRenderer() {
         const MediaTime pos = MediaTime(mClock->get());
-        INFO("%s: prepare render @ %.3f", mName.c_str(), pos.seconds());
+        INFO("%s: prepare render @ %.3f(s)", mName.c_str(), pos.seconds());
+        Looper::Current()->remove(mRenderJob);
         requestFrame(pos);
     }
 };

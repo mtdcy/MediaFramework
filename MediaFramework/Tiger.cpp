@@ -39,8 +39,6 @@
 #include "MediaDecoder.h"
 #include "MediaClock.h"
 
-#define MIN_SEEK_TIME   200000LL    // 200ms
-
 __USING_NAMESPACE_MPX
 
 struct TrackContext : public SharedObject {
@@ -141,6 +139,12 @@ struct Tiger : public IMediaPlayer {
     bool                    mHasAudio;
     BitSet                  mReadyMask;     // set when not ready
     BitSet                  mEndMask;       // set when not eos
+    enum eState {
+        kInit,
+        kReady,
+        kEnd
+    };
+    eState                  mState;
 
     Tiger(const sp<Message>& media, const sp<Message>& options) :
         IMediaPlayer(new Looper("tiger")),
@@ -150,7 +154,7 @@ struct Tiger : public IMediaPlayer {
         mDeferStart(new DeferStart(this)),
         // mutable context
         mMediaSource(NULL), mTrackID(0),
-        mHasAudio(false) {
+        mHasAudio(false), mState(kInit) {
             INFO("media => %s", media->string().c_str());
             INFO("options => %s", options->string().c_str());
             
@@ -396,8 +400,11 @@ struct Tiger : public IMediaPlayer {
         mReadyMask.clear(id);
         if (mReadyMask.empty()) {
             INFO("all tracks are ready");
-            CHECK_FALSE(mFileFormats.isNIL());
-            notify(kInfoPlayerReady, mFileFormats);
+            if (mState == kInit) {  // notify client only once
+                CHECK_FALSE(mFileFormats.isNIL());
+                notify(kInfoPlayerReady, mFileFormats);
+            }
+            mState = kReady;
         }
     }
     
@@ -406,8 +413,9 @@ struct Tiger : public IMediaPlayer {
         mEndMask.clear(id);
         if (mEndMask.empty()) {
             INFO("all tracks are eos");
+            mState = kEnd;
             mClock->pause();
-            notify(kInfoPlayerPaused);
+            notify(kInfoPlayerEnd);
         }
     }
 
@@ -424,13 +432,15 @@ struct Tiger : public IMediaPlayer {
         DeferStart(Tiger *p) : Job(), thiz(p) { }
 
         virtual void onJob() {
-            thiz->onStartPause();
+            thiz->onStart();
         }
     };
 
+#define ABS(x) (x < 0 ? -(x) : x)
+#define MIN_SEEK_TIME   200000LL        // 200ms
     virtual void onPrepare(const MediaTime& pos) {
-        DEBUG("onPrepare @ %.3f", pos.seconds());
-        int64_t delta = abs(pos.useconds() - mClock->get());
+        INFO("onPrepare @ %.3f", pos.seconds());
+        int64_t delta = ABS(pos.useconds() - mClock->get());
         if (delta < MIN_SEEK_TIME) {
             INFO("ignore seek, request @ %.3f, current %.3f",
                  pos.seconds(), mClock->get() / 1E6);
@@ -461,21 +471,33 @@ struct Tiger : public IMediaPlayer {
         return;
     }
 
-    virtual void onStartPause() {
-        DEBUG("onStartPause...");
-        mLooper->remove(mDeferStart);
-        if (mClock->isPaused()) {
-            if (mReadyMask.empty()) {
-                mClock->start();
-            } else {
-                DEBUG("defer start...");
-                mLooper->post(mDeferStart, kDeferTimeUs);
-            }
-            notify(kInfoPlayerPlaying);
+    virtual void onStart() {
+        INFO("onStart @ %.3f", mClock->get() / 1E6);
+        if (!mClock->isPaused()) {
+            INFO("already started");
+            return;
+        }
+        if (mReadyMask.empty()) {
+            mClock->start();
         } else {
-            // DO pause
-            if (!mClock->isPaused()) mClock->pause();
-            notify(kInfoPlayerPaused);
+            DEBUG("defer start...");
+            mLooper->post(mDeferStart, kDeferTimeUs);
+        }
+        notify(kInfoPlayerPlaying);
+    }
+    
+    virtual void onPause() {
+        INFO("onPause @ %.3f", mClock->get() / 1E6);
+        if (mClock->isPaused()) {
+            INFO("already paused");
+            return;
+        }
+        mLooper->remove(mDeferStart);
+        mClock->pause();
+        notify(kInfoPlayerPaused);
+        HashTable<size_t, sp<TrackContext> >::const_iterator it = mTracks.cbegin();
+        for (; it != mTracks.cend(); ++it) {
+            mReadyMask.set(it.key());
         }
     }
 };

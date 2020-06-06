@@ -52,6 +52,8 @@ struct MediaSource : public IMediaSession {
     Vector<PacketList>      mPackets;
     MediaTime               mLastReadTime;  //< avoid seek multi times by different track
     BitSet                  mTrackMask;
+    struct OnPacketRequest;
+    List<sp<OnPacketRequest> > mRequestEvents;
     
     MediaSource(const sp<Message>& media, const sp<Message>& options) :
     IMediaSession(new Looper("source")),
@@ -88,10 +90,12 @@ struct MediaSource : public IMediaSession {
         for (size_t i = 0; i < numTracks; ++i) {
             String trackName = String::format("track-%zu", i);
             sp<Message> trackFormat = formats->findObject(trackName);
-            trackFormat->setObject("PacketRequestEvent", new OnPacketRequest(this, i));
+            sp<OnPacketRequest> event = new OnPacketRequest(this, i);
+            trackFormat->setObject("PacketRequestEvent", event);
+            trackFormat->setObject("TrackSelectEvent", new OnTrackSelect(this));
             // init packet queues
             mPackets.push();
-            
+            mRequestEvents.push(event);
             mTrackMask.set(i);
         }
         
@@ -147,9 +151,31 @@ struct MediaSource : public IMediaSession {
     
     virtual void onRelease() {
         DEBUG("onRelease...");
+        Looper::Current()->flush();
         mMediaFile.clear();
+        List<sp<OnPacketRequest> >::iterator it = mRequestEvents.begin();
+        for (; it != mRequestEvents.end(); ++it) {
+            (*it)->invalidate();
+        }
+        mRequestEvents.clear();
     }
     
+    struct OnTrackSelect : public TrackSelectEvent {
+        MediaSource *thiz;
+        OnTrackSelect(MediaSource *p) :
+        TrackSelectEvent(Looper::Current()),
+        thiz(p) { }
+        
+        virtual void onEvent(const size_t& tracks) {
+            if (thiz == NULL) {
+                WARN("request packet after invalid()");
+                return;
+            }
+            // TODO
+        }
+        
+        void invalidate() { thiz = NULL; }
+    };
 
     struct OnPacketRequest : public PacketRequestEvent {
         MediaSource *thiz;
@@ -160,16 +186,14 @@ struct MediaSource : public IMediaSession {
         thiz(p), trackIndex(index) { }
         
         virtual void onEvent(const sp<PacketReadyEvent>& event, const MediaTime& time) {
+            if (thiz == NULL) {
+                WARN("request packet after invalid()");
+                return;
+            }
             thiz->onRequestPacket(trackIndex, event, time);
         }
         
-        virtual void onFirstRetain() {
-            thiz->onEnableTrack(trackIndex);
-        }
-        
-        virtual void onLastRetain() {
-            thiz->onDisableTrack(trackIndex);
-        }
+        void invalidate() { thiz = NULL; }
     };
     
     void onRequestPacket(const size_t index, sp<PacketReadyEvent> event, const MediaTime& time) {
