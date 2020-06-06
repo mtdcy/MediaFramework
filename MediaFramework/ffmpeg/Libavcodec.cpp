@@ -182,7 +182,7 @@ static FORCE_INLINE size_t unpack(AVFrame *frame, Object<MediaFrame>& out) {
     return frame->nb_samples;
 }
 
-static FORCE_INLINE Object<MediaFrame> unpack(AVFrame * frame) {
+static FORCE_INLINE Object<MediaFrame> unpack(AVFrame * frame, AVCodecContext* avcc) {
     Object<MediaFrame> out;
     AudioFormat format;
     format.channels     = frame->channels;
@@ -218,6 +218,8 @@ static FORCE_INLINE Object<MediaFrame> unpack(AVFrame * frame) {
             FATAL("FIXME");
             break;
     }
+    out->timecode   = MediaTime(frame->pts * avcc->pkt_timebase.num, avcc->pkt_timebase.den);
+    out->duration   = kMediaTimeInvalid;
     return out;
 }
 
@@ -533,6 +535,8 @@ static FORCE_INLINE MediaError openAudio(AVCodecContext * avcc, const sp<Message
     avcc->sample_rate           = formats->findInt32(kKeySampleRate);
     avcc->request_channel_layout = AV_CH_LAYOUT_STEREO;
     avcc->request_sample_fmt    = best_match;
+    avcc->pkt_timebase.num      = 1;
+    avcc->pkt_timebase.den      = avcc->sample_rate;
     INFO("request_sample_fmt %s", av_get_sample_fmt_name(avcc->request_sample_fmt));
     
     int ret = avcodec_open2(avcc, NULL, NULL);
@@ -722,8 +726,6 @@ static AVCodecContext * initContext(eModeType mode, const sp<Message>& formats, 
     
     MediaError st = kMediaNoError;
     if (type == kCodecTypeAudio) {
-        avcc->pkt_timebase.num  = 1;
-        avcc->pkt_timebase.den  = avcc->sample_rate;
         st = openAudio(avcc, formats, options);
     } else if (type == kCodecTypeVideo) {
         st = openVideo(avcc, mode, formats, options);
@@ -821,11 +823,11 @@ struct LavcDecoder : public MediaDecoder {
             pkt->size       = input->size;
 
             CHECK_TRUE(input->dts != kMediaTimeInvalid);
-            pkt->dts        = (input->dts.seconds() * avcc->pkt_timebase.den) / avcc->pkt_timebase.num;
+            pkt->dts        = MediaTime(input->dts).scale(avcc->pkt_timebase.den).value;
             if (input->pts == kMediaTimeInvalid)
                 pkt->pts    = pkt->dts;
             else
-                pkt->pts    = (input->pts.seconds() * avcc->pkt_timebase.den) / avcc->pkt_timebase.num;
+                pkt->pts    = MediaTime(input->pts).scale(avcc->pkt_timebase.den).value;
 
             pkt->flags      = 0;
             if (input->type & kFrameTypeSync) {
@@ -890,7 +892,7 @@ struct LavcDecoder : public MediaDecoder {
         
         // unpack interleaved -> planar
         if (avcc->codec_type == AVMEDIA_TYPE_AUDIO && !av_sample_fmt_is_planar((AVSampleFormat)internal->format)) {
-            out = unpack(internal);
+            out = unpack(internal, avcc);
         } else
 #ifdef __APPLE__
         if (internal->format == AV_PIX_FMT_VIDEOTOOLBOX) {
