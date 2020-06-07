@@ -116,9 +116,11 @@ typedef enum eVideoCodec {
     kVideoCodecFFmpeg   = FOURCC('lavc'),   // extend our capability by ffmpeg
 } eVideoCodec;
 
+#if 0
 typedef enum eTextFormat {
     // TODO
 } eTextFormat;
+#endif
 
 typedef enum eImageCodec {
     kImageCodecUnknown,
@@ -637,7 +639,7 @@ __BEGIN_DECLS
 #define kKeyResult      "result"    ///< int32_t, MediaError
 #define kKeyBitrate     "bitrate"   ///< int32_t
 #define kKeyBits        "bits"      ///< int32_t
-
+#define kKeyTracks      "tracks"    ///< int32_t
 
 /**
  * configure keys

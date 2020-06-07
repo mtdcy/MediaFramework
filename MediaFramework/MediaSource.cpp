@@ -34,6 +34,7 @@
 
 #define LOG_TAG "MediaSource"
 //#define LOG_NDEBUG 0
+#include "MediaDefs.h"
 #include "MediaSession.h"
 #include "MediaFile.h"
 
@@ -85,20 +86,20 @@ struct MediaSource : public IMediaSession {
             return;
         }
         
-        sp<Message> formats = mMediaFile->formats()->dup();
+        sp<Message> formats = mMediaFile->formats();
         size_t numTracks = formats->findInt32(kKeyCount, 1);
         for (size_t i = 0; i < numTracks; ++i) {
             String trackName = String::format("track-%zu", i);
             sp<Message> trackFormat = formats->findObject(trackName);
             sp<OnPacketRequest> event = new OnPacketRequest(this, i);
             trackFormat->setObject("PacketRequestEvent", event);
-            trackFormat->setObject("TrackSelectEvent", new OnTrackSelect(this));
             // init packet queues
             mPackets.push();
             mRequestEvents.push(event);
             mTrackMask.set(i);
         }
         
+        formats->setObject("TrackSelectEvent", new OnTrackSelect(this));
         notify(kSessionInfoReady, formats);
         
         // make sure each track has at least one packet
@@ -115,11 +116,12 @@ struct MediaSource : public IMediaSession {
             // flush packet list before seek
             for (size_t i = 0; i < mPackets.size(); ++i) {
                 mPackets[i].clear();
-                trackMask.set(i);
+                if (mTrackMask.test(i)) trackMask.set(i);
             }
         } else {
             for (size_t i = 0; i < mPackets.size(); ++i) {
-                if (mPackets[i].empty()) trackMask.set(i);
+                if (mPackets[i].empty() && mTrackMask.test(i))
+                    trackMask.set(i);
             }
         }
                 
@@ -147,6 +149,14 @@ struct MediaSource : public IMediaSession {
         }
         
         if (trackMask.empty()) DEBUG("packet lists are ready");
+      
+#if 0
+        String string = "packet list:";
+        for (size_t i = 0; i < mPackets.size(); ++i) {
+            string += String::format(" [%zu] %zu,", i, mPackets[i].size());
+        }
+        INFO("%s", string.c_str());
+#endif
     }
     
     virtual void onRelease() {
@@ -167,15 +177,25 @@ struct MediaSource : public IMediaSession {
         thiz(p) { }
         
         virtual void onEvent(const size_t& tracks) {
-            if (thiz == NULL) {
-                WARN("request packet after invalid()");
-                return;
-            }
-            // TODO
+            if (thiz == NULL) return;
+            thiz->onTrackSelect(tracks);
         }
         
         void invalidate() { thiz = NULL; }
     };
+    
+    void onTrackSelect(const size_t& mask) {
+        mTrackMask = mask;
+        sp<Message> options = new Message;
+        options->setInt32(kKeyTracks, mask);
+        mMediaFile->configure(options);
+        
+        // clear packet list
+        for (size_t i = 0; i < mPackets.size(); ++i) {
+            if (mTrackMask.test(i)) continue;;
+            mPackets[i].clear();
+        }
+    }
 
     struct OnPacketRequest : public PacketRequestEvent {
         MediaSource *thiz;
@@ -194,12 +214,22 @@ struct MediaSource : public IMediaSession {
         }
         
         void invalidate() { thiz = NULL; }
+        
+        // when all reference gone, we have to disable the track
+        virtual void onLastRetain() {
+            if (thiz == NULL) return;
+            INFO("disable track on PacketRequestEvent GONE");
+            thiz->onDisableTrack(trackIndex);
+        }
     };
     
     void onRequestPacket(const size_t index, sp<PacketReadyEvent> event, const MediaTime& time) {
         DEBUG("onRequestPacket [%zu] @ %.3f", index, time.seconds());
         
-        if (time != kMediaTimeInvalid) fillPacket(time);
+        if (time != kMediaTimeInvalid) {
+            INFO("onRequestPacket [%zu] @ %.3f", index, time.seconds());
+            fillPacket(time);
+        }
         
         PacketList& list = mPackets[index];
         
@@ -212,18 +242,18 @@ struct MediaSource : public IMediaSession {
         sp<MediaPacket> packet = list.front();
         list.pop();
         
+        if (time != kMediaTimeInvalid) {
+            INFO("first packet @ %.3fs", packet->dts.seconds());
+        }
+        
         event->fire(packet);
         
         fillPacket();
     }
     
-    void onEnableTrack(const size_t index) {
-        mTrackMask.set(index);
-        sp<Message> options = new Message;
-    }
-    
     void onDisableTrack(const size_t index) {
         mTrackMask.clear(index);
+        onTrackSelect(mTrackMask.value());
     }
 };
 

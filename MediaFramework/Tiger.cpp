@@ -139,11 +139,7 @@ struct Tiger : public IMediaPlayer {
     bool                    mHasAudio;
     BitSet                  mReadyMask;     // set when not ready
     BitSet                  mEndMask;       // set when not eos
-    enum eState {
-        kInit,
-        kReady,
-        kEnd
-    };
+    enum eState { kInit, kReady, kEnd };
     eState                  mState;
 
     Tiger(const sp<Message>& media, const sp<Message>& options) :
@@ -211,6 +207,11 @@ struct Tiger : public IMediaPlayer {
         DEBUG("onInitDecoders %s", formats->string().c_str());
         size_t numTracks = formats->findInt32(kKeyCount, 1);
         
+        CHECK_TRUE(formats->contains("TrackSelectEvent"));
+        sp<TrackSelectEvent> selector = formats->findObject("TrackSelectEvent");
+        
+        // there is no need to use HashTable, but it help keep code clean
+        HashTable<uint32_t, bool> selectedTracks;
         for (size_t i = 0; i < numTracks; ++i) {
             String trackName = String::format("track-%zu", i);
             sp<Message> trackFormat = formats->findObject(trackName);
@@ -223,6 +224,10 @@ struct Tiger : public IMediaPlayer {
             
             CHECK_TRUE(trackFormat->findObject("PacketRequestEvent"));
             sp<PacketRequestEvent> pre = trackFormat->findObject("PacketRequestEvent");
+            // we don't want to export this to client, so remove it here.
+            trackFormat->remove("PacketRequestEvent");
+            
+            if (selectedTracks.find(type)) continue;
             
             sp<TrackContext> track  = new TrackContext;
             track->mTrackIndex      = i;
@@ -265,12 +270,15 @@ struct Tiger : public IMediaPlayer {
             }
             
             mReadyMask.set(mTrackID);
+            selectedTracks.insert(type, true);
             mTracks.insert(mTrackID++, track);
         }
         
         if (mTracks.empty()) {
             notify(kInfoPlayerError);
         }
+        
+        selector->fire((size_t)mReadyMask.value());
         mFileFormats = formats;
     }
     
@@ -477,8 +485,11 @@ struct Tiger : public IMediaPlayer {
             INFO("already started");
             return;
         }
+        
+        if (mClock->isPaused()) mClock->start();
+        
         if (mReadyMask.empty()) {
-            mClock->start();
+           // NOTHING
         } else {
             DEBUG("defer start...");
             mDispatch->dispatch(mDeferStart, kDeferTimeUs);

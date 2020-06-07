@@ -34,6 +34,7 @@
 
 #define LOG_TAG   "Lavf"
 //#define LOG_NDEBUG 0
+#include <ABE/ABE.h>
 #include <MediaFramework/MediaFile.h>
 
 #include <FFmpeg.h>
@@ -154,10 +155,12 @@ AVIOContext * content_bridge(sp<Content>& pipe) {
 
 struct AVStreamObject : public SharedObject {
     AVStream *      stream;
+    bool            enabled;
     bool            calc_dts;
     MediaTime       last_dts;
     
-    AVStreamObject() : stream(NULL), calc_dts(false), last_dts(0) { }
+    AVStreamObject() : stream(NULL), enabled(true),
+    calc_dts(false), last_dts(0) { }
 };
 
 struct AVFormatObject : public SharedObject {
@@ -361,10 +364,12 @@ struct AVFormat : public MediaFile {
             }
             switch (st->codecpar->codec_type) {
                 case AVMEDIA_TYPE_AUDIO:
+                    trak->setInt32(kKeyCodecType, kCodecTypeAudio);
                     trak->setInt32(kKeySampleRate, st->codecpar->sample_rate);
                     trak->setInt32(kKeyChannels, st->codecpar->channels);
                     break;
                 case AVMEDIA_TYPE_VIDEO:
+                    trak->setInt32(kKeyCodecType, kCodecTypeVideo);
                     trak->setInt32(kKeyWidth, st->codecpar->width);
                     trak->setInt32(kKeyHeight, st->codecpar->height);
                     break;
@@ -420,7 +425,18 @@ struct AVFormat : public MediaFile {
     }
     
     virtual MediaError configure(const sp<Message>& options) {
-        return kMediaErrorInvalidOperation;
+        INFO("configure << %s", options->string().c_str());
+        MediaError status = kMediaErrorInvalidOperation;
+        if (options->contains(kKeyTracks)) {
+            abe::BitSet mask = options->findInt32(kKeyTracks);
+            CHECK_FALSE(mask.empty());
+            for (size_t i = 0; i < mObject->streams.size(); ++i) {
+                sp<AVStreamObject> st = mObject->streams[i]; // FIXME
+                st->enabled = mask.test(i);
+            }
+            status = kMediaNoError;
+        }
+        return status;
     }
     
     virtual sp<MediaPacket> read(const eReadMode& mode, const MediaTime& ts) {
@@ -446,10 +462,12 @@ struct AVFormat : public MediaFile {
         
         if (pkt->flags & AV_PKT_FLAG_CORRUPT) {
             WARN("corrupt packet");
-            return read(mode, ts);
+            return read(mode, kMediaTimeInvalid);
         }
         
         sp<AVStreamObject> st = mObject->streams[pkt->stream_index];
+        if (st->enabled == false) return read(mode, kMediaTimeInvalid);
+        
         sp<MediaPacket> packet = new AVMediaPacket(st, pkt);
         av_packet_free(&pkt);
         

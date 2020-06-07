@@ -382,13 +382,13 @@ static MediaError seekTrack(sp<Mp4Track>& track,
             result = first;
     }
 
-    INFO("seek %.3f(s) => [%zu - %zu - %zu] => %zu # %zu",
-            ts.seconds(),
-            first, mid, second, result,
-            search_count);
-
     track->sampleIndex  = result;   // key sample index
     track->startTime    = MediaTime(tbl[mid].dts, track->duration.timescale);
+
+    INFO("seek %.3f(s)[%.3f(s)] => [%zu - %zu - %zu] => %zu # %zu",
+            ts.seconds(), track->startTime.seconds(),
+            first, mid, second, result,
+            search_count);
 
     return kMediaNoError;
 }
@@ -703,7 +703,7 @@ struct Mp4File : public MediaFile {
         // setup flags
         uint32_t flags  = s.flags;
 #if 1
-        MediaTime dts( s.dts, track->startTime.timescale);
+        MediaTime dts( s.dts, track->duration.timescale);
         if (dts < track->startTime) {
             if (flags & kFrameTypeDisposal) {
                 INFO("track %zu: drop frame", trackIndex);
