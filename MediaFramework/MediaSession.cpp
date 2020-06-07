@@ -67,9 +67,9 @@ void IMediaSession::onLastRetain() {
 }
 
 sp<IMediaSession> CreateMediaSource(const sp<Message>& media, const sp<Message>& options);
-Object<IMediaSession> CreateDecodeSession(const Object<Message>& format, const Object<Message>& options);
-Object<IMediaSession> CreateRenderSession(const Object<Message>& format, const Object<Message>& options);
-Object<IMediaSession> IMediaSession::Create(const Object<Message>& format, const Object<Message>& options) {
+sp<IMediaSession> CreateDecodeSession(const sp<Message>& format, const sp<Message>& options);
+sp<IMediaSession> CreateRenderSession(const sp<Message>& format, const sp<Message>& options);
+sp<IMediaSession> IMediaSession::Create(const sp<Message>& format, const sp<Message>& options) {
     if (format->contains("url")) {
         return CreateMediaSource(format, options);
     } else if (options->contains("PacketRequestEvent")) {

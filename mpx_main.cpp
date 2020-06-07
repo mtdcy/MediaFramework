@@ -130,7 +130,7 @@ struct OnPlayerInfo : public PlayerInfoEvent {
 struct OnFrameUpdate : public MediaFrameEvent {
     OnFrameUpdate() : MediaFrameEvent(Looper::Main()) { }
     
-    virtual void onEvent(const Object<MediaFrame>& frame) {
+    virtual void onEvent(const sp<MediaFrame>& frame) {
         if (frame == NULL) {
             if (g_out != NULL) g_out->flush();
             return;

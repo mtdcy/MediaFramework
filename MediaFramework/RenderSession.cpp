@@ -63,7 +63,7 @@
 
 __USING_NAMESPACE_MPX
 
-Object<IMediaSession> CreateDecodeSession(const Object<Message>& format, const Object<Message>& options);
+sp<IMediaSession> CreateDecodeSession(const sp<Message>& format, const sp<Message>& options);
 
 struct RenderSession : public IMediaSession {
     enum eRenderState {
@@ -75,7 +75,7 @@ struct RenderSession : public IMediaSession {
     };
 
     // external static context
-    Object<Message>         mFormat;
+    sp<Message>             mFormat;
     // options
     sp<FrameRequestEvent>   mFrameRequestEvent;     // mandatory
     sp<SessionInfoEvent>    mInfoEvent;
@@ -517,6 +517,6 @@ struct RenderSession : public IMediaSession {
     }
 };
 
-Object<IMediaSession> CreateRenderSession(const Object<Message>& format, const Object<Message>& options) {
+sp<IMediaSession> CreateRenderSession(const sp<Message>& format, const sp<Message>& options) {
     return new RenderSession(format, options);
 }

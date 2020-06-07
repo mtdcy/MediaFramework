@@ -34,8 +34,8 @@ __BEGIN_DECLS
 __USING_NAMESPACE_MPX
 
 ImageFileRef ImageFileOpen(ContentObjectRef ref) {
-    Object<Content> pipe = ref;
-    Object<ImageFile> file = ImageFile::Create();
+    sp<Content> pipe = ref;
+    sp<ImageFile> file = ImageFile::Create();
     if (file->init(pipe, NULL) == kMediaNoError) {
         return file->RetainObject();
     }
@@ -43,7 +43,7 @@ ImageFileRef ImageFileOpen(ContentObjectRef ref) {
 }
 
 MediaFrameRef AudioFrameCreate(const AudioFormat * audio) {
-    Object<MediaFrame> frame = MediaFrame::Create(*audio);
+    sp<MediaFrame> frame = MediaFrame::Create(*audio);
     return (MediaFrameRef)frame->RetainObject();
 }
 
@@ -52,54 +52,54 @@ MediaFrameRef ImageFrameCreate(const ImageFormat * image) {
 }
 
 MediaFrameRef ImageFrameGenerate(const ImageFormat * image, BufferObjectRef buffer) {
-    Object<MediaFrame> frame = MediaFrame::Create(*image, buffer);
+    sp<MediaFrame> frame = MediaFrame::Create(*image, buffer);
     return frame->RetainObject();
 }
 
 uint8_t * MediaFrameGetPlaneData(MediaFrameRef ref, size_t index) {
-    Object<MediaFrame> frame = ref;
+    sp<MediaFrame> frame = ref;
     CHECK_LT(index, MEDIA_FRAME_NB_PLANES);
     return frame->planes[index].data;
 }
 
 size_t MediaFrameGetPlaneSize(MediaFrameRef ref, size_t index) {
-    Object<MediaFrame> frame = ref;
+    sp<MediaFrame> frame = ref;
     CHECK_LT(index, MEDIA_FRAME_NB_PLANES);
     return frame->planes[index].size;
 }
 
 AudioFormat * MediaFrameGetAudioFormat(MediaFrameRef ref) {
-    Object<MediaFrame> frame = ref;
+    sp<MediaFrame> frame = ref;
     return &frame->a;
 }
 
 ImageFormat * MediaFrameGetImageFormat(MediaFrameRef ref) {
-    Object<MediaFrame> frame = ref;
+    sp<MediaFrame> frame = ref;
     return &frame->v;
 }
 
 void * MediaFrameGetOpaque(MediaFrameRef ref) {
-    Object<MediaFrame> frame = ref;
+    sp<MediaFrame> frame = ref;
     return frame->opaque;
 }
 
 MediaError ImageFrameSwapCbCr(MediaFrameRef ref) {
-    Object<MediaFrame> frame = ref;
+    sp<MediaFrame> frame = ref;
     return frame->swapCbCr();
 }
 
 MediaError ImageFrameReversePixel(MediaFrameRef ref) {
-    Object<MediaFrame> frame = ref;
+    sp<MediaFrame> frame = ref;
     return frame->reversePixel();
 }
 
 MediaError ImageFramePlanarization(MediaFrameRef ref) {
-    Object<MediaFrame> frame = ref;
+    sp<MediaFrame> frame = ref;
     return frame->planarization();
 }
 
 MediaError ImageFrameToRGB(MediaFrameRef ref) {
-    Object<MediaFrame> frame = ref;
+    sp<MediaFrame> frame = ref;
     return frame->yuv2rgb();
 }
 
@@ -107,24 +107,24 @@ struct UserFrameEvent : public MediaFrameEvent {
     FrameCallback Callback;
     void * opaque;
     
-    UserFrameEvent(const Object<Looper>& lp, FrameCallback cb, void * user) :
+    UserFrameEvent(const sp<Looper>& lp, FrameCallback cb, void * user) :
     MediaFrameEvent(lp), Callback(cb), opaque(user) { }
     
-    virtual void onEvent(const Object<MediaFrame>& frame) {
+    virtual void onEvent(const sp<MediaFrame>& frame) {
         Callback(frame.get(), opaque);
     }
 };
 
 FrameEventRef FrameEventCreate(LooperObjectRef ref, FrameCallback cb, void * user) {
-    Object<Looper> lp = ref;
-    Object<UserFrameEvent> event = new UserFrameEvent(lp, cb, user);
+    sp<Looper> lp = ref;
+    sp<UserFrameEvent> event = new UserFrameEvent(lp, cb, user);
     return (FrameEventRef)event->RetainObject();
 }
 
 struct UserInfoEvent : public PlayerInfoEvent {
     PlayerInfoCallback Callback;
     void * User;
-    UserInfoEvent(const Object<Looper>& lp, PlayerInfoCallback cb, void * user) :
+    UserInfoEvent(const sp<Looper>& lp, PlayerInfoCallback cb, void * user) :
     PlayerInfoEvent(lp), Callback(cb), User(user) { }
     
     virtual void onEvent(const ePlayerInfoType& info, const sp<Message>& payload) {
@@ -133,47 +133,47 @@ struct UserInfoEvent : public PlayerInfoEvent {
 };
 
 PlayerInfoEventRef PlayerInfoEventCreate(LooperObjectRef ref, PlayerInfoCallback cb, void * user) {
-    Object<Looper> lp = ref;
-    Object<UserInfoEvent> event = new UserInfoEvent(lp, cb, user);
+    sp<Looper> lp = ref;
+    sp<UserInfoEvent> event = new UserInfoEvent(lp, cb, user);
     return (PlayerInfoEventRef)event->RetainObject();
 }
 
 MediaPlayerRef MediaPlayerCreate(MessageObjectRef media, MessageObjectRef options) {
-    Object<IMediaPlayer> mp = IMediaPlayer::Create(media, options);
+    sp<IMediaPlayer> mp = IMediaPlayer::Create(media, options);
     return mp->RetainObject();
 }
 
 MediaClockRef MediaPlayerGetClock(MediaPlayerRef ref) {
-    Object<IMediaPlayer> mp = ref;
-    Object<Clock> clock = mp->clock();
+    sp<IMediaPlayer> mp = ref;
+    sp<Clock> clock = mp->clock();
     if (clock == NULL) return NULL;
     else return (MediaClockRef)clock->RetainObject();
 }
 
 void MediaPlayerPrepare(MediaPlayerRef ref, int64_t us) {
-    Object<IMediaPlayer> mp = ref;
+    sp<IMediaPlayer> mp = ref;
     return mp->prepare(us);
 }
 
 void MediaPlayerStart(MediaPlayerRef ref) {
-    Object<IMediaPlayer> mp = ref;
+    sp<IMediaPlayer> mp = ref;
     return mp->start();
 }
 
 void MediaPlayerPause(MediaPlayerRef ref) {
-    Object<IMediaPlayer> mp = ref;
+    sp<IMediaPlayer> mp = ref;
     return mp->pause();
 }
 
 MediaOutRef MediaOutCreate(MessageObjectRef format, MessageObjectRef options) {
-    Object<MediaOut> out = MediaOut::Create(format, options);
+    sp<MediaOut> out = MediaOut::Create(format, options);
     return (MediaOutRef)out->RetainObject();
 }
 
 #if 0
 MediaOutRef MediaOutCreateForImage(const ImageFormat * image, MessageObjectRef options) {
-    Object<MediaOut> out = MediaOut::Create(kCodecTypeVideo);
-    Object<Message> format = new Message;
+    sp<MediaOut> out = MediaOut::Create(kCodecTypeVideo);
+    sp<Message> format = new Message;
     format->setInt32(kKeyFormat, image->format);
     format->setInt32(kKeyWidth, image->width);
     format->setInt32(kKeyHeight, image->height);
@@ -185,23 +185,23 @@ MediaOutRef MediaOutCreateForImage(const ImageFormat * image, MessageObjectRef o
 #endif
 
 MediaError MediaOutWrite(MediaOutRef ref, MediaFrameRef frame) {
-    Object<MediaOut> out = ref;
+    sp<MediaOut> out = ref;
     return out->write(frame);
 }
 
 MediaError MediaOutFlush(MediaOutRef ref) {
-    Object<MediaOut> out = ref;
+    sp<MediaOut> out = ref;
     return out->flush();
 }
 
 MediaError MediaOutConfigure(MediaOutRef ref, MessageObjectRef options) {
     if (options == NULL) return kMediaErrorBadValue;
-    Object<MediaOut> out = ref;
+    sp<MediaOut> out = ref;
     return out->configure(options);
 }
 
 int64_t MediaClockGetTime(MediaClockRef ref) {
-    Object<Clock> clock = ref;
+    sp<Clock> clock = ref;
     return clock->get();
 }
 

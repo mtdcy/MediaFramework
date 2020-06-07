@@ -172,7 +172,7 @@ static AVSampleFormat get_av_sample_format(eSampleFormat a) {
 }
 
 template <typename TYPE>
-static FORCE_INLINE size_t unpack(AVFrame *frame, Object<MediaFrame>& out) {
+static FORCE_INLINE size_t unpack(AVFrame *frame, sp<MediaFrame>& out) {
     const TYPE * in = (const TYPE *)frame->data[0];
     for (size_t i = 0; i < frame->nb_samples; ++i) {
         for (size_t ch = 0; ch < frame->channels; ++ch) {
@@ -182,8 +182,8 @@ static FORCE_INLINE size_t unpack(AVFrame *frame, Object<MediaFrame>& out) {
     return frame->nb_samples;
 }
 
-static FORCE_INLINE Object<MediaFrame> unpack(AVFrame * frame, AVCodecContext* avcc) {
-    Object<MediaFrame> out;
+static FORCE_INLINE sp<MediaFrame> unpack(AVFrame * frame, AVCodecContext* avcc) {
+    sp<MediaFrame> out;
     AudioFormat format;
     format.channels     = frame->channels;
     format.freq         = frame->sample_rate;

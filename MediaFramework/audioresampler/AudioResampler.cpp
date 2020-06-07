@@ -239,12 +239,12 @@ struct AudioResamplerLinear : public AudioResampler {
         }
     }
     
-    virtual Object<MediaFrame> resample(const Object<MediaFrame>& input) {
+    virtual sp<MediaFrame> resample(const sp<MediaFrame>& input) {
         size_t nb_samples = (input->a.samples * mOutput.freq) / mInput.freq + 1;
         AudioFormat format = mOutput;
         format.samples = nb_samples;
         
-        Object<MediaFrame> output = MediaFrame::Create(format);
+        sp<MediaFrame> output = MediaFrame::Create(format);
         
         for (size_t i = 0; i < input->a.channels; ++i) {
             output->a.samples = resample1<FROM, TO, COEFFS_TYPE>()(mStates[i],
@@ -258,7 +258,7 @@ struct AudioResamplerLinear : public AudioResampler {
     }
 };
 
-Object<AudioResampler> AudioResampler::Create(const AudioFormat& in,
+sp<AudioResampler> AudioResampler::Create(const AudioFormat& in,
                                               const AudioFormat& out,
                                               const sp<Message>& options) {
     INFO("init AudioResampler %s -> %s", GetAudioFormatString(in).c_str(), GetAudioFormatString(out).c_str());

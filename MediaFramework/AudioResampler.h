@@ -47,11 +47,11 @@ struct API_EXPORT AudioResampler : public SharedObject {
     AudioResampler() : SharedObject() { }
     virtual ~AudioResampler() { }
 
-    static Object<AudioResampler> Create(const AudioFormat& in,
+    static sp<AudioResampler> Create(const AudioFormat& in,
                                          const AudioFormat& out,
                                          const sp<Message>& options);
 
-    virtual Object<MediaFrame>  resample(const Object<MediaFrame>& input) = 0;
+    virtual sp<MediaFrame>      resample(const sp<MediaFrame>& input) = 0;
 
     virtual void                reset() = 0;
 

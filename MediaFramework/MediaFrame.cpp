@@ -61,7 +61,7 @@ sp<MediaFrame> MediaFrame::Create(const ImageFormat& image) {
     CHECK_NULL(desc);
     const size_t bytes = (image.width * image.height * desc->bpp) / 8;
     
-    Object<Buffer> buffer = new Buffer(bytes);
+    sp<Buffer> buffer = new Buffer(bytes);
     return MediaFrame::Create(image, buffer);
 }
 
@@ -84,7 +84,7 @@ sp<MediaFrame> MediaFrame::Create(const ImageFormat& image, const sp<Buffer>& bu
     const size_t bytes = (image.width * image.height * desc->bpp) / 8;
     if (buffer->capacity() < bytes) return NULL;
     
-    Object<MediaFrame> frame = new MediaFrame;
+    sp<MediaFrame> frame = new MediaFrame;
     frame->mBuffer = buffer;
     
     if (desc->planes > 1) {

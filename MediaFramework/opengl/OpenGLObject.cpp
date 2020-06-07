@@ -741,7 +741,7 @@ MediaError OpenGLObject::init(const ImageFormat& image, bool offscreen) {
     return kMediaNoError;
 }
 
-MediaError OpenGLObject::draw(const Object<MediaFrame>& frame) {
+MediaError OpenGLObject::draw(const sp<MediaFrame>& frame) {
     return drawFrame(mOpenGL, frame);
 }
 

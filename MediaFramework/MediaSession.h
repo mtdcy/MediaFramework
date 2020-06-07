@@ -80,7 +80,7 @@ typedef MediaEvent2<eSessionInfoType, sp<Message> > SessionInfoEvent;
 
 class API_EXPORT IMediaSession : public SharedObject {
     public:
-        static Object<IMediaSession> Create(const sp<Message>&, const sp<Message>&);
+        static sp<IMediaSession> Create(const sp<Message>&, const sp<Message>&);
     
     public:
         IMediaSession(const sp<Looper>& lp) : mDispatch(new DispatchQueue(lp)) { }

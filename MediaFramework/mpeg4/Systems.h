@@ -44,7 +44,7 @@ __BEGIN_NAMESPACE_MPX
 
 namespace MPEG4 {
     // ISO/IEC 14496-1:2010(E), Section 7.2.2.1, Page 31, Table 1
-    // Object Description Tag
+    // sp Description Tag
     enum eDescriptorTag {
         InvalidDescrTag                         = 0x0,
         ObjectDescrTag                          = 0x1,

@@ -48,7 +48,7 @@ __USING_NAMESPACE_MPX
 // PacketRequestEvent <-- OnPacketReady -- requestPacket
 struct DecodeSession : public IMediaSession {
     // external static context
-    Object<Message>         mFormat;
+    sp<Message>             mFormat;
     // options
     eModeType               mMode;
     sp<PacketRequestEvent>  mPacketRequestEvent;        // where we get packets
@@ -107,7 +107,7 @@ struct DecodeSession : public IMediaSession {
         CHECK_TRUE(mFormat->contains(kKeyFormat));
         eCodecType type = (eCodecType)mFormat->findInt32(kKeyCodecType);
         
-        Object<Message> options = new Message;
+        sp<Message> options = new Message;
         options->setInt32(kKeyMode, mMode);
 
         mCodec = MediaDecoder::Create(mFormat, options);
@@ -294,7 +294,7 @@ struct DecodeSession : public IMediaSession {
     }
 };
 
-Object<IMediaSession> CreateDecodeSession(const Object<Message>& format, const Object<Message>& options) {
-    Object<DecodeSession> decoder = new DecodeSession(format, options);
+sp<IMediaSession> CreateDecodeSession(const sp<Message>& format, const sp<Message>& options) {
+    sp<DecodeSession> decoder = new DecodeSession(format, options);
     return decoder;
 }

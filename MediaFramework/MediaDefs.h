@@ -531,8 +531,8 @@ namespace Tag {
 template <typename T>
 class ABE_EXPORT MediaEvent : public Job {
     public:
-        MediaEvent(const Object<Looper>& lp) : Job(lp) { }
-        explicit MediaEvent(const Object<DispatchQueue>& disp) : Job(disp) { }
+        MediaEvent(const sp<Looper>& lp) : Job(lp) { }
+        MediaEvent(const sp<DispatchQueue>& disp) : Job(disp) { }
         virtual ~MediaEvent() { }
         
         virtual size_t fire(const T& value) {
@@ -556,8 +556,8 @@ class ABE_EXPORT MediaEvent : public Job {
 template <typename T, typename U>
 class ABE_EXPORT MediaEvent2 : public Job {
     public:
-        MediaEvent2(const Object<Looper>& lp) : Job(lp) { }
-        explicit MediaEvent2(const Object<DispatchQueue>& disp) : Job(disp) { }
+        MediaEvent2(const sp<Looper>& lp) : Job(lp) { }
+        MediaEvent2(const sp<DispatchQueue>& disp) : Job(disp) { }
         virtual ~MediaEvent2() { }
         
         virtual size_t fire(const T& a, const U& b) {

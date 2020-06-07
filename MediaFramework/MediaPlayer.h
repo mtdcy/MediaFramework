@@ -78,12 +78,12 @@ __BEGIN_NAMESPACE_MPX
 /**
  * for MediaPlayer streaming MediaFrame to client
  */
-typedef MediaEvent<Object<MediaFrame> >     MediaFrameEvent;
+typedef MediaEvent<sp<MediaFrame> > MediaFrameEvent;
 
 /**
  * a generic event
  */
-typedef MediaEvent2<ePlayerInfoType, sp<Message> >  PlayerInfoEvent;
+typedef MediaEvent2<ePlayerInfoType, sp<Message> > PlayerInfoEvent;
 
 /**
  * add a media to player.
