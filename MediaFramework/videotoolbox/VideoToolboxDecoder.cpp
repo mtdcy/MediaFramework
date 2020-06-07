@@ -182,7 +182,10 @@ struct VTContext : public SharedObject {
     Mutex                           mLock;
     bool                            mInputEOS;
     List<sp<VTMediaFrame> >         mImages;
-    sp<VTMediaFrame>                mUnorderImage;
+    // when B frames output in order, only need to cache one I/P frame.
+    // But if B frames out of order, then we need to cache a B frame too.
+    sp<VTMediaFrame>                mUnorderImage0;     // B frame
+    sp<VTMediaFrame>                mUnorderImage1;     // I/P frame
 };
 
 static FORCE_INLINE void OutputCallback(void *decompressionOutputRefCon,
@@ -227,20 +230,34 @@ static FORCE_INLINE void OutputCallback(void *decompressionOutputRefCon,
 
     // vt feed on packet in dts order and output is also in dts order
     // we have to reorder frames in pts order
-    if (vtc->mUnorderImage.isNIL()) {
-        vtc->mUnorderImage = frame;
+    if (vtc->mUnorderImage1.isNIL()) {
+        vtc->mUnorderImage1 = frame;
+    } else if (frame->timecode > vtc->mUnorderImage1->timecode) {
+        // a new I/P frame show up
+        if (!vtc->mUnorderImage0.isNIL())
+            vtc->mImages.push(vtc->mUnorderImage0);
+        vtc->mImages.push(vtc->mUnorderImage1);
+        vtc->mUnorderImage0.clear();
+        vtc->mUnorderImage1 = frame;
     } else {
-        if (frame->timecode > vtc->mUnorderImage->timecode) {
-            vtc->mImages.push(vtc->mUnorderImage);
-            vtc->mUnorderImage = frame;
+        if (vtc->mUnorderImage0.isNIL()) {
+            vtc->mUnorderImage0 = frame;
+        } else if (frame->timecode > vtc->mUnorderImage0->timecode) {
+            // a new B frame show up
+            vtc->mImages.push(vtc->mUnorderImage0);
+            vtc->mUnorderImage0 = frame;
         } else {
             vtc->mImages.push(frame);
         }
     }
     
     if (vtc->mInputEOS) {
-        vtc->mImages.push(vtc->mUnorderImage);
-        vtc->mUnorderImage.clear();
+        if (!vtc->mUnorderImage0.isNIL())
+            vtc->mImages.push(vtc->mUnorderImage0);
+        if (!vtc->mUnorderImage1.isNIL())
+            vtc->mImages.push(vtc->mUnorderImage1);
+        vtc->mUnorderImage0.clear();
+        vtc->mUnorderImage1.clear();
     }
 }
 
@@ -665,7 +682,8 @@ struct VideoToolboxDecoder : public MediaDecoder {
 
         AutoLock _l(mVTContext->mLock);
         mVTContext->mImages.clear();
-        mVTContext->mUnorderImage.clear();
+        mVTContext->mUnorderImage0.clear();
+        mVTContext->mUnorderImage1.clear();
         return kMediaNoError;
     }
 };
