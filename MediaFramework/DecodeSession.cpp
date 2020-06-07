@@ -175,7 +175,7 @@ struct DecodeSession : public IMediaSession {
             DEBUG("%s: packet %.3f|%.3f(s) ready", mName.c_str(),
                   pkt->dts.seconds(), pkt->pts.seconds());
 
-            if (mPacketsComsumed == 0) {
+            if (mLastPacketTime == kMediaTimeInvalid) {
                 INFO("%s: first packet @ %.3f(s)|%.3f(s)", mName.c_str(),
                      pkt->pts.seconds(), pkt->dts.seconds());
             }
@@ -300,7 +300,7 @@ struct DecodeSession : public IMediaSession {
             // decoder should be fast than renderer, or underrun hapens
             if (mPendingRequests.size() == 1) {
                 DEBUG("%s: request packet on frame request", mName.c_str());
-                requestPacket();
+                requestPacket(time);
             }
         }
     }
