@@ -130,13 +130,13 @@ struct DecodeSession : public IMediaSession {
         notify(kSessionInfoReady, formats);
     }
 
-    void onRelease() {
-        DEBUG("%s: onRelease...", mName.c_str());
-        Looper::Current()->flush();
+    virtual void onRelease() {
+        INFO("%s: onRelease...", mName.c_str());
+        mDispatch->flush();
         mCodec.clear();
         mPacketReadyEvent.clear();
         mPacketRequestEvent.clear();
-        // can NOT flush looper here
+        mPendingRequests.clear();
     }
 
     void requestPacket(const MediaTime& time = kMediaTimeInvalid) {
@@ -152,7 +152,7 @@ struct DecodeSession : public IMediaSession {
         DecodeSession * thiz;
         const int mGeneration;
 
-        OnPacketReady(DecodeSession *p, int gen) : PacketReadyEvent(Looper::Current()),
+        OnPacketReady(DecodeSession *p, int gen) : PacketReadyEvent(p->mDispatch),
         thiz(p), mGeneration(gen) { }
 
         virtual void onEvent(const sp<MediaPacket>& packet) {
@@ -251,8 +251,8 @@ struct DecodeSession : public IMediaSession {
     struct OnFrameRequest : public FrameRequestEvent {
         DecodeSession *thiz;
         
-        OnFrameRequest(DecodeSession *session) :
-        FrameRequestEvent(Looper::Current()), thiz(session) { }
+        OnFrameRequest(DecodeSession *p) :
+        FrameRequestEvent(p->mDispatch), thiz(p) { }
         
         virtual void onEvent(const sp<FrameReadyEvent>& event, const MediaTime& time) {
             thiz->onRequestFrame(event, time);

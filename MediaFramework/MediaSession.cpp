@@ -55,15 +55,15 @@ struct IMediaSession::ReleaseJob : public Job {
 };
 
 void IMediaSession::onFirstRetain() {
-    mLooper->post(new InitJob(this));
+    mDispatch->dispatch(new InitJob(this));
 }
 
 void IMediaSession::onLastRetain() {
-    mLooper->post(new ReleaseJob(this));
-    // FIXME: if we share Looper with others, this will be a problem.
-    mLooper->flush();
-    // after this mLooper is accessable in onRelease()
-    mLooper.clear();    // wait jobs complete and release looper
+    mDispatch->flush();
+    mDispatch->sync(new ReleaseJob(this));
+    // wait jobs complete and release disptch queue
+    INFO("MediaSession released, %zu", mDispatch.refsCount());
+    mDispatch.clear();
 }
 
 sp<IMediaSession> CreateMediaSource(const sp<Message>& media, const sp<Message>& options);

@@ -83,7 +83,7 @@ class API_EXPORT IMediaSession : public SharedObject {
         static Object<IMediaSession> Create(const sp<Message>&, const sp<Message>&);
     
     public:
-        IMediaSession(const sp<Looper>& lp) : mLooper(lp) { }
+        IMediaSession(const sp<Looper>& lp) : mDispatch(new DispatchQueue(lp)) { }
 
         virtual ~IMediaSession() { }
 
@@ -97,7 +97,7 @@ class API_EXPORT IMediaSession : public SharedObject {
         virtual void onInit() = 0;
         virtual void onRelease() = 0;
 
-        sp<Looper> mLooper;
+        sp<DispatchQueue> mDispatch;
 
         DISALLOW_EVILS(IMediaSession);
 };

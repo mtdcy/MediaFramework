@@ -189,7 +189,7 @@ struct Tiger : public IMediaPlayer {
 
     struct OnSourceInfo : public SessionInfoEvent {
         Tiger *thiz;
-        OnSourceInfo(Tiger *p) : SessionInfoEvent(Looper::Current()), thiz(p) { }
+        OnSourceInfo(Tiger *p) : SessionInfoEvent(p->mDispatch), thiz(p) { }
 
         virtual void onEvent(const eSessionInfoType& info, const sp<Message>& payload) {
             thiz->onSourceInfo(info, payload);
@@ -278,7 +278,7 @@ struct Tiger : public IMediaPlayer {
         Tiger *thiz;
         const size_t id;
         OnDecoderInfo(Tiger *p, const size_t n) :
-        SessionInfoEvent(Looper::Current()),
+        SessionInfoEvent(p->mDispatch),
         thiz(p), id(n) { }
 
         virtual void onEvent(const eSessionInfoType& info, const sp<Message>& payload) {
@@ -369,7 +369,7 @@ struct Tiger : public IMediaPlayer {
         Tiger *thiz;
         size_t id;
 
-        OnRendererInfo(Tiger *p, size_t n) : SessionInfoEvent(Looper::Current()),
+        OnRendererInfo(Tiger *p, size_t n) : SessionInfoEvent(p->mDispatch),
         thiz(p), id(n) { }
 
         virtual void onEvent(const eSessionInfoType& info, const sp<Message>& payload) {
@@ -447,7 +447,7 @@ struct Tiger : public IMediaPlayer {
             return;
         }
         
-        Looper::Current()->remove(mDeferStart);
+        mDispatch->remove(mDeferStart);
 
         // -> ready by prepare
         bool paused = mClock->isPaused();
@@ -460,7 +460,7 @@ struct Tiger : public IMediaPlayer {
         mClock->set(pos.useconds());
 
         if (!paused) {
-            Looper::Current()->post(mDeferStart, kDeferTimeUs);
+            mDispatch->dispatch(mDeferStart, kDeferTimeUs);
         }
         
         HashTable<size_t, sp<TrackContext> >::const_iterator it = mTracks.cbegin();
@@ -481,7 +481,7 @@ struct Tiger : public IMediaPlayer {
             mClock->start();
         } else {
             DEBUG("defer start...");
-            mLooper->post(mDeferStart, kDeferTimeUs);
+            mDispatch->dispatch(mDeferStart, kDeferTimeUs);
         }
         notify(kInfoPlayerPlaying);
     }
@@ -492,7 +492,7 @@ struct Tiger : public IMediaPlayer {
             INFO("already paused");
             return;
         }
-        mLooper->remove(mDeferStart);
+        mDispatch->remove(mDeferStart);
         mClock->pause();
         notify(kInfoPlayerPaused);
         HashTable<size_t, sp<TrackContext> >::const_iterator it = mTracks.cbegin();

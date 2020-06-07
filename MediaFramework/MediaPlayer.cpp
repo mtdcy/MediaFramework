@@ -84,15 +84,15 @@ struct IMediaPlayer::PrepareJob : public Job {
 };
 
 void IMediaPlayer::start() {
-    mLooper->post(new StartJob(this));
+    mDispatch->dispatch(new StartJob(this));
 }
 
 void IMediaPlayer::pause() {
-    mLooper->post(new PauseJob(this));
+    mDispatch->dispatch(new PauseJob(this));
 }
 
 void IMediaPlayer::prepare(const MediaTime& pos) {
-    mLooper->post(new PrepareJob(this, pos));
+    mDispatch->dispatch(new PrepareJob(this, pos));
 }
 
 sp<IMediaPlayer> CreateTiger(const sp<Message>& media, const sp<Message>& options);

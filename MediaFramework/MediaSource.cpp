@@ -151,7 +151,7 @@ struct MediaSource : public IMediaSession {
     
     virtual void onRelease() {
         DEBUG("onRelease...");
-        Looper::Current()->flush();
+        mDispatch->flush();
         mMediaFile.clear();
         List<sp<OnPacketRequest> >::iterator it = mRequestEvents.begin();
         for (; it != mRequestEvents.end(); ++it) {
@@ -163,7 +163,7 @@ struct MediaSource : public IMediaSession {
     struct OnTrackSelect : public TrackSelectEvent {
         MediaSource *thiz;
         OnTrackSelect(MediaSource *p) :
-        TrackSelectEvent(Looper::Current()),
+        TrackSelectEvent(p->mDispatch),
         thiz(p) { }
         
         virtual void onEvent(const size_t& tracks) {
@@ -182,7 +182,7 @@ struct MediaSource : public IMediaSession {
         const size_t trackIndex;
         
         OnPacketRequest(MediaSource *p, const size_t index) :
-        PacketRequestEvent(Looper::Current()),
+        PacketRequestEvent(p->mDispatch),
         thiz(p), trackIndex(index) { }
         
         virtual void onEvent(const sp<PacketReadyEvent>& event, const MediaTime& time) {

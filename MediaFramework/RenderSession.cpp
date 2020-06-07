@@ -198,17 +198,20 @@ struct RenderSession : public IMediaSession {
         }
 
         // if no clock, start render directly
-        if (mClock == NULL && !Looper::Current()->exists(mRenderJob)) {
+        if (mClock == NULL && !mDispatch->exists(mRenderJob)) {
             onStartRenderer();
         }
     }
 
     virtual void onRelease() {
-        Looper::Current()->flush();
+        mDispatch->flush();
         if (!mOut.isNIL()) {
             mOut->flush();
             mOut.clear();
         }
+        mFrameReadyEvent.clear();
+        mFrameRequestEvent.clear();
+        mMediaFrameEvent.clear();
     }
     
     // init MediaOut based on MediaFrame
@@ -282,8 +285,8 @@ struct RenderSession : public IMediaSession {
     struct OnFrameReady : public FrameReadyEvent {
         RenderSession *thiz;
         const int mGeneration;
-        OnFrameReady(RenderSession *s, int gen) :
-            FrameReadyEvent(Looper::Current()), thiz(s), mGeneration(gen) { }
+        OnFrameReady(RenderSession *p, int gen) :
+            FrameReadyEvent(p->mDispatch), thiz(p), mGeneration(gen) { }
 
         virtual void onEvent(const sp<MediaFrame>& frame) {
             thiz->onFrameReady(frame, mGeneration);
@@ -389,7 +392,7 @@ struct RenderSession : public IMediaSession {
             CHECK_GE(next, 0);
         }
         
-        Looper::Current()->post(mRenderJob, next);
+        mDispatch->dispatch(mRenderJob, next);
         requestFrame(kMediaTimeInvalid);
         // -> onRender
     }
@@ -455,7 +458,7 @@ struct RenderSession : public IMediaSession {
     // using clock to control render session, start|pause|...
     struct OnClockEvent : public ClockEvent {
         RenderSession *thiz;
-        OnClockEvent(RenderSession *session) : ClockEvent(Looper::Current()), thiz(session) { }
+        OnClockEvent(RenderSession *p) : ClockEvent(p->mDispatch), thiz(p) { }
 
         virtual void onEvent(const eClockState& cs) {
             DEBUG("clock state => %d", cs);
@@ -480,7 +483,7 @@ struct RenderSession : public IMediaSession {
         //onPrintStat();
 
         // check
-        if (Looper::Current()->exists(mRenderJob)) {
+        if (mDispatch->exists(mRenderJob)) {
             ERROR("%s: already started", mName.c_str());
             return;
         }
@@ -497,7 +500,7 @@ struct RenderSession : public IMediaSession {
 
     void onPauseRenderer() {
         INFO("%s: pause @ %.3f(s)", mName.c_str(), mClock->get() / 1E6);
-        Looper::Current()->remove(mRenderJob);
+        mDispatch->remove(mRenderJob);
 
         if (mOut != NULL) {
             sp<Message> options = new Message;
@@ -509,7 +512,7 @@ struct RenderSession : public IMediaSession {
     void onPrepareRenderer() {
         const MediaTime pos = MediaTime(mClock->get());
         INFO("%s: prepare render @ %.3f(s)", mName.c_str(), pos.seconds());
-        Looper::Current()->remove(mRenderJob);
+        mDispatch->remove(mRenderJob);
         requestFrame(pos);
     }
 };
