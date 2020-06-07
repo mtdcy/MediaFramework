@@ -191,7 +191,7 @@ struct RenderSession : public IMediaSession {
                 // setup color converter
             } else if (mType == kCodecTypeAudio) {
                 // setup resampler
-                mLatency = mOut->formats()->findInt32(kKeyLatency);
+                mLatency = mOut->formats()->findInt32(kKeyLatency, 0);
             } else {
                 FATAL("FIXME");
             }

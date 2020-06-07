@@ -75,6 +75,7 @@ static FORCE_INLINE SDL_AudioFormat get_sdl_sample_format(eSampleFormat a) {
     return 0;
 }
 
+#define NB_SILENCE (2)
 struct SDLAudioContext : public SharedObject {
     bool                    mInitByUs;
     sp<Message>             mFormat;
@@ -86,9 +87,10 @@ struct SDLAudioContext : public SharedObject {
     sp<MediaFrame>          mPendingFrame;
     size_t                  mBytesRead;
     bool                    mFlushing;
+    size_t                  mSilence;
 
     SDLAudioContext() : SharedObject(), mInitByUs(false),
-    mInputEOS(false), mBytesRead(0), mFlushing(false) { }
+    mInputEOS(false), mBytesRead(0), mFlushing(false), mSilence(NB_SILENCE) { }
 };
 
 static void SDLAudioCallback(void *opaque, uint8_t *stream, int len);
@@ -148,6 +150,13 @@ static void SDLAudioCallback(void *opaque, uint8_t *buffer, int len) {
 
     AutoLock _l(sdl->mLock);
     
+    // write silence to fill underlying buffer quickly
+    if (sdl->mSilence) {
+        memset(buffer, 0, len);
+        --sdl->mSilence;
+        return;
+    }
+    
     while (len && !sdl->mFlushing) {
         if (sdl->mPendingFrame.isNIL()) {
             if (sdl->mInputEOS) {
@@ -180,7 +189,8 @@ static void SDLAudioCallback(void *opaque, uint8_t *buffer, int len) {
     if (sdl->mFlushing) {
         INFO("flush complete");
         memset(buffer, 0, len);
-        sdl->mFlushing = false;
+        sdl->mFlushing  = false;
+        sdl->mSilence   = NB_SILENCE;
         SDL_PauseAudio(1);
         INFO("SDL_PauseAudio 1");
         sdl->mWait.signal();
@@ -276,12 +286,6 @@ struct SDLAudio : public MediaOut {
             INFO("SDL_PauseAudio 0");
             SDL_PauseAudio(0);
         }
-        
-        // wait until pending frame finished
-        while (!mSDL->mPendingFrame.isNIL()) {
-            DEBUG("wait for callback");
-            mSDL->mWait.wait(mSDL->mLock);
-        }
 
         if (input->planes[1].data != NULL) {
             switch (mSDL->mAudioFormat.format) {
@@ -305,6 +309,12 @@ struct SDLAudio : public MediaOut {
 
         // wake up callback
         mSDL->mWait.signal();
+        
+        // wait until pending frame finished
+        while (!mSDL->mPendingFrame.isNIL()) {
+            DEBUG("wait for callback");
+            mSDL->mWait.wait(mSDL->mLock);
+        }
 
         return kMediaNoError;
     }

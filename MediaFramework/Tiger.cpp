@@ -349,7 +349,7 @@ struct Tiger : public IMediaPlayer {
         options->setObject("FrameRequestEvent", fre);
         options->setObject("SessionInfoEvent", new OnRendererInfo(this, id));
 
-        if (kCodecTypeVideo == track->mType || mTracks.size() == 1) {
+        if (kCodecTypeAudio == track->mType || mTracks.size() == 1) {
             options->setObject("Clock", new Clock(mClock, kClockRoleMaster));
         } else {
             options->setObject("Clock", new Clock(mClock));
