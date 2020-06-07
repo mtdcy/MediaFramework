@@ -99,11 +99,12 @@ struct Sample {
 };
 
 struct Mp4Track : public SharedObject {
-    Mp4Track() : type(kCodecTypeUnknown), codec(0),
+    Mp4Track() : enabled(true), type(kCodecTypeUnknown), codec(0),
     sampleIndex(0), duration(kMediaTimeInvalid),
     startTime(kMediaTimeBegin),
     samplesRead(0) { }
 
+    bool                enabled;    // enabled by default
     eCodecType          type;
     uint32_t            codec;  // eAudioCodec|eVideoCodec
     size_t              sampleIndex;
@@ -626,6 +627,21 @@ struct Mp4File : public MediaFile {
         mContent = pipe;
         return kMediaNoError;
     }
+    
+    virtual MediaError configure(const sp<Message>& options) {
+        INFO("configure << %s", options->string().c_str());
+        MediaError status = kMediaErrorInvalidOperation;
+        if (options->contains(kKeyTracks)) {
+            BitSet mask = options->findInt32(kKeyTracks);
+            CHECK_FALSE(mask.empty());
+            for (size_t i = 0; i < mTracks.size(); ++i) {
+                sp<Mp4Track>& track = mTracks[i];
+                track->enabled = mask.test(i);
+            }
+            status = kMediaNoError;
+        }
+        return status;
+    }
 
     virtual sp<MediaPacket> read(const eReadMode& mode,
             const MediaTime& ts = kMediaTimeInvalid) {
@@ -645,6 +661,7 @@ struct Mp4File : public MediaFile {
 
         for (size_t i = 0; i < mTracks.size(); ++i) {
             sp<Mp4Track>& track = mTracks[i];
+            if (!track->enabled) continue;
             if (track->sampleIndex >= track->sampleTable.size()) continue;
             
             int64_t pos = track->sampleTable[track->sampleIndex].offset;
@@ -708,6 +725,10 @@ struct Mp4File : public MediaFile {
         else
             packet->pts =       MediaTime(s.pts, track->duration.timescale);
         packet->dts     =       MediaTime(s.dts, track->duration.timescale);
+        
+        if (ts != kMediaTimeInvalid) {
+            INFO("track %zu: read @ %.3fs", trackIndex, packet->dts.seconds());
+        }
         return packet;
     }
 };
