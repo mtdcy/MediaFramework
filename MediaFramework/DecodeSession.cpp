@@ -64,6 +64,8 @@ struct DecodeSession : public IMediaSession {
     Atomic<int>             mGeneration;
     bool                    mInputEOS;          // end of input ?
     MediaTime               mLastPacketTime;    // test packets in dts order?
+    struct OnFrameRequest;
+    sp<OnFrameRequest>      mFrameRequestEvent;
     List<sp<FrameReadyEvent> > mPendingRequests;
     // statistics
     size_t                  mPacketsComsumed;
@@ -76,7 +78,7 @@ struct DecodeSession : public IMediaSession {
     mCodec(NULL), mPacketReadyEvent(NULL),
     // internal mutable context
     mGeneration(0), mInputEOS(false),
-    mLastPacketTime(kMediaTimeInvalid),
+    mLastPacketTime(kMediaTimeInvalid), mFrameRequestEvent(new OnFrameRequest(this)),
     // statistics
     mPacketsComsumed(0), mFramesDecoded(0)
     {
@@ -126,7 +128,7 @@ struct DecodeSession : public IMediaSession {
         mPacketReadyEvent = new OnPacketReady(this, ++mGeneration);
         
         sp<Message> formats = mCodec->formats();
-        formats->setObject("FrameRequestEvent", new OnFrameRequest(this));
+        formats->setObject("FrameRequestEvent", mFrameRequestEvent);
         notify(kSessionInfoReady, formats);
     }
 
@@ -137,6 +139,8 @@ struct DecodeSession : public IMediaSession {
         mPacketReadyEvent.clear();
         mPacketRequestEvent.clear();
         mPendingRequests.clear();
+        mFrameRequestEvent->invalidate();
+        mFrameRequestEvent.clear();
     }
 
     void requestPacket(const MediaTime& time = kMediaTimeInvalid) {
@@ -255,7 +259,15 @@ struct DecodeSession : public IMediaSession {
         FrameRequestEvent(p->mDispatch), thiz(p) { }
         
         virtual void onEvent(const sp<FrameReadyEvent>& event, const MediaTime& time) {
+            if (thiz == NULL) {
+                INFO("request frame after invalidate");
+                return;
+            }
             thiz->onRequestFrame(event, time);
+        }
+        
+        void invalidate() {
+            thiz = NULL;
         }
     };
 
