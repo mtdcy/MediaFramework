@@ -463,6 +463,24 @@ MediaError CompositionOffsetBox::parse(const BitReader& br, size_t sz, const Fil
 }
 void CompositionOffsetBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
+MediaError CompositionToDecodeBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+    if (version == 0) {
+        compositionToDTSShift           = br.rb32();
+        leastDecodeToDisplayDelta       = br.rb32();
+        greatestDecodeToDisplayDelta    = br.rb32();
+        compositionStartTime            = br.rb32();
+        compositionEndTime              = br.rb32();
+    } else {
+        compositionToDTSShift           = br.rb64();
+        leastDecodeToDisplayDelta       = br.rb64();
+        greatestDecodeToDisplayDelta    = br.rb64();
+        compositionStartTime            = br.rb64();
+        compositionEndTime              = br.rb64();
+    }
+    return kMediaNoError;
+}
+void CompositionToDecodeBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
+
 MediaError SampleDependencyTypeBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     Box::parse(br, sz, ftyp);
     for (size_t i = 0; i < sz - Box::size(); ++i) {
@@ -1083,6 +1101,7 @@ RegisterBox("url ", DataEntryUrlBox);
 RegisterBox("urn ", DataEntryUrnBox);
 RegisterBox("stts", TimeToSampleBox);
 RegisterBox("ctts", CompositionOffsetBox);
+RegisterBox("cslg", CompositionToDecodeBox);
 RegisterBox("stsc", SampleToChunkBox);
 RegisterBox("stss", SyncSampleBox);
 RegisterBox("stsh", ShadowSyncSampleBox);

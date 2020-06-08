@@ -329,6 +329,18 @@ struct CompositionOffsetBox : public FullBox {
     void compose(BitWriter&, const FileTypeBox&);
 };
 
+struct CompositionToDecodeBox : public FullBox {
+    int64_t             compositionToDTSShift;
+    int64_t             leastDecodeToDisplayDelta;
+    int64_t             greatestDecodeToDisplayDelta;
+    int64_t             compositionStartTime;
+    int64_t             compositionEndTime;
+    
+    FORCE_INLINE CompositionToDecodeBox() : FullBox("cslg") { }
+    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
+    void compose(BitWriter&, const FileTypeBox&);
+};
+
 struct SampleDependencyTypeBox : public FullBox {
     Vector<uint8_t>     dependency;
 
