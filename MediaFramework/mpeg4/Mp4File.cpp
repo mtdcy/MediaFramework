@@ -295,6 +295,8 @@ static sp<Mp4Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderB
             if (sample_depends_on == 2)     s.flags |= kFrameTypeSync;
             // do no other samples depend on this one?
             if (sample_is_depended_on == 2) s.flags |= kFrameTypeDisposal;
+            // 3: depends only on I-frame.
+            if (is_leading == 3)            s.flags |= kFrameTypeDepended;
             
 #if 0       // FIXME: handle is_leading & sample_has_redundacy properly
             if (is_leading == 2)            s.flags |= kFrameFlagLeading;
@@ -655,6 +657,7 @@ struct Mp4File : public MediaFile {
             }
         }
 
+        for (;;) {
         // find the lowest pos
         size_t trackIndex = mTracks.size();
         int64_t los = mContent->length();
@@ -705,12 +708,13 @@ struct Mp4File : public MediaFile {
 #if 1
         MediaTime dts( s.dts, track->duration.timescale);
         if (dts < track->startTime) {
-            if (flags & kFrameTypeDisposal) {
-                INFO("track %zu: drop frame", trackIndex);
-                return read(mode, kMediaTimeInvalid);
-            } else {
-                INFO("track %zu: reference frame", trackIndex);
+            // we should only output the I-frame and closest P-frame
+            // FIXME: find out the closest P-frame
+            if (flags & (kFrameTypeSync|kFrameTypeDepended)) {
                 flags |= kFrameTypeReference;
+            } else {
+                INFO("track %zu: drop frame", trackIndex);
+                continue;
             }
         } else if (dts == track->startTime) {
             INFO("track %zu: hit starting...", trackIndex);
@@ -730,6 +734,9 @@ struct Mp4File : public MediaFile {
             INFO("track %zu: read @ %.3fs", trackIndex, packet->dts.seconds());
         }
         return packet;
+        }
+        
+        return NULL;
     }
 };
 

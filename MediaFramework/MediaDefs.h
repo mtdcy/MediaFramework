@@ -285,11 +285,23 @@ typedef enum eReadMode {
     kReadModeDefault = kReadModeNormal
 } eReadMode;
 
+/**
+ * kFrameTypeSync: sync frame, depends on nobody.
+ *      @note seek can only seek at this kind of frame.
+ * kFrameTypeDepended: none sync frame and be depended by others. e.g. P-frame
+ *      @note when combine with kFrameTypeSync, this one will be ignored.
+ * kFrameTypeDisposal: none sync frame and not be depened by others. e.g. B-frame
+ *      @note this kind of frame can be discard, decoder make the choice
+ *      @note some B-frame be depended by others, in this case, no type should set.
+ * kFrameTypeReference: frames that should be decoded but no output.
+ *      @note can combine with kFrameTypeSync or kFrameTypeDepended
+ */
 enum {
     kFrameTypeUnknown       = 0,
-    kFrameTypeSync          = (1<<0),   ///< I frame, sync frame
-    kFrameTypeReference     = (1<<1),   ///< ref frame, no output
-    kFrameTypeDisposal      = (1<<2),   ///< not be depended on, disposal
+    kFrameTypeSync          = (1<<0),
+    kFrameTypeDepended      = (1<<1),
+    kFrameTypeDisposal      = (1<<2),
+    kFrameTypeReference     = (1<<3),
 };
 typedef uint32_t    eFrameType;
 
