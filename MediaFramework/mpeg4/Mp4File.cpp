@@ -210,8 +210,8 @@ static sp<Mp4Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderB
     const uint64_t now = SystemTimeUs();
     
     // init sampleTable with dts
+    uint64_t dts = 0;
     for (size_t i = 0; i < stts->entries.size(); ++i) {
-        uint64_t dts = 0;
         for (size_t j = 0; j < stts->entries[i].sample_count; ++j) {
             // ISO/IEC 14496-12:2015 Section 8.6.2.1
             //  If the sync sample box is not present, every sample is a sync sample.
