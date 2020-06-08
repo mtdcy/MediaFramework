@@ -335,8 +335,8 @@ MediaError EBMLSimpleBlockElement::parse(BitReader& br, size_t size) {
 }
 
 String EBMLSimpleBlockElement::string() const {
-    return String::format("[%zu] % " PRId16 " Flags %#x",
-            (size_t)TrackNumber.u64, TimeCode, Flags);
+    return String::format("[%zu] % " PRId16 " Flags %#x, blocks %zu",
+            (size_t)TrackNumber.u64, TimeCode, Flags, data.size());
 }
 
 MediaError EBMLBlockElement::parse(BitReader& br, size_t size) {
@@ -346,7 +346,7 @@ MediaError EBMLBlockElement::parse(BitReader& br, size_t size) {
 }
 
 String EBMLBlockElement::string() const {
-    return String::format("[%zu] %" PRId16,
+    return String::format("[%zu] %" PRId16 ", ",
             (size_t)TrackNumber.u64, TimeCode) + EBMLBinaryElement::string();
 }
 
@@ -497,7 +497,7 @@ static const struct {
     ITEM(   BLOCK,                      kEBMLElementBlock       ),  // kEBMLElementBinary
     ITEM(   REFERENCEBLOCK,             kEBMLElementSignedInteger   ),
     ITEM(   REFERENCEPRIORITY,          kEBMLElementInteger     ),
-    ITEM(   BLOCKDURATION,              kEBMLElementSignedInteger   ),
+    ITEM(   BLOCKDURATION,              kEBMLElementInteger     ),
     ITEM(   BLOCKVIRTUAL,               kEBMLElementBinary      ),
     ITEM(   BLOCKADDITIONS,             kEBMLElementMaster      ),
     ITEM(   CODECSTATE,                 kEBMLElementBinary      ),
@@ -808,8 +808,8 @@ int IsMatroskaFile(const sp<Buffer>& data) {
             case ID_CUES:
             case ID_ATTACHMENTS:
             case ID_CHAPTERS:
-            case ID_VOID:       score += 5;  break;
             case ID_CLUSTER:    score += 10; break;
+            case ID_VOID:       score += 5;  break;
             default: break;
         }
         
