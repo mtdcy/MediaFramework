@@ -169,6 +169,7 @@ MediaError BITMAPINFOHEADER::parse(BitReader& br) {
     biYPelsPerMeter = br.rl32();
     biClrUsed       = br.rl32();
     biClrImportant  = br.rl32();
+    return kMediaNoError;
 }
 
 static struct {
