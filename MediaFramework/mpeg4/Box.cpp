@@ -464,6 +464,7 @@ MediaError CompositionOffsetBox::parse(const BitReader& br, size_t sz, const Fil
 void CompositionOffsetBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
 MediaError CompositionToDecodeBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+    FullBox::parse(br, sz, ftyp);
     if (version == 0) {
         compositionToDTSShift           = br.rb32();
         leastDecodeToDisplayDelta       = br.rb32();
@@ -582,6 +583,49 @@ MediaError SampleEntry::_parse(const BitReader& br, size_t sz, const FileTypeBox
     return kMediaNoError;
 }
 void SampleEntry::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
+
+MediaError RollRecoveryEntry::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+    roll_distance   = br.rb16();
+    return kMediaNoError;
+}
+
+MediaError SampleGroupDescriptionBox::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
+    FullBox::parse(br, sz, ftyp);
+    grouping_type           = br.rb32();
+    if (version == 1)
+        default_length      = br.rb32();
+    else if (version >= 2)
+        default_sample_description_index = br.rb32();
+    uint32_t entry_count    = br.rb32();
+    INFO("grouping_type %4s, entry_count %" PRIu32,
+         (const char *)&grouping_type, entry_count);
+    for (uint32_t i = 0; i < entry_count; ++i) {
+        if (version == 1 && default_length == 0) {
+            uint32_t description_length = br.rb32();
+            // TODO
+        }
+        sp<SampleGroupEntry> entry;
+        switch (grouping_type) {
+            case 'roll':
+            case 'prol':
+                entry = new RollRecoveryEntry(grouping_type);
+                break;
+            default:
+                break;
+        }
+        if (entry.isNIL()) {
+            ERROR("unknown entry %4s", (const char *)&grouping_type);
+            break;
+        }
+        if (entry->parse(br, sz, ftyp) != kMediaNoError) {
+            ERROR("entry parse failed");
+            break;
+        }
+        entries.push(entry);
+    }
+    return kMediaNoError;
+}
+void SampleGroupDescriptionBox::compose(BitWriter& bw, const FileTypeBox& ftyp) { }
 
 MediaError ALACAudioSampleEntry::parse(const BitReader& br, size_t sz, const FileTypeBox& ftyp) {
     const size_t offset = br.offset();
@@ -1158,6 +1202,7 @@ RegisterBox("hvcC", HVCConfigurationBox);
 RegisterBox("d263", H263SpecificBox);
 RegisterBox("samr", AMRSampleEntry);
 RegisterBox("damr", AMRSpecificBox);
+RegisterBox("sgpd", SampleGroupDescriptionBox);
 RegisterBox("stsz", PreferredSampleSizeBox);
 RegisterBox("stz2", CompactSampleSizeBox);
 RegisterBox("stco", PreferredChunkOffsetBox);

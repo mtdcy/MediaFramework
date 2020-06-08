@@ -398,6 +398,33 @@ struct MpegSampleEntry : public SampleEntry {
     FORCE_INLINE MpegSampleEntry() : SampleEntry("mp4s", "*") { }
 };
 
+struct SampleGroupEntry : public SharedObject {
+    uint32_t        grouping_type;
+    FORCE_INLINE SampleGroupEntry(uint32_t type) : grouping_type(type) { }
+    FORCE_INLINE virtual ~SampleGroupEntry() { }
+    virtual MediaError parse(const BitReader&, size_t, const FileTypeBox&) = 0;
+};
+
+// 'roll' - VisualRollRecoveryEntry
+// 'roll' - AudioRollRecoveryEntry
+// 'prol' - AudioPreRollEntry
+struct RollRecoveryEntry : public SampleGroupEntry {
+    uint16_t        roll_distance;
+    FORCE_INLINE RollRecoveryEntry(uint32_t type) : SampleGroupEntry(type) { }
+    virtual MediaError parse(const BitReader&, size_t, const FileTypeBox&);
+};
+
+struct SampleGroupDescriptionBox : public FullBox {
+    uint32_t    grouping_type;
+    uint32_t    default_length;     // version 1
+    uint32_t    default_sample_description_index; // version 2
+    Vector<sp<SampleGroupEntry> > entries;
+    
+    FORCE_INLINE SampleGroupDescriptionBox() : FullBox("sgpd") { }
+    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
+    void compose(BitWriter&, const FileTypeBox&);
+};
+
 // https://github.com/macosforge/alac
 // 'alac' box inside 'alac', so custom AudioSampleEntry implementation
 #if 1
