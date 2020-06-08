@@ -43,6 +43,8 @@
 
 #include "MediaOut.h"
 #include "OpenGLObject.h"
+#include <OpenGL/gl.h>
+#include <OpenGL/OpenGL.h>
 
 __BEGIN_NAMESPACE_MPX
 
@@ -68,7 +70,10 @@ struct GLVideo : public MediaOut {
         mFormat.width       = width;
         mFormat.height      = height;
         
-        mOpenGL             = new OpenGLObject;
+        void * openGL       = options->findPointer("OpenGLContext");
+        CGLSetCurrentContext((CGLContextObj)openGL);
+        
+        mOpenGL             = new OpenGLObject();
 
         return mOpenGL->init(mFormat);
     }

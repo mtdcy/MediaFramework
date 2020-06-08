@@ -76,6 +76,7 @@ struct RenderSession : public IMediaSession {
 
     // external static context
     sp<Message>             mFormat;
+    sp<Message>             mOptions;
     // options
     sp<FrameRequestEvent>   mFrameRequestEvent;     // mandatory
     sp<SessionInfoEvent>    mInfoEvent;
@@ -106,7 +107,7 @@ struct RenderSession : public IMediaSession {
 
     RenderSession(const sp<Message>& format, const sp<Message>& options) : IMediaSession(new Looper("renderer")),
     // external static context
-    mFormat(format),
+    mFormat(format), mOptions(options),
     mFrameRequestEvent(NULL), mInfoEvent(NULL),
     // internal static context
     mFrameReadyEvent(NULL),
@@ -178,8 +179,7 @@ struct RenderSession : public IMediaSession {
         // if external out device exists
         if (mMediaFrameEvent.isNIL()) {
             mFormat->setInt32(kKeyCodecType, mType);
-            sp<Message> options = new Message;
-            mOut = MediaOut::Create(mFormat, options);
+            mOut = MediaOut::Create(mFormat, mOptions);
 
             if (mOut.isNIL()) {
                 ERROR("%s: create out failed", mName.c_str());

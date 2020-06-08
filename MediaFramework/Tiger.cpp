@@ -127,6 +127,7 @@ struct Tiger : public IMediaPlayer {
     eModeType               mMode;
     sp<MediaFrameEvent>     mAudioFrameEvent;
     sp<MediaFrameEvent>     mVideoFrameEvent;
+    void *                  mOpenGLContext;
 
     // internal static context
     sp<Job>                 mDeferStart;
@@ -145,7 +146,7 @@ struct Tiger : public IMediaPlayer {
     Tiger(const sp<Message>& media, const sp<Message>& options) :
         IMediaPlayer(new Looper("tiger")),
         // external static context
-        mMedia(media->dup()), mInfoEvent(NULL),
+        mMedia(media->dup()), mInfoEvent(NULL), mOpenGLContext(NULL),
         // internal static context
         mDeferStart(new DeferStart(this)),
         // mutable context
@@ -166,6 +167,10 @@ struct Tiger : public IMediaPlayer {
 
             if (media->contains("AudioFrameEvent")) {
                 mAudioFrameEvent = media->findObject("AudioFrameEvent");
+            }
+            
+            if (options->contains("OpenGLContext")) {
+                mOpenGLContext = options->findPointer("OpenGLContext");
             }
         }
 
@@ -347,6 +352,8 @@ struct Tiger : public IMediaPlayer {
         if (track->mType == kCodecTypeVideo) {
             if (!mVideoFrameEvent.isNIL()) {
                 options->setObject("MediaFrameEvent", mVideoFrameEvent);
+            } else if (mOpenGLContext != NULL) {
+                options->setPointer("OpenGLContext", mOpenGLContext);
             }
             options->setInt32(kKeyRequestFormat, kPixelFormat420YpCbCrSemiPlanar);
         } else if (track->mType == kCodecTypeAudio) {
