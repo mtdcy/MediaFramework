@@ -205,7 +205,12 @@ static FORCE_INLINE void OutputCallback(void *decompressionOutputRefCon,
             CMTimeGetSeconds(presentationTimeStamp),
             CMTimeGetSeconds(presentationDuration));
 
-    if (status || imageBuffer == NULL) {
+    if (status == 0 && imageBuffer == NULL) {
+        DEBUG("decoder output nothing, reference frame ?");
+        return;
+    }
+    
+    if (status) {
         ERROR("decode frame failed, st = %d", status);
         return;
     }
