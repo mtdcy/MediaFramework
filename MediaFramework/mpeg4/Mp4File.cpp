@@ -102,7 +102,7 @@ struct Mp4Track : public SharedObject {
     Mp4Track() : enabled(true), type(kCodecTypeUnknown), codec(0),
     sampleIndex(0), duration(kMediaTimeInvalid),
     startTime(kMediaTimeBegin),
-    samplesRead(0) { }
+    bitReate(0), samplesRead(0) { }
 
     bool                enabled;    // enabled by default
     eCodecType          type;
@@ -111,6 +111,7 @@ struct Mp4Track : public SharedObject {
     MediaTime           duration;
     MediaTime           startTime;
     Vector<Sample>      sampleTable;
+    int32_t             bitReate;
 
     union {
         struct {
@@ -201,6 +202,9 @@ static sp<Mp4Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderB
         // esds in mov.
         else if (box->name == "wave") {
             track->esds = FindBox(box, "esds");
+        } else if (box->name == "btrt") {
+            sp<BitRateBox> btrt = box;
+            track->bitReate = btrt->avgBitrate;
         } else {
             INFO("ignore box %s", box->name.c_str());
         }
@@ -302,6 +306,14 @@ static sp<Mp4Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderB
             if (is_leading == 2)            s.flags |= kFrameFlagLeading;
             if (sample_has_redundancy == 1) s.flags |= kFrameFlagRedundant;
 #endif
+        }
+    } else {
+        // we don't have enough infomation to seperate P-frame & B-frame,
+        // so mark unknown frames as being depended.
+        for (size_t i = 0; i < track->sampleTable.size(); ++i) {
+            Sample& s = track->sampleTable[i];
+            if (s.flags & kFrameTypeSync) continue;
+            s.flags |= kFrameTypeDepended;
         }
     }
 
@@ -435,6 +447,8 @@ struct Mp4File : public MediaFile {
             trakInfo->setInt32(kKeyCodecType, trak->type);
             trakInfo->setInt32(kKeyFormat, trak->codec);
             trakInfo->setInt64(kKeyDuration, trak->duration.useconds());
+            if (trak->bitReate)
+                trakInfo->setInt32(kKeyBitrate, trak->bitReate);
 
             if (trak->type == kCodecTypeAudio) {
                 trakInfo->setInt32(kKeySampleRate, trak->audio.sampleRate);
