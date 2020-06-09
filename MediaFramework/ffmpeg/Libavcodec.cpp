@@ -689,7 +689,7 @@ static AVCodecContext * initContext(eModeType mode, const sp<Message>& formats, 
         avc = fixed;
     }
 #endif
-    INFO("[%#x] -> [%s][%s]", codec, avcodec_get_name(id), avc->name);
+    INFO("[%4s] -> [%s][%s]", (const char*)&codec, avcodec_get_name(id), avc->name);
     
     if (!avc) {
         ERROR("can't find codec for %s", avcodec_get_name(id));

@@ -122,7 +122,6 @@ struct FrameRequestTunnel : public FrameRequestEvent {
 
 struct Tiger : public IMediaPlayer {
     // external static context
-    sp<Message>             mMedia;
     sp<PlayerInfoEvent>     mInfoEvent;
     eModeType               mMode;
     sp<MediaFrameEvent>     mAudioFrameEvent;
@@ -143,18 +142,29 @@ struct Tiger : public IMediaPlayer {
     enum eState { kInit, kReady, kEnd };
     eState                  mState;
 
-    Tiger(const sp<Message>& media, const sp<Message>& options) :
-        IMediaPlayer(new Looper("tiger")),
+    Tiger() : IMediaPlayer(new Looper("tiger")),
         // external static context
-        mMedia(media->dup()), mInfoEvent(NULL), mOpenGLContext(NULL),
+        mInfoEvent(NULL), mOpenGLContext(NULL),
         // internal static context
         mDeferStart(new DeferStart(this)),
         // mutable context
         mMediaSource(NULL), mTrackID(0),
         mHasAudio(false), mState(kInit) {
-            INFO("media => %s", media->string().c_str());
-            INFO("options => %s", options->string().c_str());
             
+        }
+
+    void notify(ePlayerInfoType info, const sp<Message>& payload = NULL) {
+        if (mInfoEvent != NULL) {
+            mInfoEvent->fire(info, payload);
+        }
+    }
+
+    virtual void onInit(const sp<Message>& media, const sp<Message>& options) {
+        DEBUG("onInit...");
+        INFO("media => %s", media->string().c_str());
+        INFO("options => %s", options->string().c_str());
+        
+        if (!options.isNIL()) {
             if (options->contains("PlayerInfoEvent")) {
                 mInfoEvent = options->findObject("PlayerInfoEvent");
             }
@@ -173,19 +183,11 @@ struct Tiger : public IMediaPlayer {
                 mOpenGLContext = options->findPointer("OpenGLContext");
             }
         }
+    
+        sp<Message> options0 = new Message;
+        options0->setObject("SessionInfoEvent", new OnSourceInfo(this));
 
-    void notify(ePlayerInfoType info, const sp<Message>& payload = NULL) {
-        if (mInfoEvent != NULL) {
-            mInfoEvent->fire(info, payload);
-        }
-    }
-
-    virtual void onInit() {
-        DEBUG("onInit...");
-        sp<Message> options = new Message;
-        options->setObject("SessionInfoEvent", new OnSourceInfo(this));
-
-        mMediaSource = IMediaSession::Create(mMedia, options);
+        mMediaSource = IMediaSession::Create(media, options0);
     }
 
     struct OnSourceInfo : public SessionInfoEvent {
@@ -520,6 +522,6 @@ struct Tiger : public IMediaPlayer {
     }
 };
 
-sp<IMediaPlayer> CreateTiger(const sp<Message>& media, const sp<Message>& options) {
-    return new Tiger(media, options);
+sp<IMediaPlayer> CreateTiger() {
+    return new Tiger;
 }

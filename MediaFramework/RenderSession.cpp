@@ -75,8 +75,6 @@ struct RenderSession : public IMediaSession {
     };
 
     // external static context
-    sp<Message>             mFormat;
-    sp<Message>             mOptions;
     // options
     sp<FrameRequestEvent>   mFrameRequestEvent;     // mandatory
     sp<SessionInfoEvent>    mInfoEvent;
@@ -105,9 +103,8 @@ struct RenderSession : public IMediaSession {
 
     bool valid() const { return mOut != NULL || mMediaFrameEvent != NULL; }
 
-    RenderSession(const sp<Message>& format, const sp<Message>& options) : IMediaSession(new Looper("renderer")),
+    RenderSession(const sp<Looper>& lp) : IMediaSession(lp),
     // external static context
-    mFormat(format), mOptions(options),
     mFrameRequestEvent(NULL), mInfoEvent(NULL),
     // internal static context
     mFrameReadyEvent(NULL),
@@ -119,25 +116,6 @@ struct RenderSession : public IMediaSession {
     mLastFrameTime(kMediaTimeInvalid),
     // statistics
     mFramesRenderred(0) {
-        // setup external context
-        CHECK_TRUE(options->contains("FrameRequestEvent"));
-        mFrameRequestEvent = options->findObject("FrameRequestEvent");
-        
-        if (options->contains("SessionInfoEvent")) {
-            mInfoEvent = options->findObject("SessionInfoEvent");
-        }
-
-        if (options->contains("Clock")) {
-            mClock = options->findObject("Clock");
-        }
-
-        if (options->contains("MediaFrameEvent")) {
-            mMediaFrameEvent = options->findObject("MediaFrameEvent");
-        }
-
-        CHECK_TRUE(mFormat->contains(kKeyFormat));
-        uint32_t codec = mFormat->findInt32(kKeyFormat);
-        mName = String::format("render-%4s", (char*)&codec);
     }
 
     void notify(eSessionInfoType info, const sp<Message>& payload) {
@@ -146,8 +124,29 @@ struct RenderSession : public IMediaSession {
         }
     }
 
-    void onInit() {
+    void onInit(const sp<Message>& formats, const sp<Message>& options) {
         DEBUG("%s: onInit...", mName.c_str());
+        // setup external context
+        if (!options.isNIL()) {
+            CHECK_TRUE(options->contains("FrameRequestEvent"));
+            mFrameRequestEvent = options->findObject("FrameRequestEvent");
+            
+            if (options->contains("SessionInfoEvent")) {
+                mInfoEvent = options->findObject("SessionInfoEvent");
+            }
+
+            if (options->contains("Clock")) {
+                mClock = options->findObject("Clock");
+            }
+
+            if (options->contains("MediaFrameEvent")) {
+                mMediaFrameEvent = options->findObject("MediaFrameEvent");
+            }
+        }
+
+        CHECK_TRUE(formats->contains(kKeyFormat));
+        uint32_t codec = formats->findInt32(kKeyFormat);
+        mName = String::format("render-%4s", (char*)&codec);
         
         // update generation
         mFrameReadyEvent = new OnFrameReady(this, ++mGeneration);
@@ -161,16 +160,16 @@ struct RenderSession : public IMediaSession {
         // -> onFrameReady
         
         bool delayInit = false;
-        if (mFormat->contains(kKeySampleRate) || mFormat->contains(kKeyChannels)) {
+        if (formats->contains(kKeySampleRate) || formats->contains(kKeyChannels)) {
             mType = kCodecTypeAudio;
             // delay create out device
-            int32_t channels = mFormat->findInt32(kKeyChannels);
-            int32_t sampleRate = mFormat->findInt32(kKeySampleRate);
+            int32_t channels = formats->findInt32(kKeyChannels);
+            int32_t sampleRate = formats->findInt32(kKeySampleRate);
             delayInit = channels == 0 || sampleRate == 0;
-        } else if (mFormat->contains(kKeyWidth) || mFormat->contains(kKeyHeight)) {
+        } else if (formats->contains(kKeyWidth) || formats->contains(kKeyHeight)) {
             mType = kCodecTypeVideo;
-            int32_t width = mFormat->findInt32(kKeyWidth);
-            int32_t height = mFormat->findInt32(kKeyHeight);
+            int32_t width = formats->findInt32(kKeyWidth);
+            int32_t height = formats->findInt32(kKeyHeight);
             delayInit = width == 0 || height == 0;
         }
         
@@ -178,8 +177,9 @@ struct RenderSession : public IMediaSession {
         
         // if external out device exists
         if (mMediaFrameEvent.isNIL()) {
-            mFormat->setInt32(kKeyCodecType, mType);
-            mOut = MediaOut::Create(mFormat, mOptions);
+            sp<Message> outFormat = formats->dup();
+            outFormat->setInt32(kKeyCodecType, mType);
+            mOut = MediaOut::Create(outFormat, options);
 
             if (mOut.isNIL()) {
                 ERROR("%s: create out failed", mName.c_str());
@@ -239,10 +239,8 @@ struct RenderSession : public IMediaSession {
             format->setInt32(kKeyChannels, frame->a.channels);
             format->setInt32(kKeySampleRate, frame->a.freq);
         }
-        
-        mFormat = format;
 
-        onInit();
+        onInit(format, NULL);
     }
 
     void requestFrame(const MediaTime& time) {
@@ -513,10 +511,20 @@ struct RenderSession : public IMediaSession {
         const MediaTime pos = MediaTime(mClock->get());
         INFO("%s: prepare render @ %.3f(s)", mName.c_str(), pos.seconds());
         mDispatch->remove(mRenderJob);
+        
+        // prepare in cache ?
+        if (mOutputQueue.size()) {
+            MediaTime& start = mOutputQueue.front()->timecode;
+            MediaTime& end = mOutputQueue.back()->timecode;
+            if (pos >= start && pos < end) {
+                List<sp<MediaFrame> >::iterator it = mOutputQueue.begin();
+            }
+        }
+        
         requestFrame(pos);
     }
 };
 
-sp<IMediaSession> CreateRenderSession(const sp<Message>& format, const sp<Message>& options) {
-    return new RenderSession(format, options);
+sp<IMediaSession> CreateRenderSession(const sp<Looper>& lp) {
+    return new RenderSession(lp);
 }

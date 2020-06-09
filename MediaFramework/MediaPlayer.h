@@ -100,7 +100,7 @@ typedef MediaEvent2<ePlayerInfoType, sp<Message> > PlayerInfoEvent;
  * @param media option and parameter for this media
  * @return return kMediaNoError on success, otherwise error code
  */
-class API_EXPORT IMediaPlayer : public IMediaSession {
+class API_EXPORT IMediaPlayer : public SharedObject {
     public:
         /**
          * create a player with options
@@ -132,20 +132,24 @@ class API_EXPORT IMediaPlayer : public IMediaSession {
         virtual void        pause();
     
     protected:
-        virtual void        onInit() = 0;
-    
-        // mLooper is accessable in onRelease()
-        virtual void        onRelease() = 0;
-        
+        struct InitJob;
+        struct ReleaseJob;
         struct PrepareJob;
         struct StartJob;
         struct PauseJob;
+        virtual void        onInit(const sp<Message>& media, const sp<Message>& options) = 0;
+        virtual void        onRelease() = 0;
         virtual void        onPrepare(const MediaTime&) = 0;
         virtual void        onStart() = 0;
         virtual void        onPause() = 0;
+    
+    private:
+        virtual void        onFirstRetain();
+        virtual void        onLastRetain();
         
     protected:
-        sp<SharedClock> mClock;
+        sp<DispatchQueue>   mDispatch;
+        sp<SharedClock>     mClock;
 };
 __END_NAMESPACE_MPX
 #endif

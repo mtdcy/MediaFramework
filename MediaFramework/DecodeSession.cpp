@@ -48,7 +48,6 @@ __USING_NAMESPACE_MPX
 // PacketRequestEvent <-- OnPacketReady -- requestPacket
 struct DecodeSession : public IMediaSession {
     // external static context
-    sp<Message>             mFormat;
     // options
     eModeType               mMode;
     sp<PacketRequestEvent>  mPacketRequestEvent;        // where we get packets
@@ -71,9 +70,9 @@ struct DecodeSession : public IMediaSession {
     size_t                  mPacketsComsumed;
     size_t                  mFramesDecoded;
 
-    DecodeSession(const sp<Message>& format, const sp<Message>& options) : IMediaSession(new Looper("decoder")),
+    DecodeSession(const sp<Looper>& lp) : IMediaSession(lp),
     // external static context
-    mFormat(format), mPacketRequestEvent(NULL), mInfoEvent(NULL),
+    mPacketRequestEvent(NULL), mInfoEvent(NULL),
     // internal static context
     mCodec(NULL), mPacketReadyEvent(NULL),
     // internal mutable context
@@ -82,18 +81,6 @@ struct DecodeSession : public IMediaSession {
     // statistics
     mPacketsComsumed(0), mFramesDecoded(0)
     {
-        DEBUG("init << %s << %s", format->string().c_str(), options->string().c_str());
-        CHECK_TRUE(options->contains("PacketRequestEvent"));
-        mPacketRequestEvent = options->findObject("PacketRequestEvent");
-
-        if (options->contains("SessionInfoEvent")) {
-            mInfoEvent = options->findObject("SessionInfoEvent");
-        }
-        
-        uint32_t codec = mFormat->findInt32(kKeyFormat);
-        mName = String::format("codec-%4s", (char *)&codec);
-
-        mMode = (eModeType)options->findInt32(kKeyMode, kModeTypeDefault);
     }
 
     void notify(eSessionInfoType info, const sp<Message>& payload) {
@@ -102,20 +89,33 @@ struct DecodeSession : public IMediaSession {
         }
     }
 
-    void onInit() {
+    void onInit(const sp<Message>& formats, const sp<Message>& options) {
         DEBUG("%s: onInit...", mName.c_str());
-        // setup decoder...
-        CHECK_TRUE(mFormat->contains(kKeyCodecType));
-        CHECK_TRUE(mFormat->contains(kKeyFormat));
-        eCodecType type = (eCodecType)mFormat->findInt32(kKeyCodecType);
-        
-        sp<Message> options = new Message;
-        options->setInt32(kKeyMode, mMode);
+        DEBUG("init << %s << %s", format->string().c_str(), options->string().c_str());
+        CHECK_TRUE(options->contains("PacketRequestEvent"));
+        mPacketRequestEvent = options->findObject("PacketRequestEvent");
 
-        mCodec = MediaDecoder::Create(mFormat, options);
+        if (options->contains("SessionInfoEvent")) {
+            mInfoEvent = options->findObject("SessionInfoEvent");
+        }
+        
+        uint32_t codec = formats->findInt32(kKeyFormat);
+        mName = String::format("codec-%4s", (char *)&codec);
+
+        mMode = (eModeType)options->findInt32(kKeyMode, kModeTypeDefault);
+        
+        // setup decoder...
+        CHECK_TRUE(formats->contains(kKeyCodecType));
+        CHECK_TRUE(formats->contains(kKeyFormat));
+        eCodecType type = (eCodecType)formats->findInt32(kKeyCodecType);
+        
+        sp<Message> options0 = new Message;
+        options0->setInt32(kKeyMode, mMode);
+
+        mCodec = MediaDecoder::Create(formats, options0);
         if (mCodec.isNIL() && mMode == kModeTypeNormal) {
-            options->setInt32(kKeyMode, kModeTypeSoftware);
-            mCodec = MediaDecoder::Create(mFormat, options);
+            options0->setInt32(kKeyMode, kModeTypeSoftware);
+            mCodec = MediaDecoder::Create(formats, options0);
         }
         
         if (mCodec.isNIL()) {
@@ -127,9 +127,9 @@ struct DecodeSession : public IMediaSession {
         // update generation
         mPacketReadyEvent = new OnPacketReady(this, ++mGeneration);
         
-        sp<Message> formats = mCodec->formats();
-        formats->setObject("FrameRequestEvent", mFrameRequestEvent);
-        notify(kSessionInfoReady, formats);
+        sp<Message> codecFormat = mCodec->formats();
+        codecFormat->setObject("FrameRequestEvent", mFrameRequestEvent);
+        notify(kSessionInfoReady, codecFormat);
     }
 
     virtual void onRelease() {
@@ -306,7 +306,7 @@ struct DecodeSession : public IMediaSession {
     }
 };
 
-sp<IMediaSession> CreateDecodeSession(const sp<Message>& format, const sp<Message>& options) {
-    sp<DecodeSession> decoder = new DecodeSession(format, options);
+sp<IMediaSession> CreateDecodeSession(const sp<Looper>& lp) {
+    sp<DecodeSession> decoder = new DecodeSession(lp);
     return decoder;
 }

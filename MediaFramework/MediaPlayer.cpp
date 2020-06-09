@@ -43,7 +43,7 @@
 
 __USING_NAMESPACE_MPX
 
-IMediaPlayer::IMediaPlayer(const sp<Looper>& lp) : IMediaSession(lp), mClock(new SharedClock)
+IMediaPlayer::IMediaPlayer(const sp<Looper>& lp) : mDispatch(new DispatchQueue(lp)), mClock(new SharedClock)
 {
     
 }
@@ -51,6 +51,25 @@ IMediaPlayer::IMediaPlayer(const sp<Looper>& lp) : IMediaSession(lp), mClock(new
 sp<Clock> IMediaPlayer::clock() const {
     return new Clock(mClock);
 }
+
+
+struct IMediaPlayer::InitJob : public Job {
+    IMediaPlayer *  thiz;
+    sp<Message>     media;
+    sp<Message>     options;
+    InitJob(IMediaPlayer * session) : thiz(session) { }
+    virtual void onJob() {
+        thiz->onInit(media, options);
+    }
+};
+
+struct IMediaPlayer::ReleaseJob : public Job {
+    IMediaPlayer *  thiz;
+    ReleaseJob(IMediaPlayer * session) : thiz(session) { }
+    virtual void onJob() {
+        thiz->onRelease();
+    }
+};
 
 struct IMediaPlayer::StartJob : public Job {
     IMediaPlayer *thiz;
@@ -83,6 +102,15 @@ struct IMediaPlayer::PrepareJob : public Job {
     }
 };
 
+void IMediaPlayer::onFirstRetain() {
+}
+
+void IMediaPlayer::onLastRetain() {
+    mDispatch->flush();
+    mDispatch->sync(new ReleaseJob(this));
+    mDispatch.clear();
+}
+
 void IMediaPlayer::start() {
     mDispatch->dispatch(new StartJob(this));
 }
@@ -95,7 +123,13 @@ void IMediaPlayer::prepare(const MediaTime& pos) {
     mDispatch->dispatch(new PrepareJob(this, pos));
 }
 
-sp<IMediaPlayer> CreateTiger(const sp<Message>& media, const sp<Message>& options);
+sp<IMediaPlayer> CreateTiger();
 sp<IMediaPlayer> IMediaPlayer::Create(const sp<Message>& media, const sp<Message>& options) {
-    return CreateTiger(media, options);
+    sp<IMediaPlayer> player = CreateTiger();
+    
+    sp<InitJob> init = new InitJob(player.get());
+    init->media     = media;
+    init->options   = options;
+    player->mDispatch->dispatch(init);
+    return player;
 }

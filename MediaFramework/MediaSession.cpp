@@ -40,9 +40,11 @@ __USING_NAMESPACE_MPX
 
 struct IMediaSession::InitJob : public Job {
     IMediaSession * thiz;
+    sp<Message>     formats;
+    sp<Message>     options;
     InitJob(IMediaSession * session) : thiz(session) { }
     virtual void onJob() {
-        thiz->onInit();
+        thiz->onInit(formats, options);
     }
 };
 
@@ -55,7 +57,6 @@ struct IMediaSession::ReleaseJob : public Job {
 };
 
 void IMediaSession::onFirstRetain() {
-    mDispatch->dispatch(new InitJob(this));
 }
 
 void IMediaSession::onLastRetain() {
@@ -66,16 +67,36 @@ void IMediaSession::onLastRetain() {
     mDispatch.clear();
 }
 
-sp<IMediaSession> CreateMediaSource(const sp<Message>& media, const sp<Message>& options);
-sp<IMediaSession> CreateDecodeSession(const sp<Message>& format, const sp<Message>& options);
-sp<IMediaSession> CreateRenderSession(const sp<Message>& format, const sp<Message>& options);
+sp<IMediaSession> CreateMediaSource(const sp<Looper>&);
+sp<IMediaSession> CreateDecodeSession(const sp<Looper>&);
+sp<IMediaSession> CreateRenderSession(const sp<Looper>&);
 sp<IMediaSession> IMediaSession::Create(const sp<Message>& format, const sp<Message>& options) {
-    if (format->contains("url")) {
-        return CreateMediaSource(format, options);
-    } else if (options->contains("PacketRequestEvent")) {
-        return CreateDecodeSession(format, options);
-    } else if (options->contains("FrameRequestEvent")) {
-        return CreateRenderSession(format, options);
+    sp<Looper> looper = options->findObject("Looper");
+    if (looper.isNIL()) {
+        // create a looper
+        String name;
+        if (format->contains("url"))    name = "source";
+        else {
+            int32_t value = format->findInt32(kKeyFormat);
+            name = String::format("%4s", (const char *)&value);
+        }
+        looper = new Looper(name);
     }
-    return NULL;
+    
+    sp<IMediaSession> session;
+    if (format->contains("url")) {
+        session = CreateMediaSource(looper);
+    } else if (options->contains("PacketRequestEvent")) {
+        session = CreateDecodeSession(looper);
+    } else if (options->contains("FrameRequestEvent")) {
+        session = CreateRenderSession(looper);
+    }
+    if (session.isNIL()) {
+        ERROR("create session failed << %s << %s", format->string().c_str(), options->string().c_str());
+    }
+    sp<InitJob> init = new InitJob(session.get());
+    init->formats = format;
+    init->options = options;
+    session->mDispatch->dispatch(init);
+    return session;
 }

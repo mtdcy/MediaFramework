@@ -94,7 +94,7 @@ class API_EXPORT IMediaSession : public SharedObject {
         // these routine always run inside looper
         struct InitJob;
         struct ReleaseJob;
-        virtual void onInit() = 0;
+        virtual void onInit(const sp<Message>&, const sp<Message>&) = 0;
         virtual void onRelease() = 0;
 
         sp<DispatchQueue> mDispatch;

@@ -142,7 +142,7 @@ static eFileFormat GetFormat(sp<Content>& pipe) {
     eFileFormat format = kFileFormatInvalid;
     for (size_t i = 0; kScanners[i].scanner; i++) {
         int c = kScanners[i].scanner(header);
-        DEBUG("%#x, score = %d", kScanners[i].format, c);
+        DEBUG("%4s, score = %d", (const char *)&kScanners[i].format, c);
         if (c > score) {
             score = c;
             format = kScanners[i].format;

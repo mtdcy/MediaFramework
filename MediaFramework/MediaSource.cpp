@@ -45,7 +45,6 @@ __USING_NAMESPACE_MPX
 
 struct MediaSource : public IMediaSession {
     // external static context
-    String                  mUrl;
     sp<SessionInfoEvent>    mInfoEvent;
     // internal mutable context
     sp<MediaFile>           mMediaFile;
@@ -56,12 +55,10 @@ struct MediaSource : public IMediaSession {
     struct OnPacketRequest;
     List<sp<OnPacketRequest> > mRequestEvents;
     
-    MediaSource(const sp<Message>& media, const sp<Message>& options) :
-    IMediaSession(new Looper("source")),
-    mUrl(media->findString("url")),
+    MediaSource(const sp<Looper>& lp) : IMediaSession(lp),
     mMediaFile(NULL), mLastReadTime(kMediaTimeBegin)
     {
-        mInfoEvent = options->findObject("SessionInfoEvent");
+        
     }
     
     void notify(const eSessionInfoType& info, const sp<Message>& payload) {
@@ -70,9 +67,14 @@ struct MediaSource : public IMediaSession {
         mInfoEvent->fire(info, payload);
     }
     
-    virtual void onInit() {
+    virtual void onInit(const sp<Message>& media, const sp<Message>& options) {
         DEBUG("onInit...");
-        sp<Content> pipe = Content::Create(mUrl);
+        if (!options.isNIL()) {
+            mInfoEvent = options->findObject("SessionInfoEvent");
+        }
+        
+        String url = media->findString("url");
+        sp<Content> pipe = Content::Create(url);
         if (pipe == NULL) {
             ERROR("create pipe failed");
             notify(kSessionInfoError, NULL);
@@ -257,6 +259,6 @@ struct MediaSource : public IMediaSession {
     }
 };
 
-sp<IMediaSession> CreateMediaSource(const sp<Message>& media, const sp<Message>& options) {
-    return new MediaSource(media, options);
+sp<IMediaSession> CreateMediaSource(const sp<Looper>& lp) {
+    return new MediaSource(lp);
 }
