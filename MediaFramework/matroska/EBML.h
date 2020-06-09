@@ -224,7 +224,6 @@ enum EBMLElementType {
     // custom type
     kEBMLElementSkip,
     kEBMLElementBlock,
-    kEBMLElementSimpleBlock,
 };
 
 struct EBMLInteger {
@@ -342,16 +341,7 @@ struct EBMLSimpleBlockElement : public EBMLElement {
     uint8_t             Flags;
     List<sp<Buffer> >   data;
 
-    FORCE_INLINE EBMLSimpleBlockElement(const char *_name, EBMLInteger& _id) : EBMLElement(_name, _id, kEBMLElementSimpleBlock) { }
-    virtual MediaError parse(BitReader&, size_t);
-    virtual String string() const;
-};
-
-struct EBMLBlockElement : public EBMLBinaryElement {
-    EBMLInteger         TrackNumber;
-    int16_t             TimeCode;
-    
-    FORCE_INLINE EBMLBlockElement(const char *name, EBMLInteger& id) : EBMLBinaryElement(name, id) { }
+    FORCE_INLINE EBMLSimpleBlockElement(const char *_name, EBMLInteger& _id) : EBMLElement(_name, _id, kEBMLElementBlock) { }
     virtual MediaError parse(BitReader&, size_t);
     virtual String string() const;
 };

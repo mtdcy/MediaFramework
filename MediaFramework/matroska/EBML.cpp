@@ -339,17 +339,6 @@ String EBMLSimpleBlockElement::string() const {
             (size_t)TrackNumber.u64, TimeCode, Flags, data.size());
 }
 
-MediaError EBMLBlockElement::parse(BitReader& br, size_t size) {
-    TrackNumber = EBMLGetInteger(br);
-    TimeCode    = br.rb16();
-    return EBMLBinaryElement::parse(br, size - TrackNumber.length - 2);
-}
-
-String EBMLBlockElement::string() const {
-    return String::format("[%zu] %" PRId16 ", ",
-            (size_t)TrackNumber.u64, TimeCode) + EBMLBinaryElement::string();
-}
-
 static FORCE_INLINE sp<EBMLElement> MakeEBMLElement(EBMLInteger);
 
 MediaError EBMLMasterElement::parse(BitReader& br, size_t size) {
@@ -492,7 +481,7 @@ static const struct {
     ITEM(   POSITION,                   kEBMLElementInteger     ),
     ITEM(   PREVSIZE,                   kEBMLElementInteger     ),
     ITEM(   BLOCKGROUP,                 kEBMLElementMaster      ),
-    ITEM(   SIMPLEBLOCK,                kEBMLElementSimpleBlock ),  // kEBMLElementBinary
+    ITEM(   SIMPLEBLOCK,                kEBMLElementBlock       ),  // kEBMLElementBinary
     // BLOCKGROUP
     ITEM(   BLOCK,                      kEBMLElementBlock       ),  // kEBMLElementBinary
     ITEM(   REFERENCEBLOCK,             kEBMLElementSignedInteger   ),
@@ -585,8 +574,6 @@ static FORCE_INLINE sp<EBMLElement> MakeEBMLElement(EBMLInteger id) {
                 case kEBMLElementSkip:
                     return new EBMLSkipElement(ELEMENTS[i].NAME, id);
                 case kEBMLElementBlock:
-                    return new EBMLBlockElement(ELEMENTS[i].NAME, id);
-                case kEBMLElementSimpleBlock:
                     return new EBMLSimpleBlockElement(ELEMENTS[i].NAME, id);
                 default:
                     FATAL("FIXME");
