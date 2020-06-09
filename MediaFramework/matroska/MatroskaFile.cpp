@@ -141,24 +141,26 @@ struct TOCEntry {
 
 struct MatroskaTrack {
     MatroskaTrack() : index(0), format(0),
-    frametime(0), timescale(1.0), compAlgo(4) { }
+    frametime(0), timescale(1.0), compAlgo(4),
+    decodeTimeCode(0) { }
     size_t                  index;
     
     eCodecType              type;
-    // eAudioCodec eVideoCodec
-    uint32_t                format;     // ID_CODECID
-    int64_t                 frametime;  // ID_DEFAULTDURATION
-    double                  timescale;  // ID_TRACKTIMECODESCALE, DEPRECATED
     union {
+        uint32_t            format;     // ID_CODECID
         struct {
+            eAudioCodec     format;
             uint32_t        sampleRate;
             uint32_t        channels;
         } a;
         struct {
+            eVideoCodec     format;
             uint32_t        width;
             uint32_t        height;
         } v;
     };
+    int64_t                 frametime;  // ID_DEFAULTDURATION, not scaled
+    double                  timescale;  // ID_TRACKTIMECODESCALE, DEPRECATED
     sp<Buffer>              csd;
     List<TOCEntry>          toc;
     
@@ -166,6 +168,9 @@ struct MatroskaTrack {
     sp<Buffer>              compSettings;   //
 
     sp<MediaPacketizer>     packetizer;
+    
+    // for block parse
+    int64_t                 decodeTimeCode;
 };
 
 // Frames using references should be stored in "coding order".
@@ -174,9 +179,10 @@ struct MatroskaPacket : public MediaPacket {
 
     MatroskaPacket(MatroskaTrack& trak,
             const sp<Buffer>& block,
-            uint64_t timecode,
-            eFrameType _type) {
-        if (trak.compAlgo == 3) {
+            int64_t timecode,
+            int64_t timescale,
+            eFrameType flag) {
+        if (trak.compAlgo == 3) { // header strip
             buffer  = new Buffer(trak.compSettings->size() + block->size());
             buffer->write(*trak.compSettings);
             buffer->write(*block);
@@ -186,13 +192,17 @@ struct MatroskaPacket : public MediaPacket {
         data        = (uint8_t*)buffer->data();
         size        = buffer->size();
         index       = trak.index;
-
-        // it seems matroska don't have pts records
-        dts         = MediaTime(timecode / trak.timescale, 1000000000LL);
-        pts         = kMediaTimeInvalid;
-        duration    = MediaTime(trak.frametime / trak.timescale, 1000000000LL);
-
-        type        = _type;
+        
+        pts         = MediaTime(timecode / trak.timescale, 1000000000LL / timescale);
+        if (trak.frametime) {
+            dts     = MediaTime(trak.decodeTimeCode / trak.timescale, 1000000000LL / timescale);
+            duration= MediaTime(trak.frametime, 1000000000LL / timescale);
+            trak.decodeTimeCode += trak.frametime;
+        } else {
+            dts     = pts;
+            duration= kMediaTimeInvalid;
+        }
+        type        = flag;
     }
 };
 
@@ -305,7 +315,8 @@ struct MatroskaFile : public MediaFile {
             sp<EBMLIntegerElement> DEFAULTDURATION = FindEBMLElement(TRACKENTRY, ID_DEFAULTDURATION);
             if (DEFAULTDURATION != NULL) {
                 DEBUG("frame time %" PRIu64, DEFAULTDURATION->vint.u64);
-                trak.frametime = DEFAULTDURATION->vint.u64;     // ns, not scaled
+                // DEFAULTDURATION is not scaled, scale here
+                trak.frametime = DEFAULTDURATION->vint.u64 / mTimeScale;
             }
 
             sp<EBMLFloatElement> TRACKTIMECODESCALE = FindEBMLElement(TRACKENTRY, ID_TRACKTIMECODESCALE);
@@ -522,7 +533,7 @@ struct MatroskaFile : public MediaFile {
             const MatroskaTrack& trak = it.value();
             if (trak.toc.empty()) continue;
             
-            uint64_t timecode = (MediaTime(time).scale(1000000000LL).value * trak.timescale) / mTimeScale;
+            uint64_t timecode = MediaTime(time).scale(1000000000LL / mTimeScale).value * trak.timescale;
             
             List<TOCEntry>::const_iterator it0 = trak.toc.crbegin();
             for (; it0 != trak.toc.crend(); --it0) {
@@ -553,28 +564,22 @@ struct MatroskaFile : public MediaFile {
         }
 
         sp<EBMLIntegerElement> TIMECODE = FindEBMLElement(mCluster, ID_TIMECODE);
-
         List<sp<EBMLElement> >::iterator it = mCluster->children.begin();
         for (; it != mCluster->children.end(); ++it) {
-            if ((*it)->id.u64 == ID_BLOCKGROUP) {
-                sp<EBMLMasterElement> BLOCKGROUP = *it;
-                sp<EBMLBlockElement> BLOCK = FindEBMLElement(BLOCKGROUP, ID_BLOCK);
-                
-                if (mTracks.find(BLOCK->TrackNumber.u32) == NULL) continue;
-                MatroskaTrack& trak = mTracks[BLOCK->TrackNumber.u32];
-                uint64_t timecode = (TIMECODE->vint.u64 + BLOCK->TimeCode) * mTimeScale;
-                eFrameType type = kFrameTypeReference;
-                sp<MatroskaPacket> packet = new MatroskaPacket(trak,
-                                                               BLOCK->data,
-                                                               timecode,
-                                                               type);
+            sp<EBMLElement> Element = (*it);
+            if (Element->id.u64 != ID_BLOCKGROUP && Element->id.u64 != ID_SIMPLEBLOCK) {
                 continue;
             }
             
-            sp<EBMLSimpleBlockElement> block = *it;
-            if (block->id.u64 != ID_SIMPLEBLOCK) continue;
-
-            // TODO: handle BLOCKGROUP
+            mCluster->children.erase(it);
+            sp<EBMLSimpleBlockElement> block;
+            if (Element->id.u64 == ID_BLOCKGROUP) {
+                sp<EBMLMasterElement> BLOCKGROUP = Element;
+                block = FindEBMLElement(BLOCKGROUP, ID_BLOCK);
+            } else {
+                block = Element;
+            }
+            
             // handle each blocks
             eFrameType type = kFrameTypeUnknown;
             if (block->Flags & kBlockFlagKey)           type |= kFrameTypeSync;
@@ -583,11 +588,15 @@ struct MatroskaFile : public MediaFile {
             
             if (mTracks.find(block->TrackNumber.u32) == NULL) continue;
             MatroskaTrack& trak = mTracks[block->TrackNumber.u32];
-            uint64_t timecode = (TIMECODE->vint.u64 + block->TimeCode) * mTimeScale;
+            uint64_t timecode = TIMECODE->vint.u64 + block->TimeCode;
             List<sp<Buffer> >::const_iterator it0 = block->data.cbegin();
             for (; it0 != block->data.cend(); ++it0) {
 
-                sp<MatroskaPacket> packet = new MatroskaPacket(trak, *it0, timecode, type);
+                sp<MatroskaPacket> packet = new MatroskaPacket(trak,
+                                                               *it0,
+                                                               timecode,
+                                                               mTimeScale,
+                                                               type);
 
                 if (trak.packetizer != NULL) {
                     if (trak.packetizer->enqueue(packet) != kMediaNoError) {
@@ -604,8 +613,6 @@ struct MatroskaFile : public MediaFile {
 
                 timecode += trak.frametime;
             }
-
-            mCluster->children.erase(it);
             break;  // process once block each time.
         }
 
