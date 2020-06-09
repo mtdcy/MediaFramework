@@ -730,11 +730,6 @@ static MediaError drawFrame(const sp<OpenGLContext>& glc, const sp<MediaFrame>& 
 }
 
 MediaError OpenGLObject::init(const ImageFormat& image, bool offscreen) {
-    
-#ifdef __APPLE__
-    CHECK_NULL(CGLGetCurrentContext());
-#endif
-    
     const OpenGLConfig * config = getOpenGLConfig(image.format);
     mOpenGL = initOpenGLContext(image, config);
     if (mOpenGL.isNIL()) return kMediaErrorUnknown;

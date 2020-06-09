@@ -71,7 +71,10 @@ struct GLVideo : public MediaOut {
         mFormat.height      = height;
         
         void * openGL       = options->findPointer("OpenGLContext");
-        CGLSetCurrentContext((CGLContextObj)openGL);
+#ifdef __APPLE__
+        if (openGL) CGLSetCurrentContext((CGLContextObj)openGL);
+        CHECK_NULL(CGLGetCurrentContext());
+#endif
         
         mOpenGL             = new OpenGLObject();
 
