@@ -104,7 +104,7 @@ endif()
 file (GLOB PUBLIC_HEADERS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "MediaFramework/*.h")
 
 if (APPLE)
-    list (APPEND SOURCE_FILES MediaFramework/videotoolbox/VideoToolboxDecoder.cpp)
+    list (APPEND SOURCE_FILES MediaFramework/mac/VideoToolbox.cpp)
 endif()
 
 add_library (${PROJECT_NAME} SHARED ${SOURCE_FILES} ${PUBLIC_HEADERS})
