@@ -155,10 +155,6 @@ struct RenderSession : public IMediaSession {
             mClock->setListener(new OnClockEvent(this));
         }
         
-        // request frames
-        requestFrame(kMediaTimeInvalid);
-        // -> onFrameReady
-        
         bool delayInit = false;
         if (formats->contains(kKeySampleRate) || formats->contains(kKeyChannels)) {
             mType = kCodecTypeAudio;
@@ -196,6 +192,10 @@ struct RenderSession : public IMediaSession {
                 FATAL("FIXME");
             }
         }
+        
+        // request frames
+        requestFrame(kMediaTimeInvalid);
+        // -> onFrameReady
 
         // if no clock, start render directly
         if (mClock == NULL && !mDispatch->exists(mRenderJob)) {
