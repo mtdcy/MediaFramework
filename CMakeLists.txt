@@ -82,8 +82,8 @@ set (SOURCE_FILES
     MediaFramework/mpeg4/Box.cpp
     MediaFramework/matroska/EBML.cpp
     MediaFramework/matroska/MatroskaFile.cpp
-    MediaFramework/opengl/OpenGLObject.cpp
-    MediaFramework/opengl/GLVideo.cpp
+    MediaFramework/opengl/OpenGL.cpp
+    MediaFramework/openal/OpenAL.cpp
     MediaFramework/jpeg/TIFF.cpp
     MediaFramework/jpeg/JFIF.cpp
     MediaFramework/jpeg/Exif.cpp
@@ -131,6 +131,7 @@ if (APPLE)
     target_link_libraries(${PROJECT_NAME} "-framework CoreVideo")
     target_link_libraries(${PROJECT_NAME} "-framework VideoToolbox")
     target_link_libraries(${PROJECT_NAME} "-framework OpenGL")
+    target_link_libraries(${PROJECT_NAME} "-framework OpenAL")
 else()
     target_link_libraries(${PROJECT_NAME} -lGL)
 endif()

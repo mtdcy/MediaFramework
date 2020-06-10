@@ -142,6 +142,7 @@ sp<ImageFile> ImageFile::Create() {
     return CreateJPEG();
 }
 
+sp<MediaOut> CreateOpenALOut(const sp<Message>& formats, const sp<Message>& options);
 sp<MediaOut> CreateOpenGLOut(const sp<Message>& formats, const sp<Message>& options);
 #ifdef WITH_SDL
 sp<MediaOut> CreateSDLAudio(const sp<Message>& formats, const sp<Message>& options);
@@ -151,6 +152,7 @@ sp<MediaOut> MediaOut::Create(const sp<Message>& formats, const sp<Message>& opt
     eCodecType type = (eCodecType)formats->findInt32(kKeyCodecType);
     switch (type) {
         case kCodecTypeAudio:
+            //return CreateOpenALOut(formats, options);
 #ifdef WITH_SDL
             return CreateSDLAudio(formats, options);
 #else
