@@ -34,10 +34,10 @@
 
 #define LOG_TAG "MPEG4.Systems"
 #define LOG_NDEBUG 0
-#include "MediaDefs.h"
+#include "MediaTypes.h"
 
 #include "Systems.h"
-#include "MediaDefs.h"
+#include "MediaTypes.h"
 
 __BEGIN_NAMESPACE_MPX
 __BEGIN_NAMESPACE(MPEG4)

@@ -37,7 +37,7 @@
 
 
 #include <ABE/ABE.h>
-#include "MediaDefs.h"
+#include "MediaTypes.h"
 
 // ISO/IEC 14496-1 System
 __BEGIN_NAMESPACE_MPX

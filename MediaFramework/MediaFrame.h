@@ -35,7 +35,7 @@
 #ifndef _MPX_MEDIA_FRAME_H
 #define _MPX_MEDIA_FRAME_H
 
-#include <MediaFramework/MediaDefs.h>
+#include <MediaFramework/MediaTypes.h>
 
 #ifdef __cplusplus
 __BEGIN_NAMESPACE_MPX

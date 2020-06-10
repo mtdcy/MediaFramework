@@ -33,7 +33,7 @@
 //
 
 #define LOG_TAG "PixelDescriptor"
-#include "MediaDefs.h"
+#include "MediaTypes.h"
 
 
 __BEGIN_DECLS

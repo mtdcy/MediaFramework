@@ -38,7 +38,7 @@
 
 #define LOG_TAG "OpenAL"
 //#define LOG_NDEBUG 0
-#include "MediaDefs.h"
+#include "MediaTypes.h"
 #include "MediaOut.h"
 
 #ifdef __APPLE__

@@ -35,7 +35,7 @@
 #ifndef _MPX_MEDIA_ASF_H
 #define _MPX_MEDIA_ASF_H
 
-#include "MediaDefs.h"
+#include "MediaTypes.h"
 
 __BEGIN_NAMESPACE_MPX
 __BEGIN_NAMESPACE(ASF)

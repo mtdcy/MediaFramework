@@ -40,7 +40,7 @@
 #define LOG_NDEBUG 0
 
 #include "MediaFile.h"
-#include <MediaFramework/MediaDefs.h>
+#include <MediaFramework/MediaTypes.h>
 #include <MediaFramework/tags/id3/ID3.h>
 #include "matroska/EBML.h"
 

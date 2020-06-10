@@ -36,7 +36,7 @@
 
 #define LOG_TAG "Lavc"
 //#define LOG_NDEBUG 0
-#include "MediaDefs.h"
+#include "MediaTypes.h"
 
 #include <MediaFramework/MediaDecoder.h>
 

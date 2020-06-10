@@ -38,7 +38,7 @@
 
 #include <VideoToolbox/VideoToolbox.h>
 
-#include <MediaFramework/MediaDefs.h>
+#include <MediaFramework/MediaTypes.h>
 #include <MediaFramework/MediaDecoder.h>
 
 #include "mpeg4/Systems.h"

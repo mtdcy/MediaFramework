@@ -35,7 +35,7 @@
 #ifndef _MEDIA_JPEG_H
 #define _MEDIA_JPEG_H
 
-#include "MediaDefs.h"
+#include "MediaTypes.h"
 #include "MediaFrame.h"
 
 __BEGIN_NAMESPACE_MPX

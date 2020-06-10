@@ -35,7 +35,7 @@
 #ifndef _MEDIA_MODULES_ID3_H
 #define _MEDIA_MODULES_ID3_H
 
-#include <MediaFramework/MediaDefs.h>
+#include <MediaFramework/MediaTypes.h>
 
 __BEGIN_NAMESPACE_MPX
 __BEGIN_NAMESPACE(ID3)

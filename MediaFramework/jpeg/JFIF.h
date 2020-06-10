@@ -35,7 +35,7 @@
 #ifndef _MEDIA_JPEG_JFIF_H
 #define _MEDIA_JPEG_JFIF_H
 
-#include "MediaDefs.h"
+#include "MediaTypes.h"
 #include "JPEG.h"
 #include "Exif.h"
 

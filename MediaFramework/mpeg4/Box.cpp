@@ -34,7 +34,7 @@
 
 #define LOG_TAG   "MPEG4.Box"
 //#define LOG_NDEBUG 0
-#include "MediaDefs.h"
+#include "MediaTypes.h"
 #include "Box.h"
 
 //#define VERBOSE

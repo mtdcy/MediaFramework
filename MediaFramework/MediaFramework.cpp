@@ -33,7 +33,7 @@
 //
 
 #define LOG_TAG "MediaFramework"
-#include "MediaDefs.h"
+#include "MediaTypes.h"
 #include "MediaDecoder.h"
 #include "MediaFile.h"
 #include "MediaPacketizer.h"

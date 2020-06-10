@@ -37,7 +37,7 @@
 #ifndef _MPX_AUDIO_RESAMPLER_H
 #define _MPX_AUDIO_RESAMPLER_H
 
-#include <MediaFramework/MediaDefs.h>
+#include <MediaFramework/MediaTypes.h>
 #include <MediaFramework/MediaFrame.h>
 
 #ifdef __cplusplus

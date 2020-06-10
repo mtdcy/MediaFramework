@@ -35,7 +35,7 @@
 #ifndef _MEDIA_MODULES_MPEG4_VIDEO_H
 #define _MEDIA_MODULES_MPEG4_VIDEO_H
 
-#include <MediaFramework/MediaDefs.h>
+#include <MediaFramework/MediaTypes.h>
 
 // ISO/IEC 14496-10 Advanced Video Coding
 

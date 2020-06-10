@@ -35,7 +35,7 @@
 #ifndef _MEDIA_PACKETIZER_H
 #define _MEDIA_PACKETIZER_H
 
-#include <MediaFramework/MediaDefs.h>
+#include <MediaFramework/MediaTypes.h>
 
 #ifdef __cplusplus
 __BEGIN_NAMESPACE_MPX

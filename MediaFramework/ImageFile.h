@@ -35,7 +35,7 @@
 #ifndef _MEDIA_MODULES_IMAGE_FILE_H
 #define _MEDIA_MODULES_IMAGE_FILE_H
 
-#include <MediaFramework/MediaDefs.h>
+#include <MediaFramework/MediaTypes.h>
 #include <MediaFramework/MediaFrame.h>
 
 #ifdef __cplusplus

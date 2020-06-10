@@ -34,7 +34,7 @@
 
 #define LOG_TAG   "Matroska"
 //#define LOG_NDEBUG 0
-#include "MediaDefs.h"
+#include "MediaTypes.h"
 
 #include <MediaFramework/MediaPacketizer.h>
 

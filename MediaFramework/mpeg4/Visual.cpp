@@ -34,7 +34,7 @@
 
 #define LOG_TAG "MPEG4.Visual"
 #define LOG_NDEBUG 0 
-#include "MediaDefs.h"
+#include "MediaTypes.h"
 
 #include "Visual.h"
 

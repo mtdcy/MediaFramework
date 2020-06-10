@@ -35,7 +35,7 @@
 #ifndef __MATROSKA_EBML_H
 #define __MATROSKA_EBML_H
 
-#include <MediaFramework/MediaDefs.h>
+#include <MediaFramework/MediaTypes.h>
 
 __BEGIN_DECLS
 

@@ -34,7 +34,7 @@
 
 #define LOG_TAG "MediaSource"
 //#define LOG_NDEBUG 0
-#include "MediaDefs.h"
+#include "MediaTypes.h"
 #include "MediaSession.h"
 #include "MediaFile.h"
 

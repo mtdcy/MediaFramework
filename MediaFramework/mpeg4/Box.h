@@ -35,7 +35,7 @@
 #ifndef _MEDIA_MODULE_MP4_BOX_H
 #define _MEDIA_MODULE_MP4_BOX_H
 
-#include "MediaDefs.h"
+#include "MediaTypes.h"
 #include "mpeg4/Systems.h"
 
 __BEGIN_NAMESPACE_MPX

@@ -39,7 +39,7 @@
 
 #define LOG_TAG "OpenGL"
 //#define LOG_NDEBUG 0
-#include "MediaDefs.h"
+#include "MediaTypes.h"
 #include "MediaOut.h"
 
 #define SL(x)   #x

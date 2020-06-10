@@ -35,7 +35,7 @@
 #ifndef _MEDIA_MODULES_MPEG4_AUDIO_H
 #define _MEDIA_MODULES_MPEG4_AUDIO_H
 
-#include "MediaDefs.h"
+#include "MediaTypes.h"
 #include "Systems.h"
 
 __BEGIN_NAMESPACE_MPX

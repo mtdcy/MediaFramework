@@ -37,7 +37,7 @@
 #ifndef _MEDIA_PLAYER_H
 #define _MEDIA_PLAYER_H
 
-#include <MediaFramework/MediaDefs.h>
+#include <MediaFramework/MediaTypes.h>
 #include <MediaFramework/MediaClock.h>
 #include <MediaFramework/MediaFrame.h>
 #include <MediaFramework/MediaSession.h>

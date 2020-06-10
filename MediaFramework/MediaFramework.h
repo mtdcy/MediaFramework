@@ -36,7 +36,7 @@
 #define _MEDIA_MODULES_ALL_H
 
 // MediaFramework
-#include <MediaFramework/MediaDefs.h>
+#include <MediaFramework/MediaTypes.h>
 #include <MediaFramework/MediaFrame.h>
 #include <MediaFramework/ImageFile.h>
 #include <MediaFramework/MediaFile.h>

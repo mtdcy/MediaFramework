@@ -34,7 +34,7 @@
 
 #define LOG_TAG "WaveFile"
 #define LOG_NDEBUG 0
-#include "MediaDefs.h"
+#include "MediaTypes.h"
 #include "MediaFile.h"
 #include "asf/Asf.h"
 #include "tags/id3/ID3.h"

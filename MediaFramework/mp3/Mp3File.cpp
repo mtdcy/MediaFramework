@@ -34,7 +34,7 @@
 
 #define LOG_TAG "Mp3File"
 //#define LOG_NDEBUG 0
-#include "MediaDefs.h"
+#include "MediaTypes.h"
 
 #define WITH_ID3
 #ifdef WITH_ID3

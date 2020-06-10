@@ -26,7 +26,7 @@
  ******************************************************************************/
 
 
-// File:    MediaDefs.h
+// File:    MediaTypes.h
 // Author:  mtdcy.chen
 // Changes:
 //          1. 20160701     initial version
@@ -35,7 +35,7 @@
 #ifndef _MEDIA_MODULES_EXTRACTOR_H
 #define _MEDIA_MODULES_EXTRACTOR_H
 
-#include <MediaFramework/MediaDefs.h>
+#include <MediaFramework/MediaTypes.h>
 
 __BEGIN_DECLS
 
