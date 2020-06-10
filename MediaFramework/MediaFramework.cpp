@@ -142,7 +142,7 @@ sp<ImageFile> ImageFile::Create() {
     return CreateJPEG();
 }
 
-sp<MediaOut> CreateGLVideo(const sp<Message>& formats, const sp<Message>& options);
+sp<MediaOut> CreateOpenGLOut(const sp<Message>& formats, const sp<Message>& options);
 #ifdef WITH_SDL
 sp<MediaOut> CreateSDLAudio(const sp<Message>& formats, const sp<Message>& options);
 #endif
@@ -157,7 +157,7 @@ sp<MediaOut> MediaOut::Create(const sp<Message>& formats, const sp<Message>& opt
             return NULL;
 #endif
         case kCodecTypeVideo:
-            return CreateGLVideo(formats, options);
+            return CreateOpenGLOut(formats, options);
         default:
             return NULL;
     }

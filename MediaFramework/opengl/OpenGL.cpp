@@ -37,18 +37,17 @@
 //
 #define GL_SILENCE_DEPRECATION
 
-#define LOG_TAG "gl"
+#define LOG_TAG "OpenGL"
 //#define LOG_NDEBUG 0
-#include <ABE/ABE.h>
-
-#include "OpenGLObject.h"
+#include "MediaDefs.h"
+#include "MediaOut.h"
 
 #define SL(x)   #x
 
 #ifdef __APPLE__
 #include <OpenGL/gl.h>
-#include <CoreVideo/CoreVideo.h>
 #include <OpenGL/OpenGL.h>
+#include <CoreVideo/CoreVideo.h>
 #else
 #if defined(__MINGW32__)
 #include <GL/glew.h>   // glCreateShader ...
@@ -729,32 +728,6 @@ static MediaError drawFrame(const sp<OpenGLContext>& glc, const sp<MediaFrame>& 
     return kMediaNoError;
 }
 
-MediaError OpenGLObject::init(const ImageFormat& image, bool offscreen) {
-    const OpenGLConfig * config = getOpenGLConfig(image.format);
-    mOpenGL = initOpenGLContext(image, config);
-    if (mOpenGL.isNIL()) return kMediaErrorUnknown;
-    return kMediaNoError;
-}
-
-MediaError OpenGLObject::draw(const sp<MediaFrame>& frame) {
-    return drawFrame(mOpenGL, frame);
-}
-
-MediaError OpenGLObject::setModelMatrix(const Matrix<float, 4>& matrix) {
-    mOpenGL->mModelMatrix = matrix;
-    return mOpenGL->applyMVP();
-}
-
-MediaError OpenGLObject::setViewMatrix(const Matrix<float, 4>& matrix) {
-    mOpenGL->mViewMatrix = matrix;
-    return mOpenGL->applyMVP();
-}
-
-MediaError OpenGLObject::setProjectionMatrix(const Matrix<float, 4>& matrix) {
-    mOpenGL->mProjectionMatrix = matrix;
-    return mOpenGL->applyMVP();
-}
-
 static const GLfloat MAT4_ROTATE_90[] = {
     0, -1, 0, 0,
     1, 0, 0, 0,
@@ -775,13 +748,20 @@ static const GLfloat MAT4_ROTATE_270[] = {
     0, 0, 1, 0,
     0, 0, 0, 1
 };
-MediaError OpenGLObject::rotate(eRotate angle) {
-    const GLfloat * matrix = MAT4_Identity;
-    if (angle == kRotate90)         matrix = MAT4_ROTATE_90;
-    else if (angle == kRotate180)   matrix = MAT4_ROTATE_180;
-    else if (angle == kRotate270)   matrix = MAT4_ROTATE_270;
-    
-    mOpenGL->mModelMatrix = mOpenGL->mModelMatrix * Matrix<GLfloat, 4>(matrix);
+
+#if 0
+MediaError OpenGLObject::setModelMatrix(const Matrix<float, 4>& matrix) {
+    mOpenGL->mModelMatrix = matrix;
+    return mOpenGL->applyMVP();
+}
+
+MediaError OpenGLObject::setViewMatrix(const Matrix<float, 4>& matrix) {
+    mOpenGL->mViewMatrix = matrix;
+    return mOpenGL->applyMVP();
+}
+
+MediaError OpenGLObject::setProjectionMatrix(const Matrix<float, 4>& matrix) {
+    mOpenGL->mProjectionMatrix = matrix;
     return mOpenGL->applyMVP();
 }
 
@@ -801,5 +781,86 @@ MediaError OpenGLObject::translation(float x, float y) {
     printMAT4(matrix);
     mOpenGL->mModelMatrix = mOpenGL->mModelMatrix * matrix;
     return mOpenGL->applyMVP();
+}
+#endif
+
+struct OpenGLOut : public MediaOut {
+    ImageFormat         mFormat;
+    sp<OpenGLContext>   mOpenGL;
+    
+    OpenGLOut() : MediaOut(), mOpenGL(NULL) { }
+    
+    MediaError prepare(const sp<Message>& format, const sp<Message>& options) {
+        CHECK_TRUE(format != NULL);
+        INFO("gl video => %s", format->string().c_str());
+        if (options != NULL) {
+            INFO("\t options: %s", options->string().c_str());
+        }
+
+        int32_t width       = format->findInt32(kKeyWidth);
+        int32_t height      = format->findInt32(kKeyHeight);
+        ePixelFormat pixel  = (ePixelFormat)format->findInt32(kKeyFormat);
+        
+        mFormat.format      = pixel;
+        mFormat.width       = width;
+        mFormat.height      = height;
+        
+        void * openGL       = options->findPointer("OpenGLContext");
+#ifdef __APPLE__
+        if (openGL) CGLSetCurrentContext((CGLContextObj)openGL);
+        CHECK_NULL(CGLGetCurrentContext());
+#endif
+        
+        const OpenGLConfig * config = getOpenGLConfig(mFormat.format);
+        mOpenGL             = initOpenGLContext(mFormat, config);
+        if (mOpenGL.isNIL()) return kMediaErrorBadFormat;
+        return kMediaNoError;
+    }
+    
+    virtual sp<Message> formats() const {
+        sp<Message> info = new Message;
+        info->setInt32(kKeyWidth,   mFormat.width);
+        info->setInt32(kKeyHeight,  mFormat.height);
+        info->setInt32(kKeyFormat,  mFormat.format);
+        return info;
+    }
+
+    virtual MediaError configure(const sp<Message> &options) {
+        if (options->contains(kKeyRotate)) {
+            eRotate angle = (eRotate)options->findInt32(kKeyRotate);
+            const GLfloat * matrix = MAT4_Identity;
+            if (angle == kRotate90)         matrix = MAT4_ROTATE_90;
+            else if (angle == kRotate180)   matrix = MAT4_ROTATE_180;
+            else if (angle == kRotate270)   matrix = MAT4_ROTATE_270;
+            
+            mOpenGL->mModelMatrix = mOpenGL->mModelMatrix * Matrix<GLfloat, 4>(matrix);
+            return mOpenGL->applyMVP();
+        }
+        return kMediaErrorInvalidOperation;
+    }
+
+    virtual MediaError write(const sp<MediaFrame> &input) {
+        if (input == NULL) {
+            INFO("eos...");
+            return kMediaNoError;
+        }
+        
+        DEBUG("write : %s", GetImageFrameString(input).c_str());
+        return drawFrame(mOpenGL, input);
+    }
+
+    virtual MediaError flush() {
+        //glClearColor(0, 0, 0, 0);
+        //glClear(GL_COLOR_BUFFER_BIT);
+        //glFlush();
+        return kMediaNoError;
+    }
+};
+
+sp<MediaOut> CreateOpenGLOut(const sp<Message>& formats, const sp<Message>& options) {
+    sp<OpenGLOut> gl = new OpenGLOut();
+    if (gl->prepare(formats, options) == kMediaNoError)
+        return gl;
+    return NULL;
 }
 __END_NAMESPACE_MPX
