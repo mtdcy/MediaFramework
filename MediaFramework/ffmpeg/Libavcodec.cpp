@@ -716,7 +716,7 @@ static AVCodecContext * initContext(eModeType mode, const sp<Message>& formats, 
     avcc->refcounted_frames     = 1;
 #endif
     if (mode != kModeTypePreview) {
-        avcc->thread_count      = GetCpuCount() + 1;
+        avcc->thread_count      = 4;    // more threads means big waiting time.
         avcc->thread_type       = FF_THREAD_FRAME | FF_THREAD_SLICE;
     } else {
         avcc->thread_count      = 1;
