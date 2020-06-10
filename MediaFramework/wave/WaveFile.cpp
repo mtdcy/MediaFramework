@@ -250,6 +250,7 @@ int IsWaveFile(const sp<Buffer>& data) {
     while (br.remianBytes() > 16 && score < 100) {
         String ckID = br.readS(4);
         uint32_t ckSize = br.rl32();
+        if (ckSize == 0) break;
         DEBUG("found trunk %s length %zu", ckID.c_str(), ckSize);
         
         if (ckID == "RIFF" && (br.readS(4) == "WAVE")) {
