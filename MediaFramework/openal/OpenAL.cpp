@@ -37,7 +37,7 @@
 //
 
 #define LOG_TAG "OpenAL"
-#define LOG_NDEBUG 0
+//#define LOG_NDEBUG 0
 #include "MediaDefs.h"
 #include "MediaOut.h"
 
@@ -63,9 +63,9 @@ __BEGIN_NAMESPACE_MPX
 
 // TODO: implement AudioConverter
 /**
- * OpenAL only taks s16 stereo interleaved pcm samples
+ * OpenAL only takes s16 stereo interleaved pcm samples
  */
-#define AL_FORMAT   AL_FORMAT_MONO16
+#define AL_FORMAT   AL_FORMAT_STEREO16
 #define NB_BUFFERS  (4)
 
 struct OpenALContext : public SharedObject {
@@ -81,7 +81,7 @@ static MediaError flushOpenAL(sp<OpenALContext>& openAL);
 static sp<OpenALContext> initOpenALContext(const AudioFormat& audio) {
     DEBUG("init");
     sp<OpenALContext> openAL = new OpenALContext;
-    openAL->mAudioFormat.format     = kSampleFormatS16;
+    openAL->mAudioFormat.format     = kSampleFormatS16Packed;
     openAL->mAudioFormat.channels   = audio.channels > 1 ? 2 : 1;
     openAL->mAudioFormat.freq       = audio.freq;
     
@@ -165,7 +165,7 @@ static FORCE_INLINE int64_t GetDuration(const sp<MediaFrame>& frame) {
 }
 
 static MediaError playFrame(const sp<OpenALContext>& openAL, const sp<MediaFrame>& frame) {
-    
+    CHECK_EQ(kSampleFormatS16Packed, frame->a.format);
     ALint state;
     alGetSourcei(openAL->mSource, AL_SOURCE_STATE, &state);
     CHECK_AL_ERROR();
@@ -224,7 +224,6 @@ static MediaError playFrame(const sp<OpenALContext>& openAL, const sp<MediaFrame
 }
 
 struct OpenALOut : public MediaOut {
-    AudioFormat         mInputFormat;
     sp<OpenALContext>   mOpenAL;
     
     OpenALOut() : MediaOut() { }
@@ -236,11 +235,12 @@ struct OpenALOut : public MediaOut {
     }
     
     MediaError init(const sp<Message>& formats, const sp<Message>& options) {
-        mInputFormat.format = (eSampleFormat)formats->findInt32(kKeyFormat);
-        mInputFormat.channels = formats->findInt32(kKeyChannels);
-        mInputFormat.freq = formats->findInt32(kKeySampleRate);
+        AudioFormat audio;
+        audio.format = (eSampleFormat)formats->findInt32(kKeyFormat);
+        audio.channels = formats->findInt32(kKeyChannels);
+        audio.freq = formats->findInt32(kKeySampleRate);
         
-        mOpenAL = initOpenALContext(mInputFormat);
+        mOpenAL = initOpenALContext(audio);
         if (mOpenAL.isNIL()) return kMediaErrorBadFormat;
         return kMediaNoError;
     }

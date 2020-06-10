@@ -40,6 +40,41 @@
 #include <VideoToolbox/VideoToolbox.h>
 #endif
 
+__BEGIN_DECLS
+
+size_t GetSampleFormatBytes(eSampleFormat format) {
+    switch (format) {
+        case kSampleFormatU8Packed:
+        case kSampleFormatU8:       return sizeof(uint8_t);
+        case kSampleFormatS16Packed:
+        case kSampleFormatS16:      return sizeof(int16_t);
+        case kSampleFormatS32Packed:
+        case kSampleFormatS32:      return sizeof(int32_t);
+        case kSampleFormatFLTPacked:
+        case kSampleFormatFLT:      return sizeof(float);
+        case kSampleFormatDBLPacked:
+        case kSampleFormatDBL:      return sizeof(double);
+        case kSampleFormatUnknown:  return 0;
+        default:                    break;
+    }
+    FATAL("FIXME");
+    return 0;
+}
+
+bool IsSampleFormatPacked(eSampleFormat format) {
+    switch (format) {
+        case kSampleFormatU8Packed:
+        case kSampleFormatS16Packed:
+        case kSampleFormatS32Packed:
+        case kSampleFormatFLTPacked:
+        case kSampleFormatDBLPacked:
+            return true;
+        default:
+            return false;;
+    }
+}
+__END_DECLS
+
 __BEGIN_NAMESPACE_MPX
 
 MediaFrame::MediaFrame() : timecode(kMediaTimeInvalid), duration(kMediaTimeInvalid) {
@@ -498,8 +533,8 @@ MediaError MediaFrame::yuv2rgb(const ePixelFormat& target, const eConversion&) {
 }
 
 String GetAudioFormatString(const AudioFormat& a) {
-    return String::format("audio %s: ch %d, freq %d, samples %d",
-                          GetSampleFormatString(a.format),
+    return String::format("audio %4s: ch %d, freq %d, samples %d",
+                          (const char *)&a.format,
                           a.channels,
                           a.freq,
                           a.samples);
@@ -539,11 +574,16 @@ sp<MediaFrame> MediaFrame::Create(const AudioFormat& a) {
     sp<MediaFrame> frame = new MediaFrame;
     frame->mBuffer = new Buffer(total);
     
-    uint8_t * next = (uint8_t*)frame->mBuffer->data();
-    for (size_t i = 0; i < a.channels; ++i) {
-        frame->planes[i].size   = bytes * a.samples;
-        frame->planes[i].data   = next;
-        next += frame->planes[i].size;
+    if (IsSampleFormatPacked(a.format)) {
+        frame->planes[0].data       = (uint8_t*)frame->mBuffer->data();
+        frame->planes[0].size       = frame->mBuffer->size();
+    } else {
+        uint8_t * next = (uint8_t*)frame->mBuffer->data();
+        for (size_t i = 0; i < a.channels; ++i) {
+            frame->planes[i].size   = bytes * a.samples;
+            frame->planes[i].data   = next;
+            next += frame->planes[i].size;
+        }
     }
     
     frame->a            = a;

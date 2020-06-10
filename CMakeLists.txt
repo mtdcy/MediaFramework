@@ -68,9 +68,9 @@ set (SOURCE_FILES
     MediaFramework/RenderSession.cpp
     MediaFramework/MediaSource.cpp 
     MediaFramework/MediaPlayer.cpp
+    MediaFramework/AudioConverter.cpp 
     MediaFramework/Tiger.cpp 
     MediaFramework/tags/id3/ID3.cpp
-    MediaFramework/audioresampler/AudioResampler.cpp
     MediaFramework/asf/Asf.cpp
     MediaFramework/wave/WaveFile.cpp
     MediaFramework/mp3/Mp3File.cpp

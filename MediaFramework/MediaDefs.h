@@ -138,10 +138,9 @@ typedef enum eCodecType {
     kCodecTypeImage         = FOURCC('imag'),
 } eCodecType;
 
-// FIXME: code sample infomation into format
 /**
  * we always use planar data instead of interleaved,
- * which is very common in audio processing
+ * which is very common in audio processing, but not in HAL
  */
 typedef enum eSampleFormat {
     kSampleFormatUnknown,
@@ -150,6 +149,15 @@ typedef enum eSampleFormat {
     kSampleFormatS32        = FOURCC('s32 '),
     kSampleFormatFLT        = FOURCC('flt '),
     kSampleFormatDBL        = FOURCC('dbl '),
+    // packed sample formats.
+    // samples for each channel are interleaved
+    // for audio input/output device only
+    // most audio HAL only support interleaved samples
+    kSampleFormatU8Packed   = FOURCC('u8p '),
+    kSampleFormatS16Packed  = FOURCC('s16p'),
+    kSampleFormatS32Packed  = FOURCC('s32p'),
+    kSampleFormatFLTPacked  = FOURCC('fltp'),
+    kSampleFormatDBLPacked  = FOURCC('dblp'),
 } eSampleFormat;
 
 /**
@@ -270,9 +278,8 @@ typedef struct SampleDescriptor {
 
 API_EXPORT const SampleDescriptor * GetSampleFormatDescriptor(eSampleFormat);
 
-API_EXPORT const char * GetSampleFormatString(eSampleFormat);
 API_EXPORT size_t       GetSampleFormatBytes(eSampleFormat);
-
+API_EXPORT bool         IsSampleFormatPacked(eSampleFormat);
 /**
  * read behavior modes
  */

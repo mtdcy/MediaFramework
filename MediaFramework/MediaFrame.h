@@ -69,6 +69,7 @@ struct API_EXPORT MediaFrame : public SharedObject {
     
     /**
      * create a media frame backend by Buffer
+     * the underlying buffer is always continues, a single buffer for all planes 
      */
     static sp<MediaFrame>   Create(const ImageFormat&);
     static sp<MediaFrame>   Create(const ImageFormat&, const sp<Buffer>&);

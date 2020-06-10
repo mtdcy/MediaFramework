@@ -47,16 +47,21 @@
 
 __BEGIN_NAMESPACE_MPX
 
+/**
+ * sdl only support packed/interleaved samples.
+ */
 struct {
     eSampleFormat   a;
     SDL_AudioFormat b;
 } kSampleMap[] = {
-    {kSampleFormatU8,       AUDIO_U8},
-    {kSampleFormatS16,      AUDIO_S16SYS},
-    {kSampleFormatS32,      AUDIO_S32SYS},
-    {kSampleFormatFLT,      AUDIO_F32SYS},
+    {kSampleFormatU8Packed,     AUDIO_U8        },
+    {kSampleFormatU8,           AUDIO_U8        },
+    {kSampleFormatS16Packed,    AUDIO_S16SYS    },
+    {kSampleFormatS16,          AUDIO_S16SYS    },
+    {kSampleFormatS32Packed,    AUDIO_S32SYS    },
+    {kSampleFormatS32,          AUDIO_S32SYS    },
     // END OF LIST
-    {kSampleFormatUnknown,  0}
+    {kSampleFormatUnknown,      0}
 };
 
 static FORCE_INLINE eSampleFormat get_sample_format(SDL_AudioFormat b) {
@@ -71,8 +76,7 @@ static FORCE_INLINE SDL_AudioFormat get_sdl_sample_format(eSampleFormat a) {
     for (size_t i = 0; kSampleMap[i].a != kSampleFormatUnknown; ++i) {
         if (kSampleMap[i].a == a) return kSampleMap[i].b;
     }
-    FATAL("FIX MAP");
-    return 0;
+    return AUDIO_S16SYS;    // default value
 }
 
 #define NB_SILENCE (2)
@@ -209,22 +213,6 @@ struct PackedAudioFrame : public MediaFrame {
     }
 };
 
-template <class TYPE> FORCE_INLINE sp<MediaFrame> interleave(const sp<MediaFrame>& frame) {
-    sp<MediaFrame> out = new PackedAudioFrame(frame->planes[0].size * frame->a.channels);
-    out->a = frame->a;
-    
-    TYPE * p[MEDIA_FRAME_NB_PLANES];
-    for (size_t i = 0; i < frame->a.channels; ++i)
-        p[i] = (TYPE*)frame->planes[i].data;
-
-    TYPE * dest = (TYPE*)out->planes[0].data;
-    for (size_t i = 0; i < frame->a.samples; ++i)
-        for (size_t j = 0; j < frame->a.channels; ++j)
-            dest[frame->a.channels * i + j] = p[j][i];
-
-    return out;
-}
-
 struct SDLAudio : public MediaOut {
     sp<SDLAudioContext>     mSDL;
 
@@ -287,24 +275,7 @@ struct SDLAudio : public MediaOut {
             SDL_PauseAudio(0);
         }
 
-        if (input->planes[1].data != NULL) {
-            switch (mSDL->mAudioFormat.format) {
-                case kSampleFormatS16:
-                    mSDL->mPendingFrame   = interleave<int16_t>(input);
-                    break;
-                case kSampleFormatS32:
-                    mSDL->mPendingFrame   = interleave<int32_t>(input);
-                    break;
-                case kSampleFormatFLT:
-                    mSDL->mPendingFrame   = interleave<float>(input);
-                    break;
-                default:
-                    FATAL("FIXME");
-                    break;
-            }
-        } else {
-            mSDL->mPendingFrame = input;
-        }
+        mSDL->mPendingFrame = input;
         mSDL->mBytesRead    = 0;
 
         // wake up callback

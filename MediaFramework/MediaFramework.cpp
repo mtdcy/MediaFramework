@@ -43,41 +43,6 @@
 
 __BEGIN_DECLS
 
-size_t GetSampleFormatBytes(eSampleFormat format) {
-    switch (format) {
-        case kSampleFormatU8:       return sizeof(uint8_t);
-        case kSampleFormatS16:      return sizeof(int16_t);
-        case kSampleFormatS32:      return sizeof(int32_t);
-        case kSampleFormatFLT:      return sizeof(float);
-        case kSampleFormatDBL:      return sizeof(double);
-        case kSampleFormatUnknown:  return 0;
-        default:                    break;
-    }
-    FATAL("FIXME");
-    return 0;
-}
-
-const char * GetSampleFormatString(eSampleFormat format) {
-    switch (format) {
-        case kSampleFormatU8:
-            return "u8";
-        case kSampleFormatS16:
-            return "s16";
-        case kSampleFormatS32:
-            return "s32";
-        case kSampleFormatFLT:
-            return "flt";
-        case kSampleFormatDBL:
-            return "dbl";
-        case kSampleFormatUnknown:
-            return "unknown";
-        default:
-            break;
-    }
-    FATAL("FIXME");
-    return 0;
-}
-
 __END_DECLS
 
 __BEGIN_NAMESPACE_MPX
@@ -152,11 +117,10 @@ sp<MediaOut> MediaOut::Create(const sp<Message>& formats, const sp<Message>& opt
     eCodecType type = (eCodecType)formats->findInt32(kKeyCodecType);
     switch (type) {
         case kCodecTypeAudio:
-            //return CreateOpenALOut(formats, options);
 #ifdef WITH_SDL
             return CreateSDLAudio(formats, options);
 #else
-            return NULL;
+            return CreateOpenALOut(formats, options);
 #endif
         case kCodecTypeVideo:
             return CreateOpenGLOut(formats, options);

@@ -38,6 +38,7 @@
 #include "MediaOut.h"
 #include "MediaClock.h"
 #include "MediaPlayer.h"
+#include "AudioConverter.h"
 
 // TODO: calc count based on duration
 // max count: 1s
@@ -98,6 +99,15 @@ struct RenderSession : public IMediaSession {
     bool                    mInputEOS;
 
     MediaTime               mLastFrameTime;     // kTimeInvalid => first frame
+    
+    // converter
+    union {
+        int32_t             mFormat;
+        AudioFormat         mAudio;
+        ImageFormat         mImage;
+    };
+    sp<AudioConverter>      mAudioConverter;
+    
     // statistics
     size_t                  mFramesRenderred;
 
@@ -145,8 +155,8 @@ struct RenderSession : public IMediaSession {
         }
 
         CHECK_TRUE(formats->contains(kKeyFormat));
-        uint32_t codec = formats->findInt32(kKeyFormat);
-        mName = String::format("render-%4s", (char*)&codec);
+        mFormat = formats->findInt32(kKeyFormat);
+        mName = String::format("render-%4s", (char*)&mFormat);
         
         // update generation
         mFrameReadyEvent = new OnFrameReady(this, ++mGeneration);
@@ -159,9 +169,9 @@ struct RenderSession : public IMediaSession {
         if (formats->contains(kKeySampleRate) || formats->contains(kKeyChannels)) {
             mType = kCodecTypeAudio;
             // delay create out device
-            int32_t channels = formats->findInt32(kKeyChannels);
-            int32_t sampleRate = formats->findInt32(kKeySampleRate);
-            delayInit = channels == 0 || sampleRate == 0;
+            mAudio.channels = formats->findInt32(kKeyChannels);
+            mAudio.freq = formats->findInt32(kKeySampleRate);
+            delayInit = mAudio.channels == 0 || mAudio.freq == 0;
         } else if (formats->contains(kKeyWidth) || formats->contains(kKeyHeight)) {
             mType = kCodecTypeVideo;
             int32_t width = formats->findInt32(kKeyWidth);
@@ -187,7 +197,18 @@ struct RenderSession : public IMediaSession {
                 // setup color converter
             } else if (mType == kCodecTypeAudio) {
                 // setup resampler
-                mLatency = mOut->formats()->findInt32(kKeyLatency, 0);
+                sp<Message> outFormat = mOut->formats();
+                mLatency = outFormat->findInt32(kKeyLatency, 0);
+                AudioFormat audio;
+                audio.format = (eSampleFormat)outFormat->findInt32(kKeyFormat);
+                audio.channels = outFormat->findInt32(kKeyChannels);
+                audio.freq = outFormat->findInt32(kKeySampleRate);
+                
+                if (audio.format != mAudio.format ||
+                    audio.channels != mAudio.channels ||
+                    audio.freq != mAudio.freq) {
+                    mAudioConverter = AudioConverter::Create(mAudio, audio, NULL);
+                }
             } else {
                 FATAL("FIXME");
             }
@@ -395,7 +416,12 @@ struct RenderSession : public IMediaSession {
         // -> onRender
     }
     
-    FORCE_INLINE void writeFrame(const sp<MediaFrame>& frame) {
+    FORCE_INLINE void writeFrame(const sp<MediaFrame>& input) {
+        sp<MediaFrame> frame = input;
+        if (!input.isNIL() && !mAudioConverter.isNIL()) {
+            frame = mAudioConverter->convert(input);
+        }
+        
         if (mOut != NULL) CHECK_TRUE(mOut->write(frame) == kMediaNoError);
         else mMediaFrameEvent->fire(frame);
     }
