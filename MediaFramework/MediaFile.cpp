@@ -61,18 +61,19 @@ int IsWaveFile(const sp<Buffer>& data);
 
 static eFileFormat GetFormat(sp<Content>& pipe) {
     int score = 0;
-
+    DEBUG("start @ %" PRId64, pipe->tell());
+    
     // skip id3v2
     ID3::SkipID3v2(pipe);
+
+    const int64_t startPos = pipe->tell();
+    DEBUG("startPos = %" PRId64, startPos);
     
     sp<Buffer> header = pipe->read(kCommonHeadLength);
     if (header == 0) {
         ERROR("content size is too small");
-        return kFileFormatInvalid;
+        return kFileFormatUnknown;
     }
-
-    const int64_t startPos = pipe->tell() - kCommonHeadLength;
-    DEBUG("startPos = %" PRId64, startPos);
 
     BitReader br(header->data(), header->size());
 
@@ -91,10 +92,10 @@ static eFileFormat GetFormat(sp<Content>& pipe) {
             {"RIFF",    4,  "AVI\x19",  kFileFormatAvi      },
             {"RIFF",    4,  "AMV ",     kFileFormatAvi      },
             // END OF LIST
-            {NULL,      0,  NULL,       kFileFormatInvalid  },
+            {NULL,      0,  NULL,       kFileFormatUnknown  },
         };
         
-        eFileFormat format = kFileFormatInvalid;
+        eFileFormat format = kFileFormatUnknown;
         for (size_t i = 0; kFourccMap[i].head; i++) {
             const String head = br.readS(strlen(kFourccMap[i].head));
             if (kFourccMap[i].ext) {
@@ -115,7 +116,7 @@ static eFileFormat GetFormat(sp<Content>& pipe) {
             br.reset();
         }
         
-        if (format != kFileFormatInvalid) {
+        if (format != kFileFormatUnknown) {
             // reset pipe to start pos
             pipe->seek(startPos);
             return format;
@@ -135,11 +136,11 @@ static eFileFormat GetFormat(sp<Content>& pipe) {
         { IsWaveFile,           kFileFormatWave     },
         { IsMp4File,            kFileFormatMp4      },
         { EBML::IsMatroskaFile, kFileFormatMkv      },
-        { scanMP3,              kFileFormatMp3      },
-        { NULL,                 kFileFormatInvalid  }
+        { scanMP3,              kFileFormatMp3      },  // this one should locate at end
+        { NULL,                 kFileFormatUnknown  }
     };
 
-    eFileFormat format = kFileFormatInvalid;
+    eFileFormat format = kFileFormatUnknown;
     for (size_t i = 0; kScanners[i].scanner; i++) {
         int c = kScanners[i].scanner(header);
         DEBUG("%4s, score = %d", (const char *)&kScanners[i].format, c);
@@ -180,6 +181,8 @@ sp<MediaFile> MediaFile::Create(sp<Content>& pipe, const eMode mode) {
     bool force = env.equals("1") || env.lower().equals("yes");
     
     const eFileFormat format = GetFormat(pipe);
+    if (format == kFileFormatUnknown) return NULL;
+    
     switch (format) {
         case kFileFormatWave:
             return force ? CreateLibavformat(pipe) : CreateWaveFile(pipe);

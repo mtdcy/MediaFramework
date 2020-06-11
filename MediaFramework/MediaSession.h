@@ -38,7 +38,6 @@
 #define _MPX_MEDIA_SESSION_H
 
 #include <MediaFramework/MediaTypes.h>
-#include <MediaFramework/MediaFrame.h>
 
 #ifdef __cplusplus
 __BEGIN_NAMESPACE_MPX
@@ -71,12 +70,21 @@ typedef MediaEvent<sp<MediaFrame> > FrameReadyEvent;
 typedef MediaEvent2<sp<FrameReadyEvent>, MediaTime> FrameRequestEvent;
 
 typedef enum {
-    kSessionInfoReady,
-    kSessionInfoEnd,
-    kSessionInfoError,
+    kSessionInfoReady   = FOURCC('srdy'),
+    kSessionInfoEnd     = FOURCC('send'),
+    kSessionInfoError   = FOURCC('serr'),
 } eSessionInfoType;
-
 typedef MediaEvent2<eSessionInfoType, sp<Message> > SessionInfoEvent;
+
+enum {
+    kKeyTrackSelectEvent        = FOURCC('tsel'),   ///< sp<TrackSelectEvent>
+    kKeyPacketReadyEvent        = FOURCC('prdy'),   ///< sp<PacketReadyEvent>
+    kKeyPacketRequestEvent      = FOURCC('preq'),   ///< sp<PacketRequestEvent>
+    kKeyFrameReadyEvent         = FOURCC('frdy'),   ///< sp<FrameReadyEvent>
+    kKeyFrameRequestEvent       = FOURCC('freq'),   ///< sp<FrameRequestEvent>
+    kKeySessionInfoEvent        = FOURCC('sinf'),   ///< sp<SessionInfoEvent>
+    kKeyClock                   = FOURCC('clck'),   ///< sp<Clock>
+};
 
 class API_EXPORT IMediaSession : public SharedObject {
     public:

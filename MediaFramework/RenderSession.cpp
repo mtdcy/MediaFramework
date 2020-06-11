@@ -62,7 +62,7 @@
 //                  <= clock event
 //                  <= looper(external)
 
-__USING_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MPX
 
 sp<IMediaSession> CreateDecodeSession(const sp<Message>& format, const sp<Message>& options);
 
@@ -138,25 +138,25 @@ struct RenderSession : public IMediaSession {
         DEBUG("%s: onInit...", mName.c_str());
         // setup external context
         if (!options.isNIL()) {
-            CHECK_TRUE(options->contains("FrameRequestEvent"));
-            mFrameRequestEvent = options->findObject("FrameRequestEvent");
+            CHECK_TRUE(options->contains(kKeyFrameRequestEvent));
+            mFrameRequestEvent = options->findObject(kKeyFrameRequestEvent);
             
-            if (options->contains("SessionInfoEvent")) {
-                mInfoEvent = options->findObject("SessionInfoEvent");
+            if (options->contains(kKeySessionInfoEvent)) {
+                mInfoEvent = options->findObject(kKeySessionInfoEvent);
             }
 
-            if (options->contains("Clock")) {
-                mClock = options->findObject("Clock");
+            if (options->contains(kKeyClock)) {
+                mClock = options->findObject(kKeyClock);
             }
 
-            if (options->contains("MediaFrameEvent")) {
-                mMediaFrameEvent = options->findObject("MediaFrameEvent");
+            if (options->contains(kKeyFrameReadyEvent)) {
+                mMediaFrameEvent = options->findObject(kKeyFrameReadyEvent);
             }
         }
 
         CHECK_TRUE(formats->contains(kKeyFormat));
         mFormat = formats->findInt32(kKeyFormat);
-        mName = String::format("render-%4s", (char*)&mFormat);
+        mName = String::format("render-%.4s", (char*)&mFormat);
         
         // update generation
         mFrameReadyEvent = new OnFrameReady(this, ++mGeneration);
@@ -184,7 +184,7 @@ struct RenderSession : public IMediaSession {
         // if external out device exists
         if (mMediaFrameEvent.isNIL()) {
             sp<Message> outFormat = formats->dup();
-            outFormat->setInt32(kKeyCodecType, mType);
+            outFormat->setInt32(kKeyType, mType);
             mOut = MediaOut::Create(outFormat, options);
 
             if (mOut.isNIL()) {
@@ -342,8 +342,8 @@ struct RenderSession : public IMediaSession {
             return;
         }
 
-        // check pts, kTimeInvalid < kTimeBegin
-        if (frame->timecode < kMediaTimeBegin) {
+        // check pts
+        if (frame->timecode == kMediaTimeInvalid) {
             ERROR("%s: bad pts", mName.c_str());
             // FIXME:
         }
@@ -554,3 +554,4 @@ struct RenderSession : public IMediaSession {
 sp<IMediaSession> CreateRenderSession(const sp<Looper>& lp) {
     return new RenderSession(lp);
 }
+__END_NAMESPACE_MPX

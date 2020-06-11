@@ -34,7 +34,7 @@
 
 #define LOG_TAG "MediaFrame"
 #define LOG_NDEBUG 0
-#include "MediaFrame.h"
+#include "MediaTypes.h"
 #include <libyuv.h>
 #ifdef __APPLE__
 #include <VideoToolbox/VideoToolbox.h>

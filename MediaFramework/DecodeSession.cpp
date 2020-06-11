@@ -37,7 +37,7 @@
 #include "MediaSession.h"
 #include "MediaDecoder.h"
 
-__USING_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MPX
 
 // onPacketReady ----- MediaPacket ----> DecodeSession
 //      ^                                   |
@@ -92,22 +92,22 @@ struct DecodeSession : public IMediaSession {
     void onInit(const sp<Message>& formats, const sp<Message>& options) {
         DEBUG("%s: onInit...", mName.c_str());
         DEBUG("init << %s << %s", format->string().c_str(), options->string().c_str());
-        CHECK_TRUE(options->contains("PacketRequestEvent"));
-        mPacketRequestEvent = options->findObject("PacketRequestEvent");
+        CHECK_TRUE(options->contains(kKeyPacketRequestEvent));
+        mPacketRequestEvent = options->findObject(kKeyPacketRequestEvent);
 
-        if (options->contains("SessionInfoEvent")) {
-            mInfoEvent = options->findObject("SessionInfoEvent");
+        if (options->contains(kKeySessionInfoEvent)) {
+            mInfoEvent = options->findObject(kKeySessionInfoEvent);
         }
         
         uint32_t codec = formats->findInt32(kKeyFormat);
-        mName = String::format("codec-%4s", (char *)&codec);
+        mName = String::format("codec-%.4s", (char *)&codec);
 
         mMode = (eModeType)options->findInt32(kKeyMode, kModeTypeDefault);
         
         // setup decoder...
-        CHECK_TRUE(formats->contains(kKeyCodecType));
+        CHECK_TRUE(formats->contains(kKeyType));
         CHECK_TRUE(formats->contains(kKeyFormat));
-        eCodecType type = (eCodecType)formats->findInt32(kKeyCodecType);
+        eCodecType type = (eCodecType)formats->findInt32(kKeyType);
         
         sp<Message> options0 = new Message;
         options0->setInt32(kKeyMode, mMode);
@@ -128,7 +128,7 @@ struct DecodeSession : public IMediaSession {
         mPacketReadyEvent = new OnPacketReady(this, ++mGeneration);
         
         sp<Message> codecFormat = mCodec->formats();
-        codecFormat->setObject("FrameRequestEvent", mFrameRequestEvent);
+        codecFormat->setObject(kKeyFrameRequestEvent, mFrameRequestEvent);
         notify(kSessionInfoReady, codecFormat);
     }
 
@@ -310,3 +310,5 @@ sp<IMediaSession> CreateDecodeSession(const sp<Looper>& lp) {
     sp<DecodeSession> decoder = new DecodeSession(lp);
     return decoder;
 }
+
+__END_NAMESPACE_MPX

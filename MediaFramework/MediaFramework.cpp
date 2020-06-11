@@ -56,8 +56,8 @@ sp<MediaDecoder> CreateLavcDecoder(const sp<Message>& formats, const sp<Message>
 #endif
 
 sp<MediaDecoder> MediaDecoder::Create(const sp<Message>& formats, const sp<Message>& options) {
-    CHECK_TRUE(formats->contains(kKeyCodecType));
-    eCodecType type = (eCodecType)formats->findInt32(kKeyCodecType);
+    CHECK_TRUE(formats->contains(kKeyType));
+    eCodecType type = (eCodecType)formats->findInt32(kKeyType);
     eModeType mode = (eModeType)options->findInt32(kKeyMode, kModeTypeNormal);
     
     String env = GetEnvironmentValue("FORCE_AVCODEC");
@@ -113,8 +113,8 @@ sp<MediaOut> CreateOpenGLOut(const sp<Message>& formats, const sp<Message>& opti
 sp<MediaOut> CreateSDLAudio(const sp<Message>& formats, const sp<Message>& options);
 #endif
 sp<MediaOut> MediaOut::Create(const sp<Message>& formats, const sp<Message>& options) {
-    CHECK_TRUE(formats->contains(kKeyCodecType));
-    eCodecType type = (eCodecType)formats->findInt32(kKeyCodecType);
+    CHECK_TRUE(formats->contains(kKeyType));
+    eCodecType type = (eCodecType)formats->findInt32(kKeyType);
     switch (type) {
         case kCodecTypeAudio:
 #ifdef WITH_SDL
@@ -132,24 +132,23 @@ sp<MediaOut> MediaOut::Create(const sp<Message>& formats, const sp<Message>& opt
 struct DefaultMediaPacket : public MediaPacket {
     sp<Buffer> buffer;
 
-    FORCE_INLINE DefaultMediaPacket() : MediaPacket() { }
+    FORCE_INLINE DefaultMediaPacket(uint8_t * const p, size_t length) :
+    MediaPacket(p, length) { }
 };
 
-sp<MediaPacket> MediaPacketCreate(size_t size) {
+sp<MediaPacket> MediaPacket::Create(size_t size) {
     sp<Buffer> buffer = new Buffer(size);
-    buffer->step(size);
-    sp<DefaultMediaPacket> packet = new DefaultMediaPacket;
+    sp<DefaultMediaPacket> packet = new DefaultMediaPacket((uint8_t *)buffer->data(),
+                                                           buffer->capacity());
     packet->buffer  = buffer;
-    packet->data    = (uint8_t*)buffer->data();
-    packet->size    = buffer->capacity();
     return packet;
 }
 
-sp<MediaPacket> MediaPacketCreate(sp<Buffer>& data) {
-    sp<DefaultMediaPacket> packet = new DefaultMediaPacket;
-    packet->buffer  = data;
-    packet->data    = (uint8_t*)data->data();
-    packet->size    = data->size();
+sp<MediaPacket> MediaPacket::Create(sp<Buffer>& buffer) {
+    sp<DefaultMediaPacket> packet = new DefaultMediaPacket((uint8_t *)buffer->data(),
+                                                           buffer->capacity());
+    packet->buffer  = buffer;
+    packet->size    = buffer->size();
     return packet;
 }
 

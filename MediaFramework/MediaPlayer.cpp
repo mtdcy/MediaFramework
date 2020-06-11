@@ -41,7 +41,7 @@
 #include "MediaDecoder.h"
 #include "MediaOut.h"
 
-__USING_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MPX
 
 IMediaPlayer::IMediaPlayer(const sp<Looper>& lp) : mDispatch(new DispatchQueue(lp)), mClock(new SharedClock)
 {
@@ -133,3 +133,5 @@ sp<IMediaPlayer> IMediaPlayer::Create(const sp<Message>& media, const sp<Message
     player->mDispatch->dispatch(init);
     return player;
 }
+
+__END_NAMESPACE_MPX

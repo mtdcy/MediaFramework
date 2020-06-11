@@ -108,7 +108,6 @@ struct OnPlayerInfo : public PlayerInfoEvent {
             case kInfoPlayerReady:
                 INFO("player is ready...");
                 g_paused = true;
-                mp->prepare(kMediaTimeBegin);
                 break;
             case kInfoPlayerPlaying:
                 g_paused = false;
@@ -145,7 +144,7 @@ struct OnFrameUpdate : public MediaFrameEvent {
             format->setInt32(kKeyFormat, g_format.format);
             format->setInt32(kKeyWidth,  g_format.width);
             format->setInt32(kKeyHeight, g_format.height);
-            format->setInt32(kKeyCodecType, kCodecTypeVideo);
+            format->setInt32(kKeyType, kCodecTypeVideo);
             
             g_out = MediaOut::Create(format, options);
             CHECK_FALSE(g_out.isNIL());
@@ -280,13 +279,13 @@ int main (int argc, char **argv)
         
         // add media to the mp
         sp<Message> media = new Message;
-        media->setString("url", url);
+        media->setString(kKeyURL, url);
 #ifdef MAIN_THREAD_RENDER
-        media->setObject("VideoFrameEvent", new OnFrameUpdate);
+        media->setObject(kKeyVideoFrameEvent, new OnFrameUpdate);
 #endif
         
         sp<Message> options = new Message;
-        options->setObject("PlayerInfoEvent", new OnPlayerInfo);
+        options->setObject(kKeyPlayerInfoEvent, new OnPlayerInfo);
         options->setInt32(kKeyMode, PREFER_MODE);
         
         // create the mp

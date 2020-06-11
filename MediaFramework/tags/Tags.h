@@ -26,59 +26,43 @@
  ******************************************************************************/
 
 
-// File:    MediaTypes.h
+// File:    Tags.h
 // Author:  mtdcy.chen
 // Changes:
 //          1. 20160701     initial version
 //
 
-#ifndef _MEDIA_MODULES_OUT_H
-#define _MEDIA_MODULES_OUT_H
+#ifndef _MPX_MEDIA_TAGS_H
+#define _MPX_MEDIA_TAGS_H 
 
-#include <MediaFramework/MediaTypes.h>
+#include "MediaTypes.h"
 
-__BEGIN_DECLS
-
-__END_DECLS
-
-#ifdef __cplusplus
 __BEGIN_NAMESPACE_MPX
 
-/**
- * base class for audio/video output device
- */
-struct API_EXPORT MediaOut : public SharedObject {
-    MediaOut() : SharedObject() { }
-    virtual ~MediaOut() { }
+namespace Tag {
+    class API_EXPORT Parser {
+        public:
+            FORCE_INLINE Parser() { }
+            FORCE_INLINE virtual ~Parser() { }
+            virtual MediaError parse(const Buffer& data) = 0;
+            FORCE_INLINE const sp<Message>& values() const { return mValues; }
 
-    static sp<MediaOut> Create(const sp<Message>& format, const sp<Message>& options);
-    /**
-     * get information of this output device
-     * @return return message reference of this output device.
-     */
-    virtual sp<Message>     formats() const = 0;
-    /**
-     * configure this output device
-     * @param options   option and parameter
-     * @return return kMediaNoError on success, otherwise error code.
-     */
-    virtual MediaError      configure(const sp<Message>& options) = 0;
-    /**
-     * push a MediaFrame to this output device.
-     * @param input     reference of MediaFrame
-     * @return return kMediaNoError on success
-     * @note push a NULL packet to notify codec of eos
-     * @note write in block way, always return kMediaNoError if no error happens.
-     */
-    virtual MediaError      write(const sp<MediaFrame>& input) = 0;
-    /**
-     * flush context of this output device
-     * @return return kMediaNoError on success, otherwise error code
-     */
-    virtual MediaError      flush() = 0;
+        protected:
+            sp<Message>     mValues;
+    };
+
+    class API_EXPORT Writter {
+        public:
+            FORCE_INLINE Writter() { }
+            FORCE_INLINE virtual ~Writter() { }
+            virtual MediaError synth(const Message& data) = 0;
+            //const Buffer&       values() const {  }
+
+        protected:
+            //Buffer              mBuffer;
+    };
 };
 
 __END_NAMESPACE_MPX
-#endif
 
-#endif
+#endif // _MPX_MEDIA_TAGS_H 

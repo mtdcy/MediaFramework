@@ -41,28 +41,154 @@
 __BEGIN_NAMESPACE_MPX
 __BEGIN_NAMESPACE(MPEG4)
 
+// mp4 read & write in big endian, so no FOURCC macro
+enum eBoxType {
+    kBoxTypeFTYP    = 'ftyp',
+    kBoxTypePDIN    = 'pdin',
+    kBoxTypeMOOV    = 'moov',
+    kBoxTypeMVHD    = 'mvhd',
+    kBoxTypeMETA    = 'meta',
+    kBoxTypeTRAK    = 'trak',
+    kBoxTypeTKHD    = 'tkhd',
+    kBoxTypeTREF    = 'tref',
+    kBoxTypeTRGR    = 'trgr',
+    kBoxTypeEDTS    = 'edts',
+    kBoxTypeELST    = 'elst',
+    kBoxTypeMDIA    = 'mdia',
+    kBoxTypeMDHD    = 'mdhd',
+    kBoxTypeHDLR    = 'hdlr',
+    kBoxTypeELNG    = 'elng',
+    kBoxTypeMINF    = 'minf',
+    kBoxTypeVMHD    = 'vmhd',
+    kBoxTypeSMHD    = 'smhd',
+    kBoxTypeHMHD    = 'hmhd',
+    kBoxTypeSTHD    = 'sthd',
+    kBoxTypeNMHD    = 'nmhd',
+    kBoxTypeDINF    = 'dinf',
+    kBoxTypeDREF    = 'dref',
+    kBoxTypeSTBL    = 'stbl',
+    kBoxTypeSTSD    = 'stsd',
+    kBoxTypeSTTS    = 'stts',
+    kBoxTypeCTTS    = 'ctts',
+    kBoxTypeCSLG    = 'cslg',
+    kBoxTypeSTSC    = 'stsc',
+    kBoxTypeSTSZ    = 'stsz',
+    kBoxTypeSTZ2    = 'stz2',
+    kBoxTypeSTCO    = 'stco',
+    kBoxTypeCO64    = 'co64',
+    kBoxTypeSTSS    = 'stss',
+    kBoxTypeSTSH    = 'stsh',
+    kBoxTypePADB    = 'padb',
+    kBoxTypeSTDP    = 'stdp',
+    kBoxTypeSDTP    = 'sdtp',
+    kBoxTypeSBGP    = 'sbgp',
+    kBoxTypeSGPD    = 'sgpd',
+    kBoxTypeSUBS    = 'subs',
+    kBoxTypeSAIZ    = 'saiz',
+    kBoxTypeSAIO    = 'saio',
+    kBoxTypeUDTA    = 'udta',
+    kBoxTypeMVEX    = 'mvex',
+    kBoxTypeMEHD    = 'mehd',
+    kBoxTypeTREX    = 'trex',
+    kBoxTypeLEVA    = 'leva',
+    kBoxTypeMOOF    = 'moof',
+    kBoxTypeMFHD    = 'mfhd',
+    kBoxTypeTRAF    = 'traf',
+    kBoxTypeTFHD    = 'tfhd',
+    kBoxTypeTRUN    = 'trun',
+    kBoxTypeTFDT    = 'tfdt',
+    kBoxTypeMFRA    = 'mfra',
+    kBoxTypeTFRA    = 'tfra',
+    kBoxTypeMFRO    = 'mfro',
+    kBoxTypeMDAT    = 'mdat',
+    kBoxTypeFREE    = 'free',
+    kBoxTypeSKIP    = 'skip',
+    kBoxTypeCPRT    = 'cprt',
+    kBoxTypeTSEL    = 'tsel',
+    kBoxTypeSTRK    = 'strk',
+    kBoxTypeSTRI    = 'stri',
+    kBoxTypeSTRD    = 'strd',
+    kBoxTypeILOC    = 'iloc',
+    kBoxTypeIPRO    = 'ipro',
+    kBoxTypeSINF    = 'sinf',
+    kBoxTypeFRMA    = 'frma',
+    kBoxTypeSCHM    = 'schm',
+    kBoxTypeSCHI    = 'schi',
+    kBoxTypeIINF    = 'iinf',
+    kBoxTypeXML     = 'xml ',
+    kBoxTypeBXML    = 'bxml',
+    kBoxTypePITM    = 'pitm',
+    kBoxTypeFILN    = 'filn',
+    kBoxTypePAEN    = 'paen',
+    kBoxTypeFIRE    = 'fire',
+    kBoxTypeFPAR    = 'fpar',
+    kBoxTypeFECR    = 'fecr',
+    kBoxTypeSEGR    = 'segr',
+    kBoxTypeGITN    = 'gitn',
+    kBoxTypeIDAT    = 'idat',
+    kBoxTypeIREF    = 'iref',
+    kBoxTypeMECO    = 'meco',
+    kBoxTypeMERE    = 'mere',
+    kBoxTypeSTYP    = 'styp',
+    kBoxTypeSIDX    = 'sidx',
+    kBoxTypeSSIX    = 'ssix',
+    kBoxTypePRFT    = 'prft',
+    kBoxTypeNMHB    = 'nmhb',
+    
+    // ...
+    kBoxTypeURL     = 'url ',
+    kBoxTypeURN     = 'urn ',
+    kBoxTypeCTRY    = 'ctry',
+    kBoxTypeLANG    = 'lang',
+    
+    // ...
+    kBoxTypeHINT    = 'hint',
+    kBoxTypeCDSC    = 'cdsc',
+    kBoxTypeDPND    = 'dpnd',
+    kBoxTypeIPIR    = 'ipir',
+    kBoxTypeMPOD    = 'mpod',
+    kBoxTypeSYNC    = 'sync',
+    kBoxTypeCHAP    = 'chap',
+    
+    // ...
+    kBoxTypeIODS    = 'iods',
+    kBoxTypeID32    = 'ID32',
+    
+    //
+    kBoxTerminator  = '    ',   // with box size == 0
+};
+
+enum {
+    kBrandTypeISOM      = 'isom',
+    kBrandTypeMP41      = 'mp41',
+    kBrandTypeMP42      = 'mp42',
+    kBrandTypeQuickTime = 'qt  ',
+};
+
+const char * BoxName(uint32_t);
+
 // ISO/IEC 14496-12 ISO base media file format
 // http://www.ftyps.com
 // ftyp *
 struct FileTypeBox {
-    String          major_brand;
-    uint32_t        minor_version;
-    String          compatibles;
+    uint32_t            major_brand;
+    uint32_t            minor_version;
+    Vector<uint32_t>    compatibles;
     
     // default value.
-    FORCE_INLINE FileTypeBox() : major_brand("mp41"), minor_version(0), compatibles("mp41") { }
+    FORCE_INLINE FileTypeBox() : major_brand(kBrandTypeMP41), minor_version(0) { }
     FileTypeBox(const BitReader& br, size_t size);
 };
 
 // ISO/IEC 14496-12: Section 4.2 Object Structure, Page 11
 struct Box : public SharedObject {
-    const String    name;
+    uint32_t        type;
     bool            full;
     bool            container;
     uint8_t         version;
     uint32_t        flags;
     
-    FORCE_INLINE Box(const String& _name, bool _full = false, bool _container = false) : name(_name), full(_full), container(_container) { }
+    FORCE_INLINE Box(uint32_t _type, bool _full = false, bool _container = false) : type(_type), full(_full), container(_container) { }
     FORCE_INLINE virtual ~Box() { }
     virtual MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     virtual void compose(BitWriter&, const FileTypeBox&);
@@ -70,7 +196,7 @@ struct Box : public SharedObject {
 };
 
 struct FullBox : public Box {
-    FORCE_INLINE FullBox(const String& _name, bool container = false) : Box(_name, true, container) { }
+    FORCE_INLINE FullBox(uint32_t type, bool container = false) : Box(type, true, container) { }
     FORCE_INLINE virtual ~FullBox() { }
     size_t size() const { return Box::size(); }
 };
@@ -79,7 +205,7 @@ struct ContainerBox : public Box {
     bool                counted;
     Vector<sp<Box> >    child;
     
-    FORCE_INLINE ContainerBox(const String& _name, bool _full = false, bool _counted = false) : Box(_name, _full, true), counted(_counted) { }
+    FORCE_INLINE ContainerBox(uint32_t type, bool _full = false, bool _counted = false) : Box(type, _full, true), counted(_counted) { }
     FORCE_INLINE virtual ~ContainerBox() { }
     virtual MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     virtual MediaError _parse(const BitReader&, size_t, const FileTypeBox&);
@@ -87,12 +213,12 @@ struct ContainerBox : public Box {
 };
 
 struct FullContainerBox : public ContainerBox {
-    FORCE_INLINE FullContainerBox(const String& _name) : ContainerBox(_name, true, false) { }
+    FORCE_INLINE FullContainerBox(uint32_t type) : ContainerBox(type, true, false) { }
     FORCE_INLINE virtual ~FullContainerBox() { }
 };
 
 struct CountedFullContainerBox : public ContainerBox {
-    FORCE_INLINE CountedFullContainerBox(const String& _name) : ContainerBox(_name, true, true) { }
+    FORCE_INLINE CountedFullContainerBox(uint32_t type) : ContainerBox(type, true, true) { }
     FORCE_INLINE virtual ~CountedFullContainerBox() { }
 };
 
@@ -154,25 +280,25 @@ struct CountedFullContainerBox : public ContainerBox {
 //  |- meta!
 #define BOX_TYPE(NAME, BOX, BASE)  struct BOX : public BASE { FORCE_INLINE BOX() : BASE(NAME) { } };
 
-BOX_TYPE("moov", MovieBox,              ContainerBox);
-BOX_TYPE("trak", TrackBox,              ContainerBox);
-BOX_TYPE("mdia", MediaBox,              ContainerBox);
-BOX_TYPE("minf", MediaInformationBox,   ContainerBox);
-BOX_TYPE("dinf", DataInformationBox,    ContainerBox);
-BOX_TYPE("stbl", SampleTableBox,        ContainerBox);
+BOX_TYPE(kBoxTypeMOOV,  MovieBox,               ContainerBox);
+BOX_TYPE(kBoxTypeTRAK,  TrackBox,               ContainerBox);
+BOX_TYPE(kBoxTypeMDIA,  MediaBox,               ContainerBox);
+BOX_TYPE(kBoxTypeMINF,  MediaInformationBox,    ContainerBox);
+BOX_TYPE(kBoxTypeDINF,  DataInformationBox,     ContainerBox);
+BOX_TYPE(kBoxTypeSTBL,  SampleTableBox,         ContainerBox);
 
-BOX_TYPE("edts", EditBox,               ContainerBox);
-BOX_TYPE("udta", UserDataBox,           ContainerBox);
-BOX_TYPE("mvex", MovieExtendsBox,       ContainerBox);
-BOX_TYPE("moof", MovieFragmentBox,      ContainerBox);
-BOX_TYPE("traf", TrackFragmentBox,      ContainerBox);
-BOX_TYPE("dref", DataReferenceBox,      CountedFullContainerBox);
-BOX_TYPE("stsd", SampleDescriptionBox,  CountedFullContainerBox);
+BOX_TYPE(kBoxTypeEDTS,  EditBox,                ContainerBox);
+BOX_TYPE(kBoxTypeUDTA,  UserDataBox,            ContainerBox);
+BOX_TYPE(kBoxTypeMVEX,  MovieExtendsBox,        ContainerBox);
+BOX_TYPE(kBoxTypeMOOF,  MovieFragmentBox,       ContainerBox);
+BOX_TYPE(kBoxTypeTRAF,  TrackFragmentBox,       ContainerBox);
+BOX_TYPE(kBoxTypeDREF,  DataReferenceBox,       CountedFullContainerBox);
+BOX_TYPE(kBoxTypeSTSD,  SampleDescriptionBox,   CountedFullContainerBox);
 
 // 'meta'
 // isom and quicktime using different semantics for MetaBox
 struct MetaBox : public ContainerBox {
-    FORCE_INLINE MetaBox() : ContainerBox("meta") { }
+    FORCE_INLINE MetaBox() : ContainerBox(kBoxTypeMETA) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
@@ -186,7 +312,7 @@ struct MovieHeaderBox : public FullBox {
     uint16_t    volume;
     uint32_t    next_track_ID;
     
-    FORCE_INLINE MovieHeaderBox() : FullBox("mvhd") { }
+    FORCE_INLINE MovieHeaderBox() : FullBox(kBoxTypeMVHD) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
@@ -213,29 +339,30 @@ struct TrackHeaderBox : public FullBox {
     uint32_t    width;
     uint32_t    height;
     
-    FORCE_INLINE TrackHeaderBox() : FullBox("tkhd") { }
+    FORCE_INLINE TrackHeaderBox() : FullBox(kBoxTypeTKHD) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 
 };
 
-BOX_TYPE("tref", TrackReferenceBox,     ContainerBox);
+BOX_TYPE(kBoxTypeTREF, TrackReferenceBox,     ContainerBox);
 struct TrackReferenceTypeBox : public Box {
     Vector<uint32_t>    track_IDs;
 
-    FORCE_INLINE TrackReferenceTypeBox(const String& _name) : Box(_name) { }
+    FORCE_INLINE TrackReferenceTypeBox(uint32_t type) : Box(type) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
+
 // ISO/IEC 14496-12: Section 8.6 Track Reference Box, Page 26
-BOX_TYPE("hint", TrackReferenceHintBox, TrackReferenceTypeBox);
-BOX_TYPE("cdsc", TrackReferenceCdscBox, TrackReferenceTypeBox);
+BOX_TYPE(kBoxTypeHINT, TrackReferenceHintBox, TrackReferenceTypeBox);
+BOX_TYPE(kBoxTypeCDSC, TrackReferenceCdscBox, TrackReferenceTypeBox);
 // ISO/IEC 14496-14: Section 5.2 Track Reference Type, Page 13
-BOX_TYPE("dpnd", TrackReferenceDpndBox, TrackReferenceTypeBox);
-BOX_TYPE("ipir", TrackReferenceIpirBox, TrackReferenceTypeBox);
-BOX_TYPE("mpod", TrackReferenceMpodBox, TrackReferenceTypeBox);
-BOX_TYPE("sync", TrackReferenceSyncBox, TrackReferenceTypeBox);
-BOX_TYPE("chap", TrackReferenceChapBox, TrackReferenceTypeBox);
+BOX_TYPE(kBoxTypeDPND, TrackReferenceDpndBox, TrackReferenceTypeBox);
+BOX_TYPE(kBoxTypeIPIR, TrackReferenceIpirBox, TrackReferenceTypeBox);
+BOX_TYPE(kBoxTypeMPOD, TrackReferenceMpodBox, TrackReferenceTypeBox);
+BOX_TYPE(kBoxTypeSYNC, TrackReferenceSyncBox, TrackReferenceTypeBox);
+BOX_TYPE(kBoxTypeCHAP, TrackReferenceChapBox, TrackReferenceTypeBox);
 
 struct MediaHeaderBox : public FullBox {
     uint64_t            creation_time;
@@ -244,16 +371,16 @@ struct MediaHeaderBox : public FullBox {
     uint64_t            duration;
     String              language;
     
-    FORCE_INLINE MediaHeaderBox() : FullBox("mdhd") { }
+    FORCE_INLINE MediaHeaderBox() : FullBox(kBoxTypeMDHD) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
 
 struct HandlerBox : public FullBox {
-    String              handler_type;
+    uint32_t            handler_type;
     String              handler_name;
     
-    FORCE_INLINE HandlerBox() : FullBox("hdlr") { }
+    FORCE_INLINE HandlerBox() : FullBox(kBoxTypeHDLR) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
@@ -262,7 +389,7 @@ struct VideoMediaHeaderBox : public FullBox {
     uint16_t            graphicsmode;
     Vector<uint16_t>    opcolor;
     
-    FORCE_INLINE VideoMediaHeaderBox() : FullBox("vmhd") { }
+    FORCE_INLINE VideoMediaHeaderBox() : FullBox(kBoxTypeVMHD) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
@@ -270,7 +397,7 @@ struct VideoMediaHeaderBox : public FullBox {
 struct SoundMediaHeaderBox : public FullBox {
     uint16_t            balance;
 
-    FORCE_INLINE SoundMediaHeaderBox() : FullBox("smhd") { }
+    FORCE_INLINE SoundMediaHeaderBox() : FullBox(kBoxTypeSMHD) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
@@ -281,26 +408,26 @@ struct HintMediaHeaderBox : public FullBox {
     uint32_t            maxbitrate;
     uint32_t            avgbitrate;
     
-    FORCE_INLINE HintMediaHeaderBox() : FullBox("hmhd") { }
+    FORCE_INLINE HintMediaHeaderBox() : FullBox(kBoxTypeHMHD) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
 
-BOX_TYPE("nmhb", NullMediaHeaderBox, FullBox);
+BOX_TYPE(kBoxTypeNMHB, NullMediaHeaderBox, FullBox);
 
 struct DataEntryUrlBox : public FullBox {
     String              location;
 
-    FORCE_INLINE DataEntryUrlBox() : FullBox("url ") { }
+    FORCE_INLINE DataEntryUrlBox() : FullBox(kBoxTypeURL) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
 
 struct DataEntryUrnBox : public FullBox {
-    String              urn_name;
+    String              urntype;
     String              location;
     
-    FORCE_INLINE DataEntryUrnBox() : FullBox("urn ") { }
+    FORCE_INLINE DataEntryUrnBox() : FullBox(kBoxTypeURN) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
@@ -312,7 +439,7 @@ struct TimeToSampleBox : public FullBox {
     };
     Vector<Entry>       entries;
     
-    FORCE_INLINE TimeToSampleBox() : FullBox("stts") { }
+    FORCE_INLINE TimeToSampleBox() : FullBox(kBoxTypeSTTS) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
@@ -324,7 +451,7 @@ struct CompositionOffsetBox : public FullBox {
     };
     Vector<Entry>       entries;
     
-    FORCE_INLINE CompositionOffsetBox() : FullBox("ctts") { }
+    FORCE_INLINE CompositionOffsetBox() : FullBox(kBoxTypeCTTS) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
@@ -336,7 +463,7 @@ struct CompositionToDecodeBox : public FullBox {
     int64_t             compositionStartTime;
     int64_t             compositionEndTime;
     
-    FORCE_INLINE CompositionToDecodeBox() : FullBox("cslg") { }
+    FORCE_INLINE CompositionToDecodeBox() : FullBox(kBoxTypeCSLG) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
@@ -344,13 +471,20 @@ struct CompositionToDecodeBox : public FullBox {
 struct SampleDependencyTypeBox : public FullBox {
     Vector<uint8_t>     dependency;
 
-    FORCE_INLINE SampleDependencyTypeBox() : FullBox("sdtp") { }
+    FORCE_INLINE SampleDependencyTypeBox() : FullBox(kBoxTypeSDTP) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
 
+enum {
+    kMediaTypeVideo     = 'vide',
+    kMediaTypeSound     = 'soun',
+    kMediaTypeHint      = 'hint',
+};
+
 struct SampleEntry : public ContainerBox {
-    String              type;
+    // TODO: parse different sample entry in sub class
+    uint32_t            media_type;
     uint16_t            data_reference_index;
     union {
         struct {
@@ -378,7 +512,7 @@ struct SampleEntry : public ContainerBox {
     // non-trivial
     String              compressorname;     // visual only
     
-    FORCE_INLINE SampleEntry(const String& _name, const String& _type) : ContainerBox(_name), type(_type) { }
+    FORCE_INLINE SampleEntry(uint32_t type, uint32_t st) : ContainerBox(type), media_type(st) { }
     FORCE_INLINE virtual ~SampleEntry() { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     MediaError _parse(const BitReader&, size_t, const FileTypeBox&);
@@ -386,16 +520,39 @@ struct SampleEntry : public ContainerBox {
 };
 
 struct VisualSampleEntry : public SampleEntry {
-    FORCE_INLINE VisualSampleEntry(const String& _name) : SampleEntry(_name, "vide") { }
+    FORCE_INLINE VisualSampleEntry(uint32_t type) : SampleEntry(type, kMediaTypeVideo) { }
 };
 struct AudioSampleEntry : public SampleEntry {
-    FORCE_INLINE AudioSampleEntry(const String& _name) : SampleEntry(_name, "soun") { }
+    FORCE_INLINE AudioSampleEntry(uint32_t type) : SampleEntry(type, kMediaTypeSound) { }
 };
 struct HintSampleEntry : public SampleEntry {
-    FORCE_INLINE HintSampleEntry(const String& _name) : SampleEntry(_name, "hint") { }
+    FORCE_INLINE HintSampleEntry(uint32_t type) : SampleEntry(type, kMediaTypeHint) { }
 };
+
+enum {
+    kBoxTypeMP4S    = 'mp4s',
+    kBoxTypeALAC    = 'alac',
+    kBoxTypeESDS    = 'esds',
+    kBoxTypeMP4V    = 'mp4v',
+    kBoxTypeAVC1    = 'avc1',
+    kBoxTypeAVC2    = 'avc2',
+    kBoxTypeHVC1    = 'hvc1',
+    kBoxTypeHEV1    = 'hev1',
+    kBoxTypeRAW     = 'raw ',
+    kBoxTypeTWOS    = 'twos',
+    kBoxTypeMP4A    = 'mp4a',
+    kBoxTypeAVCC    = 'avcC',
+    kBoxTypeHVCC    = 'hvcC',
+    kBoxTypeM4DS    = 'm4ds',
+    kBoxTypeS263    = 's263',
+    kBoxTypeSAMR    = 'samr',
+    kBoxTypeD263    = 'd263',
+    kBoxTypeDAMR    = 'damr',
+    kBoxTypeWAVE    = 'wave',
+};
+
 struct MpegSampleEntry : public SampleEntry {
-    FORCE_INLINE MpegSampleEntry() : SampleEntry("mp4s", "*") { }
+    FORCE_INLINE MpegSampleEntry() : SampleEntry(kBoxTypeMP4S, '****') { }
 };
 
 struct SampleGroupEntry : public SharedObject {
@@ -404,6 +561,49 @@ struct SampleGroupEntry : public SharedObject {
     FORCE_INLINE virtual ~SampleGroupEntry() { }
     virtual MediaError parse(const BitReader&, size_t, const FileTypeBox&) = 0;
 };
+
+struct CommonBox : public Box {
+    sp<Buffer>  data;
+
+    FORCE_INLINE CommonBox(uint32_t type, bool full = false) : Box(type, full) { }
+    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
+    void compose(BitWriter&, const FileTypeBox&);
+};
+
+struct FullCommonBox : public CommonBox {
+    FORCE_INLINE FullCommonBox(uint32_t type) : CommonBox(type, true) { }
+};
+
+#if 0
+// do we really need detail of esds here?
+// extractor
+struct ESDBox : public FullBox {
+    sp<ESDescriptor> ES;
+    
+    FORCE_INLINE ESDBox() : FullBox(kBoxTypeESDS) { }
+    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
+    void compose(BitWriter&, const FileTypeBox&);
+};
+#else
+BOX_TYPE(kBoxTypeESDS, ESDBox,                  FullCommonBox);
+#endif
+
+BOX_TYPE(kBoxTypeMP4V, MP4VisualSampleEntry,          VisualSampleEntry);
+BOX_TYPE(kBoxTypeAVC1, AVC1SampleEntry,               VisualSampleEntry);
+BOX_TYPE(kBoxTypeAVC2, AVC2SampleEntry,               VisualSampleEntry);
+BOX_TYPE(kBoxTypeHVC1, HVC1SampleEntry,               VisualSampleEntry);
+BOX_TYPE(kBoxTypeHEV1, HEV1SampleEntry,               VisualSampleEntry);
+BOX_TYPE(kBoxTypeRAW,  RawAudioSampleEntry,           AudioSampleEntry);
+BOX_TYPE(kBoxTypeTWOS, TwosAudioSampleEntry,          AudioSampleEntry);
+BOX_TYPE(kBoxTypeMP4A, MP4AudioSampleEntry,           AudioSampleEntry);
+BOX_TYPE(kBoxTypeAVCC, AVCConfigurationBox,           CommonBox);
+BOX_TYPE(kBoxTypeHVCC, HVCConfigurationBox,           CommonBox);
+BOX_TYPE(kBoxTypeM4DS, MPEG4ExtensionDescriptorsBox,  CommonBox);
+// 3gpp TS 26.244
+BOX_TYPE(kBoxTypeS263, H263SampleEntry,               VisualSampleEntry);
+BOX_TYPE(kBoxTypeSAMR, AMRSampleEntry,                AudioSampleEntry);
+BOX_TYPE(kBoxTypeD263, H263SpecificBox,               CommonBox);
+BOX_TYPE(kBoxTypeDAMR, AMRSpecificBox,                CommonBox);
 
 // 'roll' - VisualRollRecoveryEntry
 // 'roll' - AudioRollRecoveryEntry
@@ -420,7 +620,7 @@ struct SampleGroupDescriptionBox : public FullBox {
     uint32_t    default_sample_description_index; // version 2
     Vector<sp<SampleGroupEntry> > entries;
     
-    FORCE_INLINE SampleGroupDescriptionBox() : FullBox("sgpd") { }
+    FORCE_INLINE SampleGroupDescriptionBox() : FullBox(kBoxTypeSGPD) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
@@ -431,56 +631,13 @@ struct SampleGroupDescriptionBox : public FullBox {
 struct ALACAudioSampleEntry : public AudioSampleEntry {
     sp<Buffer> extra;
 
-    FORCE_INLINE ALACAudioSampleEntry() : AudioSampleEntry("alac") { }
+    FORCE_INLINE ALACAudioSampleEntry() : AudioSampleEntry(kBoxTypeALAC) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
 #else
-BOX_TYPE("alac", ALACAudioSampleEntry,          AudioSampleEntry);
+BOX_TYPE(kBoxTypeALAC, ALACAudioSampleEntry,          AudioSampleEntry);
 #endif
-
-struct CommonBox : public Box {
-    sp<Buffer>  data;
-
-    FORCE_INLINE CommonBox(const String& _name, bool full = false) : Box(_name, full) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
-};
-
-struct FullCommonBox : public CommonBox {
-    FORCE_INLINE FullCommonBox(const String& _name) : CommonBox(_name, true) { }
-};
-
-#if 0
-// do we really need detail of esds here?
-// extractor 
-struct ESDBox : public FullBox {
-    sp<ESDescriptor> ES;
-    
-    FORCE_INLINE ESDBox() : FullBox("esds") { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
-};
-#else
-BOX_TYPE("esds", ESDBox,                        FullCommonBox);
-#endif
-
-BOX_TYPE("mp4v", MP4VisualSampleEntry,          VisualSampleEntry);
-BOX_TYPE("avc1", AVC1SampleEntry,               VisualSampleEntry);
-BOX_TYPE("avc2", AVC2SampleEntry,               VisualSampleEntry);
-BOX_TYPE("hvc1", HVC1SampleEntry,               VisualSampleEntry);
-BOX_TYPE("hev1", HEV1SampleEntry,               VisualSampleEntry);
-BOX_TYPE("raw ", RawAudioSampleEntry,           AudioSampleEntry);
-BOX_TYPE("twos", TwosAudioSampleEntry,          AudioSampleEntry);
-BOX_TYPE("mp4a", MP4AudioSampleEntry,           AudioSampleEntry);
-BOX_TYPE("avcC", AVCConfigurationBox,           CommonBox);
-BOX_TYPE("hvcC", HVCConfigurationBox,           CommonBox);
-BOX_TYPE("m4ds", MPEG4ExtensionDescriptorsBox,  CommonBox);
-// 3gpp TS 26.244
-BOX_TYPE("s263", H263SampleEntry,               VisualSampleEntry);
-BOX_TYPE("samr", AMRSampleEntry,                AudioSampleEntry);
-BOX_TYPE("d263", H263SpecificBox,               CommonBox);
-BOX_TYPE("damr", AMRSpecificBox,                CommonBox);
 
 // In QuickTime
 // mp4a
@@ -495,27 +652,40 @@ BOX_TYPE("damr", AMRSpecificBox,                CommonBox);
 // a 'frma' atom, an 'mp4a' atom, an 'esds' atom, and a Terminator Atom
 // *BUT* the 'mp4a' atom inside 'wave' seems have different semantics
 struct siDecompressionParam : public ContainerBox {
-    FORCE_INLINE siDecompressionParam() : ContainerBox("wave") { }
+    FORCE_INLINE siDecompressionParam() : ContainerBox(kBoxTypeWAVE) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
+};
+
+enum {
+    kBoxTypeSRAT    = 'srat',
+    kBoxTypeCOLR    = 'colr',
+    kBoxTypeBTRT    = 'btrt',
 };
 
 struct SamplingRateBox : public FullBox {
     uint32_t    sampling_rate;
 
-    FORCE_INLINE SamplingRateBox() : FullBox("srat") { }
+    FORCE_INLINE SamplingRateBox() : FullBox(kBoxTypeSRAT) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
 
+enum {
+    kColourTypeNCLX     = 'nclx',   // on-screen colours
+    kColourTypeRICC     = 'rICC',   // restricted ICC profile
+    kColourTypePROF     = 'prof',   // unrestricted ICC profile
+    kColourTypeNCLC     = 'nclc',   // mov color type for video
+};
+
 struct ColourInformationBox : public Box {
-    String      colour_type;
+    uint32_t    colour_type;
     uint16_t    colour_primaries;
     uint16_t    transfer_characteristics;
     uint16_t    matrix_coefficients;
     bool        full_range_flag;
     
-    FORCE_INLINE ColourInformationBox() : Box("colr") { }
+    FORCE_INLINE ColourInformationBox() : Box(kBoxTypeCOLR) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
@@ -525,7 +695,7 @@ struct BitRateBox : public Box {
     uint32_t        maxBitrate;
     uint32_t        avgBitrate;
     
-    FORCE_INLINE BitRateBox() : Box("btrt") { }
+    FORCE_INLINE BitRateBox() : Box(kBoxTypeBTRT) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
@@ -535,12 +705,12 @@ struct SampleSizeBox : public FullBox {
     uint32_t            sample_size;
     Vector<uint64_t>    entries;
     
-    FORCE_INLINE SampleSizeBox(const String& _name) : FullBox(_name) { }
+    FORCE_INLINE SampleSizeBox(uint32_t type) : FullBox(type) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
-BOX_TYPE("stsz", PreferredSampleSizeBox, SampleSizeBox);
-BOX_TYPE("stz2", CompactSampleSizeBox, SampleSizeBox);
+BOX_TYPE(kBoxTypeSTSZ, PreferredSampleSizeBox, SampleSizeBox);
+BOX_TYPE(kBoxTypeSTZ2, CompactSampleSizeBox, SampleSizeBox);
 
 struct SampleToChunkBox : public FullBox {
     struct Entry {
@@ -550,7 +720,7 @@ struct SampleToChunkBox : public FullBox {
     };
     Vector<Entry>       entries;
     
-    FORCE_INLINE SampleToChunkBox() : FullBox("stsc") { }
+    FORCE_INLINE SampleToChunkBox() : FullBox(kBoxTypeSTSC) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
@@ -558,17 +728,17 @@ struct SampleToChunkBox : public FullBox {
 struct ChunkOffsetBox : public FullBox {
     Vector<uint64_t>    entries;
 
-    FORCE_INLINE ChunkOffsetBox(const String& _name) : FullBox(_name) { }
+    FORCE_INLINE ChunkOffsetBox(uint32_t type) : FullBox(type) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
-BOX_TYPE("stco", PreferredChunkOffsetBox, ChunkOffsetBox);
-BOX_TYPE("co64", LargeChunkOffsetBox, ChunkOffsetBox);
+BOX_TYPE(kBoxTypeSTCO, PreferredChunkOffsetBox, ChunkOffsetBox);
+BOX_TYPE(kBoxTypeCO64, LargeChunkOffsetBox, ChunkOffsetBox);
 
 struct SyncSampleBox : public FullBox {
     Vector<uint32_t>    entries;
 
-    FORCE_INLINE SyncSampleBox() : FullBox("stss") { }
+    FORCE_INLINE SyncSampleBox() : FullBox(kBoxTypeSTSS) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
@@ -580,7 +750,7 @@ struct ShadowSyncSampleBox : public FullBox {
     };
     Vector<Entry>       entries;
     
-    FORCE_INLINE ShadowSyncSampleBox() : FullBox("stsh") { }
+    FORCE_INLINE ShadowSyncSampleBox() : FullBox(kBoxTypeSTSH) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
@@ -588,7 +758,7 @@ struct ShadowSyncSampleBox : public FullBox {
 struct DegradationPriorityBox : public FullBox {
     Vector<uint16_t>    entries;
 
-    FORCE_INLINE DegradationPriorityBox() : FullBox("stdp") { }
+    FORCE_INLINE DegradationPriorityBox() : FullBox(kBoxTypeSTDP) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
@@ -600,18 +770,18 @@ struct PaddingBitsBox : public FullBox {
     };
     Vector<Entry>   entries;
     
-    FORCE_INLINE PaddingBitsBox() : FullBox("padb") { }
+    FORCE_INLINE PaddingBitsBox() : FullBox(kBoxTypePADB) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
 
 struct FreeSpaceBox : public Box {
-    FORCE_INLINE FreeSpaceBox(const String& _name) : Box(_name) { }
+    FORCE_INLINE FreeSpaceBox(uint32_t type) : Box(type) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
-BOX_TYPE("free", FreeBox, FreeSpaceBox);
-BOX_TYPE("skip", SkipBox, FreeSpaceBox);
+BOX_TYPE(kBoxTypeFREE, FreeBox, FreeSpaceBox);
+BOX_TYPE(kBoxTypeSKIP, SkipBox, FreeSpaceBox);
 
 struct EditListBox : public FullBox {
     struct Entry {
@@ -622,7 +792,7 @@ struct EditListBox : public FullBox {
     };
     Vector<Entry>       entries;
     
-    FORCE_INLINE EditListBox() : FullBox("elst") { }
+    FORCE_INLINE EditListBox() : FullBox(kBoxTypeELST) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
@@ -631,24 +801,36 @@ struct NoticeBox : public FullBox {
     String              language;
     String              value;
     
-    FORCE_INLINE NoticeBox(const String& _name) : FullBox(_name) { }
+    FORCE_INLINE NoticeBox(uint32_t type) : FullBox(type) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
-BOX_TYPE("cprt", CopyrightBox, NoticeBox);
-BOX_TYPE("titl", TitleBox, NoticeBox);
-BOX_TYPE("dscp", DescriptionBox, NoticeBox);
-BOX_TYPE("perf", PerformerBox, NoticeBox);
-BOX_TYPE("gnre", GenreBox, NoticeBox);
-BOX_TYPE("albm", AlbumBox, NoticeBox);
-BOX_TYPE("yrrc", YearBox, NoticeBox);
-BOX_TYPE("loci", LocationBox, NoticeBox);
-BOX_TYPE("auth", AuthorBox, NoticeBox);
+
+enum {
+    //kBoxTypeCPRT    = 'cprt',
+    kBoxTypeTITL    = 'titl',
+    kBoxTypeDSCP    = 'dscp',
+    kBoxTypePERF    = 'perf',
+    kBoxTypeGNRE    = 'gnre',
+    kBoxTypeALBM    = 'albm',
+    kBoxTypeYRRC    = 'yrrc',
+    kBoxTypeLOCI    = 'loci',
+    kBoxTypeAUTH    = 'auth',
+};
+BOX_TYPE(kBoxTypeCPRT, CopyrightBox, NoticeBox);
+BOX_TYPE(kBoxTypeTITL, TitleBox, NoticeBox);
+BOX_TYPE(kBoxTypeDSCP, DescriptionBox, NoticeBox);
+BOX_TYPE(kBoxTypePERF, PerformerBox, NoticeBox);
+BOX_TYPE(kBoxTypeGNRE, GenreBox, NoticeBox);
+BOX_TYPE(kBoxTypeALBM, AlbumBox, NoticeBox);
+BOX_TYPE(kBoxTypeYRRC, YearBox, NoticeBox);
+BOX_TYPE(kBoxTypeLOCI, LocationBox, NoticeBox);
+BOX_TYPE(kBoxTypeAUTH, AuthorBox, NoticeBox);
 
 struct MovieExtendsHeaderBox : public FullBox {
     uint64_t    fragment_duration;
 
-    FORCE_INLINE MovieExtendsHeaderBox() : FullBox("mehd") { }
+    FORCE_INLINE MovieExtendsHeaderBox() : FullBox(kBoxTypeMEHD) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
@@ -660,7 +842,7 @@ struct TrackExtendsBox : public FullBox {
     uint32_t    default_sample_size;
     uint32_t    default_sample_flags;
     
-    FORCE_INLINE TrackExtendsBox() : FullBox("trex") { }
+    FORCE_INLINE TrackExtendsBox() : FullBox(kBoxTypeTREX) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
@@ -668,7 +850,7 @@ struct TrackExtendsBox : public FullBox {
 struct MovieFragmentHeaderBox : public FullBox {
     uint32_t    sequence_number;
 
-    FORCE_INLINE MovieFragmentHeaderBox() : FullBox("mfhd") { }
+    FORCE_INLINE MovieFragmentHeaderBox() : FullBox(kBoxTypeMFHD) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
@@ -681,7 +863,7 @@ struct TrackFragmentHeaderBox : public FullBox {
     uint32_t    default_sample_size;
     uint32_t    default_sample_flags;
     
-    FORCE_INLINE TrackFragmentHeaderBox() : FullBox("tfhd") { }
+    FORCE_INLINE TrackFragmentHeaderBox() : FullBox(kBoxTypeTFHD) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
@@ -689,7 +871,7 @@ struct TrackFragmentHeaderBox : public FullBox {
 struct PrimaryItemBox : public FullBox {
     uint16_t        item_ID;
 
-    FORCE_INLINE PrimaryItemBox() : FullBox("pitm") { }
+    FORCE_INLINE PrimaryItemBox() : FullBox(kBoxTypePITM) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
@@ -710,11 +892,42 @@ struct PrimaryItemBox : public FullBox {
 //  |- ctry
 //  |- lang
 
+enum {
+    // iTunes
+    kiTunesBoxTypeMHDR  = 'mhdr',
+    kiTunesBoxTypeKEYS  = 'keys',
+    kiTunesBoxTypeMDTA  = 'mdta',
+    kiTunesBoxTypeILST  = 'ilst',
+    kiTunesBoxTypeDATA  = 'data',
+    kiTunesBoxTypeCTRY  = 'ctry',
+    kiTunesBoxTypeLANG  = 'lang',
+    
+    // 0xa9(©) - 0x20(' ') = 0x89
+    kiTunesBoxTypeTitle         = ' nam' + 0x89000000,
+    kiTunesBoxTypeEncoder       = ' too' + 0x89000000,
+    kiTunesBoxTypeAlbum         = ' alb' + 0x89000000,
+    kiTunesBoxTypeArtist        = ' ART' + 0x89000000,
+    kiTunesBoxTypeComment       = ' cmt' + 0x89000000,
+    kiTunesBoxTypeGenre         = ' gen' + 0x89000000,
+    kiTunesBoxTypeComposer      = ' wrt' + 0x89000000,
+    kiTunesBoxTypeYear          = ' day' + 0x89000000,
+    kiTunesBoxTypeTrackNum      = 'trkn',
+    kiTunesBoxTypeDiskNum       = 'disk',
+    kiTunesBoxTypeCompilation   = 'cpil',
+    kiTunesBoxTypeBPM           = 'tmpo',
+    kiTunesBoxTypeGaplessPlayback   = 'pgap',
+    kiTunesBoxTypeInfomation    = 'itif',
+    kiTunesBoxTypeName          = 'name',
+    kiTunesBoxTypeMean          = 'mean',
+    kiTunesBoxTypeKeyDec        = 'kevd',
+    kiTunesBoxTypeCustom        = '----',
+};
+
 // mhdr
 struct iTunesHeaderBox : public FullBox {
     uint32_t        nextItemID;
 
-    FORCE_INLINE iTunesHeaderBox() : FullBox("mhdr") { }
+    FORCE_INLINE iTunesHeaderBox() : FullBox(kiTunesBoxTypeMHDR) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
@@ -723,37 +936,37 @@ struct iTunesHeaderBox : public FullBox {
 #if 0
 struct iTunesKeysBox : public FullBox {
     struct Entry {
-        String      Key_namespace;
+        String      Keytypespace;
         sp<Buffer>  Key_value;
     };
     Vector<Entry>   table;
     
-    FORCE_INLINE iTunesKeysBox() : FullBox("keys") { }
+    FORCE_INLINE iTunesKeysBox() : FullBox(kiTunesBoxTypeKEYS) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
 #else
-BOX_TYPE("keys", iTunesItemKeysBox, CountedFullContainerBox);
+BOX_TYPE(kiTunesBoxTypeKEYS, iTunesItemKeysBox, CountedFullContainerBox);
 #endif
 
 // mdta
 struct iTunesStringBox : public Box {
     String      value;
 
-    FORCE_INLINE iTunesStringBox(const String& _name) : Box(_name) { }
+    FORCE_INLINE iTunesStringBox(uint32_t type) : Box(type) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
-BOX_TYPE("mdta", iTunesMediaDataBox, iTunesStringBox);
+BOX_TYPE(kiTunesBoxTypeMDTA, iTunesMediaDataBox, iTunesStringBox);
 
 // ilst
 #if 0
-BOX_TYPE("ilst", iTunesItemListBox, ContainerBox);
+BOX_TYPE(kiTunesBoxTypeILST, iTunesItemListBox, ContainerBox);
 #else
 struct iTunesItemListBox : public ContainerBox {
     Vector<uint32_t>        key_index;
 
-    FORCE_INLINE iTunesItemListBox() : ContainerBox("ilst") { }
+    FORCE_INLINE iTunesItemListBox() : ContainerBox(kiTunesBoxTypeILST) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
@@ -766,7 +979,7 @@ struct iTunesDataBox : public Box {
     uint16_t        Language_indicator;     // index or ISO 639-2/T
     sp<Buffer>      Value;
     
-    FORCE_INLINE iTunesDataBox() : Box("data") { }
+    FORCE_INLINE iTunesDataBox() : Box(kiTunesBoxTypeDATA) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
@@ -778,7 +991,7 @@ struct CountryListBox : public FullBox {
     };
     Vector<Entry>   entries;
     
-    FORCE_INLINE CountryListBox() : FullBox("ctry") { }
+    FORCE_INLINE CountryListBox() : FullBox(kiTunesBoxTypeCTRY) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
@@ -790,29 +1003,29 @@ struct LanguageListBox : public FullBox {
     };
     Vector<Entry>           entries;
     
-    FORCE_INLINE LanguageListBox() : FullBox("lang") { }
+    FORCE_INLINE LanguageListBox() : FullBox(kiTunesBoxTypeLANG) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
 
-BOX_TYPE("\xa9nam", iTunesTitleItemBox, ContainerBox);
-BOX_TYPE("\xa9too", iTunesEncoderItemBox, ContainerBox);
-BOX_TYPE("\xa9""alb", iTunesAlbumItemBox, ContainerBox);
-BOX_TYPE("\xa9""ART", iTunesArtistItemBox, ContainerBox);
-BOX_TYPE("\xa9""cmt", iTunesCommentItemBox, ContainerBox);
-BOX_TYPE("\xa9gen", iTunesGenreItemBox, ContainerBox);
-BOX_TYPE("\xa9wrt", iTunesComposerItemBox, ContainerBox);
-BOX_TYPE("\xa9""day", iTunesYearItemBox, ContainerBox);
-BOX_TYPE("trkn", iTunesTrackNumItemBox, ContainerBox);
-BOX_TYPE("disk", iTunesDiskNumItemBox, ContainerBox);
-BOX_TYPE("cpil", iTunesCompilationItemBox, ContainerBox);
-BOX_TYPE("tmpo", iTunesBPMItemBox, ContainerBox);
-BOX_TYPE("pgap", iTunesGaplessPlaybackBox, ContainerBox);
+BOX_TYPE(kiTunesBoxTypeTitle, iTunesTitleItemBox, ContainerBox);
+BOX_TYPE(kiTunesBoxTypeEncoder, iTunesEncoderItemBox, ContainerBox);
+BOX_TYPE(kiTunesBoxTypeAlbum, iTunesAlbumItemBox, ContainerBox);
+BOX_TYPE(kiTunesBoxTypeArtist, iTunesArtistItemBox, ContainerBox);
+BOX_TYPE(kiTunesBoxTypeComment, iTunesCommentItemBox, ContainerBox);
+BOX_TYPE(kiTunesBoxTypeGenre, iTunesGenreItemBox, ContainerBox);
+BOX_TYPE(kiTunesBoxTypeComposer, iTunesComposerItemBox, ContainerBox);
+BOX_TYPE(kiTunesBoxTypeYear, iTunesYearItemBox, ContainerBox);
+BOX_TYPE(kiTunesBoxTypeTrackNum, iTunesTrackNumItemBox, ContainerBox);
+BOX_TYPE(kiTunesBoxTypeDiskNum, iTunesDiskNumItemBox, ContainerBox);
+BOX_TYPE(kiTunesBoxTypeCompilation, iTunesCompilationItemBox, ContainerBox);
+BOX_TYPE(kiTunesBoxTypeBPM, iTunesBPMItemBox, ContainerBox);
+BOX_TYPE(kiTunesBoxTypeGaplessPlayback, iTunesGaplessPlaybackBox, ContainerBox);
 
 struct iTunesInfomationBox : public FullBox {
     uint32_t        Item_ID;
 
-    FORCE_INLINE iTunesInfomationBox() : FullBox("itif") { }
+    FORCE_INLINE iTunesInfomationBox() : FullBox(kiTunesBoxTypeInfomation) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
@@ -820,7 +1033,7 @@ struct iTunesInfomationBox : public FullBox {
 struct iTunesNameBox : public Box {
     String          Name;
 
-    FORCE_INLINE iTunesNameBox() : Box("name") { }
+    FORCE_INLINE iTunesNameBox() : Box(kiTunesBoxTypeName) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
@@ -828,28 +1041,28 @@ struct iTunesNameBox : public Box {
 struct iTunesMeanBox : public Box {
     String          Mean;
 
-    FORCE_INLINE iTunesMeanBox() : Box("mean") { }
+    FORCE_INLINE iTunesMeanBox() : Box(kiTunesBoxTypeMean) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
 
 struct iTunesKeyDecBox : public Box {
-    String          Key_namespace;
+    uint32_t        Keytypespace;
     sp<Buffer>      Key_value;
     
-    FORCE_INLINE iTunesKeyDecBox() : Box("keyd") { }
+    FORCE_INLINE iTunesKeyDecBox() : Box(kiTunesBoxTypeKeyDec) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
 
-BOX_TYPE("----", iTunesCustomBox, ContainerBox);
+BOX_TYPE(kiTunesBoxTypeCustom, iTunesCustomBox, ContainerBox);
 
 //BOX_TYPE("mebx", TimedMetadataSampleDescriptionBox, CountedFullContainerBox);
 
 struct ObjectDescriptorBox : public FullBox {
     sp<Buffer> iods;
 
-    FORCE_INLINE ObjectDescriptorBox() : FullBox("iods") { }
+    FORCE_INLINE ObjectDescriptorBox() : FullBox(kBoxTypeIODS) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
@@ -858,21 +1071,18 @@ struct ID3v2Box : public FullBox {
     String      language;
     sp<Buffer>  ID3v2data;
     
-    FORCE_INLINE ID3v2Box() : FullBox("ID32") { }
+    FORCE_INLINE ID3v2Box() : FullBox(kBoxTypeID32) { }
     MediaError parse(const BitReader&, size_t, const FileTypeBox&);
     void compose(BitWriter&, const FileTypeBox&);
 };
 
-sp<Box> MakeBoxByName(const String& name);
+sp<Box> MakeBoxByType(uint32_t);
 
 bool CheckTrackBox(const sp<TrackBox>& trak);
 
-sp<Box> FindBox(const sp<ContainerBox>& root,
-        const String& boxType, size_t index = 0);
-sp<Box> FindBox(const sp<ContainerBox>& root,
-        const String& first, const String& second);
-sp<Box> FindBoxInside(const sp<ContainerBox>& root,
-        const String& sub, const String& target);
+sp<Box> FindBox(const sp<ContainerBox>& root, uint32_t boxType, size_t index = 0);
+sp<Box> FindBox2(const sp<ContainerBox>& root, uint32_t first, uint32_t second);
+sp<Box> FindBoxInside(const sp<ContainerBox>& root, uint32_t sub, uint32_t target);
 void PrintBox(const sp<Box>& root);
 
 __END_NAMESPACE(MPEG4)

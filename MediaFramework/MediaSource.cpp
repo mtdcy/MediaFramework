@@ -38,7 +38,7 @@
 #include "MediaSession.h"
 #include "MediaFile.h"
 
-__USING_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MPX
 
 // for MediaSession request packet, which always run in player's looper
 // TODO: seek
@@ -56,7 +56,7 @@ struct MediaSource : public IMediaSession {
     List<sp<OnPacketRequest> > mRequestEvents;
     
     MediaSource(const sp<Looper>& lp) : IMediaSession(lp),
-    mMediaFile(NULL), mLastReadTime(kMediaTimeBegin)
+    mMediaFile(NULL), mLastReadTime(kMediaTimeInvalid)
     {
         
     }
@@ -70,10 +70,10 @@ struct MediaSource : public IMediaSession {
     virtual void onInit(const sp<Message>& media, const sp<Message>& options) {
         DEBUG("onInit...");
         if (!options.isNIL()) {
-            mInfoEvent = options->findObject("SessionInfoEvent");
+            mInfoEvent = options->findObject(kKeySessionInfoEvent);
         }
         
-        String url = media->findString("url");
+        String url = media->findString(kKeyURL);
         sp<Content> pipe = Content::Create(url);
         if (pipe == NULL) {
             ERROR("create pipe failed");
@@ -91,17 +91,16 @@ struct MediaSource : public IMediaSession {
         sp<Message> formats = mMediaFile->formats();
         size_t numTracks = formats->findInt32(kKeyCount, 1);
         for (size_t i = 0; i < numTracks; ++i) {
-            String trackName = String::format("track-%zu", i);
-            sp<Message> trackFormat = formats->findObject(trackName);
+            sp<Message> trackFormat = formats->findObject(kKeyTrack + i);
             sp<OnPacketRequest> event = new OnPacketRequest(this, i);
-            trackFormat->setObject("PacketRequestEvent", event);
+            trackFormat->setObject(kKeyPacketRequestEvent, event);
             // init packet queues
             mPackets.push();
             mRequestEvents.push(event);
             mTrackMask.set(i);
         }
         
-        formats->setObject("TrackSelectEvent", new OnTrackSelect(this));
+        formats->setObject(kKeyTrackSelectEvent, new OnTrackSelect(this));
         notify(kSessionInfoReady, formats);
         
         // make sure each track has at least one packet
@@ -262,3 +261,5 @@ struct MediaSource : public IMediaSession {
 sp<IMediaSession> CreateMediaSource(const sp<Looper>& lp) {
     return new MediaSource(lp);
 }
+
+__END_NAMESPACE_MPX

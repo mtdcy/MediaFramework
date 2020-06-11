@@ -55,7 +55,7 @@ struct MyTest : public ::testing::Test {
 };
 
 void testMediaTime() {
-    MediaTime time = kMediaTimeBegin;
+    MediaTime time = 0;
     
     // operator+()
     ASSERT_EQ(time + MediaTime(1, 2), MediaTime(1, 2));

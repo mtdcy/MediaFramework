@@ -177,7 +177,7 @@ struct WaveFile : public MediaFile {
 
         sp<Message> track = new Message;
 
-        track->setInt32(kKeyCodecType,      kCodecTypeAudio);
+        track->setInt32(kKeyType,      kCodecTypeAudio);
         track->setInt32(kKeyFormat,         kAudioCodecPCM);
         track->setInt32(kKeyChannels,       mWAVE.nChannels);
         track->setInt32(kKeySampleRate,     mWAVE.nSamplesPerSec);
@@ -187,9 +187,9 @@ struct WaveFile : public MediaFile {
             track->setInt64(kKeyDuration,   duration);
 
         if (mWAVE.wBitsPerSample)
-            track->setInt32(kKeyBits,       mWAVE.wBitsPerSample);
+            track->setInt32(kKeySampleBits, mWAVE.wBitsPerSample);
 
-        formats->setObject("track-0",       track);
+        formats->setObject(kKeyTrack,       track);
         return formats;
     }
 
@@ -224,7 +224,7 @@ struct WaveFile : public MediaFile {
             return NULL;
         }
 
-        sp<MediaPacket> packet = MediaPacketCreate(data);
+        sp<MediaPacket> packet = MediaPacket::Create(data);
 
         packet->index       = 0;
         packet->type        = kFrameTypeSync;

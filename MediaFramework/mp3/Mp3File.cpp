@@ -424,7 +424,7 @@ struct Mp3Packetizer : public MediaPacketizer {
 
     Mp3Packetizer() : MediaPacketizer(), mBuffer(4096, Buffer::Ring),
     mCommonHead(0), mNeedMoreData(true), mFlushing(false),
-    mNextFrameTime(kMediaTimeBegin), mFrameTime(kMediaTimeInvalid) { }
+    mNextFrameTime(kMediaTimeInvalid), mFrameTime(kMediaTimeInvalid) { }
 
     virtual ~Mp3Packetizer() { }
     
@@ -440,7 +440,7 @@ struct Mp3Packetizer : public MediaPacketizer {
         if (__builtin_expect(mCommonHead == 0, false)) {
             mNextFrameTime     = in->pts;
             if (mNextFrameTime == kMediaTimeInvalid) {
-                mNextFrameTime = kMediaTimeBegin;
+                mNextFrameTime = 0;
             }
         }
 
@@ -516,7 +516,7 @@ struct Mp3Packetizer : public MediaPacketizer {
         DEBUG("current frame length %zu (%zu)",
                 mpa.frameLengthInBytes, mBuffer.ready());
 
-        sp<MediaPacket> packet = MediaPacketCreate(mpa.frameLengthInBytes);
+        sp<MediaPacket> packet = MediaPacket::Create(mpa.frameLengthInBytes);
         mBuffer.read((char*)packet->data, mpa.frameLengthInBytes);
         CHECK_EQ(mpa.frameLengthInBytes, packet->size);
 
@@ -525,7 +525,7 @@ struct Mp3Packetizer : public MediaPacketizer {
         packet->dts         = mNextFrameTime;
         packet->duration    = mFrameTime;
         packet->type        = kFrameTypeSync;
-        packet->properties  = mProperties;
+        //packet->properties  = mProperties;
         mNextFrameTime      += mFrameTime;
 
         return packet;
@@ -533,7 +533,7 @@ struct Mp3Packetizer : public MediaPacketizer {
     
     virtual void flush() {
         mBuffer.reset();
-        mNextFrameTime = kMediaTimeBegin;
+        mNextFrameTime = kMediaTimeInvalid;
         mCommonHead = 0;
         mNeedMoreData = true;
     }
@@ -564,7 +564,7 @@ struct Mp3File : public MediaFile {
         mNumFrames(0),
         mNumBytes(0),
         mDuration(kMediaTimeInvalid),
-        mAnchorTime(kMediaTimeBegin),
+        mAnchorTime(0),
         mRawPacket(NULL),
         mPacketizer(new Mp3Packetizer) { }
     
@@ -580,10 +580,10 @@ struct Mp3File : public MediaFile {
 
         sp<Message> id3v2   = ID3::ReadID3v2(pipe);
         if (!id3v2.isNIL()) {
-#if 1
+#if 0
             // information for gapless playback
             // http://yabb.jriver.com/interact/index.php?topic=65076.msg436101#msg436101
-            const char *iTunSMPB = id3v2->findString("iTunSMPB");
+            const char *iTunSMPB = id3v2->findString(kKeyiTunSMPB);
             if (iTunSMPB != 0) {
                 int32_t encodeDelay, encodePadding;
                 int32_t originalSampleCount;
@@ -591,12 +591,12 @@ struct Mp3File : public MediaFile {
                             &encodeDelay, &encodePadding, &originalSampleCount) == 3) {
                     INFO("iTunSMPB: mEncodePadding %d mEncodePadding %d originalSampleCount %d",
                             encodeDelay, encodePadding, originalSampleCount);
-                    ast->setInt32("encoder-delay", encodeDelay);
-                    ast->setInt32("encoder-padding", encodePadding);
+                    ast->setInt32(kKeyEncoderDelay, encodeDelay);
+                    ast->setInt32(kKeyEncoderPadding, encodePadding);
                 }
             }
 #endif
-            outputFormat->setObject(Media::ID3v2, id3v2);
+            outputFormat->setObject(kKeyTags, id3v2);   // FIXME
         }
         mFirstFrameOffset = pipe->tell();
         
@@ -605,7 +605,7 @@ struct Mp3File : public MediaFile {
         size_t totalLength = pipe->length();
         if (!id3v1.isNIL()) {
             totalLength -= ID3::ID3v1::kLength;
-            outputFormat->setObject(Media::ID3v1, id3v1);
+            outputFormat->setObject(kKeyTags, id3v1);   // FIXME, merge tags
         }
         pipe->seek(mFirstFrameOffset);
 
@@ -715,14 +715,14 @@ struct Mp3File : public MediaFile {
         info->setInt64(kKeyDuration, mDuration.useconds());
 
         sp<Message> trak = new Message;
-        trak->setInt32(kKeyCodecType, kCodecTypeAudio);
+        trak->setInt32(kKeyType, kCodecTypeAudio);
         trak->setInt32(kKeyFormat, kAudioCodecMP3);
         // FIXME:
         //ast->setInt32(Media::Bitrate, mBitRate);
         trak->setInt32(kKeyChannels, mHeader.numChannels);
         trak->setInt32(kKeySampleRate, mHeader.sampleRate);
 
-        info->setObject("track-0", trak);
+        info->setObject(kKeyTrack, trak);
         return info;
     }
 
@@ -772,7 +772,7 @@ struct Mp3File : public MediaFile {
                     DEBUG("saw content eos..");
                     sawInputEOS = true;
                 } else {
-                    mRawPacket = MediaPacketCreate(data);
+                    mRawPacket = MediaPacket::Create(data);
                 }
             }
 

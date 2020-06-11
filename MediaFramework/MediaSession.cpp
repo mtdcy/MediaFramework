@@ -36,7 +36,7 @@
 //#define LOG_NDEBUG 0
 #include "MediaSession.h"
 
-__USING_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MPX
 
 struct IMediaSession::InitJob : public Job {
     IMediaSession * thiz;
@@ -71,24 +71,24 @@ sp<IMediaSession> CreateMediaSource(const sp<Looper>&);
 sp<IMediaSession> CreateDecodeSession(const sp<Looper>&);
 sp<IMediaSession> CreateRenderSession(const sp<Looper>&);
 sp<IMediaSession> IMediaSession::Create(const sp<Message>& format, const sp<Message>& options) {
-    sp<Looper> looper = options->findObject("Looper");
+    sp<Looper> looper = options->findObject(kKeyLooper);
     if (looper.isNIL()) {
         // create a looper
         String name;
-        if (format->contains("url"))    name = "source";
+        if (format->contains(kKeyURL))    name = "source";
         else {
             int32_t value = format->findInt32(kKeyFormat);
-            name = String::format("%4s", (const char *)&value);
+            name = String::format("%.4s", (const char *)&value);
         }
         looper = new Looper(name);
     }
     
     sp<IMediaSession> session;
-    if (format->contains("url")) {
+    if (format->contains(kKeyURL)) {
         session = CreateMediaSource(looper);
-    } else if (options->contains("PacketRequestEvent")) {
+    } else if (options->contains(kKeyPacketRequestEvent)) {
         session = CreateDecodeSession(looper);
-    } else if (options->contains("FrameRequestEvent")) {
+    } else if (options->contains(kKeyFrameRequestEvent)) {
         session = CreateRenderSession(looper);
     }
     if (session.isNIL()) {
@@ -100,3 +100,5 @@ sp<IMediaSession> IMediaSession::Create(const sp<Message>& format, const sp<Mess
     session->mDispatch->dispatch(init);
     return session;
 }
+
+__END_NAMESPACE_MPX

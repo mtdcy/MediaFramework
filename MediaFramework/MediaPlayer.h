@@ -39,7 +39,6 @@
 
 #include <MediaFramework/MediaTypes.h>
 #include <MediaFramework/MediaClock.h>
-#include <MediaFramework/MediaFrame.h>
 #include <MediaFramework/MediaSession.h>
 
 __BEGIN_DECLS
@@ -70,6 +69,12 @@ typedef enum {
     kInfoClockUpdated,          ///< Clock been updated by master
 } ePlayerInfoType;
 
+enum {
+    kKeyPlayerInfoEvent     = FOURCC('pinf'),       ///< sp<PlayerInfoEvent>
+    kKeyAudioFrameEvent     = FOURCC('afet'),       ///< sp<MediaFrameEvent>
+    kKeyVideoFrameEvent     = FOURCC('vfet'),       ///< sp<MediaFrameEvent>
+};
+
 __END_DECLS
 
 #ifdef __cplusplus
@@ -77,6 +82,7 @@ __BEGIN_NAMESPACE_MPX
 
 /**
  * for MediaPlayer streaming MediaFrame to client
+ * TODO: remove this one, always render in thread other than main.
  */
 typedef MediaEvent<sp<MediaFrame> > MediaFrameEvent;
 

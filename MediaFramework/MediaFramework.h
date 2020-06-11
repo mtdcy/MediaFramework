@@ -37,7 +37,6 @@
 
 // MediaFramework
 #include <MediaFramework/MediaTypes.h>
-#include <MediaFramework/MediaFrame.h>
 #include <MediaFramework/ImageFile.h>
 #include <MediaFramework/MediaFile.h>
 #include <MediaFramework/MediaDecoder.h>
@@ -46,6 +45,7 @@
 #include <MediaFramework/MediaSession.h>
 #include <MediaFramework/MediaPlayer.h>
 
+//#ifndef __cplusplus
 __BEGIN_DECLS
 
 // ImageFile
@@ -122,5 +122,6 @@ API_EXPORT MediaError           MediaOutFlush(MediaOutRef);
 API_EXPORT MediaError           MediaOutConfigure(MediaOutRef, MessageObjectRef);
 
 __END_DECLS
+//#endif // __cplusplus
 
 #endif // _MEDIA_MODULES_ALL_H

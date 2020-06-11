@@ -33,7 +33,7 @@
 //
 
 #define LOG_TAG "ID3"
-//#define LOG_NDEBUG 0
+#define LOG_NDEBUG 0
 #include "ID3.h"
 
 #include <zlib.h>
@@ -50,66 +50,66 @@ const size_t ID3v1::kLength         = 128;
 
 // supported v2.3.x & v2.4.x frames.
 struct {
-    const char *id3;
-    const char *key;
+    const char *    id3;
+    uint32_t        key;
 } kSupportedID3v2_3Frames [] = {
     // XXX: correct if key is wrong.
-    {"TALB",        Media::Album},
-    {"TBPM",        "beats-per-minute"},
-    {"TCOM",        Media::Composer},
-    {"TCON",        Media::Genre},
-    {"TCOP",        "copyright"},
-    {"TDAT",        Media::Date},
-    {"TDLY",        "playlist-delay"},
-    {"TENC",        "encode-by"},
-    {"TEXT",        Media::Author},
-    {"TFLT",        "file-type"},
-    {"TIME",        "time"},
-    {"TIT1",        "category"},
-    {"TIT2",        Media::Title},
-    {"TIT3",        "subtitle"},
+    {"TALB",        kKeyAlbum       },
+    {"TBPM",        kKeyBPM         },
+    {"TCOM",        kKeyComposer    },
+    {"TCON",        kKeyGenre       },
+    {"TCOP",        kKeyCopyright   },
+    {"TDAT",        kKeyDate        },
+    //{"TDLY",        ''},
+    {"TENC",        kKeyEncoder     },
+    {"TEXT",        kKeyAuthor      },
+    //{"TFLT",        ''},
+    {"TIME",        FOURCC('time')  },
+    {"TIT1",        kKeyTitle},
+    {"TIT2",        kKeyTitle + 1   },
+    {"TIT3",        kKeyTitle + 2   },
     //{"TKEY",        "initial-key"}, // ???
-    {"TLAN",        "language"},
+    {"TLAN",        kKeyLanguage},
     //{"TLEN",        "duration"},
-    {"TPE1",        Media::Artist},
-    {"TPE2",        "album-artist"},
-    {"TPE3",        "performer"},
-    {"TYER",        Media::Year},
+    {"TPE1",        kKeyArtist      },
+    {"TPE2",        kKeyAlbumArtist },
+    {"TPE3",        kKeyPerformer   },
+    {"TYER",        kKeyYear        },
     //{"TSIZ",        "size-in-bytes"},
-    {"TRCK",        Media::CDTrackNum},
-    {"TDRC",        "recording-time"},
-    {"TXXX",        "user-defined-text"},
+    {"TRCK",        kKeyTrackNum    },
+    //{"TDRC",        "recording-time"},
+    {"TXXX",        kKeyCustom      },
     {0, NULL}
 };
 
 struct {
-    const char *id3;
-    const char *key;
+    const char *    id3;
+    uint32_t        key;
 } kSupportedID3v2_2Frames [] = {
-    {"TAL",         Media::Album},
-    {"TBP",         "beats-per-minute"},
-    {"TCM",         Media::Composer},
-    {"TCO",         Media::Genre},
-    {"TDA",         Media::Date},
-    {"TDY",         "playlist-delay"},
-    {"TEN",         "encode-by"},
-    {"TFT",         "file-type"},
-    {"TIM",         "time"},
+    {"TAL",         kKeyAlbum       },
+    {"TBP",         kKeyBPM         },
+    {"TCM",         kKeyComposer    },
+    {"TCO",         kKeyGenre       },
+    {"TDA",         kKeyDate        },
+    //{"TDY",         "playlist-delay"},
+    {"TEN",         kKeyEncoder     },
+    //{"TFT",         "file-type"},
+    {"TIM",         FOURCC('time')  },
     //{'TKE',         "initial-key"},
-    {"TLA",         "language"},
+    {"TLA",         kKeyLanguage    },
     //{'TLE',         "duration-in-ms"},
     //{'TMT',         ""},
-    {"TP1",         Media::Artist},
-    {"TP2",         Media::AlbumArtist},
-    {"TP3",         "performer"},
-    {"TPA",         "group"},
-    {"TPB",         "publisher"},
-    {"TRK",         Media::CDTrackNum},
-    {"TT1",         "category"},
-    {"TT2",         Media::Title},
-    {"TT3",         "subtitle"},
-    {"TYE",         Media::Year},
-    {"TXX",         "user-defined-text"},
+    {"TP1",         kKeyArtist      },
+    {"TP2",         kKeyAlbumArtist },
+    {"TP3",         kKeyPerformer   },
+    //{"TPA",         "group"},
+    //{"TPB",         "publisher"},
+    {"TRK",         kKeyTrackNum    },
+    {"TT1",         kKeyTitle       },
+    {"TT2",         kKeyTitle + 1   },
+    {"TT3",         kKeyTitle + 2   },
+    {"TYE",         kKeyYear        },
+    {"TXX",         kKeyCustom      },
 };
 
 /* See Genre List at http://id3.org/id3v2.3.0 */
@@ -307,15 +307,15 @@ struct ID3v2Header {
     // including padding, excluding the header but not excluding the extended header
 };
 
-static ssize_t isID3v2Header(const Buffer& data, ID3v2Header *header) {
+static bool isID3v2Header(const Buffer& data, ID3v2Header *header) {
     //CHECK_GE(data.size(), ID3v2::kHeaderLength);
-    if (data.size() < ID3v2::kHeaderLength) return kMediaErrorUnknown;
+    if (data.size() < ID3v2::kHeaderLength) return false;
     
     BitReader br(data.data(), data.size());
     String magic        = br.readS(3);
     if (magic != "ID3") {
         DEBUG("no ID3v2 magic.");
-        return kMediaErrorUnknown;
+        return false;
     }
     
     uint8_t major       = br.r8();
@@ -327,30 +327,30 @@ static ssize_t isID3v2Header(const Buffer& data, ID3v2Header *header) {
     if (major == 0xff || revision == 0xff) {
         DEBUG("invalid version number 2.%d.%d",
               major, revision);
-        return kMediaErrorUnknown;
+        return false;
     }
     
     // check size
     if (size == 0) {
         DEBUG("invalid size %d", size);
-        return kMediaErrorUnknown;
+        return false;
     }
     
     // check flags.
     if (major == 2) { // %xx000000
         if (flags & 0x3f) {
             DEBUG("invalid 2.2.%d flags %#x", revision, flags);
-            return kMediaErrorUnknown;
+            return false;
         }
     } else if (major == 3) { // %abc00000
         if (flags & 0x1f) {
             DEBUG("invalid 2.3.%d flags %#x", revision, flags);
-            return kMediaErrorUnknown;
+            return false;
         }
     } else if (major == 4) { // %abcd0000
         if (flags & 0xf) {
             DEBUG("invalid 2.4.%d flags %#x", revision, flags);
-            return kMediaErrorUnknown;
+            return false;
         }
     }
     
@@ -360,7 +360,7 @@ static ssize_t isID3v2Header(const Buffer& data, ID3v2Header *header) {
         header->flags       = flags;
         header->size        = size;
     }
-    return size;
+    return true;
 }
 
 static FORCE_INLINE bool isID3NumericString(const String& s) {
@@ -733,14 +733,14 @@ static MediaError ID3v2_2(const Buffer& data,
             ID3v2CommentText comment = ID3v2Comment(id, frameData, frameLength);
             if (!comment.text.empty()) {
                 if (comment.desc.empty())
-                    values->setString(Media::Comment, comment.text);
+                    values->setString(kKeyComment, comment.text);
                 else
-                    values->setString(comment.desc.c_str(), comment.text);
+                    values->setString(kKeyComment, comment.desc + comment.text);
             }
         } else if (id == "APIC") {
             ID3v2PictureText picture = ID3v22Picture(id, frameData, frameLength);
             // XXX: set the right tag.
-            values->setObject(Media::AlbumArt, picture.pic);
+            values->setObject(kKeyAlbumArt, picture.pic);
         } else {
             DEBUG("been skipped frame [%s] length %d.",
                   id.c_str(), frameLength);
@@ -874,14 +874,14 @@ static MediaError ID3v2_3(const Buffer& data,
             ID3v2CommentText comment = ID3v2Comment(id, frameData, frameLength);
             if (!comment.text.empty()) {
                 if (comment.desc.empty())
-                    values->setString(Media::Comment, comment.text);
+                    values->setString(kKeyComment, comment.text);
                 else
-                    values->setString(comment.desc.c_str(), comment.text);
+                    values->setString(kKeyComment, comment.desc + comment.text);
             }
         } else if (id == "APIC") {
             ID3v2PictureText picture = ID3v2Picture(id, frameData, frameLength);
             // XXX: set the right tag.
-            values->setObject(Media::AlbumArt, picture.pic);
+            values->setObject(kKeyAlbumArt, picture.pic);
         } else {
             DEBUG("been skipped frame [%s] length %d.",
                   id.c_str(),
@@ -1033,7 +1033,7 @@ static MediaError ID3v2_4(const Buffer& data,
                           frame->id[2], frame->id[3],
                           text.c_str());
                 } else if (id == "TDRC") {
-                    values->setString(Media::Year, text.substring(0, 4));
+                    values->setString(kKeyYear, text.substring(0, 4));
                 }
             }
         } else if (id.startsWith("W")) {
@@ -1045,14 +1045,14 @@ static MediaError ID3v2_4(const Buffer& data,
             ID3v2CommentText comment = ID3v2Comment(id, frameData, frameLength);
             if (!comment.text.empty()) {
                 if (comment.desc.empty())
-                    values->setString(Media::Comment, comment.text);
+                    values->setString(kKeyComment, comment.text);
                 else
-                    values->setString(comment.desc.c_str(), comment.text);
+                    values->setString(kKeyComment, comment.desc + comment.text);
             }
         } else if (id == "APIC") {
             ID3v2PictureText picture = ID3v2Picture(id, frameData, frameLength);
             // XXX: set the right tag.
-            values->setObject(Media::AlbumArt, picture.pic);
+            values->setObject(kKeyAlbumArt, picture.pic);
         } else {
             DEBUG("been skipped frame [%s] length %d.",
                   id.c_str(),
@@ -1069,8 +1069,8 @@ MediaError ID3v2::parse(const Buffer& data) {
     mValues.clear();
     CHECK_GE(data.size(), kHeaderLength);
     ID3v2Header header;
-    if (isID3v2Header(data, &header) < 0) {
-        return kMediaErrorUnknown;
+    if (isID3v2Header(data, &header) == false) {
+        return kMediaErrorBadContent;
     }
     
     if (data.size() < kHeaderLength + header.size) {
@@ -1095,11 +1095,11 @@ MediaError ID3v2::parse(const Buffer& data) {
         status = kMediaErrorUnknown;
     }
     
-    String version = String::format("v2.%d.%d",
-                                    header.major, header.revision);
-    mValues->setString("version", version);
+    //String version = String::format("v2.%d.%d",
+    //                                header.major, header.revision);
+    //mValues->setString("version", version);
     
-    DEBUG("id3v2: %s", mValues.string().c_str());
+    DEBUG("id3v2: %s", mValues->string().c_str());
     return status;
 }
 
@@ -1110,17 +1110,6 @@ static FORCE_INLINE String ID3v1String(const char* data, int length) {
     String str((char*)data, length);
     str.trim(); // this is neccessary for ID3v1
     return str;
-}
-
-// static
-ssize_t ID3v2::isID3v2(const Buffer& data) {
-    CHECK_GE(data.size(), kHeaderLength);
-    
-    ID3v2Header header;
-    if (isID3v2Header(data, &header) < 0) {
-        return kMediaErrorUnknown;
-    }
-    return header.size;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////
@@ -1137,21 +1126,21 @@ MediaError ID3v1::parse(const Buffer& data) {
     String title = ID3v1String(buffer, 30);
     if (!title.empty()) {
         DEBUG("title: [%s].", title.c_str());
-        mValues->setString(Media::Title, title);
+        mValues->setString(kKeyTitle, title);
     }
     buffer += 30;
     
     String artist = ID3v1String(buffer, 30);
     if (!artist.empty()) {
         DEBUG("artist: [%s].", artist.c_str());
-        mValues->setString(Media::Artist, artist);
+        mValues->setString(kKeyArtist, artist);
     }
     buffer += 30;
     
     String album = ID3v1String(buffer, 30);
     if (!album.empty()) {
         DEBUG("album: [%s].", album.c_str());
-        mValues->setString(Media::Album, album);
+        mValues->setString(kKeyAlbum, album);
     }
     buffer += 30;
     
@@ -1159,7 +1148,7 @@ MediaError ID3v1::parse(const Buffer& data) {
     if (!year.empty()) {
         DEBUG("year: [%s].", year.c_str());
         if (isID3NumericString(year))
-            mValues->setString(Media::Year, year);
+            mValues->setString(kKeyYear, year);
         else {
             DEBUG("invalid id3 numeric string.");
         }
@@ -1169,23 +1158,23 @@ MediaError ID3v1::parse(const Buffer& data) {
     String comment = ID3v1String(buffer, 30);
     if (!comment.empty()) {
         DEBUG("comment: [%s].", comment.c_str());
-        mValues->setString(Media::Comment, comment);
+        mValues->setString(kKeyComment, comment);
     }
     
     if (buffer[28] == 0 && buffer[29] != 0) {
         const uint8_t trck = buffer[29];
         DEBUG("track: [%d].", trck);
-        mValues->setString(Media::CDTrackNum, String::format("%u", trck));
-        mValues->setString("id3-version", "v1.1");
+        mValues->setString(kKeyTrackNum, String::format("%u", trck));
+        //mValues->setString("id3-version", "v1.1");
     } else {
-        mValues->setString("id3-version", "v1.0");
+        //mValues->setString("id3-version", "v1.0");
     }
     buffer += 30;
     
     unsigned char genre = buffer[0];
     if (genre < 80) {
         DEBUG("genre: [%s].", ID3GenreList[genre]);
-        mValues->setString(Media::Genre, ID3GenreList[genre]);
+        mValues->setString(kKeyGenre, ID3GenreList[genre]);
     }
     
     return kMediaNoError;
@@ -1208,12 +1197,13 @@ MediaError SkipID3v2(sp<Content>& pipe) {
         return kMediaErrorBadContent;
     }
     
-    ssize_t length  = ID3v2::isID3v2(*head);
-    if (length <= 0) {
+    ID3v2Header header;
+    if (isID3v2Header(*head, &header) == false) {
         pipe->seek(pos);
-        return kMediaErrorBadContent;
+        return kMediaErrorUnknown;
     }
-    pipe->skip(length);
+    
+    pipe->skip(header.size);
     // stop at the end position of id3v2
     return kMediaNoError;
 }
@@ -1226,19 +1216,19 @@ sp<Message> ReadID3v2(sp<Content>& pipe) {
         return NULL;
     }
     
-    ssize_t length  = ID3v2::isID3v2(*head);
-    if (length <= 0) {
+    ID3v2Header header;
+    if (isID3v2Header(*head, &header) == false) {
         pipe->seek(pos);
         return NULL;
     }
     
-    sp<Buffer> data = pipe->read(length);
-    if (data.isNIL() || data->size() != length) {
+    sp<Buffer> data = pipe->read(header.size);
+    if (data.isNIL() || data->size() != header.size) {
         pipe->seek(pos);
         return NULL;
     }
     
-    head->resize(ID3v2::kHeaderLength + length);
+    head->resize(ID3v2::kHeaderLength + header.size);
     head->write(*data);
     ID3v2 id3;
     if (id3.parse(*head) != kMediaNoError) {

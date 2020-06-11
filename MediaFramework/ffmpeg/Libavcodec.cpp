@@ -398,8 +398,8 @@ static MediaError setupExtraData(AVCodecContext *avcc, const sp<Message>& format
                 parseESDS(avcc, esds);
                 // aac sbr have real sample rate in AudioSpecificConfig
                 // but, DON'T fix avcc->sample_rate here
-            } else if (formats->contains(kKeyCodecSpecificData)) {
-                sp<Buffer> csd = formats->findObject(kKeyCodecSpecificData);
+            } else if (formats->contains(kKeyCodecSpecData)) {
+                sp<Buffer> csd = formats->findObject(kKeyCodecSpecData);
                 parseAudioSpecificConfig(avcc, csd);
             } else {
                 ERROR("missing esds|csd for aac");
@@ -649,15 +649,15 @@ static AVCodecContext * initContext(eModeType mode, const sp<Message>& formats, 
     av_log_set_callback(av_log_callback);
 #endif
     
-    CHECK_TRUE(formats->contains(kKeyCodecType));
-    eCodecType type = (eCodecType)formats->findInt32(kKeyCodecType);
+    CHECK_TRUE(formats->contains(kKeyType));
+    eCodecType type = (eCodecType)formats->findInt32(kKeyType);
     uint32_t codec = formats->findInt32(kKeyFormat);
     AVCodecID id = get_av_codec_id(codec);
     
 #if 1
     // fix MSMPEG4 version
-    if (formats->contains(kKeyVCM)) {
-        sp<Buffer> vcm = formats->findObject(kKeyVCM);
+    if (formats->contains(kKeyMVCM)) {
+        sp<Buffer> vcm = formats->findObject(kKeyMVCM);
         BitReader br(vcm->data(), vcm->size());
         ASF::BITMAPINFOHEADER biHEAD;
         if (biHEAD.parse(br) != kMediaNoError) {
@@ -689,7 +689,7 @@ static AVCodecContext * initContext(eModeType mode, const sp<Message>& formats, 
         avc = fixed;
     }
 #endif
-    INFO("[%4s] -> [%s][%s]", (const char*)&codec, avcodec_get_name(id), avc->name);
+    INFO("[%.4s] -> [%s][%s]", (const char*)&codec, avcodec_get_name(id), avc->name);
     
     if (!avc) {
         ERROR("can't find codec for %s", avcodec_get_name(id));

@@ -174,37 +174,35 @@ struct MatroskaTrack {
 };
 
 // Frames using references should be stored in "coding order".
-struct MatroskaPacket : public MediaPacket {
-    sp<Buffer>  buffer;
-
-    MatroskaPacket(MatroskaTrack& trak,
-            const sp<Buffer>& block,
-            int64_t timecode,
-            int64_t timescale,
-            eFrameType flag) {
-        if (trak.compAlgo == 3) { // header strip
-            buffer  = new Buffer(trak.compSettings->size() + block->size());
-            buffer->write(*trak.compSettings);
-            buffer->write(*block);
-        } else {
-            buffer  = block;
-        }
-        data        = (uint8_t*)buffer->data();
-        size        = buffer->size();
-        index       = trak.index;
-        
-        pts         = MediaTime(timecode / trak.timescale, 1000000000LL / timescale);
-        if (trak.frametime) {
-            dts     = MediaTime(trak.decodeTimeCode / trak.timescale, 1000000000LL / timescale);
-            duration= MediaTime(trak.frametime, 1000000000LL / timescale);
-            trak.decodeTimeCode += trak.frametime;
-        } else {
-            dts     = pts;
-            duration= kMediaTimeInvalid;
-        }
-        type        = flag;
+static sp<MediaPacket> CreatePacket(MatroskaTrack& trak,
+                                    sp<Buffer>& block,
+                                    int64_t timecode,
+                                    int64_t timescale,
+                                    eFrameType flag) {
+    sp<MediaPacket> packet;
+    if (trak.compAlgo == 3) { // header strip
+        const size_t size = trak.compSettings->size() + block->size();
+        packet = MediaPacket::Create(size);
+        trak.compSettings->read((char *)packet->data, trak.compSettings->size());
+        block->read((char *)packet->data + trak.compSettings->size(), block->size());
+        packet->size = size;
+    } else {
+        packet = MediaPacket::Create(block);
     }
-};
+    packet->index       = trak.index;
+    
+    packet->pts         = MediaTime(timecode / trak.timescale, 1000000000LL / timescale);
+    if (trak.frametime) {
+        packet->dts     = MediaTime(trak.decodeTimeCode / trak.timescale, 1000000000LL / timescale);
+        packet->duration= MediaTime(trak.frametime, 1000000000LL / timescale);
+        trak.decodeTimeCode += trak.frametime;
+    } else {
+        packet->dts     = packet->pts;
+        packet->duration= kMediaTimeInvalid;
+    }
+    packet->type        = flag;
+    return packet;
+}
 
 #define TIMESCALE_DEF 1000000UL
 bool decodeMPEGAudioFrameHeader(const Buffer& frame, uint32_t *sampleRate, uint32_t *numChannels);
@@ -434,6 +432,7 @@ struct MatroskaFile : public MediaFile {
         pipe->seek(mClusters);
         mContent    = pipe;
 
+#if 0
         // stage 2: workarounds for some codec
         // get extra properties using packetizer
         if (stage2) {
@@ -462,7 +461,8 @@ struct MatroskaFile : public MediaFile {
                 INFO("real properties: %" PRIu32 " %" PRIu32, trak.a.channels, trak.a.sampleRate);
             }
         }
-
+#endif
+        
         return kMediaNoError;
     }
 
@@ -475,7 +475,7 @@ struct MatroskaFile : public MediaFile {
         for (; it != mTracks.cend(); ++it) {
             sp<Message> trakInfo = new Message;
             const MatroskaTrack& trak = it.value();
-            trakInfo->setInt32(kKeyCodecType, trak.type);
+            trakInfo->setInt32(kKeyType, trak.type);
             trakInfo->setInt32(kKeyFormat, trak.format);
             if (trak.type == kCodecTypeAudio) {
                 trakInfo->setInt32(kKeySampleRate, trak.a.sampleRate);
@@ -513,13 +513,12 @@ struct MatroskaFile : public MediaFile {
                 } else if (trak.format == kVideoCodecMPEG4) {
                     trakInfo->setObject(kKeyESDS, trak.csd);
                 } else if (trak.format == kVideoCodecMP42) {
-                    trakInfo->setObject(kKeyVCM, trak.csd);
+                    trakInfo->setObject(kKeyMVCM, trak.csd);
                 }
             }
 
             INFO("trak %zu: %s", trak.index, trakInfo->string().c_str());
-            String name = String::format("track-%zu", trak.index);
-            info->setObject(name, trakInfo);
+            info->setObject(kKeyTrack + trak.index, trakInfo);
         }
         INFO("format %s", info->string().c_str());
         return info;
@@ -555,7 +554,7 @@ struct MatroskaFile : public MediaFile {
             mCluster = ReadEBMLElement(mContent);
             if (mCluster == NULL || mCluster->id.u64 != ID_CLUSTER) {
                 INFO("no more cluster");
-                return kMediaErrorNoMoreData;
+                return kMediaErrorBadContent;
             }
 
 #if LOG_NDEBUG == 0
@@ -589,14 +588,14 @@ struct MatroskaFile : public MediaFile {
             if (mTracks.find(block->TrackNumber.u32) == NULL) continue;
             MatroskaTrack& trak = mTracks[block->TrackNumber.u32];
             uint64_t timecode = TIMECODE->vint.u64 + block->TimeCode;
-            List<sp<Buffer> >::const_iterator it0 = block->data.cbegin();
-            for (; it0 != block->data.cend(); ++it0) {
+            List<sp<Buffer> >::iterator it0 = block->data.begin();
+            for (; it0 != block->data.end(); ++it0) {
 
-                sp<MatroskaPacket> packet = new MatroskaPacket(trak,
-                                                               *it0,
-                                                               timecode,
-                                                               mTimeScale,
-                                                               type);
+                sp<MediaPacket> packet = CreatePacket(trak,
+                                                      *it0,
+                                                      timecode,
+                                                      mTimeScale,
+                                                      type);
 
                 if (trak.packetizer != NULL) {
                     if (trak.packetizer->enqueue(packet) != kMediaNoError) {

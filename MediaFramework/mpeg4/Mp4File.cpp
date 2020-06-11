@@ -54,20 +54,20 @@ __BEGIN_NAMESPACE_MPX
 using namespace MPEG4;
 
 struct {
-    const char *        name;
+    const uint32_t      type;
     const uint32_t      format;
 } kCodecMap[] = {
-    {"mp4a",        kAudioCodecAAC     },
-    {"avc1",        kVideoCodecH264    },
-    {"avc2",        kVideoCodecH264    },
-    {"hvc1",        kVideoCodecHEVC    },
+    {kBoxTypeMP4A,      kAudioCodecAAC     },
+    {kBoxTypeAVC1,      kVideoCodecH264    },
+    {kBoxTypeAVC2,      kVideoCodecH264    },
+    {kBoxTypeHVC1,      kVideoCodecHEVC    },
     // END OF LIST
-    {"",            kAudioCodecUnknown },
+    {'    ',            kAudioCodecUnknown },
 };
 
-static uint32_t get_codec_format(const String& name) {
+static uint32_t get_codec_format(uint32_t type) {
     for (size_t i = 0; kCodecMap[i].format != kAudioCodecUnknown; ++i) {
-        if (name == kCodecMap[i].name)
+        if (type == kCodecMap[i].type)
             return kCodecMap[i].format;
     }
     return kAudioCodecUnknown;
@@ -80,8 +80,8 @@ static MediaError prepareMetaData(const sp<Box>& meta, const sp<Message>& target
         return kMediaErrorUnknown;
     }
 
-    sp<iTunesItemKeysBox> keys = FindBox(meta, "keys");
-    sp<iTunesItemListBox> ilst = FindBox(meta, "ilst");
+    sp<iTunesItemKeysBox> keys = FindBox(meta, kiTunesBoxTypeKEYS);
+    sp<iTunesItemListBox> ilst = FindBox(meta, kiTunesBoxTypeILST);
     if (ilst == 0) {
         ERROR("ilst is missing.");
         return kMediaErrorUnknown;
@@ -101,7 +101,7 @@ struct Sample {
 struct Mp4Track : public SharedObject {
     Mp4Track() : enabled(true), type(kCodecTypeUnknown), codec(0),
     sampleIndex(0), duration(kMediaTimeInvalid),
-    startTime(kMediaTimeBegin),
+    startTime(0),
     bitReate(0), samplesRead(0) { }
 
     bool                enabled;    // enabled by default
@@ -135,24 +135,24 @@ static sp<Mp4Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderB
         return NULL;
     }
 
-    sp<TrackHeaderBox> tkhd             = FindBox(trak, "tkhd");
-    sp<MediaBox> mdia                   = FindBox(trak, "mdia");
-    sp<MediaHeaderBox> mdhd             = FindBox(mdia, "mdhd");
-    sp<HandlerBox> hdlr                 = FindBox(mdia, "hdlr");
-    sp<MediaInformationBox> minf        = FindBox(mdia, "minf");
-    sp<DataReferenceBox> dinf           = FindBox(minf, "dinf");
-    sp<SampleTableBox> stbl             = FindBox(minf, "stbl");
-    sp<SampleDescriptionBox> stsd       = FindBox(stbl, "stsd");
-    sp<TimeToSampleBox> stts            = FindBox(stbl, "stts");    // dts
-    sp<SampleToChunkBox> stsc           = FindBox(stbl, "stsc");    // sample to chunk
-    sp<ChunkOffsetBox> stco             = FindBox(stbl, "stco", "co64");    // chunk offset
-    sp<SampleSizeBox> stsz              = FindBox(stbl, "stsz", "stz2");
+    sp<TrackHeaderBox> tkhd             = FindBox(trak, kBoxTypeTKHD);
+    sp<MediaBox> mdia                   = FindBox(trak, kBoxTypeMDIA);
+    sp<MediaHeaderBox> mdhd             = FindBox(mdia, kBoxTypeMDHD);
+    sp<HandlerBox> hdlr                 = FindBox(mdia, kBoxTypeHDLR);
+    sp<MediaInformationBox> minf        = FindBox(mdia, kBoxTypeMINF);
+    sp<DataReferenceBox> dinf           = FindBox(minf, kBoxTypeDINF);
+    sp<SampleTableBox> stbl             = FindBox(minf, kBoxTypeSTBL);
+    sp<SampleDescriptionBox> stsd       = FindBox(stbl, kBoxTypeSTSD);
+    sp<TimeToSampleBox> stts            = FindBox(stbl, kBoxTypeSTTS);    // dts
+    sp<SampleToChunkBox> stsc           = FindBox(stbl, kBoxTypeSTSC);    // sample to chunk
+    sp<ChunkOffsetBox> stco             = FindBox2(stbl, kBoxTypeSTCO, kBoxTypeCO64);    // chunk offset
+    sp<SampleSizeBox> stsz              = FindBox2(stbl, kBoxTypeSTSZ, kBoxTypeSTZ2);
     // optional
-    sp<SyncSampleBox> stss              = FindBox(stbl, "stss");
-    sp<ShadowSyncSampleBox> stsh        = FindBox(stbl, "stsh");
-    sp<CompositionOffsetBox> ctts       = FindBox(stbl, "ctts");
-    sp<TrackReferenceBox> tref          = FindBox(trak, "tref");
-    sp<SampleDependencyTypeBox> sdtp    = FindBox(stbl, "sdtp");
+    sp<SyncSampleBox> stss              = FindBox(stbl, kBoxTypeSTSS);
+    sp<ShadowSyncSampleBox> stsh        = FindBox(stbl, kBoxTypeSTSH);
+    sp<CompositionOffsetBox> ctts       = FindBox(stbl, kBoxTypeCTTS);
+    sp<TrackReferenceBox> tref          = FindBox(trak, kBoxTypeTREF);
+    sp<SampleDependencyTypeBox> sdtp    = FindBox(stbl, kBoxTypeSDTP);
 
     // check
     if (stsd->child.size() == 0) {
@@ -167,18 +167,18 @@ static sp<Mp4Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderB
     sp<Mp4Track> track = new Mp4Track;
     track->duration = MediaTime(mdhd->duration, mdhd->timescale);
 
-    DEBUG("handler: [%s] %s", hdlr->handler_type.c_str(),
-            hdlr->handler_name.c_str());
+    DEBUG("handler: [%4s] %s", (const char*)&hdlr->handler_type,
+            (const char *)&hdlr->handler_name);
 
     // find sample infomations
     sp<SampleEntry> sampleEntry = stsd->child[0];
-    track->codec = get_codec_format(sampleEntry->name);
+    track->codec = get_codec_format(sampleEntry->type);
     if (track->codec == kAudioCodecUnknown) {
-        ERROR("unsupported track sample '%s'", sampleEntry->name.c_str());
+        ERROR("unsupported track sample '%s'", (const char *)&sampleEntry->type);
         return track;
     }
 
-    if (hdlr->handler_type == "soun") {
+    if (hdlr->handler_type == kMediaTypeSound) {
         track->type = kCodecTypeAudio;
         track->audio.channelCount = sampleEntry->sound.channelcount;
         if (sampleEntry->sound.samplerate) {
@@ -187,7 +187,7 @@ static sp<Mp4Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderB
             ERROR("sample rate missing from sample entry box, using timescale in mdhd");
             track->audio.sampleRate = mdhd->timescale;
         }
-    } else if (hdlr->handler_type == "vide") {
+    } else if (hdlr->handler_type == kMediaTypeVideo) {
         track->type = kCodecTypeVideo;
         track->video.width = sampleEntry->visual.width;
         track->video.height = sampleEntry->visual.height;
@@ -195,18 +195,19 @@ static sp<Mp4Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderB
 
     for (size_t i = 0; i < sampleEntry->child.size(); ++i) {
         sp<Box> box = sampleEntry->child[i];
-        String knownBox = "esds avcC hvcC";
-        if (knownBox.indexOf(box->name) >= 0) {
+        if (box->type == kBoxTypeESDS ||
+            box->type == kBoxTypeAVCC ||
+            box->type == kBoxTypeHVCC) {
             track->esds = box;
         }
         // esds in mov.
-        else if (box->name == "wave") {
-            track->esds = FindBox(box, "esds");
-        } else if (box->name == "btrt") {
+        else if (box->type == kBoxTypeWAVE) {
+            track->esds = FindBox(box, kBoxTypeESDS);
+        } else if (box->type == kBoxTypeBTRT) {
             sp<BitRateBox> btrt = box;
             track->bitReate = btrt->avgBitrate;
         } else {
-            INFO("ignore box %s", box->name.c_str());
+            INFO("ignore box %s", (const char *)&box->type);
         }
     }
 
@@ -238,7 +239,7 @@ static sp<Mp4Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderB
         }
     }
     
-    if (hdlr->handler_type == "vide" && ctts == NULL) {
+    if (hdlr->handler_type == kMediaTypeVideo && ctts == NULL) {
         ERROR("ctts is not present. pts will be missing");
     }
 
@@ -320,8 +321,6 @@ static sp<Mp4Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderB
 #if 1
     if (tref != 0) {
         CHECK_EQ(tref->child.size(), 1);
-        sp<TrackReferenceTypeBox> type = tref->child[0];
-        DEBUG("tref %s", type->name.c_str());
         // TODO
     }
 #endif
@@ -407,14 +406,6 @@ static MediaError seekTrack(sp<Mp4Track>& track,
     return kMediaNoError;
 }
 
-struct Mp4Packet : public MediaPacket {
-    sp<Buffer> buffer;
-    Mp4Packet(const sp<Buffer>& _buffer) : MediaPacket(), buffer(_buffer) {
-        data    = (uint8_t*)buffer->data();
-        size    = buffer->size();
-    }
-};
-
 struct Mp4File : public MediaFile {
     sp<Content>             mContent;
     Vector<sp<Mp4Track > >  mTracks;
@@ -444,7 +435,7 @@ struct Mp4File : public MediaFile {
             const sp<Mp4Track>& trak = mTracks[i];
 
             sp<Message> trakInfo = new Message;
-            trakInfo->setInt32(kKeyCodecType, trak->type);
+            trakInfo->setInt32(kKeyType, trak->type);
             trakInfo->setInt32(kKeyFormat, trak->codec);
             trakInfo->setInt64(kKeyDuration, trak->duration.useconds());
             if (trak->bitReate)
@@ -459,7 +450,7 @@ struct Mp4File : public MediaFile {
             }
 
             if (trak->esds != NULL) {
-                trakInfo->setObject(trak->esds->name, trak->esds->data);
+                trakInfo->setObject(FOURCC(trak->esds->type), trak->esds->data);
             }
 
 #if 0
@@ -467,7 +458,7 @@ struct Mp4File : public MediaFile {
             uint64_t startTime = 0;     // FIXME: learn more about start time.
             int64_t encodeDelay = 0;
             int64_t encodePadding = 0;
-            sp<EditListBox> elst = FindBoxInside(trak, "edts", "elst");
+            sp<EditListBox> elst = FindBoxInside(trak, kBoxTypeEDTS, kBoxTypeELST);
             if (elst != NULL && elst->entries.size()) {
                 size_t i = 0;
                 if (elst->entries[0].media_time == -1) {
@@ -491,15 +482,13 @@ struct Mp4File : public MediaFile {
                 }
             }
 #endif
-
-            String name = String::format("track-%zu", i);
-            info->setObject(name, trakInfo);
+            info->setObject(kKeyTrack + i, trakInfo);
         }
 
 #if 0
         // TODO: meta
         // id3v2
-        sp<ID3v2Box> id32 = FindBoxInside(mMovieBox, "meta", "ID32");
+        sp<ID3v2Box> id32 = FindBoxInside(mMovieBox, kBoxTypeMETA, kBoxTypeID32);
         if (id32 != NULL) {
             ID3::ID3v2 parser;
             if (parser.parse(*id32->ID3v2data) == kMediaNoError) {
@@ -531,8 +520,8 @@ struct Mp4File : public MediaFile {
             size_t boxHeadLength    = 8;
             // if size is 1 then the actual size is in the field largesize;
             // if size is 0, then this box is the last one in the file
-            uint64_t boxSize        = br.rb32();
-            const String boxType    = br.readS(4);
+            uint64_t boxSize    = br.rb32();
+            uint32_t boxType    = br.rb32();
 
             if (boxSize == 1) {
                 sp<Buffer> large    = pipe->read(8);
@@ -541,9 +530,9 @@ struct Mp4File : public MediaFile {
                 boxHeadLength       = 16;
             }
 
-            DEBUG("file: %s %" PRIu64, boxType.c_str(), boxSize);
+            DEBUG("file: %4s %" PRIu64, BoxName(boxType), boxSize);
 
-            if (boxType == "mdat") {
+            if (boxType == kBoxTypeMDAT) {
                 mdat = true;
                 startPosition = pipe->tell();
                 // ISO/IEC 14496-12: Section 8.2 Page 23
@@ -561,11 +550,11 @@ struct Mp4File : public MediaFile {
 
             // empty box
             if (boxSize == boxHeadLength) {
-                DEBUG("empty top level box %s", boxType.c_str());
+                DEBUG("empty top level box %4s", (const char *)&boxType);
                 continue;
             }
 
-            if (boxType == "meta") {
+            if (boxType == kBoxTypeMETA) {
                 meta.offset     = pipe->tell();
                 meta.length     = boxSize;
                 INFO("find meta box @ %zu(%zu)", meta.offset, meta.length);
@@ -580,17 +569,17 @@ struct Mp4File : public MediaFile {
                 break;
             }
 
-            if (boxType == "ftyp") {
+            if (boxType == kBoxTypeFTYP) {
                 // ISO/IEC 14496-12: Section 4.3 Page 12
                 DEBUG("file type box");
                 BitReader _br(boxPayload->data(), boxPayload->size());
                 ftyp = FileTypeBox(_br, boxSize);
-            } else if (boxType == "moov") {
+            } else if (boxType == kBoxTypeMOOV) {
                 // ISO/IEC 14496-12: Section 8.1 Page 22
                 DEBUG("movie box");
                 moovData = boxPayload;
             } else {
-                ERROR("unknown top level box: %s", boxType.c_str());
+                ERROR("unknown top level box: %s", BoxName(boxType));
             }
         }
 
@@ -612,7 +601,7 @@ struct Mp4File : public MediaFile {
         }
         PrintBox(moov);
 
-        sp<MovieHeaderBox> mvhd = FindBox(moov, "mvhd");
+        sp<MovieHeaderBox> mvhd = FindBox(moov, kBoxTypeMVHD);
         if (mvhd == 0) {
             ERROR("can not find mvhd.");
             return kMediaErrorBadFormat;
@@ -620,7 +609,7 @@ struct Mp4File : public MediaFile {
         mDuration = MediaTime(mvhd->duration, mvhd->timescale);
 
         for (size_t i = 0; ; ++i) {
-            sp<TrackBox> trak = FindBox(moov, "trak", i);
+            sp<TrackBox> trak = FindBox(moov, kBoxTypeTRAK, i);
             if (trak == 0) break;
 
             sp<Mp4Track> track = prepareTrack(trak, mvhd);
@@ -735,10 +724,10 @@ struct Mp4File : public MediaFile {
         }
 #endif
         // init MediaPacket context
-        sp<MediaPacket> packet  = new Mp4Packet(sample);
+        sp<MediaPacket> packet  = MediaPacket::Create(sample);
         packet->index           = trackIndex;
         packet->type            = flags;
-        if (s.pts == kTimeValueInvalid)
+        if (s.pts < 0)
             packet->pts =       kMediaTimeInvalid;
         else
             packet->pts =       MediaTime(s.pts, track->duration.timescale);
@@ -768,8 +757,8 @@ int IsMp4File(const sp<Buffer>& data) {
         size_t boxHeadLength    = 8;
         // if size is 1 then the actual size is in the field largesize;
         // if size is 0, then this box is the last one in the file
-        uint64_t boxSize        = br.rb32();
-        const String boxType    = br.readS(4);
+        uint64_t boxSize    = br.rb32();
+        uint32_t boxType    = br.rb32();
 
         if (boxSize == 1) {
             if (br.remianBytes() < 8) break;
@@ -778,18 +767,25 @@ int IsMp4File(const sp<Buffer>& data) {
             boxHeadLength       = 16;
         }
 
-        DEBUG("file: %s %" PRIu64, boxType.c_str(), boxSize);
-        if (boxType == "ftyp" || boxType == "moov" || boxType == "mdat") {
-            score += 40;
-        } else if (boxType == "ftyp" ||
-                boxType == "mdat" ||
-                boxType == "pnot" || /* detect movs with preview pics like ew.mov and april.mov */
-                boxType == "udat" || /* Packet Video PVAuthor adds this and a lot of more junk */
-                boxType == "wide" ||
-                boxType == "ediw" || /* xdcam files have reverted first tags */
-                boxType == "free" ||
-                boxType == "junk" ||
-                boxType == "pict") {
+        DEBUG("file: %4s %" PRIu64, BoxName(boxType), boxSize);
+        
+        // mdat may show before moov, give mdat more scores
+        if (boxType == kBoxTypeFTYP ||
+            boxType == kBoxTypeMDAT) {
+            score += 50;
+        } else if (boxType == kBoxTypeMOOV ||
+                   boxType == kBoxTypeTRAK ||
+                   boxType == kBoxTypeMDIA) {
+            score += 20;    // this is a container box
+            continue;
+        } else if (boxType == kBoxTypeMETA ||
+                   boxType == kBoxTypeMVHD ||
+                   boxType == kBoxTypeTKHD ||
+                   boxType == kBoxTypeTREF ||
+                   boxType == kBoxTypeEDTS ||
+                   boxType == kBoxTypeMDHD ||
+                   boxType == kBoxTypeHDLR ||
+                   boxType == kBoxTypeMINF) {
             score += 10;
         }
 

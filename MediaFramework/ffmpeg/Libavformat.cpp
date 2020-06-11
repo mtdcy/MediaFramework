@@ -62,7 +62,7 @@ struct {
     { "mp4",        kFileFormatMp4  },  // & m4a
     { "matroska",   kFileFormatMkv  },  // matroska & webm
     // END OF LIST
-    { NULL,         kFileFormatInvalid }
+    { NULL,         kFileFormatUnknown }
 };
 
 static eFileFormat GetFormat(const String& name) {
@@ -262,12 +262,12 @@ static sp<AVFormatObject> openInput(sp<Content>& pipe, bool find_stream_info = f
 struct AVMediaPacket : public MediaPacket {
     AVPacket *  pkt;
     
-    AVMediaPacket(sp<AVStreamObject>& st, AVPacket * ref) {
+    AVMediaPacket(sp<AVStreamObject>& st, AVPacket * ref) :
+    MediaPacket(ref->data, ref->size) {
+        CHECK_EQ(st->stream->index, pkt->stream_index);
+        
         pkt = av_packet_alloc();
         av_packet_ref(pkt, ref);
-        
-        CHECK_EQ(st->stream->index, pkt->stream_index);
-        data    = pkt->data;
         size    = pkt->size;
         index   = pkt->stream_index;
         type    = kFrameTypeUnknown;
@@ -352,7 +352,6 @@ struct AVFormat : public MediaFile {
         
         info->setInt32(kKeyCount, mObject->context->nb_streams);
         for (size_t i = 0; i < mObject->context->nb_streams; ++i) {
-            String name = String::format("track-%zu", i);
             sp<Message> trak = new Message;
             
             AVStream * st = mObject->context->streams[i];
@@ -364,12 +363,12 @@ struct AVFormat : public MediaFile {
             }
             switch (st->codecpar->codec_type) {
                 case AVMEDIA_TYPE_AUDIO:
-                    trak->setInt32(kKeyCodecType, kCodecTypeAudio);
+                    trak->setInt32(kKeyType, kCodecTypeAudio);
                     trak->setInt32(kKeySampleRate, st->codecpar->sample_rate);
                     trak->setInt32(kKeyChannels, st->codecpar->channels);
                     break;
                 case AVMEDIA_TYPE_VIDEO:
-                    trak->setInt32(kKeyCodecType, kCodecTypeVideo);
+                    trak->setInt32(kKeyType, kCodecTypeVideo);
                     trak->setInt32(kKeyWidth, st->codecpar->width);
                     trak->setInt32(kKeyHeight, st->codecpar->height);
                     break;
@@ -412,14 +411,14 @@ struct AVFormat : public MediaFile {
                     break;
                 default:
                     if (st->codecpar->extradata) {
-                        trak->setObject(kKeyCodecSpecificData,
+                        trak->setObject(kKeyCodecSpecData,
                                         new Buffer((const char *)st->codecpar->extradata,
                                                    st->codecpar->extradata_size));
                     }
                     break;
             }
             
-            info->setObject(name, trak);
+            info->setObject(kKeyTrack + i, trak);
         }
         return info;
     }

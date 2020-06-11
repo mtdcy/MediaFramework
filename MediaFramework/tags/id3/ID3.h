@@ -35,7 +35,7 @@
 #ifndef _MEDIA_MODULES_ID3_H
 #define _MEDIA_MODULES_ID3_H
 
-#include <MediaFramework/MediaTypes.h>
+#include "tags/Tags.h"
 
 __BEGIN_NAMESPACE_MPX
 __BEGIN_NAMESPACE(ID3)
@@ -47,12 +47,7 @@ class ID3v2 : public Tag::Parser {
         virtual MediaError      parse(const Buffer& data);
 
     public:
-        // is data contains an id3v2 ?
-        // if yes, return id3v2 length excluding the header length
-        // else return < 0
-        // header should be at least kHeaderLength bytes
         static const size_t     kHeaderLength;
-        static ssize_t          isID3v2(const Buffer& header);
 };
 
 class ID3v1 : public Tag::Parser {

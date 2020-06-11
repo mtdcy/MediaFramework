@@ -36,7 +36,6 @@
 #define _MEDIA_MODULES_IMAGE_FILE_H
 
 #include <MediaFramework/MediaTypes.h>
-#include <MediaFramework/MediaFrame.h>
 
 #ifdef __cplusplus
 __BEGIN_NAMESPACE_MPX
