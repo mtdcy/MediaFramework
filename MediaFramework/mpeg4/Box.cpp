@@ -1349,7 +1349,7 @@ sp<Box> FindBoxInside(const sp<ContainerBox>& root, uint32_t sub, uint32_t targe
     return FindBox(box, target);
 }
 
-static FORCE_INLINE void PrintBox(const sp<Box>& box, size_t n) {
+static void PrintBox(const sp<Box>& box, size_t n) {
     String line;
     if (n) {
         for (size_t i = 0; i < n - 2; ++i) line.append(" ");

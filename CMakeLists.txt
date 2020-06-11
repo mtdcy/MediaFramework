@@ -28,6 +28,13 @@ set (CMAKE_C_EXTENSIONS OFF)    # no gnu extensions
 set (CMAKE_CXX_STANDARD 98)     # c++98
 set (CMAKE_CXX_EXTENSIONS OFF)  # no gnu extensions
 
+if (CMAKE_COMPILER_IS_GNUCC)
+    add_definitions(-Wno-attributes)
+    add_definitions(-Wno-multichar)
+    add_definitions(-Wno-unknown-pragmas)
+    add_definitions(-fPIC)
+endif()
+
 # gnucc definitions
 if (CMAKE_COMPILER_IS_GNUCC)
     add_definitions(-Wno-attributes)
@@ -134,6 +141,7 @@ if (APPLE)
     target_link_libraries(${PROJECT_NAME} "-framework OpenAL")
 else()
     target_link_libraries(${PROJECT_NAME} -lGL)
+    target_link_libraries(${PROJECT_NAME} -lopenal)
 endif()
 
 if (XCODE)

@@ -466,7 +466,7 @@ static GLuint initShader(GLenum type, const char *sl) {
     CHECK_NULL(sl);
     GLuint sh = glCreateShader(type);
     if (sh == 0) {
-        ERROR("create shader of %d failed.", type);
+        ERROR("create shader of %#x failed.", type);
         return 0;
     }
     

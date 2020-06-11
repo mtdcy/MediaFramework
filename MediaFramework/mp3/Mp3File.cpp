@@ -446,7 +446,7 @@ struct Mp3Packetizer : public MediaPacketizer {
 
         while (mBuffer.empty() < in->size) {
             if (mNeedMoreData) {
-                CHECK_EQ(mBuffer.resize(mBuffer.capacity() * 2), kMediaNoError);
+                CHECK_TRUE(mBuffer.resize(mBuffer.capacity() * 2));
                 DEBUG("resize internal buffer => %zu", mBuffer.capacity());
             } else {
                 return kMediaErrorResourceBusy;
@@ -518,9 +518,10 @@ struct Mp3Packetizer : public MediaPacketizer {
 
         sp<MediaPacket> packet = MediaPacket::Create(mpa.frameLengthInBytes);
         mBuffer.read((char*)packet->data, mpa.frameLengthInBytes);
-        CHECK_EQ(mpa.frameLengthInBytes, packet->size);
+        CHECK_EQ(mpa.frameLengthInBytes, packet->capacity);
 
         CHECK_TRUE(mFrameTime != kMediaTimeInvalid);
+        packet->size        = mpa.frameLengthInBytes;
         packet->pts         = mNextFrameTime;
         packet->dts         = mNextFrameTime;
         packet->duration    = mFrameTime;

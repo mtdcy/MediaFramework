@@ -408,12 +408,17 @@ API_EXPORT bool         IsSampleFormatPacked(eSampleFormat);
 
 typedef struct AudioFormat {
     eSampleFormat       format;         ///< audio sample format @see eSampleFormat
-    int32_t             channels;       ///< audio channels
     int32_t             freq;           ///< audio sample rate
-    int32_t             samples;        ///< samples per channel
+    size_t              channels;       ///< audio channels
+    size_t              samples;        ///< samples per channel
 } AudioFormat;
 
+__END_DECLS
+
+#pragma mark Basic C++ Types
 #ifdef __cplusplus
+__BEGIN_NAMESPACE_MPX
+
 // AudioFormat
 static FORCE_INLINE bool operator==(const AudioFormat& lhs, const AudioFormat& rhs) {
     return lhs.format == rhs.format && lhs.channels == rhs.channels && lhs.freq == rhs.freq;
@@ -426,14 +431,7 @@ static FORCE_INLINE bool operator==(const ImageFormat& lhs, const ImageFormat& r
     return lhs.format == rhs.format && lhs.width == rhs.width && lhs.height == rhs.height;
 }
 
-static FORCE_INLINE bool operator!=(const ImageFormat& lhs, const ImageFormat& rhs) { return !operator==(lhs, rhs); }
-#endif
-            
-__END_DECLS
-
-#pragma mark Basic C++ Types
-#ifdef __cplusplus
-__BEGIN_NAMESPACE_MPX
+static FORCE_INLINE bool operator!=(const ImageFormat& lhs, const ImageFormat& rhs) { return !operator==(lhs, rhs); }            
 
 /**
  * time struct for represent decoding and presentation time

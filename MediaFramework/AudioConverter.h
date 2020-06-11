@@ -62,4 +62,4 @@ __END_NAMESPACE_MPX
 
 #endif // __cplusplus
 
-#endif _MPX_MEDIA_AUDIO_CONVERTER_H
+#endif // _MPX_MEDIA_AUDIO_CONVERTER_H
