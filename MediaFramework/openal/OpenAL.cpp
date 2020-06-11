@@ -165,7 +165,6 @@ static FORCE_INLINE int64_t GetDuration(const sp<MediaFrame>& frame) {
 }
 
 static MediaError playFrame(const sp<OpenALContext>& openAL, const sp<MediaFrame>& frame) {
-    CHECK_EQ(kSampleFormatS16Packed, frame->a.format);
     ALint state;
     alGetSourcei(openAL->mSource, AL_SOURCE_STATE, &state);
     CHECK_AL_ERROR();
@@ -181,6 +180,7 @@ static MediaError playFrame(const sp<OpenALContext>& openAL, const sp<MediaFrame
         }
         return kMediaNoError;
     }
+    CHECK_EQ((eSampleFormat)kSampleFormatS16Packed, frame->a.format);
     
     if (state != AL_PLAYING) {
         DEBUG("play ...");
