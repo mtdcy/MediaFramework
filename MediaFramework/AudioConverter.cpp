@@ -220,6 +220,33 @@ template <typename FROM, typename TO> struct resample1<FROM, TO, double> {
     }
 };
 
+// downmix to stereo, reference:
+// 1. https://trac.ffmpeg.org/wiki/AudioChannelManipulation#a5.1stereo
+// 2.
+template <typename TYPE>
+static FORCE_INLINE void downmix(const sp<MediaFrame>& frame) {
+    CHECK_GT(frame->a.channels, 2);
+    TYPE * planes[MEDIA_FRAME_NB_PLANES] = {
+        (TYPE *)frame->planes[0].data,   // FL
+        (TYPE *)frame->planes[1].data,   // FR
+        (TYPE *)frame->planes[2].data,   // C
+        (TYPE *)frame->planes[3].data,   // LFE
+        (TYPE *)frame->planes[4].data,   // BL
+        (TYPE *)frame->planes[5].data,   // BR
+        (TYPE *)frame->planes[6].data,
+        (TYPE *)frame->planes[7].data
+    };
+    
+    if (frame->a.channels >= 6) {
+        for (size_t i = 0; i < frame->a.samples; ++i) {
+            planes[0][i] += 0.707 * planes[2][i] + 0.707 + planes[4][i] + planes[3][i];
+            planes[1][i] += 0.707 * planes[2][i] + 0.707 + planes[5][i] + planes[3][i];
+        }
+    } else {
+        FATAL("FIXME");
+    }
+}
+
 // is frame using a single continued buffer ?
 static FORCE_INLINE bool IsSingleBuffer(const sp<MediaFrame>& frame) {
     uint8_t * ptr = frame->planes[0].data;
@@ -330,21 +357,26 @@ struct AudioSampleConverter : public AudioConverter {
         
         // the MediaFrame::Create always using a single buffer
         
+        if (input->a.channels > output->a.channels) {
+            downmix<FROM>(input);
+        }
+        
         if (mInterleave) {
             TO * orig = (TO*)output->planes[0].data;
             const size_t samples = input->planes[0].size / sizeof(FROM);
-            for (size_t i = 0; i < MEDIA_FRAME_NB_PLANES; ++i) {
+            for (size_t i = 0; i < output->a.channels; ++i) {
                 if (input->planes[i].data == NULL) break;
                 FROM * src = (FROM*)input->planes[i].data;
                 TO * dest = orig + i;
                 for (size_t j = 0; j < samples; ++j) {
                     *dest = expr<FROM, TO>(*src++);
-                    dest += input->a.channels;
+                    dest += output->a.channels;
                 }
             }
             output->planes[0].size = sizeof(TO) * samples * output->a.channels;
+            output->planes[1].data = NULL;
         } else {
-            for (size_t i = 0; i < MEDIA_FRAME_NB_PLANES; ++i) {
+            for (size_t i = 0; i < output->a.channels; ++i) {
                 if (input->planes[i].data == NULL) break;
                 FROM * src = (FROM*)input->planes[i].data;
                 TO * dest = (TO*)output->planes[i].data;
@@ -354,6 +386,7 @@ struct AudioSampleConverter : public AudioConverter {
                 }
                 output->planes[i].size = samples * sizeof(TO);
             }
+            output->planes[output->a.channels].data = NULL;
         }
             
         return output;
