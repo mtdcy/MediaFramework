@@ -112,7 +112,7 @@ static FORCE_INLINE sp<SDLAudioContext> openDevice(const AudioFormat& format) {
     SDL_AudioSpec wanted_spec, spec;
 
     // sdl only support s16.
-    wanted_spec.channels    = format.channels;
+    wanted_spec.channels    = format.channels > 1 ? 2 : 1;
     wanted_spec.freq        = format.freq;
     wanted_spec.format      = get_sdl_sample_format((eSampleFormat)format.format);
     wanted_spec.silence     = 0;
@@ -200,18 +200,6 @@ static void SDLAudioCallback(void *opaque, uint8_t *buffer, int len) {
         sdl->mWait.signal();
     }
 }
-
-struct PackedAudioFrame : public MediaFrame {
-    sp<Buffer> data;
-    PackedAudioFrame(size_t n) : data(new Buffer(n)) {
-        planes[0].data      = (uint8_t*)data->data();
-        planes[0].size      = n;
-        for (size_t i = 1; i < MEDIA_FRAME_NB_PLANES; ++i) {
-            planes[i].data  = NULL;
-            planes[i].size  = 0;
-        }
-    }
-};
 
 struct SDLAudio : public MediaOut {
     sp<SDLAudioContext>     mSDL;
