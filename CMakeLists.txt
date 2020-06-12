@@ -233,6 +233,9 @@ target_link_libraries(files MediaFramework)
 add_executable(codec EXCLUDE_FROM_ALL codec_main.cpp)
 target_link_libraries(codec MediaFramework)
 
+add_executable(matroska EXCLUDE_FROM_ALL matroska_main.cpp)
+target_link_libraries(matroska MediaFramework)
+
 #------------------------------------------------------------------------------#
 # unit test 
 remove_definitions(-Werror=non-virtual-dtor)

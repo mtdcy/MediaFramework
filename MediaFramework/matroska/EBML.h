@@ -37,7 +37,8 @@
 
 #include <MediaFramework/MediaTypes.h>
 
-__BEGIN_DECLS
+__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE(EBML)
 
 #define ID_VOID                 0xEC
 
@@ -206,13 +207,32 @@ __BEGIN_DECLS
 #define ID_CHAPSTRING           0x85        // utf8, #<=1
 #define ID_CHAPLANGUAGE         0x437C      // string, #>=0, def:eng
 #define ID_CHAPCOUNTRY          0x437E      // utf8, #>=0
+// ATTACHMENTS
+#define ID_ATTACHEDFILE         0x61A7      // master, #>=1
+#define ID_FILEDESCRIPTION      0x467E      // utf8, #<=1
+#define ID_FILENAME             0x466E      // utf8, #=1
+#define ID_FILEMIMETYPE         0x4660      // string, #=1
+#define ID_FILEDATA             0x465C      // binary, #=1
+#define ID_FILEUID              0x46AE      // uint, #=1
 
-__END_DECLS
+enum eTrackType {
+    kTrackTypeVideo     = 0x1,
+    kTrackTypeAudio     = 0x2,
+    kTrackTypeComplex   = 0x3,
+    kTrackTypeLogo      = 0x10,
+    kTrackTypeSubtitle  = 0x11,
+    kTrackTypeButton    = 0x12,
+    kTrackTypeControl   = 0x20
+};
 
-__BEGIN_NAMESPACE_MPX
-__BEGIN_NAMESPACE(EBML)
+enum eTrackFlags {
+    kTrackFlagEnabled   = 0x1,
+    kTrackFlagDefault   = 0x2,
+    kTrackFlagForced    = 0x4,
+    kTrackFlagLacing    = 0x8,
+};
 
-enum EBMLElementType {
+enum eEBMLElementType {
     kEBMLElementMaster,
     kEBMLElementInteger,
     kEBMLElementSignedInteger,
@@ -247,34 +267,42 @@ struct EBMLSignedInteger {
         int8_t          i8;
         int16_t         i16;
         int32_t         i32;
-        int32_t         i64;
+        int64_t         i64;
     };
     size_t              length;
 };
 
+/**
+ * @note always use id.u64 & size.u64 when compare
+ */
 struct EBMLElement : public SharedObject {
     const char *            name;
-    EBMLInteger             id;
-    const EBMLElementType   type;
+    const EBMLInteger       id;
+    EBMLInteger             size;
+    const eEBMLElementType  type;
 
-    FORCE_INLINE EBMLElement(const char *_name, EBMLInteger& _id, EBMLElementType _type) : name(_name), id(_id), type(_type) { }
+    FORCE_INLINE EBMLElement(const char *_name, const EBMLInteger& _id, EBMLInteger& _size, const eEBMLElementType& _type) :
+        name(_name), id(_id), size(_size), type(_type) { }
     FORCE_INLINE virtual ~EBMLElement() { }
     virtual MediaError parse(BitReader&, size_t) = 0;
+    //virtual MediaError compose(BitWriter&, size_t) = 0;
     virtual String string() const = 0;
 };
 
 struct EBMLIntegerElement : public EBMLElement {
     EBMLInteger         vint;
 
-    FORCE_INLINE EBMLIntegerElement(const char *_name, EBMLInteger& _id) : EBMLElement(_name, _id, kEBMLElementInteger) { }
+    FORCE_INLINE EBMLIntegerElement(const char *name, const EBMLInteger& id, EBMLInteger& size) :
+        EBMLElement(name, id, size, kEBMLElementInteger) { }
     virtual MediaError parse(BitReader&, size_t);
     virtual String string() const;
 };
 
 struct EBMLSignedIntegerElement : public EBMLElement {
     EBMLSignedInteger   svint;
-    
-    FORCE_INLINE EBMLSignedIntegerElement(const char *_name, EBMLInteger& _id) : EBMLElement(_name, _id, kEBMLElementSignedInteger) { }
+
+    FORCE_INLINE EBMLSignedIntegerElement(const char *name, const EBMLInteger& id, EBMLInteger& size) :
+        EBMLElement(name, id, size, kEBMLElementSignedInteger) { }
     virtual MediaError parse(BitReader&, size_t);
     virtual String string() const;
 };
@@ -282,7 +310,8 @@ struct EBMLSignedIntegerElement : public EBMLElement {
 struct EBMLStringElement : public EBMLElement {
     String              str;
 
-    FORCE_INLINE EBMLStringElement(const char *_name, EBMLInteger& _id) : EBMLElement(_name, _id, kEBMLElementString) { }
+    FORCE_INLINE EBMLStringElement(const char *name, const EBMLInteger& id, EBMLInteger& size) :
+        EBMLElement(name, id, size, kEBMLElementString) { }
     virtual MediaError parse(BitReader&, size_t);
     virtual String string() const;
 };
@@ -290,7 +319,8 @@ struct EBMLStringElement : public EBMLElement {
 struct EBMLUTF8Element : public EBMLElement {
     String              utf8;
 
-    FORCE_INLINE EBMLUTF8Element(const char *_name, EBMLInteger& _id) : EBMLElement(_name, _id, kEBMLElementUTF8) { }
+    FORCE_INLINE EBMLUTF8Element(const char *name, const EBMLInteger& id, EBMLInteger& size) :
+        EBMLElement(name, id, size, kEBMLElementUTF8) { }
     virtual MediaError parse(BitReader&, size_t);
     virtual String string() const;
 };
@@ -298,7 +328,8 @@ struct EBMLUTF8Element : public EBMLElement {
 struct EBMLBinaryElement : public EBMLElement {
     sp<Buffer>          data;
 
-    FORCE_INLINE EBMLBinaryElement(const char *_name, EBMLInteger& _id) : EBMLElement(_name, _id, kEBMLElementBinary) { }
+    FORCE_INLINE EBMLBinaryElement(const char *name, const EBMLInteger& id, EBMLInteger& size) :
+        EBMLElement(name, id, size, kEBMLElementBinary) { }
     virtual MediaError parse(BitReader&, size_t);
     virtual String string() const;
 };
@@ -306,21 +337,29 @@ struct EBMLBinaryElement : public EBMLElement {
 struct EBMLFloatElement : public EBMLElement {
     double              flt;
 
-    FORCE_INLINE EBMLFloatElement(const char *_name, EBMLInteger& _id) : EBMLElement(_name, _id, kEBMLElementFloat) { }
+    FORCE_INLINE EBMLFloatElement(const char *name, const EBMLInteger& id, EBMLInteger& size) :
+        EBMLElement(name, id, size, kEBMLElementFloat) { }
     virtual MediaError parse(BitReader&, size_t);
     virtual String string() const;
 };
 
 struct EBMLMasterElement : public EBMLElement {
-    List<sp<EBMLElement> >  children;
+    struct Entry {
+        int64_t         position;
+        sp<EBMLElement> element;
+        Entry(int64_t pos, const sp<EBMLElement>& e) : position(pos), element(e) { }
+    };
+    List<Entry>         children;
 
-    FORCE_INLINE EBMLMasterElement(const char *_name, EBMLInteger& _id) : EBMLElement(_name, _id, kEBMLElementMaster) { }
+    FORCE_INLINE EBMLMasterElement(const char *name, const EBMLInteger& id, EBMLInteger& size) :
+        EBMLElement(name, id, size, kEBMLElementMaster) { }
     virtual MediaError parse(BitReader&, size_t);
     virtual String string() const;
 };
 
 struct EBMLSkipElement : public EBMLElement {
-    FORCE_INLINE EBMLSkipElement(const char *_name, EBMLInteger& _id) : EBMLElement(_name, _id, kEBMLElementSkip) { }
+    FORCE_INLINE EBMLSkipElement(const char *name, const EBMLInteger& id, EBMLInteger& size) :
+        EBMLElement(name, id, size, kEBMLElementSkip) { }
     virtual MediaError parse(BitReader&, size_t);
     virtual String string() const;
 };
@@ -341,22 +380,31 @@ struct EBMLSimpleBlockElement : public EBMLElement {
     uint8_t             Flags;
     List<sp<Buffer> >   data;
 
-    FORCE_INLINE EBMLSimpleBlockElement(const char *_name, EBMLInteger& _id) : EBMLElement(_name, _id, kEBMLElementBlock) { }
+    FORCE_INLINE EBMLSimpleBlockElement(const char *name, const EBMLInteger& id, EBMLInteger& size) :
+        EBMLElement(name, id, size, kEBMLElementBlock) { }
     virtual MediaError parse(BitReader&, size_t);
     virtual String string() const;
 };
+
+sp<EBMLElement> MakeEBMLElement(const EBMLInteger& id, EBMLInteger& size);
 
 sp<EBMLElement> FindEBMLElement(const sp<EBMLMasterElement>&, uint64_t id);
 
 sp<EBMLElement> FindEBMLElementInside(const sp<EBMLMasterElement>& master, uint64_t inside, uint64_t target);
 
-void PrintEBMLElements(const sp<EBMLElement>& elem, size_t level = 0);
+API_EXPORT void PrintEBMLElements(const sp<EBMLElement>&);
 
-sp<EBMLElement> EnumEBMLElement(sp<Content>& pipe);
+enum {
+    kEnumStopCluster    = 0x1,  // enum stop at cluster
+    kEnumSkipCluster    = 0x2,  // skip cluster content
+    kEnumSkipBlocks     = 0x4,  // skip block content
+};
 
-sp<EBMLElement> ParseMatroska(sp<Content>& pipe, int64_t *segment_offset, int64_t *clusters_offset);
+//API_EXPORT sp<EBMLMasterElement> EnumEBMLElements(sp<Content>& pipe, uint32_t flags = kEnumSkipCluster);
 
-sp<EBMLElement> ReadEBMLElement(sp<Content>& pipe);
+//sp<EBMLElement> ParseMatroska(sp<Content>& pipe, int64_t *segment_offset, int64_t *clusters_offset);
+
+API_EXPORT sp<EBMLElement> ReadEBMLElement(sp<Content>& pipe, uint32_t flags = 0);
 
 int IsMatroskaFile(const sp<Buffer>& data);
 
