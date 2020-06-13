@@ -122,15 +122,19 @@ typedef uint32_t eAudioCodec;
 
 enum {
     kVideoCodecUnknown,
-    kVideoCodecH264     = FOURCC('avc1'),
-    kVideoCodecHEVC     = FOURCC('HEVC'),
-    kVideoCodecMPEG4    = FOURCC('mp4v'),
-    kVideoCodecVP8      = FOURCC('VP80'),
-    kVideoCodecVP9      = FOURCC('VP90'),
-    kVideoCodecVC1      = FOURCC('vc1 '),
-    kVideoCodecH263     = FOURCC('s263'),
-    kVideoCodecMP42     = FOURCC('MP42'),   // Microsoft version MPEG4 v2
+    kVideoCodecMPEG4    = FOURCC('mp4v'),   // MPEG-4, Part 2: Visual
+    kVideoCodecH263     = FOURCC('s263'),   //
+    kVideoCodecH264     = FOURCC('avc1'),   // MPEG-4, Part 10: Advanced Video Coding
+    kVideoCodecHEVC     = FOURCC('HEVC'),   // MPEG-H, Part 2: High Efficiency Video Coding
+    kVideoCodecVP8      = FOURCC('VP80'),   // free codec by On2
+    kVideoCodecVP9      = FOURCC('VP90'),   // free codec by Google
+    kVideoCodecVC1      = FOURCC('vc1 '),   // SMPTE 421M, Microsoft WMV9
     kVideoCodecFFmpeg   = FOURCC('lavc'),   // extend our capability by ffmpeg
+    
+    // Microsoft Version Codecs
+    // support by ffmpeg, including different sub codecs, need MVCM to distinguish them
+    // https://wiki.multimedia.cx/index.php/Microsoft_MPEG-4
+    kVideoCodecMicrosoftMPEG4   = FOURCC('MPG4'),   // Microsoft MPEG4, @see kKeyMVCM
 };
 typedef uint32_t eVideoCodec;
 
@@ -326,11 +330,14 @@ enum {
     kKeyESDS            = FOURCC('esds'),       ///< sp<Buffer>
     kKeyavcC            = FOURCC('avcC'),       ///< sp<Buffer>
     kKeyhvcC            = FOURCC('hvcC'),       ///< sp<Buffer>
-    kKeyMVCM            = FOURCC('MVCM'),       ///< sp<Buffer>, Microsoft VCM
     kKeyCodecSpecData   = FOURCC('#csd'),       ///< sp<Buffer>
     kKeyTags            = FOURCC('tag0'),       ///< sp<Message>
     kKeyEncoderDelay    = FOURCC('edly'),       ///< int32_t
     kKeyEncoderPadding  = FOURCC('epad'),       ///< int32_t
+    
+    // Microsoft codec manager data
+    kKeyMicrosoftVCM    = FOURCC('MVCM'),       ///< sp<Buffer>, Microsoft VCM, exists in matroska, @see BITMAPINFOHEADER
+    kKeyMicorsoftACM    = FOURCC('MACM'),       ///< sp<Buffer>, Microsoft ACM, exists in matroska, @see WAVEFORMATEX
 };
 
 enum {

@@ -42,7 +42,7 @@
 #include "mpeg4/Audio.h"
 #include "mpeg4/Video.h"
 #include "mpeg4/Systems.h"
-#include "asf/Asf.h"
+#include "microsoft/Microsoft.h"
 
 #include "EBML.h"
 
@@ -62,22 +62,22 @@ static struct {
     const uint32_t      format;
 } kCodecMap[] = {
     // video
-    { "V_MPEG4/ISO/AVC",        kVideoCodecH264    },
-    { "V_MPEG4/ISO/ASP",        kVideoCodecMPEG4   },
-    { "V_MPEGH/ISO/HEVC",       kVideoCodecHEVC    },
-    { "V_MPEG4/ISO/",           kVideoCodecMPEG4   },
-    { "V_MPEG4/MS/V3",          kVideoCodecMP42    },
-    { "V_VP8",                  kVideoCodecVP8     },
-    { "V_VP9",                  kVideoCodecVP9     },
+    { "V_MPEG4/ISO/AVC",        kVideoCodecH264             },
+    { "V_MPEG4/ISO/ASP",        kVideoCodecMPEG4            },
+    { "V_MPEGH/ISO/HEVC",       kVideoCodecHEVC             },
+    { "V_MPEG4/ISO/",           kVideoCodecMPEG4            },
+    { "V_VP8",                  kVideoCodecVP8              },
+    { "V_VP9",                  kVideoCodecVP9              },
+    { "V_MPEG4/MS/",            kVideoCodecMicrosoftMPEG4   },
     // audio
-    { "A_AAC",                  kAudioCodecAAC     },
-    { "A_AC3",                  kAudioCodecAC3     },
-    { "A_DTS",                  kAudioCodecDTS     },
-    { "A_MPEG/L1",              kAudioCodecMP3     },
-    { "A_MPEG/L2",              kAudioCodecMP3     },
-    { "A_MPEG/L3",              kAudioCodecMP3     },
+    { "A_AAC",                  kAudioCodecAAC              },
+    { "A_AC3",                  kAudioCodecAC3              },
+    { "A_DTS",                  kAudioCodecDTS              },
+    { "A_MPEG/L1",              kAudioCodecMP3              },
+    { "A_MPEG/L2",              kAudioCodecMP3              },
+    { "A_MPEG/L3",              kAudioCodecMP3              },
     // END OF LIST
-    { "",                       kAudioCodecUnknown },
+    { "",                       kAudioCodecUnknown          },
 };
 #define NELEM(x)    sizeof(x)/sizeof(x[0])
 
@@ -285,12 +285,12 @@ struct MatroskaFile : public MediaFile {
             INFO("track codec %s", CODECID->str.c_str());
             if (CODECID->str == "V_MS/VFW/FOURCC") {
                 BitReader br(CODECPRIVATE->data->data(), CODECPRIVATE->data->size());
-                ASF::BITMAPINFOHEADER biHead;
+                Microsoft::BITMAPINFOHEADER biHead;
                 if (biHead.parse(br) != kMediaNoError) {
                     ERROR("parse BITMAPINFOHEADER failed");
                     continue;
                 }
-                trak.format = ASF::GetVideoCodec(biHead.biCompression);
+                trak.format = kVideoCodecMicrosoftMPEG4;
             } else {
                 trak.format = GetCodecFormat(CODECID->str);
             }
@@ -500,8 +500,8 @@ struct MatroskaFile : public MediaFile {
                     trakInfo->setObject(kKeyhvcC, trak.csd);
                 } else if (trak.format == kVideoCodecMPEG4) {
                     trakInfo->setObject(kKeyESDS, trak.csd);
-                } else if (trak.format == kVideoCodecMP42) {
-                    trakInfo->setObject(kKeyMVCM, trak.csd);
+                } else if (trak.format == kVideoCodecMicrosoftMPEG4) {
+                    trakInfo->setObject(kKeyMicrosoftVCM, trak.csd);
                 }
             }
 

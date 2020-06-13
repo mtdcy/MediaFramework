@@ -42,7 +42,7 @@
 
 #include <mpeg4/Systems.h>
 #include <mpeg4/Audio.h>
-#include "asf/Asf.h"
+#include "microsoft/Microsoft.h"
 
 // 57.35
 // avcodec_send_packet && avcodec_receive_frame
@@ -58,24 +58,25 @@ struct {
     AVCodecID       b;
 } kCodecMap[] = {
     // audio
-    {kAudioCodecAAC,        AV_CODEC_ID_AAC         },
-    {kAudioCodecMP3,        AV_CODEC_ID_MP3         },
-    {kAudioCodecAPE,        AV_CODEC_ID_APE         },
-    {kAudioCodecFLAC,       AV_CODEC_ID_FLAC        },
-    {kAudioCodecWMA,        AV_CODEC_ID_WMAV2       },
-    {kAudioCodecVorbis,     AV_CODEC_ID_VORBIS      },
-    {kAudioCodecDTS,        AV_CODEC_ID_DTS         },
-    {kAudioCodecAC3,        AV_CODEC_ID_AC3         },
+    {kAudioCodecAAC,            AV_CODEC_ID_AAC         },
+    {kAudioCodecMP3,            AV_CODEC_ID_MP3         },
+    {kAudioCodecAPE,            AV_CODEC_ID_APE         },
+    {kAudioCodecFLAC,           AV_CODEC_ID_FLAC        },
+    {kAudioCodecWMA,            AV_CODEC_ID_WMAV2       },
+    {kAudioCodecVorbis,         AV_CODEC_ID_VORBIS      },
+    {kAudioCodecDTS,            AV_CODEC_ID_DTS         },
+    {kAudioCodecAC3,            AV_CODEC_ID_AC3         },
 
     // video
-    {kVideoCodecH264,       AV_CODEC_ID_H264        },
-    {kVideoCodecHEVC,       AV_CODEC_ID_H265        },
-    {kVideoCodecMPEG4,      AV_CODEC_ID_MPEG4       },
-    {kVideoCodecMP42,       AV_CODEC_ID_MSMPEG4V2   },
-    {kVideoCodecVC1,        AV_CODEC_ID_VC1         },
+    {kVideoCodecH263,           AV_CODEC_ID_H263        },
+    {kVideoCodecH264,           AV_CODEC_ID_H264        },
+    {kVideoCodecHEVC,           AV_CODEC_ID_H265        },
+    {kVideoCodecMPEG4,          AV_CODEC_ID_MPEG4       },
+    {kVideoCodecVC1,            AV_CODEC_ID_VC1         },
+    {kVideoCodecMicrosoftMPEG4, AV_CODEC_ID_MSMPEG4V2   },
 
     // END OF LIST
-    {kAudioCodecUnknown,    AV_CODEC_ID_NONE        }
+    {kAudioCodecUnknown,        AV_CODEC_ID_NONE        }
 };
 
 static uint32_t get_codec_format(AVCodecID b) {
@@ -655,11 +656,12 @@ static AVCodecContext * initContext(eModeType mode, const sp<Message>& formats, 
     AVCodecID id = get_av_codec_id(codec);
     
 #if 1
-    // fix MSMPEG4 version
-    if (formats->contains(kKeyMVCM)) {
-        sp<Buffer> vcm = formats->findObject(kKeyMVCM);
+    // distinguish difference sub codecs of micorsoft MPEG4
+    if (codec == kVideoCodecMicrosoftMPEG4) {
+        CHECK_TRUE(formats->contains(kKeyMicrosoftVCM));
+        sp<Buffer> vcm = formats->findObject(kKeyMicrosoftVCM);
         BitReader br(vcm->data(), vcm->size());
-        ASF::BITMAPINFOHEADER biHEAD;
+        Microsoft::BITMAPINFOHEADER biHEAD;
         if (biHEAD.parse(br) != kMediaNoError) {
             ERROR("bad BITMAPINFOHEADER");
         } else {

@@ -38,19 +38,7 @@
 #include "MediaTypes.h"
 
 __BEGIN_NAMESPACE_MPX
-__BEGIN_NAMESPACE(ASF)
-
-//! refer to ffmpeg::riff.c::ff_codec_wav_tags
-enum {
-    TAG_WMA_V1              = 0x160,
-    TAG_WMA_V2              = 0x161,
-    TAG_WMA_PRO             = 0x162,
-    TAG_WMA_LOSSLESS        = 0x163,
-};
-
-static uint8_t subformat_base_guid[12] = {
-    0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71
-};
+__BEGIN_NAMESPACE(Microsoft)
 
 // refer to: https://tools.ietf.org/html/rfc2361
 enum {
@@ -64,9 +52,10 @@ enum {
 // 2. http://wiki.multimedia.cx/index.php?title=WAVEFORMATEXTENSIBLE
 
 #define WAVEFORMATEX_MIN_LENGTH (16)
+#define WAVEFORMATEX_MAX_LENGTH (40)
 struct WAVEFORMATEX {
     // >> 16 bytes
-    uint16_t wFormatTag; 
+    uint16_t wFormat;
     uint16_t nChannels; 
     uint32_t nSamplesPerSec; 
     uint32_t nAvgBytesPerSec; 
@@ -82,13 +71,14 @@ struct WAVEFORMATEX {
         uint16_t wValidBitsPerSample;   // cbSize >= 22
     };
     uint32_t dwChannelMask;
-    uint16_t wSubFormat;
-    uint8_t  subFormat[16];
+    uint16_t wSubFormat;                // << parse from subFormat GUID(16 bytes)
     // < 40 bytes
     
     WAVEFORMATEX();
     
-    MediaError parse(BitReader& br);
+    MediaError  parse(BitReader& br);
+    // bw MUST have WAVEFORMATEX_MAX_LENGTH bytes
+    MediaError  compose(BitWriter& bw) const;
 };
 
 // refer to:
@@ -113,9 +103,7 @@ struct BITMAPINFOHEADER {
     MediaError parse(BitReader& br);
 };
 
-eVideoCodec GetVideoCodec(uint32_t fourcc);
-
-__END_NAMESPACE(ASF)
+__END_NAMESPACE(Microsoft)
 __END_NAMESPACE_MPX
 
 #endif // _MPX_MEDIA_ASF_H;

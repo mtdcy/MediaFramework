@@ -77,16 +77,16 @@ set (SOURCE_FILES
     MediaFramework/MediaPlayer.cpp
     MediaFramework/AudioConverter.cpp 
     MediaFramework/Tiger.cpp 
+    MediaFramework/microsoft/Microsoft.cpp
+    MediaFramework/microsoft/WaveFile.cpp
     MediaFramework/tags/id3/ID3.cpp
-    MediaFramework/asf/Asf.cpp
-    MediaFramework/wave/WaveFile.cpp
     MediaFramework/mp3/Mp3File.cpp
-    MediaFramework/mpeg4/Mp4File.cpp
     MediaFramework/mpeg4/Systems.cpp
     MediaFramework/mpeg4/Audio.cpp
     MediaFramework/mpeg4/Video.cpp
     MediaFramework/mpeg4/Visual.cpp
     MediaFramework/mpeg4/Box.cpp
+    MediaFramework/mpeg4/Mp4File.cpp
     MediaFramework/matroska/EBML.cpp
     MediaFramework/matroska/MatroskaFile.cpp
     MediaFramework/opengl/OpenGL.cpp

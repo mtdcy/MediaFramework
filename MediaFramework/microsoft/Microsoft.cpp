@@ -32,23 +32,30 @@
 //          1. 20160701     initial version
 //
 
-#define LOG_TAG "Asf"
+#define LOG_TAG "Microsoft"
 #define LOG_NDEBUG 0
 
-#include "Asf.h"
+#include "Microsoft.h"
 
 __BEGIN_NAMESPACE_MPX
-__BEGIN_NAMESPACE(ASF)
+__BEGIN_NAMESPACE(Microsoft)
+
+static uint8_t subformat_base_guid[12] = {
+    0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71
+};
 
 WAVEFORMATEX::WAVEFORMATEX() {
     // set default values
-    wFormatTag          = WAVE_FORMAT_PCM;
+    wFormat             = WAVE_FORMAT_PCM;
     nChannels           = 2;
     nSamplesPerSec      = 8000;
     nAvgBytesPerSec     = 32000;
     nBlockAlign         = 4;
     wBitsPerSample      = 16;
     cbSize              = 0;
+    wValidBitsPerSample = 0;
+    dwChannelMask       = 0;
+    wSubFormat          = 0;
 }
 
 MediaError WAVEFORMATEX::parse(BitReader& br) {
@@ -57,7 +64,7 @@ MediaError WAVEFORMATEX::parse(BitReader& br) {
     
     // valid chunk length: 16, 18, 40
     // but we have saw chunk length 50
-    wFormatTag          = br.rl16();
+    wFormat             = br.rl16();
     nChannels           = br.rl16();
     nSamplesPerSec      = br.rl32();
     nAvgBytesPerSec     = br.rl32();
@@ -68,16 +75,17 @@ MediaError WAVEFORMATEX::parse(BitReader& br) {
     if (br.remianBytes() > 2) {     // >= 18
         cbSize          = br.rl16();
     }
+    if (cbSize == 0)    return kMediaNoError;
     // 18 bytes
 
-    DEBUG("audio format %u.",     wFormatTag);
+    DEBUG("audio format %u.",     wFormat);
     DEBUG("number channels %u.",  nChannels);
     DEBUG("sample rate %u.",      nSamplesPerSec);
     DEBUG("byte rate %u.",        nAvgBytesPerSec);
     DEBUG("block align %u.",      nBlockAlign);
     DEBUG("bits per sample %u.",  wBitsPerSample);
 
-    if (wFormatTag == WAVE_FORMAT_EXTENSIBLE) {
+    if (wFormat == WAVE_FORMAT_EXTENSIBLE) {
         DEBUG("fmt chunk with extensible format.");
         // 40 - 18 == 22
         if (br.remianBytes() < 22) {
@@ -87,31 +95,31 @@ MediaError WAVEFORMATEX::parse(BitReader& br) {
 
         wValidBitsPerSample     = br.rl16();
         dwChannelMask           = br.rl32();
-        wSubFormat              = br.rl16();
+        
+        uint8_t subFormat[16];
         for (size_t i = 0; i < 16; ++i)
             subFormat[i]        = br.r8();
         // 18 + 22 = 40 bytes
 
         DEBUG("valid bits per sample %u.",    wValidBitsPerSample);
         DEBUG("dwChannelMask %#x.",           dwChannelMask);
-        DEBUG("sub format %u.",               wSubFormat);
 
         if (memcmp(subFormat, subformat_base_guid, 12)) {
             ERROR("invalid extensible format %16s.", (char *)subFormat);
             return kMediaErrorBadValue;
         }
+        
+        // TODO: parse subFormat GUID
+        DEBUG("sub format %u.",               wSubFormat);
 
         if (dwChannelMask != 0 && __builtin_popcount(dwChannelMask) != nChannels) {
             WARN("channels mask mismatch with channel count.");
             dwChannelMask = 0;
         }
-        
-        // Fix Format
-        wFormatTag  = wSubFormat;
     }
 
     // sanity check.
-    if (wFormatTag == WAVE_FORMAT_PCM || wFormatTag == WAVE_FORMAT_IEEE_FLOAT) {
+    if (wFormat == WAVE_FORMAT_PCM || wFormat == WAVE_FORMAT_IEEE_FLOAT) {
         // wBitsPerSample/nChannels/nSamplesPerSec, we have to trust these values
         if (wBitsPerSample % 8) {
             ERROR("wBitsPerSample(%u) is wrong.", wBitsPerSample);
@@ -152,6 +160,26 @@ MediaError WAVEFORMATEX::parse(BitReader& br) {
     return kMediaNoError;
 }
 
+MediaError WAVEFORMATEX::compose(BitWriter& bw) const {
+    CHECK_GE(bw.numBitsLeft(), WAVEFORMATEX_MAX_LENGTH * 8);
+    bw.wl16(wFormat);
+    bw.wl16(nChannels);
+    bw.wl32(nSamplesPerSec);
+    bw.wl32(nAvgBytesPerSec);
+    bw.wl16(nBlockAlign);
+    bw.wl16(wBitsPerSample);
+    // 16 bytes
+    bw.wl16(cbSize);    // always write cbSize, even it is 0
+    // 18 bytes
+    
+    if (cbSize == 22) {
+        bw.wl16(wValidBitsPerSample);
+        bw.wl32(dwChannelMask);
+        // TODO write subFormat GUID
+    }
+    return kMediaNoError;
+}
+
 BITMAPINFOHEADER::BITMAPINFOHEADER() {
     // TODO: set default values
 }
@@ -172,22 +200,5 @@ MediaError BITMAPINFOHEADER::parse(BitReader& br) {
     return kMediaNoError;
 }
 
-static struct {
-    const uint32_t      fourcc;
-    const eVideoCodec   format;
-} kFourCCMap[] = {
-    {FOURCC('MP42'),    kVideoCodecMP42    },
-    // END OF LIST
-    {0,                 kVideoCodecUnknown }
-};
-
-eVideoCodec GetVideoCodec(uint32_t fourcc) {
-    for (size_t i = 0; kFourCCMap[i].format != kVideoCodecUnknown; ++i) {
-        if (kFourCCMap[i].fourcc == fourcc)
-            return kFourCCMap[i].format;
-    }
-    return kVideoCodecUnknown;
-}
-
-__END_NAMESPACE(ASF)
+__END_NAMESPACE(Microsoft)
 __END_NAMESPACE_MPX
