@@ -55,7 +55,6 @@ const static size_t kScanLength = 32 * 1024ll;
 
 // return score
 static int scanMP3(const sp<Buffer>& data);
-static int scanMatroska(const sp<Buffer>& data);
 int IsMp4File(const sp<Buffer>& data);
 int IsWaveFile(const sp<Buffer>& data);
 

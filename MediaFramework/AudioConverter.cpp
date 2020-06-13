@@ -297,44 +297,6 @@ struct AudioResamplerLinear : public AudioConverter {
     }
 };
 
-#if 0
-// TODO: implement down mixer
-template <typename FROM, typename TO, typename COEFFS_TYPE>
-struct AudioResamplerLinearWithDownMixer : public AudioConverter {
-    State<TO, COEFFS_TYPE>     mStates[MEDIA_FRAME_NB_PLANES];
-
-    AudioResamplerLinearWithDownMixer(const AudioFormat& input, const AudioFormat& output) :
-        AudioResampler(input, output) {
-            reset();
-        }
-
-    virtual void reset() {
-        State<TO, COEFFS_TYPE> state((COEFFS_TYPE)mInput.freq / mOutput.freq);
-        for (size_t i = 0; i < MEDIA_FRAME_NB_PLANES; ++i) {
-            mStates[i] = state;
-        }
-    }
-
-    virtual sp<MediaFrame> convert(const sp<MediaFrame>& input) {
-        size_t nb_samples = (input->a.samples * mOutput.freq) / mInput.freq + 1;
-        AudioFormat format = mOutput;
-        format.samples = nb_samples;
-
-        sp<MediaFrame> output = MediaFrame::Create(format);
-
-        for (size_t i = 0; i < input->a.channels; ++i) {
-            output->a.samples = resample1<FROM, TO, COEFFS_TYPE>()(mStates[i],
-                    (const FROM *)input->planes[i].data,
-                    input->a.samples,
-                    (TO *)output->planes[i].data);
-            output->planes[i].size = sizeof(TO) * output->a.samples;
-        }
-
-        return output;
-    }
-};
-#endif
-
 template <typename FROM, typename TO>
 struct AudioSampleConverter : public AudioConverter {
     AudioFormat     mOutput;
