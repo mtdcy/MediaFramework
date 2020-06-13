@@ -42,6 +42,30 @@
 
 __BEGIN_DECLS
 
+struct {
+    eSampleFormat   plannar;
+    eSampleFormat   packed;
+} kSampleFormatMap[] = {
+    { kSampleFormatU8,      kSampleFormatU8Packed   },
+    { kSampleFormatS16,     kSampleFormatS16Packed  },
+    { kSampleFormatS32,     kSampleFormatS32Packed  },
+    { kSampleFormatFLT,     kSampleFormatFLTPacked  },
+    { kSampleFormatDBL,     kSampleFormatDBLPacked  },
+    // END OF LIST
+    { kSampleFormatUnknown, kSampleFormatUnknown    },
+};
+
+eSampleFormat GetSimilarSampleFormat(eSampleFormat format) {
+    for (size_t i = 0; kSampleFormatMap[i].plannar != kSampleFormatUnknown; ++i) {
+        if (format == kSampleFormatMap[i].plannar)
+            return kSampleFormatMap[i].packed;
+        else if (format == kSampleFormatMap[i].packed)
+            return kSampleFormatMap[i].plannar;
+    }
+    FATAL("SHOULD NOT BE here");
+    return kSampleFormatUnknown;
+};
+
 size_t GetSampleFormatBytes(eSampleFormat format) {
     switch (format) {
         case kSampleFormatU8Packed:
@@ -533,7 +557,7 @@ MediaError MediaFrame::yuv2rgb(const ePixelFormat& target, const eConversion&) {
 }
 
 String GetAudioFormatString(const AudioFormat& a) {
-    return String::format("audio %4s: ch %d, freq %d, samples %d",
+    return String::format("audio %.4s: ch %d, freq %d, samples %d",
                           (const char *)&a.format,
                           a.channels,
                           a.freq,

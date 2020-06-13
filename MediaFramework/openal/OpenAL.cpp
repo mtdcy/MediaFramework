@@ -65,7 +65,6 @@ __BEGIN_NAMESPACE_MPX
 /**
  * OpenAL only takes s16 stereo interleaved pcm samples
  */
-#define AL_FORMAT   AL_FORMAT_STEREO16
 #define NB_BUFFERS  (4)
 
 struct OpenALContext : public SharedObject {
@@ -81,9 +80,14 @@ static MediaError flushOpenAL(sp<OpenALContext>& openAL);
 static sp<OpenALContext> initOpenALContext(const AudioFormat& audio) {
     DEBUG("init");
     sp<OpenALContext> openAL = new OpenALContext;
-    openAL->mAudioFormat.format     = kSampleFormatS16Packed;
+    openAL->mAudioFormat.format     = kSampleFormatS16;   // OpenAL only support s8 & s16
     openAL->mAudioFormat.channels   = audio.channels > 1 ? 2 : 1;
     openAL->mAudioFormat.freq       = audio.freq;
+    if (openAL->mAudioFormat.channels > 1) {
+        // -> packed sample format
+        // OpenAL only support interleaved/packed samples
+        openAL->mAudioFormat.format = GetSimilarSampleFormat(openAL->mAudioFormat.format);
+    }
     
     openAL->mDevice = alcOpenDevice(NULL);
     CHECK_AL_ERROR();
@@ -180,11 +184,16 @@ static MediaError playFrame(const sp<OpenALContext>& openAL, const sp<MediaFrame
         }
         return kMediaNoError;
     }
-    CHECK_EQ((eSampleFormat)kSampleFormatS16Packed, frame->a.format);
+    CHECK_EQ(openAL->mAudioFormat.format, frame->a.format);
     
     if (state != AL_PLAYING) {
         DEBUG("play ...");
         alSourcePlay(openAL->mSource);
+    }
+    
+    ALenum alFormat = frame->a.channels == 2 ? AL_FORMAT_STEREO16 : AL_FORMAT_MONO16;
+    if (frame->a.format == kSampleFormatU8Packed) {
+        alFormat = frame->a.channels == 2 ? AL_FORMAT_STEREO8 : AL_FORMAT_MONO8;
     }
     
     for (;;) {
@@ -209,7 +218,7 @@ static MediaError playFrame(const sp<OpenALContext>& openAL, const sp<MediaFrame
             alGenBuffers(1, &buffer);
             CHECK_AL_ERROR();
             alBufferData(buffer,
-                         AL_FORMAT,
+                         alFormat,
                          (const ALvoid *)frame->planes[0].data,
                          (ALsizei)frame->planes[0].size,
                          (ALsizei)frame->a.freq);

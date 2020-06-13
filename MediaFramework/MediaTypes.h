@@ -410,8 +410,9 @@ typedef struct SampleDescriptor {
 // TODO
 API_EXPORT const SampleDescriptor * GetSampleFormatDescriptor(eSampleFormat);
 
-API_EXPORT size_t       GetSampleFormatBytes(eSampleFormat);
-API_EXPORT bool         IsSampleFormatPacked(eSampleFormat);
+API_EXPORT eSampleFormat    GetSimilarSampleFormat(eSampleFormat);
+API_EXPORT size_t           GetSampleFormatBytes(eSampleFormat);
+API_EXPORT bool             IsSampleFormatPacked(eSampleFormat);
 
 typedef struct AudioFormat {
     eSampleFormat       format;         ///< audio sample format @see eSampleFormat

@@ -79,6 +79,7 @@ struct MediaFrameTunnel : public MediaFrame {
         
         if (track->mType == kCodecTypeAudio) {
             a           = track->mAudioFormat;
+            a.samples   = packet->size / (a.channels * GetSampleFormatBytes(a.format));
         } else if (track->mType == kCodecTypeVideo) {
             v           = track->mVideoFormat;
         }
@@ -301,7 +302,7 @@ struct Tiger : public IMediaPlayer {
     };
     
     void onDecoderInfo(const size_t id, const eSessionInfoType& info, const sp<Message>& payload) {
-        DEBUG("onDecoderInfo [%zu] %d", id, info);
+        DEBUG("onDecoderInfo [%zu] %.4s", id, (const char *)&info);
         switch (info) {
             case kSessionInfoError:
                 onTrackError(id);
@@ -394,7 +395,7 @@ struct Tiger : public IMediaPlayer {
     };
 
     void onRendererInfo(const size_t& id, const eSessionInfoType& info, const sp<Message>& payload) {
-        DEBUG("onRendererInfo [%zu] %d", id, info);
+        DEBUG("onRendererInfo [%zu] %.4s", id, (const char *)&info);
         switch (info) {
             case kSessionInfoReady:
                 onRendererReady(id, payload);
