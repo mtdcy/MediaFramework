@@ -775,7 +775,7 @@ int IsMatroskaFile(const sp<Buffer>& data) {
         EBMLInteger id      = EBMLGetCodedInteger(br);
         EBMLInteger size    = EBMLGetLength(br);
         
-        if (id == EBMLIntegerNull || size == EBMLIntegerNull) {
+        if (id == EBMLIntegerNull || size == EBMLIntegerNull || size.u64 == 0) {
             break;
         }
         

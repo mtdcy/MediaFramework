@@ -79,6 +79,7 @@ set (SOURCE_FILES
     MediaFramework/Tiger.cpp 
     MediaFramework/microsoft/Microsoft.cpp
     MediaFramework/microsoft/WaveFile.cpp
+    MediaFramework/microsoft/AviFile.cpp
     MediaFramework/tags/id3/ID3.cpp
     MediaFramework/mp3/Mp3File.cpp
     MediaFramework/mpeg4/Systems.cpp

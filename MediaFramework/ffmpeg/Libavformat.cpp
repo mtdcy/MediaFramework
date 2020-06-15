@@ -33,7 +33,7 @@
 //
 
 #define LOG_TAG   "Lavf"
-//#define LOG_NDEBUG 0
+#define LOG_NDEBUG 0
 #include <ABE/ABE.h>
 #include <MediaFramework/MediaFile.h>
 
@@ -61,6 +61,7 @@ struct {
     { "mov",        kFileFormatMp4  },
     { "mp4",        kFileFormatMp4  },  // & m4a
     { "matroska",   kFileFormatMkv  },  // matroska & webm
+    { "avi",        kFileFormatAvi  },
     // END OF LIST
     { NULL,         kFileFormatUnknown }
 };
@@ -117,14 +118,20 @@ static uint32_t GetCodecFormat(AVCodecID id) {
 }
 
 static int content_bridge_read_packet(void * opaque, uint8_t * buf, int length) {
+    DEBUG("read %p -> %p %d", opaque, buf, length);
     sp<Content> pipe = opaque;
     // TODO: change Content behavior -> read directly
     sp<Buffer> data = pipe->read(length);
+    if (data.isNIL()) {
+        DEBUG("read end of file");
+        return AVERROR_EOF; // END OF FILE
+    }
     memcpy(buf, data->data(), data->size());
     return data->size();
 }
 
 static int64_t content_bridge_seek(void * opaque, int64_t offset, int whence) {
+    DEBUG("seek %p @ %" PRId64 ", whence %d", opaque, offset, whence);
     sp<Content> pipe = opaque;
     switch (whence) {
         case SEEK_CUR:
@@ -264,10 +271,10 @@ struct AVMediaPacket : public MediaPacket {
     
     AVMediaPacket(sp<AVStreamObject>& st, AVPacket * ref) :
     MediaPacket(ref->data, ref->size) {
-        CHECK_EQ(st->stream->index, pkt->stream_index);
-        
         pkt = av_packet_alloc();
         av_packet_ref(pkt, ref);
+        CHECK_EQ(st->stream->index, pkt->stream_index);
+        
         size    = pkt->size;
         index   = pkt->stream_index;
         type    = kFrameTypeUnknown;

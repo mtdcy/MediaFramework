@@ -41,43 +41,67 @@
 __BEGIN_NAMESPACE_MPX
 __BEGIN_NAMESPACE(RIFF)
 
+enum {
+    kChunkTypeLeaf,
+    kChunkTypeMaster,
+};
+
 #define RIFF_CHUNK_MIN_LENGTH (8)
 struct Chunk : public SharedObject {
-    uint32_t    Name;       // FourCC
-    uint32_t    Length;     // little endian, data bytes
+    uint32_t    ckType;     //
+    uint32_t    ckID;       // FourCC
+    uint32_t    ckSize;     // little endian, data bytes
     
-    Chunk(uint32_t name, uint32_t length) : Name(name), Length(length) { }
+    Chunk(uint32_t id, uint32_t size) : ckType(kChunkTypeLeaf), ckID(id), ckSize(size) { }
+    Chunk(uint32_t id, uint32_t size, uint32_t type) : ckType(type), ckID(id), ckSize(size) { }
     virtual ~Chunk() { }
     
     // parse chunk data
     virtual MediaError parse(BitReader& br) = 0;
+    // RIFF chunk is a bad structure, for master chunk, always has datas before children.
+    // this make it hard to parse the data. so size() return data size except children
+    // for master chunk, return all data size for leaf chunk
+    virtual size_t size() const { return ckSize; }
+    virtual String string() const { return String::format("%.4s[%zu]", (const char *)&ckID, (size_t)ckSize); }
+};
+
+struct MasterChunk : public Chunk {
+    Vector<sp<Chunk> >  ckChildren;
+    
+    MasterChunk(uint32_t id, uint32_t size) : Chunk(id, size, kChunkTypeMaster) { }
+    // make size() abstract, master chunk always have to return data size except children.
+    virtual size_t size() const = 0;
+    virtual String string() const { return Chunk::string() + String::format(", %zu children", ckChildren.size()); }
 };
 
 #define RIFF_CHUNK_LENGTH   (12)
-struct RIFFChunk : public Chunk {
-    uint32_t    Data;       // FourCC
+struct RIFFChunk : public MasterChunk {
+    uint32_t            ckFileType;     // FourCC
     
-    RIFFChunk(uint32_t length) : Chunk(FOURCC('RIFF'), length) { }
+    RIFFChunk(uint32_t size) : MasterChunk(FOURCC('RIFF'), size) { }
     
     virtual MediaError parse(BitReader& br) {
         if (br.remianBytes() < 4)
             return kMediaErrorBadContent;
-        Data    = br.rl32();
+        ckFileType = br.rl32();
         return kMediaNoError;
     }
+    
+    virtual size_t size() const { return sizeof(uint32_t); }
+    virtual String string() const { return MasterChunk::string() + String::format(", ckFileType = %.4s", (const char *)&ckFileType); }
 };
 
 struct VOIDChunk : public Chunk {
     // NO DATA
-    VOIDChunk(uint32_t name, uint32_t length) : Chunk(name, length) { }
+    VOIDChunk(uint32_t id, uint32_t size) : Chunk(id, size) { }
     virtual MediaError parse(BitReader&) { return kMediaNoError; }
 };
 
 struct SKIPChunk : public Chunk {
     // SKIP DATA
-    SKIPChunk(uint32_t name, uint32_t length) : Chunk(name, length) { }
+    SKIPChunk(uint32_t id, uint32_t size) : Chunk(id, size) { }
     virtual MediaError parse(BitReader& br) {
-        br.skipBytes(Length);
+        br.skipBytes(ckSize);
         return kMediaNoError;
     }
 };

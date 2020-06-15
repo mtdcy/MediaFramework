@@ -133,25 +133,25 @@ struct WaveFile : public MediaFile {
         pipe->seek(waveStart);
         
         sp<RIFF::RIFFChunk> ck = ReadChunk(pipe);
-        if (ck.isNIL() || ck->Name != FOURCC('RIFF') || ck->Data != FOURCC('WAVE')) {
+        if (ck.isNIL() || ck->ckID != FOURCC('RIFF') || ck->ckFileType != FOURCC('WAVE')) {
             ERROR("not a WAVE file.");
             return kMediaErrorBadContent;
         }
 
-        DEBUG("wave file length %u.", ck->Length);
+        DEBUG("wave file length %u.", ck->ckSize);
 
         bool success = false;
         for (;;) {
             sp<RIFF::Chunk> ck = ReadChunk(pipe);
             if (ck.isNIL()) break;
 
-            if (ck->Name == FOURCC('data')) {
-                DEBUG("data chunk length %zu.", ck->Length);
+            if (ck->ckID == FOURCC('data')) {
+                DEBUG("data chunk length %zu.", ck->ckSize);
                 mDataOffset     = pipe->tell();
-                mDataLength     = ck->Length;
+                mDataLength     = ck->ckSize;
                 success         = true;
                 break;
-            } else if (ck->Name == FOURCC('fmt ')) {
+            } else if (ck->ckID == FOURCC('fmt ')) {
                 mFormat = ck;
             }
         }
