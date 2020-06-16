@@ -5,6 +5,8 @@ option (WITH_SDL        "Build with SDL"        OFF)
 
 # put sub directories before our project 
 # avoid pollution by our project
+add_subdirectory(ABE)
+add_subdirectory(FFmpegStatic)
 add_subdirectory(external/libyuv    EXCLUDE_FROM_ALL)
 
 project (MediaFramework)
@@ -117,9 +119,14 @@ endif()
 
 add_library (${PROJECT_NAME} SHARED ${SOURCE_FILES} ${PUBLIC_HEADERS})
 
+include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/ABE)
+include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/FFmpegStatic/out/static/include)
+include_directories(BEFORE ${CMAKE_CURRENT_BINARY_DIR}/FFmpegStatic)    # FFmpeg.h
 include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/MediaFramework)
 
+target_link_libraries(${PROJECT_NAME} ABE_shared)
+target_link_libraries(${PROJECT_NAME} FFmpegStatic)
 # libz
 target_link_libraries(${PROJECT_NAME} z)
 
@@ -146,9 +153,6 @@ else()
 endif()
 
 if (XCODE)
-    find_library (ABE NAMES ABE PATHS ${CMAKE_INSTALL_PREFIX} NO_DEFAULT_PATH)
-    message("ABE: ${ABE}")
-    target_link_libraries(${PROJECT_NAME} ${ABE})
 
     if (WITH_FFMPEG)
     # FFmpegStatic.framework
@@ -159,20 +163,6 @@ if (XCODE)
     include_directories(BEFORE ${FFMPEG}/Headers)
     endif()
 else()
-    find_library (ABE 
-        NAMES libABE.a libABE.so libABE.dylib libABE.dll
-        PATHS ${CMAKE_INSTALL_PREFIX}/lib
-        NO_DEFAULT_PATH
-        )
-    find_path (ABE_HEADER
-        NAMES ABE/ABE.h
-        PATHS ${CMAKE_INSTALL_PREFIX}/include
-        NO_DEFAULT_PATH
-        )
-    message("ABE: ${ABE}")
-    message("ABE_HEADER: ${ABE_HEADER}")
-    target_link_libraries(${PROJECT_NAME} ${ABE})
-    include_directories(BEFORE ${ABE_HEADER})
 
     if (WITH_FFMPEG)
     find_library (FFMPEG
@@ -241,16 +231,16 @@ target_link_libraries(matroska MediaFramework)
 # unit test 
 remove_definitions(-Werror=non-virtual-dtor)
 
-add_subdirectory(gtest-1.7.0 EXCLUDE_FROM_ALL)
+#add_subdirectory(gtest-1.7.0 EXCLUDE_FROM_ALL)
 include_directories(BEFORE ${gtest_SOURCE_DIR}/include)
 
-add_executable (test test.cpp)
-target_link_libraries(test ${PROJECT_NAME})
-target_link_libraries(test gtest gtest_main)
+add_executable (${PROJECT_NAME}_unittest EXCLUDE_FROM_ALL test.cpp)
+target_link_libraries(${PROJECT_NAME}_unittest ${PROJECT_NAME})
+target_link_libraries(${PROJECT_NAME}_unittest gtest gtest_main)
 
 add_custom_target(${PROJECT_NAME}_test ALL
-    DEPENDS test 
+    DEPENDS ${PROJECT_NAME}_unittest
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-    COMMAND echo test
-    COMMAND ${BASH} test ${CMAKE_CURRENT_SOURCE_DIR}
+    COMMAND echo ${PROJECT_NAME}_unittest
+    COMMAND ${BASH} ${PROJECT_NAME}_unittest ${CMAKE_CURRENT_SOURCE_DIR}
     )
