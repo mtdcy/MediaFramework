@@ -56,7 +56,6 @@ const static size_t kScanLength = 32 * 1024ll;
 // return score
 int IsMp4File(const sp<ABuffer>&);
 int IsWaveFile(const sp<ABuffer>&);
-int IsAviFile(const sp<ABuffer>&);
 int IsMp3File(const sp<ABuffer>&);
 static eFileFormat GetFormat(const sp<ABuffer>& data) {
     int score = 0;
@@ -115,7 +114,6 @@ static eFileFormat GetFormat(const sp<ABuffer>& data) {
         { IsWaveFile,           kFileFormatWave     },
         { IsMp4File,            kFileFormatMp4      },
         { EBML::IsMatroskaFile, kFileFormatMkv      },
-        { IsAviFile,            kFileFormatAvi      },
         { IsMp3File,            kFileFormatMp3      },  // this one should locate at end
         { NULL,                 kFileFormatUnknown  }
     };
@@ -142,7 +140,6 @@ sp<MediaFile> CreateMp4File(const sp<ABuffer>&);
 sp<MediaFile> CreateMatroskaFile(const sp<ABuffer>&);
 sp<MediaFile> CreateLibavformat(const sp<ABuffer>&);
 sp<MediaFile> CreateWaveFile(const sp<ABuffer>&);
-sp<MediaFile> OpenAviFile(const sp<ABuffer>&);
 sp<MediaFile> MediaFile::Create(const sp<ABuffer>& buffer, const eMode mode) {
     CHECK_TRUE(mode == Read, "TODO: only support read");
     
@@ -169,8 +166,6 @@ sp<MediaFile> MediaFile::Create(const sp<ABuffer>& buffer, const eMode mode) {
             return force ? CreateLibavformat(buffer) : CreateMp4File(buffer);
         case kFileFormatMkv:
             return force ? CreateLibavformat(buffer) : CreateMatroskaFile(buffer);
-        case kFileFormatAvi:
-            return force ? CreateLibavformat(buffer) : OpenAviFile(buffer);
         default:
             return CreateLibavformat(buffer);
     }

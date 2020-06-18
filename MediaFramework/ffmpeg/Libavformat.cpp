@@ -33,7 +33,7 @@
 //
 
 #define LOG_TAG   "Lavf"
-#define LOG_NDEBUG 0
+//#define LOG_NDEBUG 0
 #include <ABE/ABE.h>
 #include <MediaFramework/MediaFile.h>
 
