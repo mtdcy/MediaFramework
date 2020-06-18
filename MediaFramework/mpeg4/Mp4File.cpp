@@ -604,7 +604,7 @@ struct Mp4File : public MediaFile {
         for (;;) {
         // find the lowest pos
         size_t trackIndex = mTracks.size();
-        int64_t los = mContent->size();
+        int64_t los = mContent->capacity();
 
         for (size_t i = 0; i < mTracks.size(); ++i) {
             sp<Mp4Track>& track = mTracks[i];
@@ -619,7 +619,8 @@ struct Mp4File : public MediaFile {
         }
         
         if (trackIndex >= mTracks.size()) {
-            INFO("eos...");
+            CHECK_TRUE(mContent->size() == 0, "FIXME: report eos with data exists");
+            INFO("eos @ %" PRId64 "[%" PRId64 "]", mContent->offset(), mContent->size());
             return NULL;
         }
 
@@ -630,19 +631,18 @@ struct Mp4File : public MediaFile {
         // read sample data
         Sample& s = tbl[sampleIndex];
         
-        DEBUG("[%zu] read sample @%" PRId64 "(%" PRId64 "), %zu bytes, dts %" PRId64 ", pts %" PRId64,
-              trackIndex, s.offset, mContent->offset(),
-              s.size, s.dts, s.pts);
-        
-            mContent->resetBytes();
-        mContent->skipBytes(s.offset);
+        mContent->skipBytes(s.offset - mContent->offset());
 
         sp<Buffer> sample = mContent->readBytes(s.size);
 
         if (sample == 0 || sample->size() < s.size) {
-            ERROR("read return error, corrupt file?.");
+            ERROR("read return error or corrupt file?.");
+            ERROR("report eos...");
             return NULL;
         }
+        
+        DEBUG("[%zu] read sample @%" PRId64 "(%" PRId64 "), %zu bytes, dts %" PRId64 ", pts %" PRId64,
+              trackIndex, s.offset, mContent->offset(), s.size, s.dts, s.pts);
         
         // statistics
         ++mNumPacketsRead;

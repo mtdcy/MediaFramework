@@ -131,7 +131,7 @@ struct MediaSource : public IMediaSession {
             sp<MediaPacket> packet;
             if (ABE_UNLIKELY(seek)) {
                 INFO("seek to %.3f", time.seconds());
-                packet = mMediaFile->read(kReadModeClosestSync, time);
+                packet = mMediaFile->read(kReadModeLastSync, time);
                 mLastReadTime   = time;
                 seek            = false;
             } else {
