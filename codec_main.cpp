@@ -60,9 +60,7 @@ int main(int argc, char **argv) {
     Vector<sp<Content> > contents;
     Vector<sp<MediaDecoder> > codecs;
     for (size_t i = 0; i < numTracks; ++i) {
-        String trackName = String::format("track-%zu", i);
-        
-        sp<Message> trackFormat = formats->findObject(trackName);
+        sp<Message> trackFormat = formats->findObject(kKeyTrack + i);
         
         sp<Message> options = new Message;
         options->setInt32(kKeyMode, kModeTypeDefault);
@@ -75,7 +73,7 @@ int main(int argc, char **argv) {
         
         codecs.push(codec);
         
-        contents.push(Content::Create(String::format("%s.raw", trackName.c_str()), Content::Write));
+        contents.push(Content::Create(String::format("track-%zu.raw", i), Content::Write));
     }
     
     for (size_t i = 0; i < count; ++i) {
@@ -94,10 +92,10 @@ int main(int argc, char **argv) {
         if (frame.isNIL()) continue;
         
         for (size_t i = 0; i < MEDIA_FRAME_NB_PLANES; ++i) {
-            sp<Buffer> plane = frame->readPlane(i);
+            sp<ABuffer> plane = frame->readPlane(i);
             if (plane.isNIL()) break;
 
-            contents[packet->index]->write(plane);
+            contents[packet->index]->writeBytes(plane);
         }
     }
 

@@ -76,9 +76,9 @@ struct WAVEFORMATEX {
     
     WAVEFORMATEX();
     
-    MediaError  parse(BitReader& br);
+    MediaError  parse(const sp<ABuffer>&);
     // bw MUST have WAVEFORMATEX_MAX_LENGTH bytes
-    MediaError  compose(BitWriter& bw) const;
+    MediaError  compose(sp<ABuffer>&) const;
 };
 
 // refer to:
@@ -100,7 +100,7 @@ struct BITMAPINFOHEADER {
     
     BITMAPINFOHEADER();
     
-    MediaError parse(BitReader& br);
+    MediaError parse(const sp<ABuffer>&);
 };
 
 __END_NAMESPACE(Microsoft)

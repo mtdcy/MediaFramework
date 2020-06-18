@@ -46,7 +46,7 @@ struct API_EXPORT ImageFile : public SharedObject {
     
     static sp<ImageFile> Create();
     
-    virtual MediaError init(sp<Content>& pipe, const sp<Message>& options) = 0;
+    virtual MediaError init(const sp<ABuffer>& pipe, const sp<Message>& options) = 0;
     
     virtual MediaError configure(const sp<Message>& options) { return kMediaErrorNotSupported; }
     

@@ -51,12 +51,13 @@ struct MediaSource : public IMediaSession {
     typedef List<sp<MediaPacket> > PacketList;
     Vector<PacketList>      mPackets;
     MediaTime               mLastReadTime;  //< avoid seek multi times by different track
-    BitSet                  mTrackMask;
+    Bits<uint32_t>          mTrackMask;
     struct OnPacketRequest;
     List<sp<OnPacketRequest> > mRequestEvents;
+    bool                    mEndOfSource;
     
     MediaSource(const sp<Looper>& lp) : IMediaSession(lp),
-    mMediaFile(NULL), mLastReadTime(kMediaTimeInvalid)
+    mMediaFile(NULL), mLastReadTime(kMediaTimeInvalid), mEndOfSource(false)
     {
         
     }
@@ -74,7 +75,7 @@ struct MediaSource : public IMediaSession {
         }
         
         String url = media->findString(kKeyURL);
-        sp<Content> pipe = Content::Create(url);
+        sp<ABuffer> pipe = Content::Create(url);
         if (pipe == NULL) {
             ERROR("create pipe failed");
             notify(kSessionInfoError, NULL);
@@ -109,7 +110,7 @@ struct MediaSource : public IMediaSession {
     }
     
     void fillPacket(const MediaTime& time = kMediaTimeInvalid) {
-        BitSet trackMask;
+        Bits<uint32_t> trackMask;
         
         // avoid seek multitimes by different track
         bool seek = time != kMediaTimeInvalid && time != mLastReadTime;
@@ -229,6 +230,7 @@ struct MediaSource : public IMediaSession {
         
         if (time != kMediaTimeInvalid) {
             INFO("onRequestPacket [%zu] @ %.3f", index, time.seconds());
+            mEndOfSource = false;
             fillPacket(time);
         }
         
@@ -236,6 +238,7 @@ struct MediaSource : public IMediaSession {
         
         if (list.empty()) {
             INFO("[%zu] End Of Stream", index);
+            mEndOfSource = true;
             event->fire(NULL);
             return;
         }
@@ -249,7 +252,7 @@ struct MediaSource : public IMediaSession {
         
         event->fire(packet);
         
-        fillPacket();
+        if (!mEndOfSource) fillPacket();
     }
     
     void onDisableTrack(const size_t index) {

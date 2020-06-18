@@ -35,46 +35,24 @@
 #ifndef _MEDIA_MODULES_ID3_H
 #define _MEDIA_MODULES_ID3_H
 
-#include "tags/Tags.h"
+#include "MediaTypes.h"
 
 __BEGIN_NAMESPACE_MPX
 __BEGIN_NAMESPACE(ID3)
 
-class ID3v2 : public Tag::Parser {
-    public:
-        ID3v2() : Tag::Parser() { }
-        virtual ~ID3v2() { }
-        virtual MediaError      parse(const Buffer& data);
-
-    public:
-        static const size_t     kHeaderLength;
-};
-
-class ID3v1 : public Tag::Parser {
-    public:
-        ID3v1() : Tag::Parser() { }
-        virtual ~ID3v1() { }
-        virtual MediaError      parse(const Buffer& data);
-
-    public:
-        // is data contains an id3v1 ?
-        // return true or false
-        // data should be at least kLength and id3v1 is always
-        // kLength bytes
-        static bool             isID3v1(const Buffer& data);
-        static const size_t     kLength;
-};
+#define ID3V2_HEADER_LENGTH     (10)
+#define ID3V1_LENGTH            (128)
 
 // skip ID3v2 and put content at ID3v2 end
-MediaError  SkipID3v2(sp<Content>& pipe);
+MediaError  SkipID3v2(const sp<ABuffer>&);
 
 // read ID3v2 and put content at ID3v2 end
 // if not exists, content pos will not change
-sp<Message> ReadID3v2(sp<Content>& pipe);
+sp<Message> ReadID3v2(const sp<ABuffer>&);
 
 // read ID3v1 and put content at ID3v1 begin
 // if not exists, content pos will change to end
-sp<Message> ReadID3v1(sp<Content>& pipe);
+sp<Message> ReadID3v1(const sp<ABuffer>&);
 
 __END_NAMESPACE(ID3)
 __END_NAMESPACE_MPX

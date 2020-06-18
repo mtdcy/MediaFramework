@@ -59,7 +59,7 @@ struct API_EXPORT MediaFile : public SharedObject {
      * @return return reference to new file
      */
     enum eMode { Read, Write, Modify };
-    static sp<MediaFile>    Create(sp<Content>& pipe, const eMode mode = Read);
+    static sp<MediaFile>    Create(const sp<ABuffer>&, const eMode mode = Read);
 
     /**
      * configure this codec

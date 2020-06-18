@@ -138,8 +138,8 @@ struct Tiger : public IMediaPlayer {
     size_t                  mTrackID;
     HashTable<size_t, sp<TrackContext> > mTracks;
     bool                    mHasAudio;
-    BitSet                  mReadyMask;     // set when not ready
-    BitSet                  mEndMask;       // set when not eos
+    Bits<uint32_t>          mReadyMask;     // set when not ready
+    Bits<uint32_t>          mEndMask;       // set when not eos
     enum eState { kInit, kReady, kEnd };
     eState                  mState;
 

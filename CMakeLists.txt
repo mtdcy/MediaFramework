@@ -1,7 +1,7 @@
 cmake_minimum_required (VERSION 2.8)
 
 option (WITH_FFMPEG     "Build with ffmpeg"     ON)
-option (WITH_SDL        "Build with SDL"        OFF)
+option (WITH_SDL        "Build with SDL"        ON)
 
 # put sub directories before our project 
 # avoid pollution by our project
@@ -82,7 +82,7 @@ set (SOURCE_FILES
     MediaFramework/microsoft/Microsoft.cpp
     MediaFramework/microsoft/WaveFile.cpp
     MediaFramework/microsoft/AviFile.cpp
-    MediaFramework/tags/id3/ID3.cpp
+    MediaFramework/id3/ID3.cpp
     MediaFramework/mp3/Mp3File.cpp
     MediaFramework/mpeg4/Systems.cpp
     MediaFramework/mpeg4/Audio.cpp

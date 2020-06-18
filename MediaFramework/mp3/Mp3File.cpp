@@ -35,11 +35,7 @@
 #define LOG_TAG "Mp3File"
 //#define LOG_NDEBUG 0
 #include "MediaTypes.h"
-
-#define WITH_ID3
-#ifdef WITH_ID3
-#include "tags/id3/ID3.h"
-#endif
+#include "id3/ID3.h"
 
 #include <stdio.h> // FIXME: sscanf
 
@@ -138,6 +134,8 @@ struct MPEGAudioFrameHeader {
     size_t      frameLengthInBytes;
 };
 
+// same version/layer/sampleRate/channels
+const static uint32_t kHeaderMask = (0xffe00000 | (3 << 17) | (3 << 10) | (3 << 19) | (3 << 6));
 // return frameLength in bytes
 static ssize_t decodeFrameHeader(uint32_t head, MPEGAudioFrameHeader *frameHeader) {
     if ((head & 0xffe00000) != 0xffe00000) return -1;
@@ -180,64 +178,69 @@ static ssize_t decodeFrameHeader(uint32_t head, MPEGAudioFrameHeader *frameHeade
 
 // locate the first MPEG audio frame in data, and return frame length
 // and offset in bytes. NO guarantee
-const static uint32_t kHeaderMask = (0xffe00000 | (3 << 17) | (3 << 10) | (3 << 19) | (3 << 6));
-static int64_t locateFirstFrame(const Buffer& data,
+static int64_t locateFirstFrame(const sp<ABuffer>& buffer,
         struct MPEGAudioFrameHeader *frameHeader,
         size_t *possible/* possible head position */,
         uint32_t *_head/* found head */) {
     // locate first frame:
     //  current and next frame header is valid
-    BitReader br(data.data(), data.size());
     uint32_t head = 0;
-    for (size_t i = 0; i < br.length() / 8; i++) {
-        head = (head << 8) | br.r8();
+    while (buffer->size()) {
+        head = (head << 8) | buffer->r8();
+        const int64_t offset = buffer->offset() - 4;
 
         // test current frame
         ssize_t frameLength = decodeFrameHeader(head, frameHeader);
         if (frameLength <= 4) continue;
 
-        if (i + frameLength > br.length() / 8) {
+        if (frameLength > buffer->size()) {
             DEBUG("scan to the end.");
-            if (possible) *possible = i - 3;
+            if (possible) *possible = buffer->offset();
             break;
         }
 
         // test next head.
-        BitReader _br(data.data(), data.size());
-        _br.skipBytes(frameLength + i - 3);
-        uint32_t next = _br.rb32();
+        buffer->skipBytes(frameLength - 4);
+        uint32_t next = buffer->rb32();
+        DEBUG("current head %#x @ %" PRId64 ", next head %#x @%" PRId64,
+              head, offset, next, offset + frameLength);
         if ((next & kHeaderMask) == (head & kHeaderMask)
                 && decodeFrameHeader(next, NULL) > 4) {
             if (_head) *_head = head;
-            return i - 3;
+            DEBUG("locate first frame with head %#x @ %" PRId64 ", with next head %#x @%" PRId64,
+                  head, offset, next, offset + frameLength);
+            // put buffer @ first frame start position
+            buffer->skipBytes(-(buffer->offset() - offset));
+            return offset;
         }
+        buffer->skipBytes(-frameLength);
     }
 
-    return kMediaErrorUnknown;
+    return -1;
 }
 
-static int64_t locateFrame(const Buffer& data, uint32_t common,
+static bool locateFrame(const sp<ABuffer>& buffer, uint32_t common,
         struct MPEGAudioFrameHeader *frameHeader,
         size_t *possible) {
-    BitReader br(data.data(), data.size());
     uint32_t head = 0;
-    for (size_t i = 0; i < br.length() / 8; i++) {
-        head = (head << 8) | br.r8();
+    while (buffer->size()) {
+        head = (head << 8) | buffer->r8();
         if ((head & kHeaderMask) != common) continue;
 
         ssize_t frameLength = decodeFrameHeader(head, frameHeader);
         if (frameLength <= 4) continue;
-        if (i - 3 + frameLength > br.length() / 8) {
-            if (possible) *possible = i - 3;
+        if (frameLength - 4 > buffer->size()) {
+            if (possible) *possible = buffer->offset() - 4;
             break;
         }
 
-        return i - 3;
+        return true;
     }
-    return kMediaErrorUnknown;
+    
+    return false;
 }
 
-bool decodeMPEGAudioFrameHeader(const Buffer& frame, uint32_t *sampleRate, uint32_t *numChannels) {
+bool decodeMPEGAudioFrameHeader(const sp<ABuffer>& frame, uint32_t *sampleRate, uint32_t *numChannels) {
     MPEGAudioFrameHeader mpa;
     ssize_t offset = locateFirstFrame(frame, &mpa, NULL, NULL);
     if (offset < 0) return false;
@@ -261,19 +264,18 @@ struct XingHeader {
 
 // http://www.codeproject.com/Articles/8295/MPEG-Audio-Frame-Header#XINGHeader
 // http://gabriel.mp3-tech.org/mp3infotag.html#versionstring
-static bool parseXingHeader(const Buffer& firstFrame, XingHeader *head) {
+static bool parseXingHeader(const sp<ABuffer>& firstFrame, XingHeader *head) {
     CHECK_NULL(head);
-    BitReader br(firstFrame.data(), firstFrame.size());
-    head->ID    = br.readS(4);  // XING or Info;
+    head->ID    = firstFrame->rs(4);  // XING or Info;
     if (head->ID != "XING" && head->ID != "Info") {
         return false;
     }
 
-    const uint32_t flags = br.rb32();
+    const uint32_t flags = firstFrame->rb32();
     DEBUG("XING flags: %#x", flags);
 
     if (flags & 0x0001) {
-        head->numFrames     = br.rb32();
+        head->numFrames     = firstFrame->rb32();
         DEBUG("Xing: number frames %d", head->numFrames);
     } else {
         head->numFrames     = 0;
@@ -282,7 +284,7 @@ static bool parseXingHeader(const Buffer& firstFrame, XingHeader *head) {
 
     // including the first frame.
     if (flags & 0x0002) {
-        head->numBytes      = br.rb32();
+        head->numBytes      = firstFrame->rb32();
         DEBUG("Xing: number bytes %d", (int32_t)head->numBytes);
     } else {
         head->numBytes      = 0;
@@ -292,7 +294,7 @@ static bool parseXingHeader(const Buffer& firstFrame, XingHeader *head) {
     if (flags & 0x0004) {
         for (int i = 0; i < 100; i++) {
             //mTOC.push((mNumBytes * pos) / 256 + mFirstFrameOffset);
-            head->toc.push(br.r8());
+            head->toc.push(firstFrame->r8());
         }
         //DEBUG("TOC: %d %d ... %d %d", head->toc[0], head->toc[1], head->toc[98], head->toc[99]);
 #if LOG_NDEBUG == 0
@@ -308,27 +310,27 @@ static bool parseXingHeader(const Buffer& firstFrame, XingHeader *head) {
     }
 
     if (flags & 0x0008) {
-        head->quality   = br.rb32();
+        head->quality   = firstFrame->rb32();
     }
 
     // LAME extension
-    head->encoder       = br.readS(9);
-    br.skipBytes(1);                    // Info Tag revision & VBR method
+    head->encoder       = firstFrame->rs(9);
+    firstFrame->skipBytes(1);                    // Info Tag revision & VBR method
 
-    head->lpf           = br.r8();      // low pass filter value.
-    uint8_t lpf         = br.r8();     // low pass filter value. Hz = lpf * 100;
+    head->lpf           = firstFrame->r8();      // low pass filter value.
+    uint8_t lpf         = firstFrame->r8();     // low pass filter value. Hz = lpf * 100;
     DEBUG("lpf: %u Hz.", lpf * 100);
 
-    br.skipBytes(8);               // replay gain
-    br.skipBytes(1);               // encode flags & ATH Type
-    br.skipBytes(1);               // specified or minimal bitrate
+    firstFrame->skipBytes(8);               // replay gain
+    firstFrame->skipBytes(1);               // encode flags & ATH Type
+    firstFrame->skipBytes(1);               // specified or minimal bitrate
 
     // refer to ffmpeg/libavformat/mp3dec.c:mp3_parse_info_tag
     if (head->encoder.startsWith("LAME") ||
             head->encoder.startsWith("Lavf") ||
             head->encoder.startsWith("Lavc")) {
-        head->delays    = br.read(12);
-        head->paddings  = br.read(12);
+        head->delays    = firstFrame->read(12);
+        head->paddings  = firstFrame->read(12);
     } else {
         head->delays    = 0;
         head->paddings  = 0;
@@ -350,24 +352,23 @@ struct VBRIHeader {
 };
 // https://www.codeproject.com/Articles/8295/MPEG-Audio-Frame-Header#VBRIHeader
 // https://www.crifan.com/files/doc/docbook/mpeg_vbr/release/webhelp/vbri_header.html
-static bool parseVBRIHeader(const Buffer& firstFrame, VBRIHeader *head) {
+static bool parseVBRIHeader(const sp<ABuffer>& firstFrame, VBRIHeader *head) {
     CHECK_NULL(head);
 
-    BitReader br(firstFrame.data(), firstFrame.size());
-    head->ID                = br.readS(4);  // VBRI
+    head->ID                = firstFrame->rs(4);  // VBRI
     if (head->ID != "VBRI") return false;
 
-    head->version           = br.rb16();
-    head->delay             = br.rb16();
-    head->quality           = br.rb16();
+    head->version           = firstFrame->rb16();
+    head->delay             = firstFrame->rb16();
+    head->quality           = firstFrame->rb16();
 
-    head->numBytes          = br.rb32();    // total size
-    head->numFrames         = br.rb32();    // total frames
+    head->numBytes          = firstFrame->rb32();    // total size
+    head->numFrames         = firstFrame->rb32();    // total frames
 
-    uint16_t numEntries     = br.rb16();
-    uint16_t scaleFactor    = br.rb16();
-    uint16_t entrySize      = br.rb16();
-    uint16_t entryFrames    = br.rb16();
+    uint16_t numEntries     = firstFrame->rb16();
+    uint16_t scaleFactor    = firstFrame->rb16();
+    uint16_t entrySize      = firstFrame->rb16();
+    uint16_t entryFrames    = firstFrame->rb16();
 
     DEBUG("numEntries %d, entrySize %d, scaleFactor %d, entryFrames %d",
             numEntries, entrySize, scaleFactor, entryFrames);
@@ -377,17 +378,17 @@ static bool parseVBRIHeader(const Buffer& firstFrame, VBRIHeader *head) {
             int length = 0;
             switch (entrySize) {
                 case 1:
-                    length = br.r8();
+                    length = firstFrame->r8();
                     break;
                 case 2:
-                    length = br.rb16();
+                    length = firstFrame->rb16();
                     break;
                 case 3:
-                    length = br.rb24();
+                    length = firstFrame->rb24();
                     break;
                 default:
                     CHECK_EQ(entrySize, 4);
-                    length = br.rb32();
+                    length = firstFrame->rb32();
                     break;
             }
 
@@ -414,7 +415,7 @@ static bool parseVBRIHeader(const Buffer& firstFrame, VBRIHeader *head) {
 }
 
 struct Mp3Packetizer : public MediaPacketizer {
-    Buffer      mBuffer;
+    sp<Buffer>  mBuffer;
     uint32_t    mCommonHead;
     bool        mNeedMoreData;
     bool        mFlushing;
@@ -422,7 +423,7 @@ struct Mp3Packetizer : public MediaPacketizer {
     MediaTime   mFrameTime;
     sp<Message> mProperties;
 
-    Mp3Packetizer() : MediaPacketizer(), mBuffer(4096, Buffer::Ring),
+    Mp3Packetizer() : MediaPacketizer(), mBuffer(new Buffer(4096, Buffer::Ring)),
     mCommonHead(0), mNeedMoreData(true), mFlushing(false),
     mNextFrameTime(kMediaTimeInvalid), mFrameTime(kMediaTimeInvalid) { }
 
@@ -444,30 +445,30 @@ struct Mp3Packetizer : public MediaPacketizer {
             }
         }
 
-        while (mBuffer.empty() < in->size) {
+        while (mBuffer->empty() < in->size) {
             if (mNeedMoreData) {
-                CHECK_TRUE(mBuffer.resize(mBuffer.capacity() * 2));
-                DEBUG("resize internal buffer => %zu", mBuffer.capacity());
+                CHECK_TRUE(mBuffer->resize(mBuffer->capacity() * 2));
+                DEBUG("resize internal buffer => %zu", mBuffer->capacity());
             } else {
                 return kMediaErrorResourceBusy;
             }
         }
 
-        mBuffer.write((const char *)in->data, in->size);
+        mBuffer->writeBytes((const char *)in->data, in->size);
         mNeedMoreData = false;
         return kMediaNoError;
     }
 
     virtual sp<MediaPacket> dequeue() {
-        DEBUG("internal buffer ready bytes %zu", mBuffer.ready());
+        DEBUG("internal buffer ready bytes %zu", mBuffer->size());
 
-        if (mBuffer.ready() <= 4) {
+        if (mBuffer->size() <= 4) {
             if (!mFlushing) mNeedMoreData = true;
             return NULL;
         }
 
         // only at the very beginning, find the common header
-        if (__builtin_expect(mCommonHead == 0, false)) {
+        if (ABE_UNLIKELY(mCommonHead == 0)) {
             DEBUG("find common header");
 
             MPEGAudioFrameHeader mpa;
@@ -476,13 +477,13 @@ struct Mp3Packetizer : public MediaPacketizer {
             ssize_t offset = locateFirstFrame(mBuffer, &mpa, &possible, &head);
 
             if (offset < 0) {
-                size_t junk = possible ? possible : mBuffer.ready() - 3;
+                size_t junk = possible ? possible : mBuffer->size() - 3;
                 DEBUG("missing head, skip %zu junk", offset);
-                mBuffer.skip(junk);
+                mBuffer->skipBytes(junk);
                 return NULL;
             } else if (offset > 0) {
                 DEBUG("skip %zu junk", offset);
-                mBuffer.skip(offset);
+                mBuffer->skipBytes(offset);
             }
             mCommonHead = head & kHeaderMask;
             DEBUG("common header %#x", mCommonHead);
@@ -492,33 +493,26 @@ struct Mp3Packetizer : public MediaPacketizer {
             mProperties->setInt32(kKeyChannels, mpa.numChannels);
             mProperties->setInt32(kKeySampleRate, mpa.sampleRate);
         }
-
-        size_t possible = 0;
+        
+        sp<Buffer> frame;
+        uint32_t head = 0;
         MPEGAudioFrameHeader mpa;
-        ssize_t offset = locateFrame(mBuffer, mCommonHead, &mpa, &possible);
-        if (offset < 0) {
-            if (mFlushing) {
-                DEBUG("%zu drop tailing bytes %s",
-                        mpa.frameLengthInBytes,
-                        mBuffer.string().c_str());
-            } else {
-                size_t junk = possible ? possible : mBuffer.ready() - 3;
-                DEBUG("skip junk bytes %zu", junk);
-                mNeedMoreData = true;
-                mBuffer.skip(junk);
-            }
-            return NULL;
-        } else if (offset > 0) {
-            DEBUG("skip junk bytes %zu before frame", offset);
-            mBuffer.skip(offset);
+        while (mBuffer->size()) {
+            head = (head << 8) | mBuffer->r8();
+            if ((head & kHeaderMask) != mCommonHead) continue;
+            
+            ssize_t frameLength = decodeFrameHeader(head, &mpa);
+            if (frameLength <= 4) continue;
+            if (frameLength - 4 > mBuffer->size()) continue;
+            
+            mBuffer->skipBytes(-4);
+            frame = mBuffer->readBytes(frameLength);
+            break;
         }
-
-        DEBUG("current frame length %zu (%zu)",
-                mpa.frameLengthInBytes, mBuffer.ready());
-
-        sp<MediaPacket> packet = MediaPacket::Create(mpa.frameLengthInBytes);
-        mBuffer.read((char*)packet->data, mpa.frameLengthInBytes);
-        CHECK_EQ(mpa.frameLengthInBytes, packet->capacity);
+        
+        if (frame.isNIL()) return NULL;
+        
+        sp<MediaPacket> packet = MediaPacket::Create(frame);
 
         CHECK_TRUE(mFrameTime != kMediaTimeInvalid);
         packet->size        = mpa.frameLengthInBytes;
@@ -533,7 +527,7 @@ struct Mp3Packetizer : public MediaPacketizer {
     }
     
     virtual void flush() {
-        mBuffer.reset();
+        mBuffer->clearBytes();
         mNextFrameTime = kMediaTimeInvalid;
         mCommonHead = 0;
         mNeedMoreData = true;
@@ -541,7 +535,7 @@ struct Mp3Packetizer : public MediaPacketizer {
 };
 
 struct Mp3File : public MediaFile {
-    sp<Content>             mContent;
+    sp<ABuffer>             mContent;
     int64_t                 mFirstFrameOffset;
     MPEGAudioFrameHeader    mHeader;
 
@@ -557,6 +551,9 @@ struct Mp3File : public MediaFile {
 
     sp<MediaPacket>         mRawPacket;
     sp<MediaPacketizer>     mPacketizer;
+    
+    sp<Message>             mID3v1;
+    sp<Message>             mID3v2;
 
     Mp3File() :
         mContent(NULL),
@@ -573,14 +570,17 @@ struct Mp3File : public MediaFile {
     // 1. http://gabriel.mp3-tech.org/mp3infotag.html#versionstring
     // 2. http://www.codeproject.com/Articles/8295/MPEG-Audio-Frame-Header
     // 3. http://mpgedit.org/mpgedit/mpeg_format/mpeghdr.htm
-    virtual MediaError init(sp<Content>& pipe) {
-        CHECK_TRUE(pipe != 0);
+    virtual MediaError init(const sp<ABuffer>& buffer) {
+        CHECK_TRUE(buffer != 0);
 
         sp<Message> outputFormat    = new Message;
         sp<Message> ast             = new Message;
 
-        sp<Message> id3v2   = ID3::ReadID3v2(pipe);
-        if (!id3v2.isNIL()) {
+        mID3v2 = ID3::ReadID3v2(buffer);
+#if LOG_NDEBUG == 0
+        if (mID3v2 != NULL) DEBUG("ID3v2: %s", mID3v2->string().c_str());
+#endif
+        if (!mID3v2.isNIL()) {
 #if 0
             // information for gapless playback
             // http://yabb.jriver.com/interact/index.php?topic=65076.msg436101#msg436101
@@ -597,55 +597,48 @@ struct Mp3File : public MediaFile {
                 }
             }
 #endif
-            outputFormat->setObject(kKeyTags, id3v2);   // FIXME
         }
-        mFirstFrameOffset = pipe->tell();
-        
-        sp<Message> id3v1 = ID3::ReadID3v1(pipe);
-        
-        size_t totalLength = pipe->length();
-        if (!id3v1.isNIL()) {
-            totalLength -= ID3::ID3v1::kLength;
-            outputFormat->setObject(kKeyTags, id3v1);   // FIXME, merge tags
-        }
-        pipe->seek(mFirstFrameOffset);
+        mFirstFrameOffset = buffer->offset();
 
-        sp<Buffer> scanData = pipe->read(kScanLength);
+        sp<Buffer> scanData = buffer->readBytes(kScanLength);
         if (scanData == 0) {
             ERROR("file is corupt?");
             return kMediaErrorBadFormat;
         }
 
         // skip junk before first frame.
-        ssize_t result = locateFirstFrame(*scanData, &mHeader, NULL, NULL);
+        ssize_t result = locateFirstFrame(scanData, &mHeader, NULL, NULL);
         if (result < 0) {
             ERROR("failed to locate the first frame.");
             return kMediaErrorBadFormat;
         } else if (result > 0) {
             DEBUG("%zu bytes junk data before first frame", (size_t)result);
         }
-        mFirstFrameOffset   += result;
+        buffer->skipBytes(-(buffer->offset() - result));
+        mFirstFrameOffset += result;
         DEBUG("mFirstFrameOffset = %" PRId64, mFirstFrameOffset);
 
-        pipe->seek(mFirstFrameOffset);
-        sp<Buffer> firstFrame = pipe->read(mHeader.frameLengthInBytes);
+        sp<Buffer> firstFrame = buffer->readBytes(mHeader.frameLengthInBytes);
         if (firstFrame->size() < mHeader.frameLengthInBytes) {
             ERROR("content is too small.");
             return kMediaErrorBadFormat;
         }
         DEBUG("first frame size %zu", mHeader.frameLengthInBytes);
+        
+        mID3v1 = ID3::ReadID3v1(buffer);
+        int64_t totalLength = buffer->size() - (mID3v1.isNIL() ? 0 : ID3V1_LENGTH);
 
         // decode first frame
         const size_t offset = 4 + kSideInfoOffset[mHeader.Version == MPEG_VERSION_1 ? 0 : 1]
             [mHeader.numChannels - 1];
-        firstFrame->skip(offset);
+        firstFrame->skipBytes(offset);
 
         DEBUG("side info: %s", firstFrame->string().c_str());
 
         mNumBytes = totalLength - mFirstFrameOffset;    // default value
         XingHeader xing;
         VBRIHeader vbri;
-        if (parseXingHeader(*firstFrame, &xing)) {
+        if (parseXingHeader(firstFrame, &xing)) {
             INFO("Xing header present");
             mVBR        = xing.ID == "Xing";
             mNumBytes   = xing.numBytes;
@@ -654,7 +647,7 @@ struct Mp3File : public MediaFile {
             for (; it != xing.toc.end(); ++it) {
                 mTOC.push((xing.numBytes * (*it)) / 256 + mFirstFrameOffset);
             }
-        } else if (parseVBRIHeader(*firstFrame, &vbri)) {
+        } else if (parseVBRIHeader(firstFrame, &vbri)) {
             INFO("VBRI header present");
             mVBR        = true;
             mNumBytes   = vbri.numBytes;
@@ -679,7 +672,7 @@ struct Mp3File : public MediaFile {
 #endif
 
         DEBUG("number bytes of data %" PRId64 " pipe length %" PRId64,
-                mNumBytes, pipe->length());
+                mNumBytes, buffer->size());
 
         if (mNumFrames != 0) {
             DEBUG("calc duration based on frame count.");
@@ -693,16 +686,16 @@ struct Mp3File : public MediaFile {
         }
         DEBUG("mBitRate %d, mDuration %.3f(s)", mHeader.bitRate, mDuration.seconds());
 
-
         if (mTOC.size()) {
             // add last entry to TOC
             mTOC.push(mFirstFrameOffset + mNumBytes);
-            pipe->seek(mTOC[0]);
+            mFirstFrameOffset = mTOC[0];
+            buffer->skipBytes(-(buffer->offset() - mTOC[0]));
         } else {
-            pipe->seek(mFirstFrameOffset);
+            buffer->skipBytes(-(buffer->offset() - mFirstFrameOffset));
         }
 
-        mContent = pipe;
+        mContent = buffer;
 
         DEBUG("firstFrameOffset %" PRId64, mFirstFrameOffset);
         return kMediaNoError;
@@ -753,8 +746,8 @@ struct Mp3File : public MediaFile {
                 pos = mNumBytes * percent + mFirstFrameOffset;
             }
 
-            DEBUG("seek to %" PRId64 " of %" PRId64, pos, mContent->length());
-            mContent->seek(pos);
+            DEBUG("seek to %" PRId64 " of %" PRId64, pos, mContent->size());
+            mContent->skipBytes(-(pos - mContent->offset()));
             // TODO: calc anchor time by index.
             mAnchorTime     = ts;
 
@@ -765,10 +758,10 @@ struct Mp3File : public MediaFile {
         for (;;) {
             if (mRawPacket == 0 && !sawInputEOS) {
                 DEBUG("read content at %" PRId64 "/%" PRId64,
-                        mContent->tell(),
-                        mContent->length());
+                        mContent->offset(),
+                        mContent->size());
                 // mInternalBuffer must be twice of this
-                sp<Buffer> data = mContent->read(2048);
+                sp<Buffer> data = mContent->readBytes(2048);
                 if (data == NULL) {
                     DEBUG("saw content eos..");
                     sawInputEOS = true;
@@ -808,24 +801,14 @@ struct Mp3File : public MediaFile {
     }
 };
 
-sp<MediaFile> CreateMp3File(sp<Content>& pipe) {
+sp<MediaFile> CreateMp3File(const sp<ABuffer>& buffer) {
     sp<Mp3File> file = new Mp3File;
-    if (file->init(pipe) == kMediaNoError) return file;
+    if (file->init(buffer) == kMediaNoError) return file;
     return NIL;
 }
 
 sp<MediaPacketizer> CreateMp3Packetizer() {
     return new Mp3Packetizer;
-}
-
-ssize_t locateFirstFrame(const Buffer& data, size_t *frameLength) {
-    MPEGAudioFrameHeader mpa;
-    ssize_t offset = locateFirstFrame(data, &mpa, NULL, NULL);
-
-    if (offset < 0) return kMediaErrorUnknown;
-
-    *frameLength    = mpa.frameLengthInBytes;
-    return offset;
 }
 
 ssize_t decodeMPEG4AudioHeader(uint32_t head, uint32_t * sampleRate, uint32_t * numChannels) {
@@ -834,6 +817,25 @@ ssize_t decodeMPEG4AudioHeader(uint32_t head, uint32_t * sampleRate, uint32_t * 
     if (sampleRate)     *sampleRate = frameHeader.sampleRate;
     if (numChannels)    *numChannels = frameHeader.numChannels;
     return frameLengthInBytes;
+}
+
+int IsMp3File(const sp<ABuffer>& buffer) {
+    MPEGAudioFrameHeader mpa;
+    uint32_t head;
+    ssize_t offset = locateFirstFrame(buffer, &mpa, NULL, &head);
+    if (offset < 0) return 0;
+    
+    int score = 0;
+    while (score < 100) {
+        buffer->skipBytes(mpa.frameLengthInBytes);
+        uint32_t next = buffer->rb32();
+        if ((head & kHeaderMask) != (next & kHeaderMask)) {
+            break;
+        }
+        score += 10;
+    }
+    
+    return 100;
 }
 
 __END_NAMESPACE_MPX

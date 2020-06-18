@@ -70,8 +70,8 @@ struct AppHeader : public SharedObject {
 /**
  * BitReader: without marker & length
  */
-sp<AppHeader>   readAppHeader(const BitReader&, size_t);
-MediaError      extendAppHeader(sp<AppHeader>&, const BitReader&, size_t);
+sp<AppHeader>   readAppHeader(const sp<ABuffer>&, size_t);
+MediaError      extendAppHeader(sp<AppHeader>&, const sp<ABuffer>&, size_t);
 void            printAppHeader(const sp<AppHeader>&);
 
 __END_NAMESPACE(JFIF)
@@ -88,7 +88,7 @@ struct JFIFObject : public JPEG::JIFObject {
     sp<EXIF::AttributeInformation>      mAttributeInformation;  ///< Exif APP1, may exists in both JFIF & Exif
 };
 
-sp<JFIFObject> openJFIF(sp<Content>&);
+sp<JFIFObject> openJFIF(const sp<ABuffer>&);
 
 void printJFIFObject(const sp<JFIFObject>&);
 

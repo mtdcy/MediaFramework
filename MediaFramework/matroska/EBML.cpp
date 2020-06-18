@@ -33,7 +33,7 @@
 //
 
 #define LOG_TAG   "EBML"
-//#define LOG_NDEBUG 0
+#define LOG_NDEBUG 0
 #include "MediaTypes.h"
 
 #include "EBML.h"
@@ -89,21 +89,21 @@ static FORCE_INLINE uint8_t EBMLGetBytesLength(uint8_t v) {
 }
 
 // vint with leading 1-bit
-static FORCE_INLINE EBMLInteger EBMLGetCodedInteger(BitReader& br) {
-    if (br.remianBytes() == 0) return EBMLIntegerNull;
+static FORCE_INLINE EBMLInteger EBMLGetCodedInteger(const sp<ABuffer>& buffer) {
+    if (buffer->size() == 0) return EBMLIntegerNull;
     
     EBMLInteger vint;
-    vint.u8     = br.r8();
+    vint.u8     = buffer->r8();
     vint.length = EBMLGetBytesLength(vint.u8);
     CHECK_GT(vint.length, 0);
     CHECK_LE(vint.length, 8);
-    if (br.remianBytes() < vint.length) {
+    if (buffer->size() < vint.length) {
         return EBMLIntegerNull;
     }
 
     if (vint.length > 1) {
         for (size_t i = 1; i < vint.length; ++i) {
-            vint.u64 = (vint.u64 << 8) | br.r8();
+            vint.u64 = (vint.u64 << 8) | buffer->r8();
         }
     }
     return vint;
@@ -114,33 +114,33 @@ static FORCE_INLINE uint64_t EBMLClearLeadingBit(uint64_t x, size_t length) {
 }
 
 // vint without leading 1-bit removed
-static FORCE_INLINE EBMLInteger EBMLGetInteger(BitReader& br) {
-    if (br.remianBytes() == 0) return EBMLIntegerNull;
-    EBMLInteger vint = EBMLGetCodedInteger(br);
+static FORCE_INLINE EBMLInteger EBMLGetInteger(const sp<ABuffer>& buffer) {
+    if (buffer->size() == 0) return EBMLIntegerNull;
+    EBMLInteger vint = EBMLGetCodedInteger(buffer);
     vint.u64 = EBMLClearLeadingBit(vint.u64, vint.length);
     return vint;
 }
 
 // vint with or without leading 1-bit
-static FORCE_INLINE EBMLInteger EBMLGetInteger(BitReader& br, size_t n) {
-    if (br.remianBytes() < n) return EBMLIntegerNull;
+static FORCE_INLINE EBMLInteger EBMLGetInteger(const sp<ABuffer>& buffer, size_t n) {
+    if (buffer->size() < n) return EBMLIntegerNull;
     
     CHECK_GT(n, 0);
     CHECK_LE(n, 8);
     EBMLInteger vint;
-    vint.u8 = br.r8();
+    vint.u8 = buffer->r8();
     vint.length = n;
     if (n > 1) {
         for (size_t i = 1; i < n; ++i) {
-            vint.u64 = (vint.u64 << 8) | br.r8();
+            vint.u64 = (vint.u64 << 8) | buffer->r8();
         }
     }
     return vint;
 }
 
 // vint -> element length
-static FORCE_INLINE EBMLInteger EBMLGetLength(BitReader& br) {
-    return EBMLGetInteger(br);
+static FORCE_INLINE EBMLInteger EBMLGetLength(const sp<ABuffer>& buffer) {
+    return EBMLGetInteger(buffer);
 }
 
 union Int2Float {
@@ -153,16 +153,16 @@ union Int2Double {
     uint64_t    u64;
 };
 
-static FORCE_INLINE double EBMLGetFloat(BitReader& br, size_t n) {
+static FORCE_INLINE double EBMLGetFloat(const sp<ABuffer>& buffer, size_t n) {
     if (n == 8) {
         CHECK_EQ(sizeof(double), 8);
         Int2Double a;
-        a.u64 = br.rb64();
+        a.u64 = buffer->rb64();
         return a.dbl;
     } else {
         CHECK_EQ(n, 4);
         Int2Float a;
-        a.u32 = br.rb32();
+        a.u32 = buffer->rb32();
         return a.flt;
     }
     return 0;
@@ -176,24 +176,24 @@ uint64_t vsint_subtr[] = {
     0x00FFFFFFFFFFFF, 0x007FFFFFFFFFFFFF
 };
 
-static FORCE_INLINE EBMLSignedInteger EBMLGetSignedInteger(BitReader& br) {
+static FORCE_INLINE EBMLSignedInteger EBMLGetSignedInteger(const sp<ABuffer>& buffer) {
     EBMLSignedInteger svint;
-    EBMLInteger vint    = EBMLGetInteger(br);
+    EBMLInteger vint    = EBMLGetInteger(buffer);
     svint.i64           = vint.u64 - vsint_subtr[vint.length - 1];
     svint.length        = vint.length;
     return svint;
 }
 
-static FORCE_INLINE EBMLSignedInteger EBMLGetSignedInteger(BitReader& br, size_t n) {
+static FORCE_INLINE EBMLSignedInteger EBMLGetSignedInteger(const sp<ABuffer>& buffer, size_t n) {
     EBMLSignedInteger svint;
-    EBMLInteger vint    = EBMLGetInteger(br, n);
+    EBMLInteger vint    = EBMLGetInteger(buffer, n);
     svint.i64           = vint.u64 - vsint_subtr[vint.length - 1];
     svint.length        = vint.length;
     return svint;
 }
 
-MediaError EBMLIntegerElement::parse(BitReader& br, size_t size) {
-    vint = EBMLGetInteger(br, size);
+MediaError EBMLIntegerElement::parse(const sp<ABuffer>& buffer, size_t size) {
+    vint = EBMLGetInteger(buffer, size);
     DEBUGV("integer %#x", vint.u64);
     return kMediaNoError;
 }
@@ -203,8 +203,8 @@ String EBMLIntegerElement::string() const {
 
 }
 
-MediaError EBMLSignedIntegerElement::parse(BitReader& br, size_t size) {
-    svint = EBMLGetSignedInteger(br, size);
+MediaError EBMLSignedIntegerElement::parse(const sp<ABuffer>& buffer, size_t size) {
+    svint = EBMLGetSignedInteger(buffer, size);
     DEBUGV("integer %#x", svint.i64);
     return kMediaNoError;
 }
@@ -214,24 +214,24 @@ String EBMLSignedIntegerElement::string() const {
 
 }
 
-MediaError EBMLStringElement::parse(BitReader& br, size_t size) {
-    str = br.readS(size);
+MediaError EBMLStringElement::parse(const sp<ABuffer>& buffer, size_t size) {
+    str = buffer->rs(size);
     DEBUGV("string %s", str.c_str());
     return kMediaNoError;
 }
 
 String EBMLStringElement::string() const { return str; }
 
-MediaError EBMLUTF8Element::parse(BitReader& br, size_t size) {
-    utf8 = br.readS(size);
+MediaError EBMLUTF8Element::parse(const sp<ABuffer>& buffer, size_t size) {
+    utf8 = buffer->rs(size);
     DEBUGV("utf8 %s", utf8.c_str());
     return kMediaNoError;
 }
 
 String EBMLUTF8Element::string() const { return utf8; }
 
-MediaError EBMLBinaryElement::parse(BitReader& br, size_t size) {
-    data = br.readB(size);
+MediaError EBMLBinaryElement::parse(const sp<ABuffer>& buffer, size_t size) {
+    data = buffer->readBytes(size);
     DEBUGV("binary %s", data->string(true).c_str());
     return kMediaNoError;
 }
@@ -240,8 +240,8 @@ String EBMLBinaryElement::string() const {
     return String::format("%zu bytes binary", data->size());
 }
 
-MediaError EBMLFloatElement::parse(BitReader& br, size_t size) {
-    flt = EBMLGetFloat(br, size);
+MediaError EBMLFloatElement::parse(const sp<ABuffer>& buffer, size_t size) {
+    flt = EBMLGetFloat(buffer, size);
     DEBUGV("float %f", flt);
     return kMediaNoError;
 }
@@ -250,7 +250,7 @@ String EBMLFloatElement::string() const {
     return String(flt);
 }
 
-MediaError EBMLMasterElement::parse(BitReader& br, size_t size) {
+MediaError EBMLMasterElement::parse(const sp<ABuffer>& buffer, size_t size) {
     // NOTHING
     return kMediaNoError;
 }
@@ -259,42 +259,42 @@ String EBMLMasterElement::string() const {
     return String::format("%zu children", children.size());
 }
 
-MediaError EBMLSkipElement::parse(BitReader& br, size_t size) {
-    if (size) br.skipBytes(size);
+MediaError EBMLSkipElement::parse(const sp<ABuffer>& buffer, size_t size) {
+    if (size) buffer->skipBytes(size);
     return kMediaNoError;
 }
 
 String EBMLSkipElement::string() const { return "*"; }
 
-MediaError EBMLSimpleBlockElement::parse(BitReader& br, size_t size) {
-    const size_t offset = br.offset();
-    TrackNumber = EBMLGetInteger(br);
-    TimeCode    = br.rb16();
-    Flags       = br.r8();
+MediaError EBMLSimpleBlockElement::parse(const sp<ABuffer>& buffer, size_t size) {
+    const size_t offset = buffer->offset();
+    TrackNumber = EBMLGetInteger(buffer);
+    TimeCode    = buffer->rb16();
+    Flags       = buffer->r8();
     DEBUGV("[%zu] block size %zu, %#x", TrackNumber.u32, size, Flags);
     if (Flags & kBlockFlagLace) {
-        size_t count = 1 + br.r8();     // frame count
+        size_t count = 1 + buffer->r8();     // frame count
         CHECK_GT(count, 1);
         size_t frame[count - 1];
         if ((Flags & kBlockFlagLace) == kBlockFlagEBML) {
-            EBMLInteger vint = EBMLGetInteger(br);
+            EBMLInteger vint = EBMLGetInteger(buffer);
             frame[0] = vint.u32;
             for (size_t i = 1; i < count - 1; ++i) {
-                EBMLSignedInteger svint = EBMLGetSignedInteger(br);
+                EBMLSignedInteger svint = EBMLGetSignedInteger(buffer);
                 frame[i] = frame[i-1] + svint.i32;
                 //DEBUG("frame %zu", frame[i]);
             }
         } else if ((Flags & kBlockFlagLace) == kBlockFlagXiph) {
             for (size_t i = 0; i < count - 1; ++i) {
-                uint8_t u8 = br.r8();
+                uint8_t u8 = buffer->r8();
                 frame[i] = u8;
                 while (u8 == 255) {
-                    u8 = br.r8();
+                    u8 = buffer->r8();
                     frame[i] += u8;
                 }
             }
         } else if ((Flags & kBlockFlagLace) == kBlockFlagFixed) {
-            const size_t total = size - (br.offset() - offset) / 8;
+            const size_t total = size - (buffer->offset() - offset);
             CHECK_EQ(total % count, 0);
             const size_t length = total / count;
             for (size_t i = 0; i < count - 1; ++i) {
@@ -303,13 +303,13 @@ MediaError EBMLSimpleBlockElement::parse(BitReader& br, size_t size) {
         }
 
         for (size_t i = 0; i < count - 1; ++i) {
-            //CHECK_GE(size, (br.offset() - offset) / 8 + frame[i]);
-            data.push(br.readB(frame[i]));
+            //CHECK_GE(size, (br.offset() - offset) + frame[i]);
+            data.push(buffer->readBytes(frame[i]));
         }
     }
 
-    //CHECK_GT(size, (br.offset() - offset) / 8);
-    data.push(br.readB(size - (br.offset() - offset) / 8)); // last frame length is not stored
+    //CHECK_GT(size, (br.offset() - offset));
+    data.push(buffer->readBytes(size - (buffer->offset() - offset))); // last frame length is not stored
 
     return kMediaNoError;
 }
@@ -526,13 +526,8 @@ sp<EBMLElement> MakeEBMLElement(const EBMLInteger& id, EBMLInteger& size) {
             }
         }
     }
-#if LOG_NDEBUG == 0
-    FATAL("unknown element %#x", id.u64);
-    return NULL;
-#else
     ERROR("unknown element %#x", id.u64);
-    return new EBMLSkipElement("UNKNOWN", id, size);
-#endif
+    return NULL;
 }
 
 sp<EBMLElement> FindEBMLElement(const sp<EBMLMasterElement>& master, uint64_t id) {
@@ -593,77 +588,51 @@ struct Entry {
 
 // TODO: handle UNKNOWN_DATA_SIZE
 // when unknown data size exists, we should read elements one by one
-sp<EBMLElement> ReadEBMLElement(sp<Content>& pipe, uint32_t flags) {
-    DEBUG("EnumRootElements %#x", flags);
-    size_t offset = pipe->tell();
+sp<EBMLElement> ReadEBMLElement(const sp<ABuffer>& buffer, uint32_t flags) {
+    DEBUG("ReadEBMLElement %#x", flags);
     size_t idLengthMax = 8;
     size_t sizeLengthMax = 8;
     
-    sp<Buffer> buffer = new Buffer(16, Buffer::Ring);
-    sp<Buffer> data = pipe->read(16);
-    buffer->write(*data);
-    BitReader br(buffer->data(), buffer->size());
-    
     // create root element
-    EBMLInteger id              = EBMLGetCodedInteger(br);
-    EBMLInteger size            = EBMLGetLength(br);
+    EBMLInteger id              = EBMLGetCodedInteger(buffer);
+    EBMLInteger size            = EBMLGetLength(buffer);
+    
+    if (id == EBMLIntegerNull || size == EBMLIntegerNull) {
+        // END OF BUFFER ?
+        return NULL;
+    }
+    
     sp<EBMLMasterElement> root  = MakeEBMLElement(id, size);
     CHECK_FALSE(root.isNIL());
-    buffer->skip(id.length + size.length);
     
     const size_t elementLength = id.length + size.length + size.u64;
     DEBUG("found root element %s @ %" PRIu64 " length = %zu[%zu]",
-         root->name, offset, (size_t)size.u64, 
+         root->name, buffer->offset(), (size_t)size.u64, 
          (size_t)(id.length + size.length + size.u64));
     
+    // parse leaf elements and return
     if (root->type != kEBMLElementMaster) {
         DEBUG("leaf element");
-        if (buffer->size() < size.u64) {
-            if (buffer->capacity() < size.u64) {
-                CHECK_TRUE(buffer->resize(size.u64));
-            }
-            sp<Buffer> data = pipe->read(size.u64 - buffer->size());
-            buffer->write(*data);
-        }
-        
-        // ignore all flags
-        BitReader br0 (buffer->data(), buffer->size());
-        
-        if (root->parse(br, size.u64) != kMediaNoError) {
-            ERROR("[%s @ %" PRId64 "] parse failed", root->name, offset);
+        sp<ABuffer> data = buffer->readBytes(size.u64);
+        if (root->parse(data, size.u64) != kMediaNoError) {
+            ERROR("[%s @ %" PRId64 "] parse failed", root->name);
             return NULL;
         }
-        
-        buffer->skip(size.u64);
-        if (buffer->size()) {
-            // put content @ the right postion
-            pipe->skip(-(int64_t)size.u64);
-        }
-        
         return root;
     }
     
     sp<EBMLMasterElement> master = root;
     int64_t masterLength = size.u64;
     List<Entry> parents;
-    offset += id.length + size.length;
-    const int64_t end = pipe->length();
-    while (offset < end) {
-        if (buffer->size() < idLengthMax + sizeLengthMax) {
-            sp<Buffer> data = pipe->read(idLengthMax + sizeLengthMax - buffer->size());
-            if (data.isNIL() && buffer->empty()) break;
-            if (!data.isNIL()) buffer->write(*data);
-        }
+    for (;;) {
+        size_t offset = buffer->offset();   // element position
         
-        BitReader br0(buffer->data(), buffer->size());
-        id      = EBMLGetCodedInteger(br0);
-        size    = EBMLGetLength(br0);
+        id      = EBMLGetCodedInteger(buffer);
+        size    = EBMLGetLength(buffer);
 
         if (id == EBMLIntegerNull || size == EBMLIntegerNull) {
             break;
         }
-        
-        buffer->skip(id.length + size.length);
         
         sp<EBMLElement> element = MakeEBMLElement(id, size);
         if (element.isNIL()) {
@@ -672,73 +641,61 @@ sp<EBMLElement> ReadEBMLElement(sp<Content>& pipe, uint32_t flags) {
         }
         
         const size_t elementLength = id.length + size.length + size.u64;
-        DEBUG("found level %zu element %s @ %" PRIu64 " length = %zu[%zu]",
-             parents.size(), element->name, offset, (size_t)size.u64, elementLength);
+        DEBUG("%s: + %s @ %" PRIu64 " length = %zu[%zu][%zu]",
+             master->name, element->name, offset, (size_t)size.u64, elementLength, masterLength);
         
         CHECK_LE(elementLength, masterLength);
         masterLength -= elementLength;
+        
+        if (size.u64 == 0) {
+            // an empty element is useless, so continue without push into children.
+            DEBUG("%s: - empty element %s", master->name, element->name);
+            continue;
+        }
         
         // handle master element
         if (element->type == kEBMLElementMaster) {
             // stop @ cluster
             if (id.u64 == ID_CLUSTER && (flags & kEnumStopCluster)) {
                 // put content @ cluster begin position
-                INFO("cluster @ 0x%" PRIx64, offset);
-                pipe->seek(offset);
+                buffer->skipBytes(-(id.length + size.length));
+                INFO("cluster @ 0x%" PRIx64, buffer->offset());
                 break;
             }
             master->children.push(EBMLMasterElement::Entry(offset, element));
             
             if (id.u64 == ID_CLUSTER && (flags & kEnumSkipCluster)) {
-                if (size.u64 > buffer->size()) {
-                    pipe->skip(size.u64 - buffer->size());
-                    buffer->reset();
-                } else {
-                    buffer->skip(size.u64);
-                }
-                offset += id.length + size.length + size.u64;
+                buffer->skipBytes(size.u64);
+                master->children.push(EBMLMasterElement::Entry(offset, element));
             } else {
+                // Element with 0 bytes payload
                 parents.push(Entry(master, masterLength));
                 master = element;
                 masterLength = size.u64;
-                offset += id.length + size.length;
             }
             continue;
         }
         
+        offset = buffer->offset();
         if ((flags & kEnumSkipBlocks) && (id.u64 == ID_SIMPLEBLOCK || id.u64 == ID_BLOCK)) {
             // skip element content
-            if (size.u64 > buffer->size()) {
-                pipe->skip(size.u64 - buffer->size());
-                buffer->reset();
-            } else {
-                buffer->skip(size.u64);
-            }
+            buffer->skipBytes(size.u64);
         } else {
-            // prepare element data
-            if (buffer->size() < size.u64) {
-                if (buffer->capacity() < size.u64) {
-                    CHECK_TRUE(buffer->resize(size.u64));
-                }
-                sp<Buffer> data = pipe->read(size.u64 - buffer->size());
-                buffer->write(*data);
-            }
-            
-            BitReader br1 (buffer->data(), buffer->size());
-            if (element->parse(br1, size.u64) != kMediaNoError) {
+            sp<ABuffer> data = buffer->readBytes(size.u64);
+            if (element->parse(data, size.u64) != kMediaNoError) {
                 ERROR("[%s @ %" PRId64 "] parse failed", element->name, offset);
+                // DON'T break, continue with next element
             }
-            if (size.u64) buffer->skip(size.u64);
         }
         
         master->children.push(EBMLMasterElement::Entry(offset, element));
-        offset += elementLength;
         
         // handle terminator box
         if (id.u64 == ID_VOID) {
             // void element will extend the master element length and
             // will terminate multi master elements except level root element
             while (size.u64 && parents.size()) {
+                DEBUG("%s: @@@ ", master->name);
                 size.u64 -= masterLength;
                 Entry e = parents.back();
                 parents.pop_back();
@@ -747,6 +704,7 @@ sp<EBMLElement> ReadEBMLElement(sp<Content>& pipe, uint32_t flags) {
             }
         } else {
             while (masterLength == 0 && parents.size()) {
+                DEBUG("%s: @@@ ", master->name);
                 Entry e = parents.back();
                 parents.pop_back();
                 master = e.element;
@@ -757,23 +715,16 @@ sp<EBMLElement> ReadEBMLElement(sp<Content>& pipe, uint32_t flags) {
         if (master == root && masterLength == 0) break;
     }
     
-    // put pipe @ the right position
-    if (buffer->size()) {
-        pipe->seek(offset);
-    }
-    
     return root;
 }
 
-int IsMatroskaFile(const sp<Buffer>& data) {
-    BitReader br(data->data(), data->size());
-    
+int IsMatroskaFile(const sp<ABuffer>& buffer) {
     // detect each element without parse its content
     // if failed, add parse()
     int score = 0;
     while (score < 100) {
-        EBMLInteger id      = EBMLGetCodedInteger(br);
-        EBMLInteger size    = EBMLGetLength(br);
+        EBMLInteger id      = EBMLGetCodedInteger(buffer);
+        EBMLInteger size    = EBMLGetLength(buffer);
         
         if (id == EBMLIntegerNull || size == EBMLIntegerNull || size.u64 == 0) {
             break;
@@ -781,7 +732,6 @@ int IsMatroskaFile(const sp<Buffer>& data) {
         
         sp<EBMLElement> element = MakeEBMLElement(id, size);
         if (element.isNIL()) {
-            score = 0;
             break;
         }
         
@@ -797,8 +747,8 @@ int IsMatroskaFile(const sp<Buffer>& data) {
         if (size.length == 1 && size.u64 == UNKNOWN_DATA_SIZE) {
             INFO("found element with unknown size");
         } else {
-            if (br.remianBytes() < size.u64) break;
-            br.skipBytes(size.u64);
+            if (buffer->size() < size.u64) break;
+            buffer->skipBytes(size.u64);
         }
     }
     INFO("IsMatroskaFile return with score %d", score);

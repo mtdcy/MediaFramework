@@ -40,8 +40,8 @@
 #define LOG_NDEBUG 0
 
 #include "MediaFile.h"
-#include <MediaFramework/MediaTypes.h>
-#include <MediaFramework/tags/id3/ID3.h>
+#include "MediaTypes.h"
+#include "id3/ID3.h"
 #include "matroska/EBML.h"
 
 #define MAX(a, b) (a > b ? a : b)
@@ -54,27 +54,15 @@ const static size_t kCommonHeadLength = 32;
 const static size_t kScanLength = 32 * 1024ll;
 
 // return score
-static int scanMP3(const sp<Buffer>& data);
-int IsMp4File(const sp<Buffer>& data);
-int IsWaveFile(const sp<Buffer>& data);
-int IsAviFile(const sp<Buffer>& data);
-static eFileFormat GetFormat(sp<Content>& pipe) {
+int IsMp4File(const sp<ABuffer>&);
+int IsWaveFile(const sp<ABuffer>&);
+int IsAviFile(const sp<ABuffer>&);
+int IsMp3File(const sp<ABuffer>&);
+static eFileFormat GetFormat(const sp<ABuffer>& data) {
     int score = 0;
-    DEBUG("start @ %" PRId64, pipe->tell());
-    
-    // skip id3v2
-    ID3::SkipID3v2(pipe);
 
-    const int64_t startPos = pipe->tell();
+    const int64_t startPos = data->offset();
     DEBUG("startPos = %" PRId64, startPos);
-    
-    sp<Buffer> header = pipe->read(kCommonHeadLength);
-    if (header == 0) {
-        ERROR("content size is too small");
-        return kFileFormatUnknown;
-    }
-
-    BitReader br(header->data(), header->size());
 
     // formats with 100 score by check fourcc
     {
@@ -96,10 +84,10 @@ static eFileFormat GetFormat(sp<Content>& pipe) {
         
         eFileFormat format = kFileFormatUnknown;
         for (size_t i = 0; kFourccMap[i].head; i++) {
-            const String head = br.readS(strlen(kFourccMap[i].head));
+            const String head = data->rs(strlen(kFourccMap[i].head));
             if (kFourccMap[i].ext) {
-                if (kFourccMap[i].skip) br.skip(kFourccMap[i].skip);
-                const String ext = br.readS(strlen(kFourccMap[i].ext));
+                if (kFourccMap[i].skip) data->skipBytes(kFourccMap[i].skip);
+                const String ext = data->rs(strlen(kFourccMap[i].ext));
                 if (head == kFourccMap[i].head &&
                     ext == kFourccMap[i].ext) {
                     format = kFourccMap[i].format;
@@ -112,37 +100,31 @@ static eFileFormat GetFormat(sp<Content>& pipe) {
                 }
             }
             
-            br.reset();
+            data->resetBytes();
         }
         
-        if (format != kFileFormatUnknown) {
-            // reset pipe to start pos
-            pipe->seek(startPos);
-            return format;
-        }
-
-        br.reset();
+        // put buffer back to its begin
+        if (format != kFileFormatUnknown) return format;
     }
 
     // formats with lower score by scanning header
-    header->resize(kScanLength);
-    header->write(*pipe->read(kScanLength - kCommonHeadLength));
-
     struct {
-        int (*scanner)(const sp<Buffer>& data);
+        int (*scanner)(const sp<ABuffer>&);
         eFileFormat format;
     } kScanners[] = {
         { IsWaveFile,           kFileFormatWave     },
         { IsMp4File,            kFileFormatMp4      },
         { EBML::IsMatroskaFile, kFileFormatMkv      },
         { IsAviFile,            kFileFormatAvi      },
-        { scanMP3,              kFileFormatMp3      },  // this one should locate at end
+        { IsMp3File,            kFileFormatMp3      },  // this one should locate at end
         { NULL,                 kFileFormatUnknown  }
     };
 
     eFileFormat format = kFileFormatUnknown;
     for (size_t i = 0; kScanners[i].scanner; i++) {
-        int c = kScanners[i].scanner(header);
+        // reset buffer to its begin
+        data->resetBytes();
+        int c = kScanners[i].scanner(data);
         DEBUG("%4s, score = %d", (const char *)&kScanners[i].format, c);
         if (c > score) {
             score = c;
@@ -152,51 +134,45 @@ static eFileFormat GetFormat(sp<Content>& pipe) {
         }
     }
 
-    // TODO: seek to the right pos
-    pipe->seek(startPos);
     return format;
 }
 
-ssize_t locateFirstFrame(const Buffer& data, size_t *frameLength);
-int scanMP3(const sp<Buffer>& data) {
-    size_t frameLength = 0;
-    ssize_t offset = locateFirstFrame(*data, &frameLength);
-
-    if (offset >= 0 && frameLength > 4) {
-        return 100;
-    }
-
-    return 0;
-}
-
-sp<MediaFile> CreateMp3File(sp<Content>& pipe);
-sp<MediaFile> CreateMp4File(sp<Content>& pipe);
-sp<MediaFile> CreateMatroskaFile(sp<Content>& pipe);
-sp<MediaFile> CreateLibavformat(sp<Content>& pipe);
-sp<MediaFile> CreateWaveFile(sp<Content>& pipe);
-sp<MediaFile> OpenAviFile(sp<Content>& pipe);
-sp<MediaFile> MediaFile::Create(sp<Content>& pipe, const eMode mode) {
+sp<MediaFile> CreateMp3File(const sp<ABuffer>&);
+sp<MediaFile> CreateMp4File(const sp<ABuffer>&);
+sp<MediaFile> CreateMatroskaFile(const sp<ABuffer>&);
+sp<MediaFile> CreateLibavformat(const sp<ABuffer>&);
+sp<MediaFile> CreateWaveFile(const sp<ABuffer>&);
+sp<MediaFile> OpenAviFile(const sp<ABuffer>&);
+sp<MediaFile> MediaFile::Create(const sp<ABuffer>& buffer, const eMode mode) {
     CHECK_TRUE(mode == Read, "TODO: only support read");
     
     String env = GetEnvironmentValue("FORCE_AVFORMAT");
     bool force = env.equals("1") || env.lower().equals("yes");
     
-    const eFileFormat format = GetFormat(pipe);
+    sp<ABuffer> head = buffer->readBytes(kScanLength);
+    buffer->skipBytes(-head->size());   // reset our buffer read pointer
+    
+    // skip id3v2, id3v2 is bad for file format detection
+    if (ID3::SkipID3v2(head) == kMediaNoError) {
+        head = head->readBytes(head->size());
+    }
+    
+    const eFileFormat format = GetFormat(head);
     if (format == kFileFormatUnknown) return NULL;
     
     switch (format) {
         case kFileFormatWave:
-            return force ? CreateLibavformat(pipe) : CreateWaveFile(pipe);
+            return force ? CreateLibavformat(buffer) : CreateWaveFile(buffer);
         case kFileFormatMp3:
-            return force ? CreateLibavformat(pipe) : CreateMp3File(pipe);
+            return force ? CreateLibavformat(buffer) : CreateMp3File(buffer);
         case kFileFormatMp4:
-            return force ? CreateLibavformat(pipe) : CreateMp4File(pipe);
+            return force ? CreateLibavformat(buffer) : CreateMp4File(buffer);
         case kFileFormatMkv:
-            return force ? CreateLibavformat(pipe) : CreateMatroskaFile(pipe);
+            return force ? CreateLibavformat(buffer) : CreateMatroskaFile(buffer);
         case kFileFormatAvi:
-            return force ? CreateLibavformat(pipe) : OpenAviFile(pipe);
+            return force ? CreateLibavformat(buffer) : OpenAviFile(buffer);
         default:
-            return CreateLibavformat(pipe);
+            return CreateLibavformat(buffer);
     }
 }
 

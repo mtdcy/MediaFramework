@@ -159,54 +159,58 @@ const char * GPSTagName(TIFF::eTag tag) {
 }
 
 // http://www.exif.org/Exif2-2.PDF
-sp<AttributeInformation> readAttributeInformation(const BitReader& br, size_t length) {
+sp<AttributeInformation> readAttributeInformation(const sp<ABuffer>& buffer, size_t length) {
     sp<AttributeInformation> attr = new AttributeInformation;
     
     // Exif
-    if (br.readS(6) != "Exif") {
+    if (buffer->rs(6) != "Exif") {
         ERROR("bad Exif Attribute Information");
         return NIL;
     }
     
     // TIFF Header
-    const size_t start  = br.offset() / 8;
-    String id           = br.readS(2);  // 'II' - intel byte order, 'MM' - motorola byte order
-    if (id == "II")     br.setByteOrder(BitReader::Little);
-    else                br.setByteOrder(BitReader::Big);
+    const size_t start  = buffer->offset();
+    String id           = buffer->rs(2);  // 'II' - intel byte order, 'MM' - motorola byte order
+    if (id == "II")     buffer->setByteOrder(ABuffer::Little);
+    else                buffer->setByteOrder(ABuffer::Big);
 
-    uint16_t version    = br.r16();     //
-    uint32_t offset     = br.r32();     // offset of first image directory
+    uint16_t version    = buffer->r16();     //
+    uint32_t offset     = buffer->r32();     // offset of first image directory
     DEBUG("id %s, version %#x, offset %u", id.c_str(), version, offset);
     
-    br.seekBytes(start + offset);
+    buffer->skipBytes(offset);
     
     // 0th IFD
     size_t next = 0;
-    attr->IFD0 = TIFF::readImageFileDirectory(br, &next);
+    attr->IFD0 = TIFF::readImageFileDirectory(buffer, &next);
     
     // 0th IFD value
     List<TIFF::Entry *>::iterator it = attr->IFD0->mEntries.begin();
     for (; it != attr->IFD0->mEntries.end(); ++it) {
         TIFF::Entry * e = *it;
         if (e->offset != 0) {
-            br.seekBytes(start + e->offset);
-            TIFF::fillEntry(e, br);
+            buffer->resetBytes();
+            buffer->skipBytes(start + e->offset);
+            TIFF::fillEntry(e, buffer);
         }
         
         if (e->tag == kExifIFD) {
-            br.seekBytes(start + e->value[0].u32);
-            attr->Exif = TIFF::readImageFileDirectory(br);
+            buffer->resetBytes();
+            buffer->skipBytes(start + e->value[0].u32);
+            attr->Exif = TIFF::readImageFileDirectory(buffer);
         } else if (e->tag == kExifGPSIFD) {
-            br.seekBytes(start + e->value[0].u32);
-            attr->GPS = TIFF::readImageFileDirectory(br);
+            buffer->resetBytes();
+            buffer->skipBytes(start + e->value[0].u32);
+            attr->GPS = TIFF::readImageFileDirectory(buffer);
         }
     }
-    DEBUG("IFD0 end - %u @ %u", br.offset() / 8, br.length() / 8);
+    DEBUG("IFD0 end - %u @ %u", buffer->offset(), buffer->size());
     
     if (next) {
         // 1th IFD
-        br.seekBytes(start + next);
-        attr->IFD1 = TIFF::readImageFileDirectory(br);
+        buffer->resetBytes();
+        buffer->skipBytes(start + next);
+        attr->IFD1 = TIFF::readImageFileDirectory(buffer);
         
         // 1th IFD value
         uint32_t jif = 0;
@@ -215,8 +219,9 @@ sp<AttributeInformation> readAttributeInformation(const BitReader& br, size_t le
         for (; it != attr->IFD1->mEntries.end(); ++it) {
             TIFF::Entry * e = *it;
             if (e->offset != 0) {
-                br.seekBytes(start + e->offset);
-                TIFF::fillEntry(e, br);
+                buffer->resetBytes();
+                buffer->skipBytes(start + e->offset);
+                TIFF::fillEntry(e, buffer);
             }
             
             if (e->tag == TIFF::kJPEGInterchangeFormat) {
@@ -229,15 +234,16 @@ sp<AttributeInformation> readAttributeInformation(const BitReader& br, size_t le
         // 1th IFD image data
         if (jif && jifLength) {
             DEBUG("thumbnail @ %zu, length %zu", start + jif, jifLength);
-            br.seekBytes(start + jif);
-            CHECK_GE(br.remains() / 8, jifLength);
-            attr->Thumb = JPEG::readJIFLazy(br, jifLength);
+            buffer->resetBytes();
+            buffer->skipBytes(start + jif);
+            CHECK_GE(buffer->size(), jifLength);
+            attr->Thumb = JPEG::readJIFLazy(buffer, jifLength);
         }
-        DEBUG("IFD1 end - %u @ %u", br.offset() / 8, br.length() / 8);
+        DEBUG("IFD1 end - %u @ %u", buffer->offset(), buffer->size());
         // FIXME: there are two bytes after IFD1
     }
     
-    DEBUG("offset - %u @ %u", br.offset() / 8, br.length() / 8);
+    DEBUG("offset - %u @ %u", buffer->offset(), buffer->size());
     
     return attr;
 }

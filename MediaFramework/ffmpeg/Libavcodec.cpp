@@ -366,8 +366,8 @@ static MediaError setupHwAccelContext(AVCodecContext *avcc) {
 }
 
 static void parseAudioSpecificConfig(AVCodecContext *avcc, const sp<Buffer>& csd) {
-    BitReader br(csd->data(), csd->size());
-    MPEG4::AudioSpecificConfig asc(br);
+    MPEG4::AudioSpecificConfig asc(csd);
+    csd->resetBytes();
     if (asc.valid) {
         avcc->extradata_size = csd->size();
         CHECK_GE(avcc->extradata_size, 2);
@@ -396,12 +396,12 @@ static MediaError setupExtraData(AVCodecContext *avcc, const sp<Message>& format
         case AV_CODEC_ID_AAC:
             if (formats->contains(kKeyESDS)) {
                 sp<Buffer> esds = formats->findObject(kKeyESDS);
-                parseESDS(avcc, esds);
+                parseESDS(avcc, esds->cloneBytes());
                 // aac sbr have real sample rate in AudioSpecificConfig
                 // but, DON'T fix avcc->sample_rate here
             } else if (formats->contains(kKeyCodecSpecData)) {
                 sp<Buffer> csd = formats->findObject(kKeyCodecSpecData);
-                parseAudioSpecificConfig(avcc, csd);
+                parseAudioSpecificConfig(avcc, csd->cloneBytes());
             } else {
                 ERROR("missing esds|csd for aac");
                 return kMediaErrorUnknown;
@@ -660,9 +660,8 @@ static AVCodecContext * initContext(eModeType mode, const sp<Message>& formats, 
     if (codec == kVideoCodecMicrosoftMPEG4) {
         CHECK_TRUE(formats->contains(kKeyMicrosoftVCM));
         sp<Buffer> vcm = formats->findObject(kKeyMicrosoftVCM);
-        BitReader br(vcm->data(), vcm->size());
         Microsoft::BITMAPINFOHEADER biHEAD;
-        if (biHEAD.parse(br) != kMediaNoError) {
+        if (biHEAD.parse(vcm->cloneBytes()) != kMediaNoError) {
             ERROR("bad BITMAPINFOHEADER");
         } else {
             // DO THINGS HERE
@@ -784,9 +783,9 @@ struct LavcDecoder : public MediaDecoder {
             // FIX sample rate of AAC SBR
             if (avcc->codec_id == AV_CODEC_ID_AAC &&
                     avcc->extradata_size >= 2) {
-                BitReader br((const char *)avcc->extradata,
+                sp<Buffer> csd = new Buffer((const char *)avcc->extradata,
                         (size_t)avcc->extradata_size);
-                MPEG4::AudioSpecificConfig config(br);
+                MPEG4::AudioSpecificConfig config(csd);
                 if (config.valid && config.sbr) {
                     INFO("fix sample rate %d => %d",
                             avcc->sample_rate,

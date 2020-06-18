@@ -42,17 +42,17 @@
 __BEGIN_NAMESPACE_MPX
 __BEGIN_NAMESPACE(JPEG)
 
-sp<FrameHeader> readFrameHeader(const BitReader& br, size_t length) {
+sp<FrameHeader> readFrameHeader(const sp<ABuffer>& buffer, size_t length) {
     sp<FrameHeader> header = new FrameHeader;
     
-    header->bpp     = br.r8();
-    header->height  = br.rb16();
-    header->width   = br.rb16();
-    header->planes  = br.r8();
+    header->bpp     = buffer->r8();
+    header->height  = buffer->rb16();
+    header->width   = buffer->rb16();
+    header->planes  = buffer->r8();
     for (size_t i = 0; i < header->planes; ++i) {
-        header->plane[i].id = br.r8();
-        header->plane[i].ss = br.r8();
-        header->plane[i].qt = br.r8();
+        header->plane[i].id = buffer->r8();
+        header->plane[i].ss = buffer->r8();
+        header->plane[i].qt = buffer->r8();
     }
     return header;
 }
@@ -69,13 +69,13 @@ void printFrameHeader(const sp<FrameHeader>& header) {
     }
 }
 
-sp<ScanHeader> readScanHeader(const BitReader& br, size_t length) {
+sp<ScanHeader> readScanHeader(const sp<ABuffer>& buffer, size_t length) {
     sp<ScanHeader> header = new ScanHeader;
     
-    header->components  = br.r8();
+    header->components  = buffer->r8();
     for (size_t i = 0; i < header->components; ++i) {
-        header->component[i].id = br.r8();
-        header->component[i].tb = br.r8();
+        header->component[i].id = buffer->r8();
+        header->component[i].tb = buffer->r8();
     }
     return header;
 }
@@ -90,11 +90,11 @@ void printScanHeader(const sp<ScanHeader>& header) {
     }
 }
 
-sp<HuffmanTable> readHuffmanTable(const BitReader& br, size_t length) {
+sp<HuffmanTable> readHuffmanTable(const sp<ABuffer>& buffer, size_t length) {
     sp<HuffmanTable> huff = new HuffmanTable;
-    huff->type  = br.read(4);
-    huff->id    = br.read(4);
-    huff->table = br.readB(length - 1);
+    huff->type  = buffer->read(4);
+    huff->id    = buffer->read(4);
+    huff->table = buffer->readBytes(length - 1);
     return huff;
 }
 
@@ -103,11 +103,11 @@ void printHuffmanTable(const sp<HuffmanTable>& huff) {
          huff->type ? "AC" : "DC", huff->id, huff->table->size());
 }
 
-sp<QuantizationTable> readQuantizationTable(const BitReader& br, size_t length) {
+sp<QuantizationTable> readQuantizationTable(const sp<ABuffer>& buffer, size_t length) {
     sp<QuantizationTable> quan = new QuantizationTable;
-    quan->precision = br.read(4);
-    quan->id        = br.read(4);
-    quan->table     = br.readB(length - 1);
+    quan->precision = buffer->read(4);
+    quan->id        = buffer->read(4);
+    quan->table     = buffer->readBytes(length - 1);
     return quan;
 }
 
@@ -116,9 +116,9 @@ void printQuantizationTable(const sp<QuantizationTable>& quan) {
          quan->precision ? 16u : 8u, quan->id, quan->table->size());
 }
 
-sp<RestartInterval> readRestartInterval(const BitReader& br, size_t length) {
+sp<RestartInterval> readRestartInterval(const sp<ABuffer>& buffer, size_t length) {
     sp<RestartInterval> ri = new RestartInterval;
-    ri->interval    = br.rb16();
+    ri->interval    = buffer->rb16();
     return ri;
 }
 
@@ -126,40 +126,40 @@ void printRestartInterval(const sp<RestartInterval>& ri) {
     INFO("\tDRI: interval %u", ri->interval);
 }
 
-sp<JIFObject> readJIF(const BitReader& br, size_t length) {
-    const size_t start = br.offset() / 8;
-    eMarker marker = (eMarker)br.r16();
+sp<JIFObject> readJIF(const sp<Buffer>& buffer, size_t length) {
+    const size_t start = buffer->offset();
+    eMarker marker = (eMarker)buffer->r16();
     if (marker != SOI) {
         ERROR("missing JIF SOI segment, unexpected marker %s", JPEG::MarkerName(SOI));
         return NIL;
     }
     
     sp<JIFObject> JIF = new JIFObject(false);
-    while ((marker = (eMarker)br.r16()) != EOI) {
+    while ((marker = (eMarker)buffer->r16()) != EOI) {
         if ((marker & 0xff00) != 0xff00) {
             ERROR("JIF bad marker %#x", marker);
             break;
         }
         
-        size_t size = br.r16();
+        size_t size = buffer->r16();
         DEBUG("JIF %s: length %zu", MarkerName(marker), size);
         
         size -= 2;
         if (marker == SOF0) {
-            JIF->mFrameHeader = readFrameHeader(br, size);
+            JIF->mFrameHeader = readFrameHeader(buffer, size);
         } else if (marker == DHT) {
-            JIF->mHuffmanTables.push(readHuffmanTable(br, size));
+            JIF->mHuffmanTables.push(readHuffmanTable(buffer, size));
         } else if (marker == DQT) {
-            JIF->mQuantizationTables.push(readQuantizationTable(br, size));
+            JIF->mQuantizationTables.push(readQuantizationTable(buffer, size));
         } else if (marker == DRI) {
-            JIF->mRestartInterval = readRestartInterval(br, size);
+            JIF->mRestartInterval = readRestartInterval(buffer, size);
         } else if (marker == SOS) {
-            JIF->mScanHeader = readScanHeader(br, size);
-            JIF->mData = br.readB(length - 2 - (br.offset() / 8 - start));
+            JIF->mScanHeader = readScanHeader(buffer, size);
+            JIF->mData = buffer->readBytes(length - 2 - (buffer->offset() - start));
             break;
         } else {
             INFO("ignore marker %#x", marker);
-            br.skipBytes(size);
+            buffer->skipBytes(size);
         }
     }
     
@@ -168,7 +168,7 @@ sp<JIFObject> readJIF(const BitReader& br, size_t length) {
         return NIL;
     }
     
-    marker = (eMarker)br.r16();
+    marker = (eMarker)buffer->r16();
     if (marker != EOI) {
         ERROR("JIF missing EOI, image may be broken");
     }
@@ -176,31 +176,31 @@ sp<JIFObject> readJIF(const BitReader& br, size_t length) {
 }
 
 // read only SOF & store [SOI, EOI] to data
-sp<JIFObject> readJIFLazy(const BitReader& br, size_t length) {
-    const size_t start = br.offset() / 8;
-    eMarker marker = (eMarker)br.r16();
+sp<JIFObject> readJIFLazy(const sp<ABuffer>& buffer, size_t length) {
+    const size_t start = buffer->offset();
+    eMarker marker = (eMarker)buffer->r16();
     if (marker != SOI) {
         ERROR("missing JIF SOI segment, unexpected marker %s", JPEG::MarkerName(SOI));
         return NIL;
     }
     
     sp<JIFObject> JIF = new JIFObject(true);
-    while ((marker = (eMarker)br.r16()) != EOI) {
+    while ((marker = (eMarker)buffer->r16()) != EOI) {
         if ((marker & 0xff00) != 0xff00) {
             ERROR("JIF bad marker %#x", marker);
             break;
         }
         
-        size_t size = br.r16();
+        size_t size = buffer->r16();
         DEBUG("JIF %s: length %zu", MarkerName(marker), size);
         
         size -= 2;
         if (marker == SOF0) {
-            JIF->mFrameHeader = readFrameHeader(br, size);
+            JIF->mFrameHeader = readFrameHeader(buffer, size);
             break;
         } else {
             //INFO("ignore marker %#x", marker);
-            br.skipBytes(size);
+            buffer->skipBytes(size);
         }
     }
     
@@ -209,8 +209,9 @@ sp<JIFObject> readJIFLazy(const BitReader& br, size_t length) {
         return NIL;
     }
     
-    br.seekBytes(start);
-    JIF->mData = br.readB(length);
+    buffer->resetBytes();
+    buffer->skipBytes(start);
+    JIF->mData = buffer->readBytes(length);
     
     return JIF;
 }

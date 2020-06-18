@@ -389,9 +389,9 @@ struct FlashpixExtension : public JPEG::Segment {
 /**
  * BitReader: without marker & length field
  */
-sp<AttributeInformation> readAttributeInformation(const BitReader&, size_t);
+sp<AttributeInformation> readAttributeInformation(const sp<ABuffer>&, size_t);
 
-sp<FlashpixExtension> readFlashpixExtension(const BitReader&);
+sp<FlashpixExtension> readFlashpixExtension(const sp<ABuffer>&);
 
 void printAttributeInformation(const sp<AttributeInformation>&);
 

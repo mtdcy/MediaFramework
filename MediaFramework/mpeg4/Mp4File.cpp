@@ -37,7 +37,7 @@
 #include <ABE/ABE.h>
 
 #include "Systems.h"
-#include "tags/id3/ID3.h"
+#include "id3/ID3.h"
 #include "Box.h"
 
 #include <MediaFramework/MediaFile.h>
@@ -167,14 +167,14 @@ static sp<Mp4Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderB
     sp<Mp4Track> track = new Mp4Track;
     track->duration = MediaTime(mdhd->duration, mdhd->timescale);
 
-    DEBUG("handler: [%4s] %s", (const char*)&hdlr->handler_type,
-            (const char *)&hdlr->handler_name);
+    DEBUG("handler: [%.4s] %s", BoxName(hdlr->handler_type),
+          hdlr->handler_name.c_str());
 
     // find sample infomations
     sp<SampleEntry> sampleEntry = stsd->child[0];
-    track->codec = get_codec_format(sampleEntry->type);
+    track->codec = get_codec_format(sampleEntry->Type);
     if (track->codec == kAudioCodecUnknown) {
-        ERROR("unsupported track sample '%s'", (const char *)&sampleEntry->type);
+        ERROR("unsupported track sample '%s'", (const char *)&sampleEntry->Type);
         return track;
     }
 
@@ -195,19 +195,19 @@ static sp<Mp4Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderB
 
     for (size_t i = 0; i < sampleEntry->child.size(); ++i) {
         sp<Box> box = sampleEntry->child[i];
-        if (box->type == kBoxTypeESDS ||
-            box->type == kBoxTypeAVCC ||
-            box->type == kBoxTypeHVCC) {
+        if (box->Type == kBoxTypeESDS ||
+            box->Type == kBoxTypeAVCC ||
+            box->Type == kBoxTypeHVCC) {
             track->esds = box;
         }
         // esds in mov.
-        else if (box->type == kBoxTypeWAVE) {
+        else if (box->Type == kBoxTypeWAVE) {
             track->esds = FindBox(box, kBoxTypeESDS);
-        } else if (box->type == kBoxTypeBTRT) {
+        } else if (box->Type == kBoxTypeBTRT) {
             sp<BitRateBox> btrt = box;
             track->bitReate = btrt->avgBitrate;
         } else {
-            INFO("ignore box %s", (const char *)&box->type);
+            INFO("ignore box %s", (const char *)&box->Type);
         }
     }
 
@@ -407,7 +407,7 @@ static MediaError seekTrack(sp<Mp4Track>& track,
 }
 
 struct Mp4File : public MediaFile {
-    sp<Content>             mContent;
+    sp<ABuffer>             mContent;
     Vector<sp<Mp4Track > >  mTracks;
     MediaTime               mDuration;
     struct {
@@ -450,7 +450,8 @@ struct Mp4File : public MediaFile {
             }
 
             if (trak->esds != NULL) {
-                trakInfo->setObject(FOURCC(trak->esds->type), trak->esds->data);
+                DEBUG("esds: %s", trak->esds->data->string(true).c_str());
+                trakInfo->setObject(FOURCC(trak->esds->Type), trak->esds->data);
             }
 
 #if 0
@@ -500,105 +501,44 @@ struct Mp4File : public MediaFile {
         return info;
     }
 
-    MediaError init(sp<Content>& pipe) {
-        CHECK_TRUE(pipe != NULL);
+    MediaError init(const sp<ABuffer>& buffer) {
+        CHECK_TRUE(buffer != NULL);
 
-        FileTypeBox ftyp;
-        sp<Buffer>  moovData;  // this is our target
-        bool mdat = false;
-        int64_t startPosition = 0;  // where mdat start
-
-        while (!mdat || moovData == NULL) {
-            sp<Buffer> boxHeader    = pipe->read(8);
-            if (boxHeader == 0 || boxHeader->size() < 8) {
-                DEBUG("lack of data. ");
-                break;
-            }
-
-            BitReader br(boxHeader->data(), boxHeader->size());
-
-            size_t boxHeadLength    = 8;
-            // if size is 1 then the actual size is in the field largesize;
-            // if size is 0, then this box is the last one in the file
-            uint64_t boxSize    = br.rb32();
-            uint32_t boxType    = br.rb32();
-
-            if (boxSize == 1) {
-                sp<Buffer> large    = pipe->read(8);
-                BitReader br(large->data(), large->size());
-                boxSize             = br.rb64();
-                boxHeadLength       = 16;
-            }
-
-            DEBUG("file: %4s %" PRIu64, BoxName(boxType), boxSize);
-
-            if (boxType == kBoxTypeMDAT) {
-                mdat = true;
-                startPosition = pipe->tell();
-                // ISO/IEC 14496-12: Section 8.2 Page 23
-                DEBUG("skip media data box");
-                pipe->skip(boxSize - boxHeadLength);
-                continue;
-            }
-
-            if (boxSize == 0) {
-                DEBUG("box extend to the end.");
-                break;
-            }
-
-            CHECK_GE((size_t)boxSize, boxHeadLength);
-
-            // empty box
-            if (boxSize == boxHeadLength) {
-                DEBUG("empty top level box %4s", (const char *)&boxType);
-                continue;
-            }
-
-            if (boxType == kBoxTypeMETA) {
-                meta.offset     = pipe->tell();
-                meta.length     = boxSize;
-                INFO("find meta box @ %zu(%zu)", meta.offset, meta.length);
-                pipe->skip(boxSize);
-                continue;
-            }
-
-            boxSize     -= boxHeadLength;
-            sp<Buffer> boxPayload   = pipe->read(boxSize);
-            if (boxPayload == 0 || boxPayload->size() != boxSize) {
-                ERROR("truncated file ?");
-                break;
-            }
-
-            if (boxType == kBoxTypeFTYP) {
-                // ISO/IEC 14496-12: Section 4.3 Page 12
-                DEBUG("file type box");
-                BitReader _br(boxPayload->data(), boxPayload->size());
-                ftyp = FileTypeBox(_br, boxSize);
-            } else if (boxType == kBoxTypeMOOV) {
-                // ISO/IEC 14496-12: Section 8.1 Page 22
-                DEBUG("movie box");
-                moovData = boxPayload;
+        sp<FileTypeBox> ftyp = ReadBox(buffer);
+        if (ftyp->Type != kBoxTypeFTYP) {
+            ERROR("missing ftyp box at buffer head");
+            return kMediaErrorBadContent;
+        }
+        
+        sp<MovieBox> moov;
+        sp<MediaDataBox> mdat;
+        sp<MetaBox> meta;
+        while (moov.isNIL() || mdat.isNIL()) {
+            sp<Box> box = ReadBox(buffer, ftyp);
+            if (box.isNIL()) break;
+            
+            if (box->Type == kBoxTypeMDAT) {
+                mdat = box;
+                if (moov.isNIL()) {
+                    // skip mdat and search for moov
+                    buffer->skipBytes(mdat->length);
+                }
+            } else if (box->Type == kBoxTypeMOOV) {
+                moov = box;
             } else {
-                ERROR("unknown top level box: %s", BoxName(boxType));
+                INFO("box %s before moov/mdat", box->Name.c_str());
             }
         }
-
-        // ftyp maybe missing from mp4
-        if (moovData == NULL) {
-            ERROR("moov is missing");
-            return kMediaErrorBadFormat;
+        
+        if (moov.isNIL()) {
+            ERROR("missing moov box");
+            return kMediaErrorBadContent;
         }
-
-        if (mdat == false) {
-            ERROR("mdat is missing");
-            return kMediaErrorBadFormat;
+        if (mdat.isNIL()) {
+            ERROR("missing mdat box");
+            return kMediaErrorBadContent;
         }
-
-        sp<MovieBox> moov = new MovieBox;
-        if (moov->parse(BitReader(moovData->data(), moovData->size()), moovData->size(), ftyp) != kMediaNoError) {
-            ERROR("bad moov box?");
-            return kMediaErrorBadFormat;
-        }
+        
         PrintBox(moov);
 
         sp<MovieHeaderBox> mvhd = FindBox(moov, kBoxTypeMVHD);
@@ -628,8 +568,9 @@ struct Mp4File : public MediaFile {
 
         INFO("%zu tracks ready", mTracks.size());
 
-        pipe->seek(startPosition);
-        mContent = pipe;
+        buffer->resetBytes();
+        buffer->skipBytes(mdat->offset);
+        mContent = buffer;
         return kMediaNoError;
     }
     
@@ -637,7 +578,7 @@ struct Mp4File : public MediaFile {
         INFO("configure << %s", options->string().c_str());
         MediaError status = kMediaErrorInvalidOperation;
         if (options->contains(kKeyTracks)) {
-            BitSet mask = options->findInt32(kKeyTracks);
+            Bits<uint32_t> mask = options->findInt32(kKeyTracks);
             CHECK_FALSE(mask.empty());
             for (size_t i = 0; i < mTracks.size(); ++i) {
                 sp<Mp4Track>& track = mTracks[i];
@@ -663,7 +604,7 @@ struct Mp4File : public MediaFile {
         for (;;) {
         // find the lowest pos
         size_t trackIndex = mTracks.size();
-        int64_t los = mContent->length();
+        int64_t los = mContent->size();
 
         for (size_t i = 0; i < mTracks.size(); ++i) {
             sp<Mp4Track>& track = mTracks[i];
@@ -690,12 +631,13 @@ struct Mp4File : public MediaFile {
         Sample& s = tbl[sampleIndex];
         
         DEBUG("[%zu] read sample @%" PRId64 "(%" PRId64 "), %zu bytes, dts %" PRId64 ", pts %" PRId64,
-              trackIndex, s.offset, mContent->tell(),
+              trackIndex, s.offset, mContent->offset(),
               s.size, s.dts, s.pts);
         
-        mContent->seek(s.offset);
+            mContent->resetBytes();
+        mContent->skipBytes(s.offset);
 
-        sp<Buffer> sample = mContent->read(s.size);
+        sp<Buffer> sample = mContent->readBytes(s.size);
 
         if (sample == 0 || sample->size() < s.size) {
             ERROR("read return error, corrupt file?.");
@@ -743,27 +685,25 @@ struct Mp4File : public MediaFile {
     }
 };
 
-sp<MediaFile> CreateMp4File(sp<Content>& pipe) {
+sp<MediaFile> CreateMp4File(const sp<ABuffer>& buffer) {
     sp<Mp4File> file = new Mp4File;
-    if (file->init(pipe) == kMediaNoError) return file;
+    if (file->init(buffer) == kMediaNoError) return file;
     return NIL;
 }
 
-int IsMp4File(const sp<Buffer>& data) {
-    BitReader br(data->data(), data->size());
-
+int IsMp4File(const sp<ABuffer>& buffer) {
     int score = 0;
-    while (br.remianBytes() > 8 && score < 100) {
+    while (buffer->size() > 8 && score < 100) {
         size_t boxHeadLength    = 8;
         // if size is 1 then the actual size is in the field largesize;
         // if size is 0, then this box is the last one in the file
-        uint64_t boxSize    = br.rb32();
-        uint32_t boxType    = br.rb32();
+        uint64_t boxSize    = buffer->rb32();
+        uint32_t boxType    = buffer->rb32();
 
         if (boxSize == 1) {
-            if (br.remianBytes() < 8) break;
+            if (buffer->size() < 8) break;
 
-            boxSize             = br.rb64();
+            boxSize             = buffer->rb64();
             boxHeadLength       = 16;
         }
 
@@ -790,8 +730,8 @@ int IsMp4File(const sp<Buffer>& data) {
         }
 
         if (boxSize - boxHeadLength > 0) {
-            if (br.remianBytes() < boxSize - boxHeadLength) break;
-            br.skipBytes(boxSize - boxHeadLength);
+            if (buffer->size() < boxSize - boxHeadLength) break;
+            buffer->skipBytes(boxSize - boxHeadLength);
         }
     }
 

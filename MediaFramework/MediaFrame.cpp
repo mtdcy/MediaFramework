@@ -110,7 +110,7 @@ MediaFrame::MediaFrame() : timecode(kMediaTimeInvalid), duration(kMediaTimeInval
     opaque = NULL;
 }
 
-sp<Buffer> MediaFrame::readPlane(size_t index) const {
+sp<ABuffer> MediaFrame::readPlane(size_t index) const {
     if (planes[index].data == NULL) return NULL;
     return new Buffer((const char *)planes[index].data, planes[index].size);
 }

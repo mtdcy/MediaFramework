@@ -74,7 +74,7 @@ int main(int argc, char **argv) {
                                          packet->size);
         
         sp<Content> out = Content::Create(pathname, Content::Write);
-        CHECK_EQ(out->write((const char *)packet->data, packet->size), packet->size);
+        CHECK_EQ(out->writeBytes((const char *)packet->data, packet->size), packet->size);
     }
 
     return 0;

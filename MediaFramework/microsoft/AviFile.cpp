@@ -108,7 +108,7 @@ struct MainHeaderListChunk : public ListChunk {
     
     MainHeaderListChunk(uint32_t size) : ListChunk(size, ID_AVIH) { }
     
-    virtual MediaError parse(BitReader& br) {
+    virtual MediaError parse(const sp<ABuffer>& buffer) {
         // TODO
         return kMediaNoError;
     }
@@ -142,7 +142,7 @@ struct StreamHeaderChunk : RIFF::Chunk {
     
     StreamHeaderChunk(uint32_t size) : RIFF::Chunk(ID_STRH, size) { }
     
-    virtual MediaError parse(BitReader& br) {
+    virtual MediaError parse(const sp<ABuffer>& buffer) {
         return kMediaNoError;
     }
 };
@@ -153,7 +153,7 @@ struct StreamFormatChunk : RIFF::Chunk {
     
     StreamFormatChunk(uint32_t size) : RIFF::Chunk(ID_STRF, size) { }
     
-    virtual MediaError parse(BitReader& br) {
+    virtual MediaError parse(const sp<ABuffer>& buffer) {
         return kMediaNoError;
     }
 };
@@ -163,7 +163,7 @@ struct StreamDataChunk : RIFF::Chunk {
     
     StreamDataChunk(uint32_t size) : RIFF::Chunk(ID_STRD, size) { }
     
-    virtual MediaError parse(BitReader& br) {
+    virtual MediaError parse(const sp<ABuffer>& buffer) {
         return kMediaNoError;
     }
 };
@@ -173,7 +173,7 @@ struct StreamNameChunk : RIFF::Chunk {
     String  Name;
     StreamNameChunk(uint32_t size) : RIFF::Chunk(ID_STRN, size) { }
     
-    virtual MediaError parse(BitReader& br) {
+    virtual MediaError parse(const sp<ABuffer>& buffer) {
         return kMediaNoError;
     }
 };
@@ -202,7 +202,7 @@ struct VideoPropHeader : public RIFF::Chunk {
     Vector<VIDEO_FIELD_DESC>    FieldInfo;  // size() == nbFieldPerFrame
     
     VideoPropHeader(uint32_t size) : RIFF::Chunk(ID_VPRP, size) { }
-    virtual MediaError parse(BitReader& br) {
+    virtual MediaError parse(const sp<ABuffer>& buffer) {
         return kMediaNoError;
     }
 };
@@ -210,8 +210,8 @@ struct VideoPropHeader : public RIFF::Chunk {
 struct InfoSoftware : public RIFF::Chunk {
     String      Name;
     InfoSoftware(uint32_t size) : RIFF::Chunk(ID_ISFT, size) { }
-    virtual MediaError parse(BitReader& br) {
-        Name = br.readS(br.remianBytes());
+    virtual MediaError parse(const sp<ABuffer>& buffer) {
+        Name = buffer->rs(buffer->size());
         return kMediaNoError;
     }
     virtual String string() const {
@@ -257,31 +257,22 @@ struct Entry {
     ckMaster(master), ckSize(size) { }
 };
 
-static sp<RIFF::Chunk> EnumChunks(sp<Content>& pipe) {
+static sp<RIFF::Chunk> EnumChunks(const sp<ABuffer>& buffer) {
     static ChunkRegister    cks;
     List<Entry>             ckParents;
     sp<RIFF::MasterChunk>   ckMaster;
     uint32_t                ckMasterLength;
     
-    // create a ring buffer for local cache
-    sp<Buffer> data = new Buffer(RIFF_CHUNK_LENGTH, Buffer::Ring);
-    sp<Buffer> ex = pipe->read(RIFF_CHUNK_LENGTH);
-    if (ex.isNIL()) return NULL;
-    data->write(*ex);
-    
-    // CHECK RIFF chunk first
-    BitReader br (data->data(), data->size());
-    uint32_t ckID           = br.rl32();
-    uint32_t ckSize         = br.rl32();
+    uint32_t ckID           = buffer->rl32();
+    uint32_t ckSize         = buffer->rl32();
     
     sp<RIFF::RIFFChunk> RIFF = new RIFF::RIFFChunk(ckSize);
-    RIFF->parse(br);
+    RIFF->parse(buffer);
     
     if (RIFF->ckID != ID_RIFF || RIFF->ckFileType != ID_AVI) {
         ERROR("missing RIFF/AVI header");
         return NULL;
     }
-    data->skip(RIFF_CHUNK_LENGTH);
     
     DEBUG("[%zu] %s", ckParents.size(), RIFF->string().c_str());
     
@@ -289,23 +280,14 @@ static sp<RIFF::Chunk> EnumChunks(sp<Content>& pipe) {
     ckMasterLength  = ckSize;
     
     for (;;) {
-        if (data->size() < RIFF_CHUNK_LENGTH) {
-            sp<Buffer> ex = pipe->read(data->empty());
-            if (ex.isNIL()) break;
-            data->write(*ex);
-        }
-        
-        BitReader br0 (data->data(), data->size());
-        uint32_t ckID   = br0.rl32();
-        uint32_t ckSize = br0.rl32();
-        data->skip(8);
+        uint32_t ckID   = buffer->rl32();
+        uint32_t ckSize = buffer->rl32();
         
         // workaound for RIFF LIST
         // LIST is a very bad structure, it may contains other LIST
         // or raw struct, this make LIST parse() very hard
         if (ckID == ID_LIST) {
-            ckID    = br0.rl32();
-            data->skip(4);
+            ckID        = buffer->rl32();
         }
         
         sp<RIFF::Chunk> ck = cks.alloc(ckID, ckSize);
@@ -313,38 +295,20 @@ static sp<RIFF::Chunk> EnumChunks(sp<Content>& pipe) {
 #if LOG_NDEBUG == 1
             break;
 #else
-            ckMasterLength -= ckSize + RIFF_CHUNK_MIN_LENGTH;
-            if (RIFF_CHUNK_MIN_LENGTH + ckSize > data->size()) {
-                pipe->skip(ckSize - data->size());
-                data->reset();
-            } else {
-                data->skip(RIFF_CHUNK_MIN_LENGTH + ckSize);
-            }
             continue;
 #endif
         }
         
-        if (data->size() < ck->size()) {
-            if (data->capacity() < ck->size()) {
-                CHECK_TRUE(data->resize(ck->size()));
-            }
-            sp<Buffer> ex = pipe->read(ck->size() - data->size());
-            if (ex.isNIL()) break;
-            data->write(*ex);
-        }
-        
         ckMasterLength -= ck->size() + 8;
         
-        BitReader br1 (data->data(), data->size());
-        if (ck->parse(br1) != kMediaNoError) {
-            ERROR("ck %.4s parse failed", (const char *)&ckID);
-            break;
-        }
         DEBUG("[%zu] %s, remains ckLength = %zu",
               ckParents.size() + 1, ck->string().c_str(), ckMasterLength);
         
-        data->skip(ck->size());
-        
+        if (ck->parse(buffer) != kMediaNoError) {
+            ERROR("ck %.4s parse failed", (const char *)&ckID);
+            break;
+        }
+                
         ckMaster->ckChildren.push(ck);
         
         if (ck->ckType == RIFF::kChunkTypeMaster) {
@@ -374,8 +338,8 @@ static sp<RIFF::Chunk> EnumChunks(sp<Content>& pipe) {
 struct AviFile : public MediaFile {
     AviFile() { }
     
-    MediaError init(sp<Content>& pipe) {
-        sp<RIFF::RIFFChunk> RIFF = EnumChunks(pipe);
+    MediaError init(const sp<ABuffer>& buffer) {
+        sp<RIFF::RIFFChunk> RIFF = EnumChunks(buffer);
     }
     
     virtual sp<Message> formats() const {
@@ -391,21 +355,19 @@ struct AviFile : public MediaFile {
     }
 };
 
-sp<MediaFile> OpenAviFile(sp<Content>& pipe) {
+sp<MediaFile> OpenAviFile(const sp<ABuffer>& buffer) {
     sp<AviFile> file = new AviFile;
-    if (file->init(pipe) == kMediaNoError) return file;
+    if (file->init(buffer) == kMediaNoError) return file;
     return NULL;
 }
 
-int IsAviFile(const sp<Buffer>& data) {
-    if (data->size() < RIFF_CHUNK_LENGTH) return 0;
-    
-    BitReader br(data->data(), data->size());
-    
+int IsAviFile(const sp<ABuffer>& buffer) {
+    if (buffer->size() < RIFF_CHUNK_LENGTH) return 0;
+        
     // RIFF CHUNK
-    uint32_t name   = br.rl32();
-    uint32_t length = br.rl32();
-    uint32_t wave   = br.rl32();
+    uint32_t name   = buffer->rl32();
+    uint32_t length = buffer->rl32();
+    uint32_t wave   = buffer->rl32();
     if (name != FOURCC('RIFF') || wave != FOURCC('AVI '))
         return 0;
     

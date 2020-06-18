@@ -57,7 +57,7 @@ struct Chunk : public SharedObject {
     virtual ~Chunk() { }
     
     // parse chunk data
-    virtual MediaError parse(BitReader& br) = 0;
+    virtual MediaError parse(const sp<ABuffer>&) = 0;
     // RIFF chunk is a bad structure, for master chunk, always has datas before children.
     // this make it hard to parse the data. so size() return data size except children
     // for master chunk, return all data size for leaf chunk
@@ -80,10 +80,10 @@ struct RIFFChunk : public MasterChunk {
     
     RIFFChunk(uint32_t size) : MasterChunk(FOURCC('RIFF'), size) { }
     
-    virtual MediaError parse(BitReader& br) {
-        if (br.remianBytes() < 4)
+    virtual MediaError parse(const sp<ABuffer>& buffer) {
+        if (buffer->size() < 4)
             return kMediaErrorBadContent;
-        ckFileType = br.rl32();
+        ckFileType = buffer->rl32();
         return kMediaNoError;
     }
     
@@ -94,14 +94,14 @@ struct RIFFChunk : public MasterChunk {
 struct VOIDChunk : public Chunk {
     // NO DATA
     VOIDChunk(uint32_t id, uint32_t size) : Chunk(id, size) { }
-    virtual MediaError parse(BitReader&) { return kMediaNoError; }
+    virtual MediaError parse(const sp<ABuffer>&) { return kMediaNoError; }
 };
 
 struct SKIPChunk : public Chunk {
     // SKIP DATA
     SKIPChunk(uint32_t id, uint32_t size) : Chunk(id, size) { }
-    virtual MediaError parse(BitReader& br) {
-        br.skipBytes(ckSize);
+    virtual MediaError parse(const sp<ABuffer>& buffer) {
+        buffer->skipBytes(ckSize);
         return kMediaNoError;
     }
 };

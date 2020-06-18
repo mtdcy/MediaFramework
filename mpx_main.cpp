@@ -258,6 +258,7 @@ int main (int argc, char **argv)
         // init window
         SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
         
+        // TODO: create window only when video exists
         window = SDL_CreateWindow(url.basename().c_str(),
                                   SDL_WINDOWPOS_UNDEFINED,
                                   SDL_WINDOWPOS_UNDEFINED,

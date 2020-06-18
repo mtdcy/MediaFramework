@@ -143,19 +143,19 @@ static void freeEntry(Entry * e) {
     kAllocatorDefault->deallocate(e);
 }
 
-void fillEntry(Entry * e, const BitReader& br) {
+void fillEntry(Entry * e, const sp<ABuffer>& buffer) {
     for (size_t i = 0; i < e->count; ++i) {
         switch (e->type) {
-            case kSHORT:        e->value[i].u16 = br.r16(); break;
-            case kSSHORT:       e->value[i].s16 = br.r16(); break;
-            case kLONG:         e->value[i].u32 = br.r32(); break;
-            case kSLONG:        e->value[i].s32 = br.r32(); break;
-            case kRATIONAL:     e->value[i].rat.num = br.r32(); e->value[i].rat.den = br.r32(); break;
-            case kSRATIONAL:    e->value[i].srat.num = br.r32(); e->value[i].srat.den = br.r32(); break;
+            case kSHORT:        e->value[i].u16 = buffer->r16(); break;
+            case kSSHORT:       e->value[i].s16 = buffer->r16(); break;
+            case kLONG:         e->value[i].u32 = buffer->r32(); break;
+            case kSLONG:        e->value[i].s32 = buffer->r32(); break;
+            case kRATIONAL:     e->value[i].rat.num = buffer->r32(); e->value[i].rat.den = buffer->r32(); break;
+            case kSRATIONAL:    e->value[i].srat.num = buffer->r32(); e->value[i].srat.den = buffer->r32(); break;
             case kUNDEFINED:
             case kBYTE:
-            case kASCII:        e->value[i].u8 = br.r8(); break;
-            case kSBYTE:        e->value[i].s8 = br.r8(); break;
+            case kASCII:        e->value[i].u8 = buffer->r8(); break;
+            case kSBYTE:        e->value[i].s8 = buffer->r8(); break;
             default:            FATAL("FIXME..."); break;
         }
     }
@@ -170,27 +170,27 @@ ImageFileDirectory::~ImageFileDirectory() {
     }
 }
 
-sp<ImageFileDirectory> readImageFileDirectory(const BitReader& br, size_t * next) {
+sp<ImageFileDirectory> readImageFileDirectory(const sp<ABuffer>& buffer, size_t * next) {
     sp<ImageFileDirectory> IFD = new ImageFileDirectory;
     
-    uint16_t fields = br.r16();     // number of fields
+    uint16_t fields = buffer->r16();     // number of fields
     DEBUG("%u fields", fields);
     
     for (size_t i = 0; i < fields; ++i) {
-        const eTag tag      = (eTag)br.r16();
-        const eType type    = (eType)br.r16();
-        const size_t length = br.r32();
+        const eTag tag      = (eTag)buffer->r16();
+        const eType type    = (eType)buffer->r16();
+        const size_t length = buffer->r32();
         
         Entry * e   = allocateEntry(tag, type, length);
         
         const size_t bytes  = length * TypeLength(type);
         if (bytes > 4) {
-            e->offset   = br.r32();
+            e->offset   = buffer->r32();
             //DEBUG("  tag %#x, type %u, length %u, offset %u", e->tag, e->type, e->count, e->offset);
         } else {
             // read data directly
-            fillEntry(e, br);
-            if (bytes < 4) br.skipBytes(4 - bytes);   // skip reset
+            fillEntry(e, buffer);
+            if (bytes < 4) buffer->skipBytes(4 - bytes);   // skip reset
             //DEBUG("  tag %#x, type %u, length %u, data %u", e->tag, e->type, e->count, e->value[0].u32);
         }
         
@@ -198,8 +198,8 @@ sp<ImageFileDirectory> readImageFileDirectory(const BitReader& br, size_t * next
     }
     
     // next IFD offset
-    if (next) *next = br.r32();
-    else br.skip(32);
+    if (next) *next = buffer->r32();
+    else buffer->skipBytes(4);
     
     return IFD;
 }

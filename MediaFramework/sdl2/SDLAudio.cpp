@@ -40,7 +40,6 @@
 #define LOG_TAG "SDLAudio"
 //#define LOG_NDEBUG 0
 #include "MediaOut.h"
-#include "AudioResampler.h"
 
 #include <SDL.h>
 #define NB_SAMPLES  2048    // buffer sample count

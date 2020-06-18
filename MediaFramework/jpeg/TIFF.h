@@ -187,15 +187,15 @@ struct TIFFObject : public SharedObject {
     List<sp<ImageFileDirectory> >   IFDs;
 };
 
-void fillEntry(Entry * e, const BitReader&);
+void fillEntry(Entry * e, const sp<ABuffer>&);
 
-sp<ImageFileDirectory> readImageFileDirectory(const BitReader&, size_t * next = NULL);
+sp<ImageFileDirectory> readImageFileDirectory(const sp<ABuffer>&, size_t * next = NULL);
 
 void printImageFileDirectory(const sp<ImageFileDirectory>&);
 
 void printImageFileDirectory(const sp<ImageFileDirectory>&, const char * (*GetTagName)(eTag));
 
-sp<TIFFObject> openTIFF(const sp<Content>&);
+sp<TIFFObject> openTIFF(const sp<ABuffer>&);
 
 __END_NAMESPACE(TIFF)
 __END_NAMESPACE_MPX

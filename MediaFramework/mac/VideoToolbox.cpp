@@ -134,7 +134,7 @@ struct VTMediaFrame : public MediaFrame {
         CVPixelBufferRelease((CVPixelBufferRef)opaque);
     }
     
-    virtual sp<Buffer> readPlane(size_t index) const {
+    virtual sp<ABuffer> readPlane(size_t index) const {
         CVPixelBufferRef pixbuf = (CVPixelBufferRef)opaque;
         sp<Buffer> plane;
         CVReturn err = CVPixelBufferLockBaseAddress(pixbuf, kCVPixelBufferLock_ReadOnly);

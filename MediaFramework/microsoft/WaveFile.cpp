@@ -38,7 +38,7 @@
 #include "MediaFile.h"
 #include "Microsoft.h"
 #include "RIFF.h"
-#include "tags/id3/ID3.h"
+#include "id3/ID3.h"
 
 // TODO: 
 // 1. fix support for compressed audio, like mp3...
@@ -59,49 +59,43 @@ struct FMTChunk : public RIFF::Chunk {
     
     FMTChunk(uint32_t length) : RIFF::Chunk(FOURCC('fmt '), length) { }
     
-    virtual MediaError parse(BitReader& br) {
-        if (br.remianBytes() < WAVEFORMATEX_MIN_LENGTH)
+    virtual MediaError parse(const sp<ABuffer>& buffer) {
+        if (buffer->size() < WAVEFORMATEX_MIN_LENGTH)
             return kMediaErrorBadContent;
-        return Wave.parse(br);
+        return Wave.parse(buffer);
     }
 };
 
-static sp<RIFF::Chunk> ReadChunk(sp<Content>& pipe) {
-    sp<Buffer> data = pipe->read(RIFF_CHUNK_MIN_LENGTH);
-    if (data.isNIL() || data->size() < RIFF_CHUNK_MIN_LENGTH)
+static sp<RIFF::Chunk> ReadChunk(const sp<ABuffer>& buffer) {
+    if (buffer.isNIL() || buffer->size() < RIFF_CHUNK_MIN_LENGTH)
         return NULL;
-    BitReader br (data->data(), data->size());
     
-    const uint32_t name     = br.rl32();
-    const uint32_t length   = br.rl32();
+    const uint32_t name     = buffer->rl32();
+    const uint32_t length   = buffer->rl32();
     sp<RIFF::Chunk> ck;
-    uint32_t _length = length;  // we may no read all data
+    uint32_t dataLength = length;  // we may no read all data
     if (name == FOURCC('RIFF')) {
         ck = new RIFF::RIFFChunk(length);
-        _length = 4;
+        dataLength = 4;
     } else if (name == FOURCC('data')) {
         ck = new RIFF::VOIDChunk(name, length);
-        _length = 0;
+        dataLength = 0;
     } else if (name == FOURCC('fmt ')) {
         ck = new FMTChunk(length);
     } else {
         ck = new RIFF::SKIPChunk(name, length);
     }
     
-    if (_length) {
-        data = pipe->read(_length);
-        if (data.isNIL() || data->size() < _length)
-            return NULL;
-        
-        BitReader br0 (data->data(), data->size());
-        if (ck->parse(br0) == kMediaNoError) return ck;
-        else return NULL;
-    }
+    if (dataLength == 0) return ck;
+
+    sp<ABuffer> data = buffer->readBytes(dataLength);
+    if (ck->parse(data) == kMediaNoError) return ck;
+    else return NULL;
     return ck;
 }
 
 struct WaveFile : public MediaFile {
-    sp<Content>         mContent;
+    sp<ABuffer>         mContent;
     int64_t             mDataOffset;
     int64_t             mDataLength;
     sp<Message>         mID3v1;
@@ -118,21 +112,18 @@ struct WaveFile : public MediaFile {
 
     // refer to:
     // 1. http://www-mmsp.ece.mcgill.ca/documents/audioformats/wave/wave.html
-    MediaError init(sp<Content>& pipe) {
-        mContent = pipe;
+    MediaError init(const sp<ABuffer>& buffer) {
+        mContent = buffer;
 
-        mID3v2 = ID3::ReadID3v2(pipe);
-        const int64_t waveStart = pipe->tell();
-        mID3v1 = ID3::ReadID3v1(pipe);
-        const int64_t waveEnd = pipe->tell();
+        mID3v2 = ID3::ReadID3v2(buffer);
+        const int64_t waveStart = buffer->offset();
         
-        if (pipe->length() - waveStart < 44) {
+        if (buffer->capacity() - waveStart < 44) {
             ERROR("pipe is too small.");
             return kMediaErrorBadContent;
         }
-        pipe->seek(waveStart);
         
-        sp<RIFF::RIFFChunk> ck = ReadChunk(pipe);
+        sp<RIFF::RIFFChunk> ck = ReadChunk(buffer);
         if (ck.isNIL() || ck->ckID != FOURCC('RIFF') || ck->ckFileType != FOURCC('WAVE')) {
             ERROR("not a WAVE file.");
             return kMediaErrorBadContent;
@@ -141,13 +132,13 @@ struct WaveFile : public MediaFile {
         DEBUG("wave file length %u.", ck->ckSize);
 
         bool success = false;
-        for (;;) {
-            sp<RIFF::Chunk> ck = ReadChunk(pipe);
+        while (!success) {
+            sp<RIFF::Chunk> ck = ReadChunk(buffer);
             if (ck.isNIL()) break;
 
             if (ck->ckID == FOURCC('data')) {
                 DEBUG("data chunk length %zu.", ck->ckSize);
-                mDataOffset     = pipe->tell();
+                mDataOffset     = buffer->offset();
                 mDataLength     = ck->ckSize;
                 success         = true;
                 break;
@@ -155,8 +146,20 @@ struct WaveFile : public MediaFile {
                 mFormat = ck;
             }
         }
+        
+        if (mFormat.isNIL()) {
+            ERROR("missing format chunk");
+            return kMediaErrorBadContent;
+        }
+        
+        if (success) {
+            // read id3v1
+            mID3v1 = ID3::ReadID3v1(buffer);
+        }
+        
+        buffer->skipBytes(-(buffer->offset() - mDataOffset));
 
-        return success && !mFormat.isNIL() ? kMediaNoError : kMediaErrorBadContent;
+        return success ? kMediaNoError : kMediaErrorBadContent;
     }
 
     sp<Message> formats() const {
@@ -201,10 +204,8 @@ struct WaveFile : public MediaFile {
         if (wave.wBitsPerSample)
             track->setInt32(kKeySampleBits, wave.wBitsPerSample);
         
-        sp<Buffer> acm = new Buffer(WAVEFORMATEX_MAX_LENGTH);
-        BitWriter bw(acm->data(), acm->capacity());
-        wave.compose(bw);
-        acm->step(bw.size());
+        sp<ABuffer> acm = new Buffer(WAVEFORMATEX_MAX_LENGTH);
+        wave.compose(acm);
         track->setObject(kKeyMicorsoftACM, acm);
 
         formats->setObject(kKeyTrack,       track);
@@ -225,7 +226,8 @@ struct WaveFile : public MediaFile {
 
         offset = (offset / wave.nBlockAlign) * wave.nBlockAlign;
 
-        mContent->seek(mDataOffset + offset);
+        mContent->resetBytes();
+        mContent->skipBytes(mDataOffset + offset);
     }
 
     virtual sp<MediaPacket> read(const eReadMode& mode, const MediaTime& ts) {
@@ -235,10 +237,10 @@ struct WaveFile : public MediaFile {
         
         const Microsoft::WAVEFORMATEX& wave = mFormat->Wave;
         const size_t sampleBytes = ((wave.nChannels * wave.wBitsPerSample) >> 3);
-        int64_t samplesRead = (mContent->tell() - mDataOffset) / sampleBytes;
+        int64_t samplesRead = (mContent->offset() - mDataOffset) / sampleBytes;
         MediaTime pts (samplesRead, wave.nSamplesPerSec);
 
-        sp<Buffer> data = mContent->read(kFrameSize * sampleBytes);
+        sp<Buffer> data = mContent->readBytes(kFrameSize * sampleBytes);
         if (data.isNIL()) {
             INFO("EOS...");
             return NULL;
@@ -256,30 +258,28 @@ struct WaveFile : public MediaFile {
     }
 };
 
-sp<MediaFile> CreateWaveFile(sp<Content>& pipe) {
+sp<MediaFile> CreateWaveFile(const sp<ABuffer>& buffer) {
     sp<WaveFile> wave = new WaveFile;
-    if (wave->init(pipe) == kMediaNoError)
+    if (wave->init(buffer) == kMediaNoError)
         return wave;
     return NULL;
 }
 
-int IsWaveFile(const sp<Buffer>& data) {
-    if (data->size() < RIFF_CHUNK_LENGTH) return 0;
-    
-    BitReader br(data->data(), data->size());
+int IsWaveFile(const sp<ABuffer>& buffer) {
+    if (buffer->size() < RIFF_CHUNK_LENGTH) return 0;
     
     // RIFF CHUNK
-    uint32_t name   = br.rl32();
-    uint32_t length = br.rl32();
-    uint32_t wave   = br.rl32();
+    uint32_t name   = buffer->rl32();
+    uint32_t length = buffer->rl32();
+    uint32_t wave   = buffer->rl32();
     if (name != FOURCC('RIFF') || wave != FOURCC('WAVE'))
         return 0;
     
     int score = 60;
     
-    while (br.remianBytes() > RIFF_CHUNK_MIN_LENGTH && score < 100) {
-        name    = br.rl32();
-        length  = br.rl32();
+    while (buffer->size() > RIFF_CHUNK_MIN_LENGTH && score < 100) {
+        name    = buffer->rl32();
+        length  = buffer->rl32();
         
         // known chunk names
         if (name == FOURCC('fmt ') ||
@@ -288,9 +288,12 @@ int IsWaveFile(const sp<Buffer>& data) {
             score += 20;
         }
         
-        if (length > br.remianBytes()) break;
+        // found data
+        if (name == FOURCC('data')) break;
         
-        br.skipBytes(length);
+        if (length > buffer->size()) break;
+        
+        buffer->skipBytes(length);
     }
     
     return score > 100 ? 100 : score;

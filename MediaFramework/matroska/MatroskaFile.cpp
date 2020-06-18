@@ -140,8 +140,8 @@ static sp<MediaPacket> CreatePacket(MatroskaTrack& trak,
     if (trak.compAlgo == 3) { // header strip
         const size_t size = trak.compSettings->size() + block->size();
         packet = MediaPacket::Create(size);
-        trak.compSettings->read((char *)packet->data, trak.compSettings->size());
-        block->read((char *)packet->data + trak.compSettings->size(), block->size());
+        trak.compSettings->cloneBytes()->readBytes((char *)packet->data, trak.compSettings->size());
+        block->readBytes((char *)packet->data + trak.compSettings->size(), block->size());
         packet->size = size;
     } else {
         packet = MediaPacket::Create(block);
@@ -161,25 +161,36 @@ static sp<MediaPacket> CreatePacket(MatroskaTrack& trak,
     return packet;
 }
 
-sp<EBMLMasterElement> ReadSEGMENT(sp<Content>& pipe, int64_t * clusters) {
-    int64_t offset = pipe->tell();
-    sp<EBMLMasterElement> SEGMENT = ReadEBMLElement(pipe, kEnumStopCluster);
+sp<EBMLMasterElement> ReadSEGMENT(const sp<ABuffer>& buffer, int64_t * clusters) {
+    int64_t offset = buffer->offset();
+    sp<EBMLMasterElement> SEGMENT = ReadEBMLElement(buffer, kEnumStopCluster);
     if (SEGMENT.isNIL()) return NULL;
+    
+#if LOG_NDEBUG == 0
+    PrintEBMLElements(SEGMENT);
+#endif
     
     // children inside reference to the segment element position excluding id & size
     offset += SEGMENT->id.length + SEGMENT->size.length;
     
-    *clusters = pipe->tell() - offset;
+    *clusters = buffer->offset() - offset;
     
     // FIXME: multi SEEKHEAD exists
     sp<EBMLMasterElement> SEEKHEAD = FindEBMLElement(SEGMENT, ID_SEEKHEAD);
     // go through each element(ID_SEEK)
     List<EBMLMasterElement::Entry>::const_iterator it = SEEKHEAD->children.cbegin();
     for (; it != SEEKHEAD->children.cend(); ++it) {
-        sp<EBMLIntegerElement> SEEKID = FindEBMLElement((*it).element, ID_SEEKID);
-        sp<EBMLIntegerElement> SEEKPOSITION = FindEBMLElement((*it).element, ID_SEEKPOSITION);
+        sp<EBMLElement> element = (*it).element;
+        if (element->id.u64 != ID_SEEK) continue;
+        
+        sp<EBMLIntegerElement> SEEKID = FindEBMLElement(element, ID_SEEKID);
+        sp<EBMLIntegerElement> SEEKPOSITION = FindEBMLElement(element, ID_SEEKPOSITION);
         CHECK_FALSE(SEEKID.isNIL());
         CHECK_FALSE(SEEKPOSITION.isNIL());
+        
+        if (SEEKID->vint.u64 == ID_CLUSTER) {
+            continue;
+        }
         
         const int64_t pos = offset + SEEKPOSITION->vint.u64;
         if (pos <= *clusters) {
@@ -187,12 +198,13 @@ sp<EBMLMasterElement> ReadSEGMENT(sp<Content>& pipe, int64_t * clusters) {
             continue;
         }
         
-        if (pipe->seek(pos) != pos) {
+        if (buffer->skipBytes(pos - buffer->offset()) != pos) {
             ERROR("seek failed");
             break;
         }
         
-        sp<EBMLElement> ELEMENT = ReadEBMLElement(pipe);
+        DEBUG("SEEKID %#x @ %" PRIx64, SEEKID->vint.u64, SEEKPOSITION->vint.u64);
+        sp<EBMLElement> ELEMENT = ReadEBMLElement(buffer);
         INFO("prefetch element %s", ELEMENT->name);
         if (ELEMENT.isNIL() || ELEMENT->id.u64 != SEEKID->vint.u64) {
             ERROR("read element @ 0x%" PRIx64 " failed", SEEKPOSITION->vint.u64);
@@ -211,16 +223,16 @@ struct MatroskaFile : public MediaFile {
     int64_t                 mClusters;  // offset of CLUSTERs
     MediaTime               mDuration;
     uint64_t                mTimeScale;
-    sp<Content>             mContent;
+    sp<ABuffer>             mContent;
     HashTable<size_t, MatroskaTrack> mTracks;
     sp<EBMLMasterElement>   mCluster;
     List<sp<MediaPacket> >  mPackets;
 
     MatroskaFile() : MediaFile(), mDuration(0), mTimeScale(TIMESCALE_DEF), mContent(NULL) { }
 
-    MediaError init(sp<Content>& pipe) {
+    MediaError init(const sp<ABuffer>& buffer) {
         // check ebml header
-        sp<EBMLMasterElement> EBMLHEADER = ReadEBMLElement(pipe);
+        sp<EBMLMasterElement> EBMLHEADER = ReadEBMLElement(buffer);
         if (EBMLHEADER == NULL) {
             ERROR("missing EBMLHEADER");
             return kMediaErrorBadFormat;
@@ -232,8 +244,8 @@ struct MatroskaFile : public MediaFile {
         }
 
         // check SEGMENT
-        int64_t offset = pipe->tell();
-        sp<EBMLMasterElement> SEGMENT = ReadSEGMENT(pipe, &mClusters);
+        int64_t offset = buffer->offset();
+        sp<EBMLMasterElement> SEGMENT = ReadSEGMENT(buffer, &mClusters);
         if (SEGMENT == NULL) {
             ERROR("missing SEGMENT");
             return kMediaErrorBadFormat;
@@ -284,9 +296,8 @@ struct MatroskaFile : public MediaFile {
 
             INFO("track codec %s", CODECID->str.c_str());
             if (CODECID->str == "V_MS/VFW/FOURCC") {
-                BitReader br(CODECPRIVATE->data->data(), CODECPRIVATE->data->size());
                 Microsoft::BITMAPINFOHEADER biHead;
-                if (biHead.parse(br) != kMediaNoError) {
+                if (biHead.parse(CODECPRIVATE->data->cloneBytes()) != kMediaNoError) {
                     ERROR("parse BITMAPINFOHEADER failed");
                     continue;
                 }
@@ -318,6 +329,7 @@ struct MatroskaFile : public MediaFile {
             
             if (CODECPRIVATE != NULL) {
                 trak.csd = CODECPRIVATE->data;  // handle csd in format()
+                DEBUG("track csd %s", trak.csd->string(true).c_str());
             }
 
             sp<EBMLIntegerElement> TRACKTYPE = FindEBMLElement(TRACKENTRY, ID_TRACKTYPE);
@@ -340,8 +352,7 @@ struct MatroskaFile : public MediaFile {
                 if (trak.format == kAudioCodecAAC && trak.csd != NULL) {
                     // FIXME: strip audio properties from ADTS headers if csd is not exists
                     // AudioSpecificConfig
-                    BitReader br(trak.csd->data(), trak.csd->size());
-                    MPEG4::AudioSpecificConfig asc(br);
+                    MPEG4::AudioSpecificConfig asc(trak.csd->cloneBytes());
                     if (asc.valid) {
                         trak.a.channels     = asc.channels;
                         trak.a.sampleRate   = asc.samplingFrequency;
@@ -417,8 +428,9 @@ struct MatroskaFile : public MediaFile {
             }
         }
 
-        pipe->seek(mSegment + mClusters);
-        mContent    = pipe;
+        DEBUG("cluster start @ %" PRId64, mSegment + mClusters);
+        buffer->skipBytes(mSegment + mClusters - buffer->offset());
+        mContent    = buffer;
 
 #if 0
         // stage 2: workarounds for some codec
@@ -482,15 +494,14 @@ struct MatroskaFile : public MediaFile {
                 DEBUG("csd: %s", trak.csd->string(true).c_str());
                 if (trak.format == kAudioCodecAAC) {
                     // AudioSpecificConfig -> ESDS
-                    sp<Buffer> esds = MPEG4::MakeAudioESDS(trak.csd->data(), trak.csd->size());
+                    sp<Buffer> esds = MPEG4::MakeAudioESDS(trak.csd->cloneBytes());
                     if (esds.isNIL()) {
                         MPEG4::AudioSpecificConfig asc (MPEG4::AOT_AAC_MAIN, trak.a.sampleRate, trak.a.channels);
                         esds = MPEG4::MakeAudioESDS(asc);
                     }
                     trakInfo->setObject(kKeyESDS, esds);
                 } else if (trak.format == kVideoCodecH264) {
-                    BitReader br(trak.csd->data(), trak.csd->size());
-                    MPEG4::AVCDecoderConfigurationRecord avcC(br);
+                    MPEG4::AVCDecoderConfigurationRecord avcC(trak.csd->cloneBytes());
                     if (avcC.valid) {
                         trakInfo->setObject(kKeyavcC, trak.csd);
                     } else {
@@ -529,7 +540,7 @@ struct MatroskaFile : public MediaFile {
                 if (entry.time <= timecode) {
                     DEBUG("seek hit @ %" PRIu64 ", cluster %" PRId64,
                           entry.time, entry.pos);
-                    mContent->seek(entry.pos + mSegment);
+                    mContent->skipBytes(mSegment + entry.pos - mContent->offset());
                     break;
                 }
             }
@@ -650,9 +661,9 @@ struct MatroskaFile : public MediaFile {
     }
 };
 
-sp<MediaFile> CreateMatroskaFile(sp<Content>& pipe) {
+sp<MediaFile> CreateMatroskaFile(const sp<ABuffer>& buffer) {
     sp<MatroskaFile> file = new MatroskaFile;
-    if (file->init(pipe) == kMediaNoError) return file;
+    if (file->init(buffer) == kMediaNoError) return file;
     return NIL;
 }
 

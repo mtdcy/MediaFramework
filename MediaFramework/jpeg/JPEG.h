@@ -218,11 +218,11 @@ struct Comment : public Segment {
 /**
  * BitReader without marker
  */
-sp<FrameHeader> readFrameHeader(const BitReader&, size_t);
-sp<ScanHeader> readScanHeader(const BitReader&, size_t);
-sp<HuffmanTable> readHuffmanTable(const BitReader&, size_t);
-sp<QuantizationTable> readQuantizationTable(const BitReader&, size_t);
-sp<RestartInterval> readRestartInterval(const BitReader&, size_t);
+sp<FrameHeader> readFrameHeader(const sp<ABuffer>&, size_t);
+sp<ScanHeader> readScanHeader(const sp<ABuffer>&, size_t);
+sp<HuffmanTable> readHuffmanTable(const sp<ABuffer>&, size_t);
+sp<QuantizationTable> readQuantizationTable(const sp<ABuffer>&, size_t);
+sp<RestartInterval> readRestartInterval(const sp<ABuffer>&, size_t);
 
 void printFrameHeader(const sp<FrameHeader>&);
 void printScanHeader(const sp<ScanHeader>&);
@@ -248,8 +248,8 @@ struct JIFObject : public SharedObject {
 /**
  * BitReader with full JIF
  */
-sp<JIFObject> readJIF(const BitReader&, size_t);            // full read
-sp<JIFObject> readJIFLazy(const BitReader&, size_t);        // read SOF only
+sp<JIFObject> readJIF(const sp<ABuffer>&, size_t);            // full read
+sp<JIFObject> readJIFLazy(const sp<ABuffer>&, size_t);        // read SOF only
 
 void printJIFObject(const sp<JIFObject>&);
 

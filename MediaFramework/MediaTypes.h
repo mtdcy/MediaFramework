@@ -647,7 +647,7 @@ struct API_EXPORT MediaFrame : public SharedObject {
      * @return should return NULL if plane is not exists
      * @note default implementation: read directly from planes
      */
-    virtual sp<Buffer> readPlane(size_t) const;
+    virtual sp<ABuffer> readPlane(size_t) const;
 
     /**
      * keep luma component and swap two chroma components of Y'CbCr image

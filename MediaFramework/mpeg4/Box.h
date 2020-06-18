@@ -167,58 +167,66 @@ enum {
 
 const char * BoxName(uint32_t);
 
+enum {
+    kBoxFull        = 0x1,
+    kBoxContainer   = 0x2,
+};
+
+// ISO/IEC 14496-12: Section 4.2 Object Structure, Page 11
+struct FileTypeBox;
+struct Box : public SharedObject {
+    const String    Name;   // for debugging
+    const uint32_t  Type;
+    const uint8_t   Class;
+    uint8_t         Version;
+    uint32_t        Flags;
+    
+    Box(uint32_t type, uint8_t cls = 0);
+    FORCE_INLINE virtual ~Box() { }
+    virtual MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    virtual void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
+    size_t size() const { return Class & kBoxFull ? 4 : 0; }    // box size excluding header
+};
+
 // ISO/IEC 14496-12 ISO base media file format
 // http://www.ftyps.com
 // ftyp *
-struct FileTypeBox {
+struct FileTypeBox : public Box {
     uint32_t            major_brand;
     uint32_t            minor_version;
     Vector<uint32_t>    compatibles;
     
     // default value.
-    FORCE_INLINE FileTypeBox() : major_brand(kBrandTypeMP41), minor_version(0) { }
-    FileTypeBox(const BitReader& br, size_t size);
-};
-
-// ISO/IEC 14496-12: Section 4.2 Object Structure, Page 11
-struct Box : public SharedObject {
-    uint32_t        type;
-    bool            full;
-    bool            container;
-    uint8_t         version;
-    uint32_t        flags;
-    
-    FORCE_INLINE Box(uint32_t _type, bool _full = false, bool _container = false) : type(_type), full(_full), container(_container) { }
-    FORCE_INLINE virtual ~Box() { }
-    virtual MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    virtual void compose(BitWriter&, const FileTypeBox&);
-    size_t size() const { return full ? 4 : 0; }
+    FORCE_INLINE FileTypeBox() : Box(kBoxTypeFTYP),
+    major_brand(kBrandTypeMP41), minor_version(0) { }
+    virtual MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
 };
 
 struct FullBox : public Box {
-    FORCE_INLINE FullBox(uint32_t type, bool container = false) : Box(type, true, container) { }
+    FORCE_INLINE FullBox(uint32_t type, uint8_t cls = 0) : Box(type, cls | kBoxFull) { }
     FORCE_INLINE virtual ~FullBox() { }
     size_t size() const { return Box::size(); }
 };
 
 struct ContainerBox : public Box {
-    bool                counted;
+    const bool          counted;
     Vector<sp<Box> >    child;
     
-    FORCE_INLINE ContainerBox(uint32_t type, bool _full = false, bool _counted = false) : Box(type, _full, true), counted(_counted) { }
+    FORCE_INLINE ContainerBox(uint32_t type, uint8_t cls = 0, bool cnt = false) :
+    Box(type, kBoxContainer | cls), counted(cnt) { }
     FORCE_INLINE virtual ~ContainerBox() { }
-    virtual MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    virtual MediaError _parse(const BitReader&, size_t, const FileTypeBox&);
-    virtual void compose(BitWriter&, const FileTypeBox&);
+    virtual MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    virtual MediaError _parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    virtual void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 struct FullContainerBox : public ContainerBox {
-    FORCE_INLINE FullContainerBox(uint32_t type) : ContainerBox(type, true, false) { }
+    FORCE_INLINE FullContainerBox(uint32_t type) : ContainerBox(type, kBoxFull) { }
     FORCE_INLINE virtual ~FullContainerBox() { }
 };
 
 struct CountedFullContainerBox : public ContainerBox {
-    FORCE_INLINE CountedFullContainerBox(uint32_t type) : ContainerBox(type, true, true) { }
+    FORCE_INLINE CountedFullContainerBox(uint32_t type) : ContainerBox(type, kBoxFull, true) { }
     FORCE_INLINE virtual ~CountedFullContainerBox() { }
 };
 
@@ -299,8 +307,8 @@ BOX_TYPE(kBoxTypeSTSD,  SampleDescriptionBox,   CountedFullContainerBox);
 // isom and quicktime using different semantics for MetaBox
 struct MetaBox : public ContainerBox {
     FORCE_INLINE MetaBox() : ContainerBox(kBoxTypeMETA) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 struct MovieHeaderBox : public FullBox {
@@ -313,8 +321,8 @@ struct MovieHeaderBox : public FullBox {
     uint32_t    next_track_ID;
     
     FORCE_INLINE MovieHeaderBox() : FullBox(kBoxTypeMVHD) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 struct TrackHeaderBox : public FullBox {
@@ -340,8 +348,8 @@ struct TrackHeaderBox : public FullBox {
     uint32_t    height;
     
     FORCE_INLINE TrackHeaderBox() : FullBox(kBoxTypeTKHD) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 
 };
 
@@ -350,8 +358,8 @@ struct TrackReferenceTypeBox : public Box {
     Vector<uint32_t>    track_IDs;
 
     FORCE_INLINE TrackReferenceTypeBox(uint32_t type) : Box(type) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 // ISO/IEC 14496-12: Section 8.6 Track Reference Box, Page 26
@@ -372,8 +380,8 @@ struct MediaHeaderBox : public FullBox {
     String              language;
     
     FORCE_INLINE MediaHeaderBox() : FullBox(kBoxTypeMDHD) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 struct HandlerBox : public FullBox {
@@ -381,8 +389,8 @@ struct HandlerBox : public FullBox {
     String              handler_name;
     
     FORCE_INLINE HandlerBox() : FullBox(kBoxTypeHDLR) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 struct VideoMediaHeaderBox : public FullBox {
@@ -390,16 +398,16 @@ struct VideoMediaHeaderBox : public FullBox {
     Vector<uint16_t>    opcolor;
     
     FORCE_INLINE VideoMediaHeaderBox() : FullBox(kBoxTypeVMHD) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 struct SoundMediaHeaderBox : public FullBox {
     uint16_t            balance;
 
     FORCE_INLINE SoundMediaHeaderBox() : FullBox(kBoxTypeSMHD) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 struct HintMediaHeaderBox : public FullBox {
@@ -409,8 +417,8 @@ struct HintMediaHeaderBox : public FullBox {
     uint32_t            avgbitrate;
     
     FORCE_INLINE HintMediaHeaderBox() : FullBox(kBoxTypeHMHD) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 BOX_TYPE(kBoxTypeNMHB, NullMediaHeaderBox, FullBox);
@@ -419,8 +427,8 @@ struct DataEntryUrlBox : public FullBox {
     String              location;
 
     FORCE_INLINE DataEntryUrlBox() : FullBox(kBoxTypeURL) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 struct DataEntryUrnBox : public FullBox {
@@ -428,8 +436,8 @@ struct DataEntryUrnBox : public FullBox {
     String              location;
     
     FORCE_INLINE DataEntryUrnBox() : FullBox(kBoxTypeURN) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 struct TimeToSampleBox : public FullBox {
@@ -440,8 +448,8 @@ struct TimeToSampleBox : public FullBox {
     Vector<Entry>       entries;
     
     FORCE_INLINE TimeToSampleBox() : FullBox(kBoxTypeSTTS) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 struct CompositionOffsetBox : public FullBox {
@@ -452,8 +460,8 @@ struct CompositionOffsetBox : public FullBox {
     Vector<Entry>       entries;
     
     FORCE_INLINE CompositionOffsetBox() : FullBox(kBoxTypeCTTS) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 struct CompositionToDecodeBox : public FullBox {
@@ -464,16 +472,16 @@ struct CompositionToDecodeBox : public FullBox {
     int64_t             compositionEndTime;
     
     FORCE_INLINE CompositionToDecodeBox() : FullBox(kBoxTypeCSLG) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 struct SampleDependencyTypeBox : public FullBox {
     Vector<uint8_t>     dependency;
 
     FORCE_INLINE SampleDependencyTypeBox() : FullBox(kBoxTypeSDTP) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 enum {
@@ -514,9 +522,9 @@ struct SampleEntry : public ContainerBox {
     
     FORCE_INLINE SampleEntry(uint32_t type, uint32_t st) : ContainerBox(type), media_type(st) { }
     FORCE_INLINE virtual ~SampleEntry() { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    MediaError _parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    MediaError _parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 struct VisualSampleEntry : public SampleEntry {
@@ -559,15 +567,15 @@ struct SampleGroupEntry : public SharedObject {
     uint32_t        grouping_type;
     FORCE_INLINE SampleGroupEntry(uint32_t type) : grouping_type(type) { }
     FORCE_INLINE virtual ~SampleGroupEntry() { }
-    virtual MediaError parse(const BitReader&, size_t, const FileTypeBox&) = 0;
+    virtual MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&) = 0;
 };
 
 struct CommonBox : public Box {
     sp<Buffer>  data;
 
     FORCE_INLINE CommonBox(uint32_t type, bool full = false) : Box(type, full) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 struct FullCommonBox : public CommonBox {
@@ -581,8 +589,8 @@ struct ESDBox : public FullBox {
     sp<ESDescriptor> ES;
     
     FORCE_INLINE ESDBox() : FullBox(kBoxTypeESDS) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 #else
 BOX_TYPE(kBoxTypeESDS, ESDBox,                  FullCommonBox);
@@ -611,7 +619,7 @@ BOX_TYPE(kBoxTypeDAMR, AMRSpecificBox,                CommonBox);
 struct RollRecoveryEntry : public SampleGroupEntry {
     uint16_t        roll_distance;
     FORCE_INLINE RollRecoveryEntry(uint32_t type) : SampleGroupEntry(type) { }
-    virtual MediaError parse(const BitReader&, size_t, const FileTypeBox&);
+    virtual MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
 };
 
 struct SampleGroupDescriptionBox : public FullBox {
@@ -621,8 +629,8 @@ struct SampleGroupDescriptionBox : public FullBox {
     Vector<sp<SampleGroupEntry> > entries;
     
     FORCE_INLINE SampleGroupDescriptionBox() : FullBox(kBoxTypeSGPD) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 // https://github.com/macosforge/alac
@@ -632,8 +640,8 @@ struct ALACAudioSampleEntry : public AudioSampleEntry {
     sp<Buffer> extra;
 
     FORCE_INLINE ALACAudioSampleEntry() : AudioSampleEntry(kBoxTypeALAC) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 #else
 BOX_TYPE(kBoxTypeALAC, ALACAudioSampleEntry,          AudioSampleEntry);
@@ -653,8 +661,8 @@ BOX_TYPE(kBoxTypeALAC, ALACAudioSampleEntry,          AudioSampleEntry);
 // *BUT* the 'mp4a' atom inside 'wave' seems have different semantics
 struct siDecompressionParam : public ContainerBox {
     FORCE_INLINE siDecompressionParam() : ContainerBox(kBoxTypeWAVE) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 enum {
@@ -667,8 +675,8 @@ struct SamplingRateBox : public FullBox {
     uint32_t    sampling_rate;
 
     FORCE_INLINE SamplingRateBox() : FullBox(kBoxTypeSRAT) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 enum {
@@ -686,8 +694,8 @@ struct ColourInformationBox : public Box {
     bool        full_range_flag;
     
     FORCE_INLINE ColourInformationBox() : Box(kBoxTypeCOLR) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 struct BitRateBox : public Box {
@@ -696,8 +704,8 @@ struct BitRateBox : public Box {
     uint32_t        avgBitrate;
     
     FORCE_INLINE BitRateBox() : Box(kBoxTypeBTRT) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 // unified SampleSizeBox & CompactSampleSizeBox
@@ -706,8 +714,8 @@ struct SampleSizeBox : public FullBox {
     Vector<uint64_t>    entries;
     
     FORCE_INLINE SampleSizeBox(uint32_t type) : FullBox(type) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 BOX_TYPE(kBoxTypeSTSZ, PreferredSampleSizeBox, SampleSizeBox);
 BOX_TYPE(kBoxTypeSTZ2, CompactSampleSizeBox, SampleSizeBox);
@@ -721,16 +729,16 @@ struct SampleToChunkBox : public FullBox {
     Vector<Entry>       entries;
     
     FORCE_INLINE SampleToChunkBox() : FullBox(kBoxTypeSTSC) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 struct ChunkOffsetBox : public FullBox {
     Vector<uint64_t>    entries;
 
     FORCE_INLINE ChunkOffsetBox(uint32_t type) : FullBox(type) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 BOX_TYPE(kBoxTypeSTCO, PreferredChunkOffsetBox, ChunkOffsetBox);
 BOX_TYPE(kBoxTypeCO64, LargeChunkOffsetBox, ChunkOffsetBox);
@@ -739,8 +747,8 @@ struct SyncSampleBox : public FullBox {
     Vector<uint32_t>    entries;
 
     FORCE_INLINE SyncSampleBox() : FullBox(kBoxTypeSTSS) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 struct ShadowSyncSampleBox : public FullBox {
@@ -751,16 +759,16 @@ struct ShadowSyncSampleBox : public FullBox {
     Vector<Entry>       entries;
     
     FORCE_INLINE ShadowSyncSampleBox() : FullBox(kBoxTypeSTSH) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 struct DegradationPriorityBox : public FullBox {
     Vector<uint16_t>    entries;
 
     FORCE_INLINE DegradationPriorityBox() : FullBox(kBoxTypeSTDP) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 struct PaddingBitsBox : public FullBox {
@@ -771,14 +779,14 @@ struct PaddingBitsBox : public FullBox {
     Vector<Entry>   entries;
     
     FORCE_INLINE PaddingBitsBox() : FullBox(kBoxTypePADB) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 struct FreeSpaceBox : public Box {
     FORCE_INLINE FreeSpaceBox(uint32_t type) : Box(type) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 BOX_TYPE(kBoxTypeFREE, FreeBox, FreeSpaceBox);
 BOX_TYPE(kBoxTypeSKIP, SkipBox, FreeSpaceBox);
@@ -793,8 +801,8 @@ struct EditListBox : public FullBox {
     Vector<Entry>       entries;
     
     FORCE_INLINE EditListBox() : FullBox(kBoxTypeELST) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 struct NoticeBox : public FullBox {
@@ -802,8 +810,8 @@ struct NoticeBox : public FullBox {
     String              value;
     
     FORCE_INLINE NoticeBox(uint32_t type) : FullBox(type) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 enum {
@@ -831,8 +839,8 @@ struct MovieExtendsHeaderBox : public FullBox {
     uint64_t    fragment_duration;
 
     FORCE_INLINE MovieExtendsHeaderBox() : FullBox(kBoxTypeMEHD) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 struct TrackExtendsBox : public FullBox {
@@ -843,16 +851,16 @@ struct TrackExtendsBox : public FullBox {
     uint32_t    default_sample_flags;
     
     FORCE_INLINE TrackExtendsBox() : FullBox(kBoxTypeTREX) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 struct MovieFragmentHeaderBox : public FullBox {
     uint32_t    sequence_number;
 
     FORCE_INLINE MovieFragmentHeaderBox() : FullBox(kBoxTypeMFHD) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 struct TrackFragmentHeaderBox : public FullBox {
@@ -864,16 +872,16 @@ struct TrackFragmentHeaderBox : public FullBox {
     uint32_t    default_sample_flags;
     
     FORCE_INLINE TrackFragmentHeaderBox() : FullBox(kBoxTypeTFHD) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 struct PrimaryItemBox : public FullBox {
     uint16_t        item_ID;
 
     FORCE_INLINE PrimaryItemBox() : FullBox(kBoxTypePITM) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 // iTunes MetaData
@@ -928,8 +936,8 @@ struct iTunesHeaderBox : public FullBox {
     uint32_t        nextItemID;
 
     FORCE_INLINE iTunesHeaderBox() : FullBox(kiTunesBoxTypeMHDR) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 // FIXME: keys box seems have multi semantics
@@ -942,8 +950,8 @@ struct iTunesKeysBox : public FullBox {
     Vector<Entry>   table;
     
     FORCE_INLINE iTunesKeysBox() : FullBox(kiTunesBoxTypeKEYS) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 #else
 BOX_TYPE(kiTunesBoxTypeKEYS, iTunesItemKeysBox, CountedFullContainerBox);
@@ -954,8 +962,8 @@ struct iTunesStringBox : public Box {
     String      value;
 
     FORCE_INLINE iTunesStringBox(uint32_t type) : Box(type) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 BOX_TYPE(kiTunesBoxTypeMDTA, iTunesMediaDataBox, iTunesStringBox);
 
@@ -967,8 +975,8 @@ struct iTunesItemListBox : public ContainerBox {
     Vector<uint32_t>        key_index;
 
     FORCE_INLINE iTunesItemListBox() : ContainerBox(kiTunesBoxTypeILST) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 #endif
 
@@ -980,8 +988,8 @@ struct iTunesDataBox : public Box {
     sp<Buffer>      Value;
     
     FORCE_INLINE iTunesDataBox() : Box(kiTunesBoxTypeDATA) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 // ctry
@@ -992,8 +1000,8 @@ struct CountryListBox : public FullBox {
     Vector<Entry>   entries;
     
     FORCE_INLINE CountryListBox() : FullBox(kiTunesBoxTypeCTRY) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 // lang
@@ -1004,8 +1012,8 @@ struct LanguageListBox : public FullBox {
     Vector<Entry>           entries;
     
     FORCE_INLINE LanguageListBox() : FullBox(kiTunesBoxTypeLANG) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 BOX_TYPE(kiTunesBoxTypeTitle, iTunesTitleItemBox, ContainerBox);
@@ -1026,24 +1034,24 @@ struct iTunesInfomationBox : public FullBox {
     uint32_t        Item_ID;
 
     FORCE_INLINE iTunesInfomationBox() : FullBox(kiTunesBoxTypeInfomation) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 struct iTunesNameBox : public Box {
     String          Name;
 
     FORCE_INLINE iTunesNameBox() : Box(kiTunesBoxTypeName) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 struct iTunesMeanBox : public Box {
     String          Mean;
 
     FORCE_INLINE iTunesMeanBox() : Box(kiTunesBoxTypeMean) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 struct iTunesKeyDecBox : public Box {
@@ -1051,8 +1059,8 @@ struct iTunesKeyDecBox : public Box {
     sp<Buffer>      Key_value;
     
     FORCE_INLINE iTunesKeyDecBox() : Box(kiTunesBoxTypeKeyDec) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 BOX_TYPE(kiTunesBoxTypeCustom, iTunesCustomBox, ContainerBox);
@@ -1063,8 +1071,8 @@ struct ObjectDescriptorBox : public FullBox {
     sp<Buffer> iods;
 
     FORCE_INLINE ObjectDescriptorBox() : FullBox(kBoxTypeIODS) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 struct ID3v2Box : public FullBox {
@@ -1072,11 +1080,20 @@ struct ID3v2Box : public FullBox {
     sp<Buffer>  ID3v2data;
     
     FORCE_INLINE ID3v2Box() : FullBox(kBoxTypeID32) { }
-    MediaError parse(const BitReader&, size_t, const FileTypeBox&);
-    void compose(BitWriter&, const FileTypeBox&);
+    MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
+    void compose(sp<ABuffer>&, const sp<FileTypeBox>&);
 };
 
 sp<Box> MakeBoxByType(uint32_t);
+
+// 'mdat' box is very big, NEVER parse/compose directly
+struct MediaDataBox : public Box {
+    // remember 'mdat' box offset & length
+    int64_t     offset;     // the offset of first child box
+    int64_t     length;     // total bytes in 'mdat' box, except box head
+    MediaDataBox() : Box(kBoxTypeMDAT) { }
+};
+sp<Box> ReadBox(const sp<ABuffer>&, const sp<FileTypeBox>& = NULL);
 
 bool CheckTrackBox(const sp<TrackBox>& trak);
 

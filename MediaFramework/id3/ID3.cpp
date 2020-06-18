@@ -33,7 +33,7 @@
 //
 
 #define LOG_TAG "ID3"
-#define LOG_NDEBUG 0
+//#define LOG_NDEBUG 0
 #include "ID3.h"
 
 #include <zlib.h>
@@ -44,9 +44,6 @@
 // refers:
 __BEGIN_NAMESPACE_MPX
 __BEGIN_NAMESPACE(ID3)
-
-const size_t ID3v2::kHeaderLength   = 10;
-const size_t ID3v1::kLength         = 128;
 
 // supported v2.3.x & v2.4.x frames.
 struct {
@@ -307,21 +304,19 @@ struct ID3v2Header {
     // including padding, excluding the header but not excluding the extended header
 };
 
-static bool isID3v2Header(const Buffer& data, ID3v2Header *header) {
-    //CHECK_GE(data.size(), ID3v2::kHeaderLength);
-    if (data.size() < ID3v2::kHeaderLength) return false;
+static bool isID3v2Header(const sp<Buffer>& data, ID3v2Header *header) {
+    CHECK_GE(data->size(), ID3V2_HEADER_LENGTH);
     
-    BitReader br(data.data(), data.size());
-    String magic        = br.readS(3);
+    String magic        = data->rs(3);
     if (magic != "ID3") {
         DEBUG("no ID3v2 magic.");
         return false;
     }
     
-    uint8_t major       = br.r8();
-    uint8_t revision    = br.r8();
-    uint8_t flags       = br.r8();
-    uint32_t size       = ID3v2SynchSafeSize(br.rb32());
+    uint8_t major       = data->r8();
+    uint8_t revision    = data->r8();
+    uint8_t flags       = data->r8();
+    uint32_t size       = ID3v2SynchSafeSize(data->rb32());
     
     // check version number.
     if (major == 0xff || revision == 0xff) {
@@ -434,16 +429,16 @@ static FORCE_INLINE bool isID3v2FourCC(const String& s) {
     return true;
 }
 
-static FORCE_INLINE size_t ID3v2RemoveUnsyncBytes(const char* src, char* dst, size_t srcLen) {
+static FORCE_INLINE size_t ID3v2RemoveUnsyncBytes(sp<Buffer>& buffer, const char* src, size_t srcLen) {
     size_t idx = 0;
     for (size_t i = 0; i < srcLen - 1; i++) {
         if (src[i] == '\xff' && src[i+1] == 0x0) {
-            dst[idx++] = src[i++];
+            buffer->w8(src[i++]);
         } else {
-            dst[idx++] = src[i];
+            buffer->w8(src[i]);
         }
     }
-    dst[idx++] = src[srcLen-1];
+    buffer->w8(src[srcLen-1]);
     
     return idx;
 }
@@ -683,7 +678,7 @@ static FORCE_INLINE ID3v2PictureText ID3v22Picture(const String& id, const char*
 
 // Frame ID       $xx xx xx
 // Size           $xx xx xx
-static MediaError ID3v2_2(const Buffer& data,
+static MediaError ID3v2_2(const sp<Buffer>& data,
                         const ID3v2Header& header,
                         sp<Message>& values) {
     struct ID3v2Frame {
@@ -692,9 +687,9 @@ static MediaError ID3v2_2(const Buffer& data,
         char    size[3];
     };
     
-    int offset = ID3v2::kHeaderLength;
-    const size_t length     = data.size();
-    const char *buffer      = data.data();
+    int offset = ID3V2_HEADER_LENGTH;
+    const size_t length     = data->size();
+    const char *buffer      = data->data();
     
     while (offset + sizeof(ID3v2Frame) < length) {
         ID3v2Frame *frame   = (ID3v2Frame*)(buffer + offset);
@@ -753,7 +748,7 @@ static MediaError ID3v2_2(const Buffer& data,
 // Frame ID       $xx xx xx xx (four characters)
 // Size           $xx xx xx xx
 // Flags          $xx xx
-static MediaError ID3v2_3(const Buffer& data,
+static MediaError ID3v2_3(const sp<Buffer>& data,
                         const ID3v2Header& header,
                         sp<Message>& values) {
     sp<Buffer> local;   // for de-unsync
@@ -766,25 +761,24 @@ static MediaError ID3v2_3(const Buffer& data,
         char    flags[2];
     };
     
-    size_t offset = ID3v2::kHeaderLength;
+    size_t offset = ID3V2_HEADER_LENGTH;
     // extend header
     if (header.flags & 0x40) {
-        size_t exLen = ID3v2SynchSafeSize(data.data() + offset, 4);
+        size_t exLen = ID3v2SynchSafeSize(data->data() + offset, 4);
         DEBUG("extend header length %zu", exLen);
         // in 2.4.x exlen include 4bytes size but 2.3.x is not.
         offset  += (exLen + 4);
     }
     
-    const char *buffer  = data.data();
-    size_t length       = data.size();
+    const char *buffer  = data->data();
+    size_t length       = data->size();
     
     // remove unsync bytes.
     // ID3v2.3 use only global unsync flag.
     // in frame header, size field may has false sync bytes.
     if (header.flags & 0x80) {
         local   = new Buffer(length);
-        length  = ID3v2RemoveUnsyncBytes(buffer, local->data(), length);
-        local->step(length);
+        length  = ID3v2RemoveUnsyncBytes(local, buffer, length);
         
         buffer  = local->data();
         DEBUG("de-unsync size %d.", length);
@@ -833,6 +827,7 @@ static MediaError ID3v2_3(const Buffer& data,
             uLongf uncompLength = ID3v2Size(frameData, 4);
             uncompData  = new Buffer(uncompLength);
             
+#if 0 // TODO
             const Bytef *compData = (const Bytef*)(frameData + 4);
             uLong compLength = frameLength - 4;
             
@@ -842,10 +837,11 @@ static MediaError ID3v2_3(const Buffer& data,
             if (zret != Z_OK) {
                 DEBUG("uncompress failed, ret = %d.\n", zret);
             } else {
-                uncompData->step(uncompLength);
+                uncompData->stepBytes(uncompLength);
                 frameData   = uncompData->data();
                 frameLength = uncompLength;
             }
+#endif
         }
         
         if (id.startsWith("T")) {
@@ -892,7 +888,7 @@ static MediaError ID3v2_3(const Buffer& data,
     return kMediaNoError;
 }
 
-static MediaError ID3v2_4(const Buffer& data,
+static MediaError ID3v2_4(const sp<Buffer>& data,
                         const ID3v2Header& header,
                         sp<Message>& values) {
     struct ID3v2Frame {
@@ -903,19 +899,19 @@ static MediaError ID3v2_4(const Buffer& data,
         char    flags[2];
     };
     
-    size_t offset = ID3v2::kHeaderLength;
+    size_t offset = ID3V2_HEADER_LENGTH;
     // extend header
     if (header.flags & 0x40) {
-        size_t exLen = ID3v2SynchSafeSize(data.data() + offset, 4);
+        size_t exLen = ID3v2SynchSafeSize(data->data() + offset, 4);
         DEBUG("extend header length %d", exLen);
         offset  += exLen;
     }
     
     const int unsync = header.flags & 0x80;
     
-    size_t length = data.size();
+    size_t length = data->size();
     while (offset + sizeof(ID3v2Frame) < length) {
-        ID3v2Frame *frame   = (ID3v2Frame*)(data.data() + offset);
+        ID3v2Frame *frame   = (ID3v2Frame*)(data->data() + offset);
         offset              += sizeof(ID3v2Frame);
         
         String id(frame->id, 4);
@@ -929,7 +925,7 @@ static MediaError ID3v2_4(const Buffer& data,
             if (offset + a < length) {
                 // if it is a valid frame header at the next offset
                 // according to current syncsafe frame length.
-                ID3v2Frame *next = (ID3v2Frame*)(data.data() + offset + frameLength);
+                ID3v2Frame *next = (ID3v2Frame*)(data->data() + offset + frameLength);
                 String nextId(next->id, 4);
                 if (isID3v2FourCC(nextId)) {
                     DEBUG("correct frame length from %d -> %d.",
@@ -950,7 +946,7 @@ static MediaError ID3v2_4(const Buffer& data,
             break;
         }
         
-        const char* frameData = data.data() + offset;
+        const char* frameData = data->data() + offset;
         offset += frameLength;
         
         if (frameLength == 0 && id == "PRIV") {
@@ -981,12 +977,14 @@ static MediaError ID3v2_4(const Buffer& data,
                 frameLength -= 4;
             }
             
+#if 0 // TODO
             local   = new Buffer(frameLength);
             
             frameLength = ID3v2RemoveUnsyncBytes(frameData, local->data(), frameLength);
-            local->step(frameLength);
+            local->stepBytes(frameLength);
             
             frameData = local->data();
+#endif
         }
         
         // compressed. unsync first, then uncompress
@@ -994,7 +992,7 @@ static MediaError ID3v2_4(const Buffer& data,
             if (!(frame->flags[1] & 0x01)) {
                 DEBUG("data length indicator not set.");
             }
-            
+#if 0   // TODO
             uLongf uncompLength     = ID3v2SynchSafeSize(frameData, 4);
             sp<Buffer> uncompData   = new Buffer(uncompLength);
             
@@ -1007,12 +1005,13 @@ static MediaError ID3v2_4(const Buffer& data,
             if (zret != Z_OK) {
                 DEBUG("uncompress failed, ret = %d.\n", zret);
             } else {
-                uncompData->step(uncompLength);
+                uncompData->stepBytes(uncompLength);
                 
                 frameData   = uncompData->data();
                 frameLength = uncompLength;
                 local       = uncompData;   // keep a strong ref
             }
+#endif
         }
         
         if (id.startsWith("T")) {
@@ -1065,42 +1064,24 @@ static MediaError ID3v2_4(const Buffer& data,
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////
-MediaError ID3v2::parse(const Buffer& data) {
-    mValues.clear();
-    CHECK_GE(data.size(), kHeaderLength);
-    ID3v2Header header;
-    if (isID3v2Header(data, &header) == false) {
-        return kMediaErrorBadContent;
-    }
-    
-    if (data.size() < kHeaderLength + header.size) {
-        WARN("incomplete tags, expect %zu but got only %zu",
-             kHeaderLength + header.size, data.size());
-        header.size     = data.size() - kHeaderLength;
-    }
-    
+static sp<Message> ParseID3v2(const sp<ABuffer>& data, ID3v2Header& header) {
+    CHECK_GE(data->size(), header.size);
     DEBUG("ID3 v2.%d.%d length %d.", header.major, header.revision,
           header.size);
     
-    MediaError status;
-    if (header.major == 4) {
-        status = ID3v2_4(data, header, mValues);
-    } else if (header.major == 3) {
-        status = ID3v2_3(data, header, mValues);
-    } else if (header.major == 2) {
-        status = ID3v2_2(data, header, mValues);
-    } else {
-        ERROR("FIXME: unimplemented id3 v2.%d.%d",
-              header.major, header.revision);
-        status = kMediaErrorUnknown;
+    sp<Message> values = new Message;
+    switch (header.major) {
+        case 2:
+            return ID3v2_2(data, header, values) == kMediaNoError ? values : NULL;
+        case 3:
+            return ID3v2_3(data, header, values) == kMediaNoError ? values : NULL;
+        case 4:
+            return ID3v2_4(data, header, values) == kMediaNoError ? values : NULL;
+        default:
+            FATAL("FIXME: ID3v2.%u", header.major);
     }
-    
-    //String version = String::format("v2.%d.%d",
-    //                                header.major, header.revision);
-    //mValues->setString("version", version);
-    
-    DEBUG("id3v2: %s", mValues->string().c_str());
-    return status;
+    // FIX warning
+    return NULL;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////
@@ -1113,157 +1094,132 @@ static FORCE_INLINE String ID3v1String(const char* data, int length) {
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////
-MediaError ID3v1::parse(const Buffer& data) {
-    CHECK_GE(data.size(), ID3v1::kLength);
+static sp<Message> ParseID3v1(const sp<ABuffer>& data) {
+    CHECK_GE(data->size(), ID3V1_LENGTH);
     
-    if (data != "TAG") {
-        DEBUG("not id3v1");
-        return kMediaErrorUnknown;
+    if (data->rs(3) != "TAG") {
+        DEBUG("missing TAG");
+        return NULL;
     }
     
-    const char *buffer = data.data() + 3;
+    sp<Message> values = new Message;
     
-    String title = ID3v1String(buffer, 30);
+    // trim is neccessary for ID3v1
+    String title = data->rs(30).trim();
     if (!title.empty()) {
         DEBUG("title: [%s].", title.c_str());
-        mValues->setString(kKeyTitle, title);
+        values->setString(kKeyTitle, title);
     }
-    buffer += 30;
     
-    String artist = ID3v1String(buffer, 30);
+    String artist = data->rs(30).trim();
     if (!artist.empty()) {
         DEBUG("artist: [%s].", artist.c_str());
-        mValues->setString(kKeyArtist, artist);
+        values->setString(kKeyArtist, artist);
     }
-    buffer += 30;
-    
-    String album = ID3v1String(buffer, 30);
+
+    String album = data->rs(30).trim();
     if (!album.empty()) {
         DEBUG("album: [%s].", album.c_str());
-        mValues->setString(kKeyAlbum, album);
+        values->setString(kKeyAlbum, album);
     }
-    buffer += 30;
     
-    String year = ID3v1String(buffer, 4);
+    String year = data->rs(4);
     if (!year.empty()) {
         DEBUG("year: [%s].", year.c_str());
         if (isID3NumericString(year))
-            mValues->setString(kKeyYear, year);
+            values->setString(kKeyYear, year);
         else {
             DEBUG("invalid id3 numeric string.");
         }
     }
-    buffer += 4;
-    
-    String comment = ID3v1String(buffer, 30);
+
+    String comment = data->rs(30).trim();
     if (!comment.empty()) {
         DEBUG("comment: [%s].", comment.c_str());
-        mValues->setString(kKeyComment, comment);
+        values->setString(kKeyComment, comment);
     }
     
-    if (buffer[28] == 0 && buffer[29] != 0) {
-        const uint8_t trck = buffer[29];
+    // ID3v1.1
+    data->skipBytes(-2);
+    if (data->r8() == 0) {
+        uint8_t trck = data->r8();
         DEBUG("track: [%d].", trck);
-        mValues->setString(kKeyTrackNum, String::format("%u", trck));
-        //mValues->setString("id3-version", "v1.1");
+        values->setString(kKeyTrackNum, String::format("%u", trck));
     } else {
-        //mValues->setString("id3-version", "v1.0");
+        data->skipBytes(1);
     }
-    buffer += 30;
     
-    unsigned char genre = buffer[0];
+    uint8_t genre = data->r8();
     if (genre < 80) {
         DEBUG("genre: [%s].", ID3GenreList[genre]);
-        mValues->setString(kKeyGenre, ID3GenreList[genre]);
+        values->setString(kKeyGenre, ID3GenreList[genre]);
     }
-    
-    return kMediaNoError;
+
+    return values;
 }
 
-// static
-bool ID3v1::isID3v1(const Buffer& data) {
-    if (data.size() < ID3v1::kLength) return false;
-    
-    if (data != "TAG") return false;
-    
-    return true;
-}
-
-MediaError SkipID3v2(sp<Content>& pipe) {
-    const int64_t pos = pipe->tell();
-    sp<Buffer> head = pipe->read(ID3v2::kHeaderLength);
-    if (head.isNIL() || head->size() != ID3v2::kHeaderLength) {
-        pipe->seek(pos);
+MediaError SkipID3v2(const sp<ABuffer>& buffer) {
+    if (buffer->size() < ID3V2_HEADER_LENGTH) {
         return kMediaErrorBadContent;
     }
     
     ID3v2Header header;
-    if (isID3v2Header(*head, &header) == false) {
-        pipe->seek(pos);
-        return kMediaErrorUnknown;
+    if (isID3v2Header(buffer, &header) == false) {
+        return kMediaErrorBadContent;
     }
     
-    pipe->skip(header.size);
+    buffer->skipBytes(header.size);
     // stop at the end position of id3v2
     return kMediaNoError;
 }
 
-sp<Message> ReadID3v2(sp<Content>& pipe) {
-    const int64_t pos = pipe->tell();
-    sp<Buffer> head = pipe->read(ID3v2::kHeaderLength);
-    if (head.isNIL() || head->size() != ID3v2::kHeaderLength) {
-        pipe->seek(pos);
+sp<Message> ReadID3v2(const sp<ABuffer>& buffer) {
+    if (buffer->size() < ID3V2_HEADER_LENGTH) {
         return NULL;
     }
     
+    sp<ABuffer> data = buffer->readBytes(ID3V2_HEADER_LENGTH);
     ID3v2Header header;
-    if (isID3v2Header(*head, &header) == false) {
-        pipe->seek(pos);
+    if (isID3v2Header(data, &header) == false) {
+        ERROR("NO ID3v2 header");
+        buffer->skipBytes(-ID3V2_HEADER_LENGTH);
         return NULL;
     }
     
-    sp<Buffer> data = pipe->read(header.size);
-    if (data.isNIL() || data->size() != header.size) {
-        pipe->seek(pos);
+    if (buffer->size() < header.size) {
+        ERROR("no enough data");
+        buffer->skipBytes(-ID3V2_HEADER_LENGTH);
         return NULL;
     }
     
-    head->resize(ID3v2::kHeaderLength + header.size);
-    head->write(*data);
-    ID3v2 id3;
-    if (id3.parse(*head) != kMediaNoError) {
-        pipe->seek(pos);
+    data = buffer->readBytes(header.size);
+    sp<Message> values = ParseID3v2(data, header);
+    if (values.isNIL()) {
+        ERROR("ID3v2 parse failed");
+        buffer->skipBytes(-ID3V2_HEADER_LENGTH-header.size);
         return NULL;
     }
     
     // stop at the end position of id3v2
-    return id3.values();
+    return values;
 }
 
-sp<Message> ReadID3v1(sp<Content>& pipe) {
-    const int64_t pos = pipe->length();
-    const int64_t id3v1Position = pipe->length() - ID3v1::kLength;
+sp<Message> ReadID3v1(const sp<ABuffer>& buffer) {
+    // where id3v1 located
+    const int64_t offset = buffer->offset();
+    buffer->skipBytes(buffer->size() - ID3V1_LENGTH);
     
-    if (pipe->seek(id3v1Position) != id3v1Position) {
-        // don't support seek
+    sp<ABuffer> data = buffer->readBytes(ID3V1_LENGTH);
+    if (data.isNIL() || data->size() < ID3V1_LENGTH) {
+        // don't support seek ?
         return NULL;
     }
     
-    sp<Buffer> tail = pipe->read(ID3v1::kLength);
-    if (tail.isNIL() || tail->size() != ID3v1::kLength) {
-        pipe->seek(pos);
-        return NULL;
-    }
-    
-    ID3v1 id3;
-    if (id3.parse(*tail) != kMediaNoError) {
-        pipe->seek(pos);
-        return NULL;
-    }
+    sp<Message> values = ParseID3v1(data);
     
     // stop at the begin position of id3v1
-    pipe->seek(pipe->tell() - ID3v1::kLength);
-    return id3.values();
+    buffer->skipBytes(- ID3V1_LENGTH);
+    return values;
 }
 
 __END_NAMESPACE(ID3)

@@ -34,7 +34,7 @@ __BEGIN_DECLS
 __USING_NAMESPACE_MPX
 
 ImageFileRef ImageFileOpen(ContentObjectRef ref) {
-    sp<Content> pipe = ref;
+    sp<ABuffer> pipe = ref;
     sp<ImageFile> file = ImageFile::Create();
     if (file->init(pipe, NULL) == kMediaNoError) {
         return file->RetainObject();

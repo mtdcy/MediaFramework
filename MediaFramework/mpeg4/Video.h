@@ -86,7 +86,7 @@ namespace MPEG4 {
         kH264AnnexBFormat,
         kH264AvccFormat,
     };
-    eH264StreamFormat GetH264StreamFormat(sp<Buffer>&);
+    eH264StreamFormat GetH264StreamFormat(const sp<ABuffer>&);
 
     // ISO/IEC 14496-10 Annex A
     enum eAVCProfile {
@@ -105,8 +105,8 @@ namespace MPEG4 {
 
     // ISO/IEC 14495-15, 'avcC'
     struct AVCDecoderConfigurationRecord {
-        AVCDecoderConfigurationRecord(const BitReader& br);
-        MediaError compose(BitWriter& bw) const;
+        AVCDecoderConfigurationRecord(const sp<ABuffer>&);
+        MediaError compose(sp<ABuffer>&) const;
         size_t size() const;
 
         bool        valid;

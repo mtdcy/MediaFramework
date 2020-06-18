@@ -92,7 +92,7 @@ namespace MPEG4 {
     // Section 1.6 Interface to ISO/IEC 14496-1
     struct AudioSpecificConfig {
         AudioSpecificConfig(eAudioObjectType, uint32_t freq, uint8_t channels);
-        AudioSpecificConfig(const BitReader& br);
+        AudioSpecificConfig(const sp<ABuffer>&);
         
         bool                    valid;
         eAudioObjectType        audioObjectType;
@@ -110,7 +110,7 @@ namespace MPEG4 {
 
     sp<Buffer> MakeAudioESDS(const AudioSpecificConfig&);
     
-    sp<Buffer> MakeAudioESDS(const char *, size_t);
+    sp<Buffer> MakeAudioESDS(const sp<ABuffer>&);
 }
 
 __END_NAMESPACE_MPX

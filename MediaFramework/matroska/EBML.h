@@ -284,8 +284,8 @@ struct EBMLElement : public SharedObject {
     FORCE_INLINE EBMLElement(const char *_name, const EBMLInteger& _id, EBMLInteger& _size, const eEBMLElementType& _type) :
         name(_name), id(_id), size(_size), type(_type) { }
     FORCE_INLINE virtual ~EBMLElement() { }
-    virtual MediaError parse(BitReader&, size_t) = 0;
-    //virtual MediaError compose(BitWriter&, size_t) = 0;
+    virtual MediaError parse(const sp<ABuffer>&, size_t) = 0;
+    //virtual MediaError compose(sp<ABuffer>&, size_t) = 0;
     virtual String string() const = 0;
 };
 
@@ -294,7 +294,7 @@ struct EBMLIntegerElement : public EBMLElement {
 
     FORCE_INLINE EBMLIntegerElement(const char *name, const EBMLInteger& id, EBMLInteger& size) :
         EBMLElement(name, id, size, kEBMLElementInteger) { }
-    virtual MediaError parse(BitReader&, size_t);
+    virtual MediaError parse(const sp<ABuffer>&, size_t);
     virtual String string() const;
 };
 
@@ -303,7 +303,7 @@ struct EBMLSignedIntegerElement : public EBMLElement {
 
     FORCE_INLINE EBMLSignedIntegerElement(const char *name, const EBMLInteger& id, EBMLInteger& size) :
         EBMLElement(name, id, size, kEBMLElementSignedInteger) { }
-    virtual MediaError parse(BitReader&, size_t);
+    virtual MediaError parse(const sp<ABuffer>&, size_t);
     virtual String string() const;
 };
 
@@ -312,7 +312,7 @@ struct EBMLStringElement : public EBMLElement {
 
     FORCE_INLINE EBMLStringElement(const char *name, const EBMLInteger& id, EBMLInteger& size) :
         EBMLElement(name, id, size, kEBMLElementString) { }
-    virtual MediaError parse(BitReader&, size_t);
+    virtual MediaError parse(const sp<ABuffer>&, size_t);
     virtual String string() const;
 };
 
@@ -321,7 +321,7 @@ struct EBMLUTF8Element : public EBMLElement {
 
     FORCE_INLINE EBMLUTF8Element(const char *name, const EBMLInteger& id, EBMLInteger& size) :
         EBMLElement(name, id, size, kEBMLElementUTF8) { }
-    virtual MediaError parse(BitReader&, size_t);
+    virtual MediaError parse(const sp<ABuffer>&, size_t);
     virtual String string() const;
 };
 
@@ -330,7 +330,7 @@ struct EBMLBinaryElement : public EBMLElement {
 
     FORCE_INLINE EBMLBinaryElement(const char *name, const EBMLInteger& id, EBMLInteger& size) :
         EBMLElement(name, id, size, kEBMLElementBinary) { }
-    virtual MediaError parse(BitReader&, size_t);
+    virtual MediaError parse(const sp<ABuffer>&, size_t);
     virtual String string() const;
 };
 
@@ -339,7 +339,7 @@ struct EBMLFloatElement : public EBMLElement {
 
     FORCE_INLINE EBMLFloatElement(const char *name, const EBMLInteger& id, EBMLInteger& size) :
         EBMLElement(name, id, size, kEBMLElementFloat) { }
-    virtual MediaError parse(BitReader&, size_t);
+    virtual MediaError parse(const sp<ABuffer>&, size_t);
     virtual String string() const;
 };
 
@@ -353,14 +353,14 @@ struct EBMLMasterElement : public EBMLElement {
 
     FORCE_INLINE EBMLMasterElement(const char *name, const EBMLInteger& id, EBMLInteger& size) :
         EBMLElement(name, id, size, kEBMLElementMaster) { }
-    virtual MediaError parse(BitReader&, size_t);
+    virtual MediaError parse(const sp<ABuffer>&, size_t);
     virtual String string() const;
 };
 
 struct EBMLSkipElement : public EBMLElement {
     FORCE_INLINE EBMLSkipElement(const char *name, const EBMLInteger& id, EBMLInteger& size) :
         EBMLElement(name, id, size, kEBMLElementSkip) { }
-    virtual MediaError parse(BitReader&, size_t);
+    virtual MediaError parse(const sp<ABuffer>&, size_t);
     virtual String string() const;
 };
 
@@ -382,7 +382,7 @@ struct EBMLSimpleBlockElement : public EBMLElement {
 
     FORCE_INLINE EBMLSimpleBlockElement(const char *name, const EBMLInteger& id, EBMLInteger& size) :
         EBMLElement(name, id, size, kEBMLElementBlock) { }
-    virtual MediaError parse(BitReader&, size_t);
+    virtual MediaError parse(const sp<ABuffer>&, size_t);
     virtual String string() const;
 };
 
@@ -400,13 +400,13 @@ enum {
     kEnumSkipBlocks     = 0x4,  // skip block content
 };
 
-//API_EXPORT sp<EBMLMasterElement> EnumEBMLElements(sp<Content>& pipe, uint32_t flags = kEnumSkipCluster);
+//API_EXPORT sp<EBMLMasterElement> EnumEBMLElements(sp<ABuffer>& pipe, uint32_t flags = kEnumSkipCluster);
 
-//sp<EBMLElement> ParseMatroska(sp<Content>& pipe, int64_t *segment_offset, int64_t *clusters_offset);
+//sp<EBMLElement> ParseMatroska(sp<ABuffer>& pipe, int64_t *segment_offset, int64_t *clusters_offset);
 
-API_EXPORT sp<EBMLElement> ReadEBMLElement(sp<Content>& pipe, uint32_t flags = 0);
+API_EXPORT sp<EBMLElement> ReadEBMLElement(const sp<ABuffer>&, uint32_t flags = 0);
 
-int IsMatroskaFile(const sp<Buffer>& data);
+int IsMatroskaFile(const sp<ABuffer>&);
 
 __END_NAMESPACE(EBML)
 __END_NAMESPACE_MPX

@@ -58,22 +58,22 @@ WAVEFORMATEX::WAVEFORMATEX() {
     wSubFormat          = 0;
 }
 
-MediaError WAVEFORMATEX::parse(BitReader& br) {
-    if (br.remianBytes() < WAVEFORMATEX_MIN_LENGTH)
+MediaError WAVEFORMATEX::parse(const sp<ABuffer>& buffer) {
+    if (buffer->size() < WAVEFORMATEX_MIN_LENGTH)
     return kMediaErrorBadValue;
     
     // valid chunk length: 16, 18, 40
     // but we have saw chunk length 50
-    wFormat             = br.rl16();
-    nChannels           = br.rl16();
-    nSamplesPerSec      = br.rl32();
-    nAvgBytesPerSec     = br.rl32();
-    nBlockAlign         = br.rl16();
-    wBitsPerSample      = br.rl16();
+    wFormat             = buffer->rl16();
+    nChannels           = buffer->rl16();
+    nSamplesPerSec      = buffer->rl32();
+    nAvgBytesPerSec     = buffer->rl32();
+    nBlockAlign         = buffer->rl16();
+    wBitsPerSample      = buffer->rl16();
     // 16 bytes
     
-    if (br.remianBytes() > 2) {     // >= 18
-        cbSize          = br.rl16();
+    if (buffer->size() > 2) {     // >= 18
+        cbSize          = buffer->rl16();
     }
     if (cbSize == 0)    return kMediaNoError;
     // 18 bytes
@@ -88,17 +88,17 @@ MediaError WAVEFORMATEX::parse(BitReader& br) {
     if (wFormat == WAVE_FORMAT_EXTENSIBLE) {
         DEBUG("fmt chunk with extensible format.");
         // 40 - 18 == 22
-        if (br.remianBytes() < 22) {
-            DEBUG("invalid fmt chunk length %zu.", 18 + br.remianBytes());
+        if (buffer->size() < 22) {
+            DEBUG("invalid fmt chunk length %zu.", 18 + buffer->size());
             return kMediaErrorBadValue;
         }
 
-        wValidBitsPerSample     = br.rl16();
-        dwChannelMask           = br.rl32();
+        wValidBitsPerSample     = buffer->rl16();
+        dwChannelMask           = buffer->rl32();
         
         uint8_t subFormat[16];
         for (size_t i = 0; i < 16; ++i)
-            subFormat[i]        = br.r8();
+            subFormat[i]        = buffer->r8();
         // 18 + 22 = 40 bytes
 
         DEBUG("valid bits per sample %u.",    wValidBitsPerSample);
@@ -160,21 +160,21 @@ MediaError WAVEFORMATEX::parse(BitReader& br) {
     return kMediaNoError;
 }
 
-MediaError WAVEFORMATEX::compose(BitWriter& bw) const {
-    CHECK_GE(bw.numBitsLeft(), WAVEFORMATEX_MAX_LENGTH * 8);
-    bw.wl16(wFormat);
-    bw.wl16(nChannels);
-    bw.wl32(nSamplesPerSec);
-    bw.wl32(nAvgBytesPerSec);
-    bw.wl16(nBlockAlign);
-    bw.wl16(wBitsPerSample);
+MediaError WAVEFORMATEX::compose(sp<ABuffer>& buffer) const {
+    CHECK_GE(buffer->capacity(), WAVEFORMATEX_MAX_LENGTH);
+    buffer->wl16(wFormat);
+    buffer->wl16(nChannels);
+    buffer->wl32(nSamplesPerSec);
+    buffer->wl32(nAvgBytesPerSec);
+    buffer->wl16(nBlockAlign);
+    buffer->wl16(wBitsPerSample);
     // 16 bytes
-    bw.wl16(cbSize);    // always write cbSize, even it is 0
+    buffer->wl16(cbSize);    // always write cbSize, even it is 0
     // 18 bytes
     
     if (cbSize == 22) {
-        bw.wl16(wValidBitsPerSample);
-        bw.wl32(dwChannelMask);
+        buffer->wl16(wValidBitsPerSample);
+        buffer->wl32(dwChannelMask);
         // TODO write subFormat GUID
     }
     return kMediaNoError;
@@ -184,19 +184,19 @@ BITMAPINFOHEADER::BITMAPINFOHEADER() {
     // TODO: set default values
 }
 
-MediaError BITMAPINFOHEADER::parse(BitReader& br) {
-    CHECK_GE(br.remianBytes(), BITMAPINFOHEADER_MIN_LENGTH);
-    biSize          = br.rl32();
-    biWidth         = br.rl32();
-    biHeight        = br.rl32();
-    biPlanes        = br.rl16();
-    biBitCount      = br.rl16();
-    biCompression   = br.rl32();
-    biSizeImage     = br.rl32();
-    biXPelsPerMeter = br.rl32();
-    biYPelsPerMeter = br.rl32();
-    biClrUsed       = br.rl32();
-    biClrImportant  = br.rl32();
+MediaError BITMAPINFOHEADER::parse(const sp<ABuffer>& buffer) {
+    CHECK_GE(buffer->size(), BITMAPINFOHEADER_MIN_LENGTH);
+    biSize          = buffer->rl32();
+    biWidth         = buffer->rl32();
+    biHeight        = buffer->rl32();
+    biPlanes        = buffer->rl16();
+    biBitCount      = buffer->rl16();
+    biCompression   = buffer->rl32();
+    biSizeImage     = buffer->rl32();
+    biXPelsPerMeter = buffer->rl32();
+    biYPelsPerMeter = buffer->rl32();
+    biClrUsed       = buffer->rl32();
+    biClrImportant  = buffer->rl32();
     return kMediaNoError;
 }
 

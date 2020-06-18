@@ -47,18 +47,16 @@ __BEGIN_NAMESPACE(MPEG4)
 // AVCC格式的一个优点是在开始配置解码器的时候可以跳到流的中间播放
 // 这种格式通常用于可以被随机访问的多媒体数据，如存储在硬盘的文件。
 // 也因为这个特性，MP4、MKV通常用AVCC格式来存储
-eH264StreamFormat GetH264StreamFormat(sp<Buffer>& stream) {
-    BitReader br(stream->data(), stream->size());
-    if (br.show(8) == 1) {     // avcc format with avcC
-        AVCDecoderConfigurationRecord avcC(br);
+eH264StreamFormat GetH264StreamFormat(const sp<Buffer>& stream) {
+    if (stream->show(8) == 1) {     // avcc format with avcC
+        AVCDecoderConfigurationRecord avcC(stream);
         if (avcC.valid) {
             return kH264AvccFormat;
         }
-        br.reset();
     }
     
     // AnnexB format
-    if (br.show(24) == 0x1 || br.show(32) == 0x1) {
+    if (stream->show(24) == 0x1 || stream->show(32) == 0x1) {
         return kH264AnnexBFormat;
     }
     
@@ -88,58 +86,58 @@ eH264StreamFormat GetH264StreamFormat(sp<Buffer>& stream) {
 //!         bit(8*pictureParameterSetLength) pictureParameterSetNALUnit;
 //!     }
 //! }
-AVCDecoderConfigurationRecord::AVCDecoderConfigurationRecord(const BitReader& br) :
+AVCDecoderConfigurationRecord::AVCDecoderConfigurationRecord(const sp<ABuffer>& buffer) :
 valid(false) {
     // 1
-    if (br.r8() != 1) return;           // configurationVersion = 1
+    if (buffer->r8() != 1) return;           // configurationVersion = 1
     // 3
-    AVCProfileIndication = br.r8();
-    uint8_t profile_compatibility = br.r8();
-    AVCLevelIndication = br.r8();
+    AVCProfileIndication = buffer->r8();
+    uint8_t profile_compatibility = buffer->r8();
+    AVCLevelIndication = buffer->r8();
     // (6 + 2 + 3 + 5) / 8 = 2
-    if (br.read(6) != 0x3f) return;     // bit(6) reserved = ‘111111’b;
-    lengthSizeMinusOne = br.read(2);    //
-    if (br.read(3) != 0x7) return;      // bit(3) reserved = ‘111’b;
-    size_t numOfSequenceParameterSets = br.read(5);
+    if (buffer->read(6) != 0x3f) return;     // bit(6) reserved = ‘111111’b;
+    lengthSizeMinusOne = buffer->read(2);    //
+    if (buffer->read(3) != 0x7) return;      // bit(3) reserved = ‘111’b;
+    size_t numOfSequenceParameterSets = buffer->read(5);
     // n * (2 + x)
     for (size_t i = 0; i < numOfSequenceParameterSets; ++i) {
-        size_t sequenceParameterSetLength = br.rb16();
-        SPSs.push(br.readB(sequenceParameterSetLength));
+        size_t sequenceParameterSetLength = buffer->rb16();
+        SPSs.push(buffer->readBytes(sequenceParameterSetLength));
     }
     // 1
-    size_t numOfPictureParameterSets = br.r8();
+    size_t numOfPictureParameterSets = buffer->r8();
     // n * (2 + x)
     for (size_t i = 0; i < numOfPictureParameterSets; ++i) {
-        size_t pictureParameterSetLength = br.rb16();
-        PPSs.push(br.readB(pictureParameterSetLength));
+        size_t pictureParameterSetLength = buffer->rb16();
+        PPSs.push(buffer->readBytes(pictureParameterSetLength));
     }
     valid = true;
 }
 
-MediaError AVCDecoderConfigurationRecord::compose(BitWriter& bw) const {
-    CHECK_GE(bw.size(), size());
-    bw.w8(1);                           // configurationVersion
+MediaError AVCDecoderConfigurationRecord::compose(sp<ABuffer>& buffer) const {
+    CHECK_GE(buffer->size(), size());
+    buffer->w8(1);                           // configurationVersion
     // TODO: get profile and level from sps
-    bw.w8(AVCProfileIndication);        // AVCProfileIndication
-    bw.w8(0);                           // profile_compatibility
-    bw.w8(AVCLevelIndication);          // AVCLevelIndication
-    bw.write(0x3f, 6);
-    bw.write(lengthSizeMinusOne, 2);    // lengthSizeMinusOne
-    bw.write(0x7, 3);                   //
-    bw.write(SPSs.size(), 5);           // numOfSequenceParameterSets
+    buffer->w8(AVCProfileIndication);        // AVCProfileIndication
+    buffer->w8(0);                           // profile_compatibility
+    buffer->w8(AVCLevelIndication);          // AVCLevelIndication
+    buffer->write(0x3f, 6);
+    buffer->write(lengthSizeMinusOne, 2);    // lengthSizeMinusOne
+    buffer->write(0x7, 3);                   //
+    buffer->write(SPSs.size(), 5);           // numOfSequenceParameterSets
     List<sp<Buffer> >::const_iterator it = SPSs.cbegin();
     for (; it != SPSs.cend(); ++it) {
         const sp<Buffer>& sps = *it;
-        bw.wb16(sps->size());           // sequenceParameterSetLength
-        bw.writeB(*sps);                // sps
+        buffer->wb16(sps->size());           // sequenceParameterSetLength
+        buffer->writeBytes(sps);                // sps
     }
-    bw.w8(PPSs.size());                 // numOfPictureParameterSets
+    buffer->w8(PPSs.size());                 // numOfPictureParameterSets
     for (; it != PPSs.cend(); ++it) {
         const sp<Buffer>& pps = *it;
-        bw.wb16(pps->size());           // pictureParameterSetLength
-        bw.writeB(*pps);                // pps
+        buffer->wb16(pps->size());           // pictureParameterSetLength
+        buffer->writeBytes(pps);                // pps
     }
-    bw.write();
+    buffer->write();
     return kMediaNoError;
 }
 
