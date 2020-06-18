@@ -117,7 +117,19 @@ if (APPLE)
     list (APPEND SOURCE_FILES MediaFramework/mac/VideoToolbox.cpp)
 endif()
 
-add_library (${PROJECT_NAME} SHARED ${SOURCE_FILES} ${PUBLIC_HEADERS})
+# build a static library for local unit test
+if (XCODE)
+    add_library (${PROJECT_NAME}_static STATIC EXCLUDE_FROM_ALL ${SOURCE_FILES} ${PUBLIC_HEADERS})
+    add_library (${PROJECT_NAME}_shared SHARED ${SOURCE_FILES} ${PUBLIC_HEADERS})
+else()
+    # using OBJECT library to avoid build twice for shared & static libraries
+    add_library (${PROJECT_NAME}_objects OBJECT ${SOURCE_FILES} ${PUBLIC_HEADERS})
+    add_library (${PROJECT_NAME}_static STATIC EXCLUDE_FROM_ALL $<TARGET_OBJECTS:${PROJECT_NAME}_objects>)
+    add_library (${PROJECT_NAME}_shared SHARED $<TARGET_OBJECTS:${PROJECT_NAME}_objects>)
+endif()
+
+set_target_properties (${PROJECT_NAME}_shared PROPERTIES OUTPUT_NAME ${PROJECT_NAME})
+set_target_properties (${PROJECT_NAME}_static PROPERTIES OUTPUT_NAME ${PROJECT_NAME})
 
 include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/ABE)
 include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/FFmpegStatic/out/static/include)
@@ -125,10 +137,7 @@ include_directories(BEFORE ${CMAKE_CURRENT_BINARY_DIR}/FFmpegStatic)    # FFmpeg
 include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/MediaFramework)
 
-target_link_libraries(${PROJECT_NAME} ABE_shared)
-target_link_libraries(${PROJECT_NAME} FFmpegStatic)
-# libz
-target_link_libraries(${PROJECT_NAME} z)
+list (APPEND LIBS ABE_shared FFmpegStatic z)
 
 # link shared
 if (WITH_SDL)
@@ -136,66 +145,31 @@ find_package (SDL2 REQUIRED)
 message(${SDL2_INCLUDE_DIR})
 message(${SDL2_LIBRARY})
 include_directories(BEFORE ${SDL2_INCLUDE_DIR})
-target_link_libraries(${PROJECT_NAME} ${SDL2_LIBRARY})
+list (APPEND LIBS ${SDL2_LIBRARY})
 endif()
 
 if (APPLE)
     # VideoToolbox
-    target_link_libraries(${PROJECT_NAME} "-framework CoreFoundation")
-    target_link_libraries(${PROJECT_NAME} "-framework CoreMedia")
-    target_link_libraries(${PROJECT_NAME} "-framework CoreVideo")
-    target_link_libraries(${PROJECT_NAME} "-framework VideoToolbox")
-    target_link_libraries(${PROJECT_NAME} "-framework OpenGL")
-    target_link_libraries(${PROJECT_NAME} "-framework OpenAL")
+    list (APPEND LIBS "-framework CoreFoundation -framework CoreMedia -framework CoreVideo")
+    list (APPEND LIBS "-framework VideoToolbox")
+    # openGL & openAL
+    list (APPEND LIBS "-framework OpenGL -framework OpenAL")
+elseif (WIN32)
+    list (APPEND LIBS "-lopengl32 -lglew32")
 else()
-    target_link_libraries(${PROJECT_NAME} -lGL)
-    target_link_libraries(${PROJECT_NAME} -lopenal)
+    list (APPEND LIBS "-lGL -lopenal")
 endif()
 
-if (XCODE)
-
-    if (WITH_FFMPEG)
-    # FFmpegStatic.framework
-    find_library (FFMPEG NAMES FFmpegStatic PATHS ${CMAKE_INSTALL_PREFIX} NO_DEFAULT_PATH)
-    message("FFMPEG: ${FFMPEG}")
-    target_link_libraries(${PROJECT_NAME} ${FFMPEG})
-    # ffmpeg header structure need this
-    include_directories(BEFORE ${FFMPEG}/Headers)
-    endif()
-else()
-
-    if (WITH_FFMPEG)
-    find_library (FFMPEG
-        NAMES libFFmpegStatic.a libFFmpegStatic.so libFFmpegStatic.dylib libFFmpegStatic.dll
-        PATHS ${CMAKE_INSTALL_PREFIX}/lib
-        NO_DEFAULT_PATH
-        )
-    find_path (FFMPEG_HEADER
-        NAMES FFmpegStatic/FFmpeg.h
-        PATHS ${CMAKE_INSTALL_PREFIX}/include
-        NO_DEFAULT_PATH
-        )
-    message("FFMPEG: ${FFMPEG}")
-    message("FFMPEG_HEADER: ${FFMPEG_HEADER}")
-    target_link_libraries(${PROJECT_NAME} ${FFMPEG})
-    # ffmpeg header in bad structure
-    include_directories(BEFORE ${FFMPEG_HEADER}/FFmpegStatic)
-    endif()
-
-    if (WIN32)
-        target_link_libraries (${PROJECT_NAME} -lopengl32 -lglew32)
-    else()
-        # TODO
-    endif()
-endif()
-
-# link static
-target_link_libraries (${PROJECT_NAME}  yuv)
+# libyuv
 include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/external/libyuv/include)
+list (APPEND LIBS yuv)
+
+target_link_libraries(${PROJECT_NAME}_static ${LIBS})
+target_link_libraries(${PROJECT_NAME}_shared ${LIBS})
 
 # install targets and headers
 if (XCODE)
-    set_target_properties(${PROJECT_NAME} PROPERTIES
+    set_target_properties(${PROJECT_NAME}_shared PROPERTIES
         FRAMEWORK TRUE
         FRAMEWORK_VERSION A
         PUBLIC_HEADER "${PUBLIC_HEADERS}"
@@ -203,10 +177,10 @@ if (XCODE)
         XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "Mac Developer"
         )
 
-    install (TARGETS ${PROJECT_NAME} FRAMEWORK DESTINATION .)
+    install (TARGETS ${PROJECT_NAME}_shared FRAMEWORK DESTINATION .)
 else()
     install (FILES ${PUBLIC_HEADERS} DESTINATION include/MediaFramework)
-    install (TARGETS ${PROJECT_NAME} 
+    install (TARGETS ${PROJECT_NAME}_shared 
         RUNTIME DESTINATION bin
         ARCHIVE DESTINATION lib
         LIBRARY DESTINATION lib
@@ -216,31 +190,21 @@ endif()
 #------------------------------------------------------------------------------#
 # example/test code, NO build or install by default
 add_executable(mpx EXCLUDE_FROM_ALL mpx_main.cpp)
-target_link_libraries(mpx MediaFramework)
+target_link_libraries(mpx ${PROJECT_NAME}_shared)
 
 add_executable(files EXCLUDE_FROM_ALL file_main.cpp)
-target_link_libraries(files MediaFramework)
+target_link_libraries(files ${PROJECT_NAME}_shared)
 
 add_executable(codec EXCLUDE_FROM_ALL codec_main.cpp)
-target_link_libraries(codec MediaFramework)
+target_link_libraries(codec ${PROJECT_NAME}_shared)
 
 add_executable(matroska EXCLUDE_FROM_ALL matroska_main.cpp)
-target_link_libraries(matroska MediaFramework)
+target_link_libraries(matroska ${PROJECT_NAME}_shared)
 
 #------------------------------------------------------------------------------#
 # unit test 
-remove_definitions(-Werror=non-virtual-dtor)
-
-#add_subdirectory(gtest-1.7.0 EXCLUDE_FROM_ALL)
+# note: unittest won't work until libraries installed
 include_directories(BEFORE ${gtest_SOURCE_DIR}/include)
-
 add_executable (${PROJECT_NAME}_unittest EXCLUDE_FROM_ALL test.cpp)
-target_link_libraries(${PROJECT_NAME}_unittest ${PROJECT_NAME})
+target_link_libraries(${PROJECT_NAME}_unittest ${PROJECT_NAME}_shared)
 target_link_libraries(${PROJECT_NAME}_unittest gtest gtest_main)
-
-add_custom_target(${PROJECT_NAME}_test ALL
-    DEPENDS ${PROJECT_NAME}_unittest
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-    COMMAND echo ${PROJECT_NAME}_unittest
-    COMMAND ${BASH} ${PROJECT_NAME}_unittest ${CMAKE_CURRENT_SOURCE_DIR}
-    )
