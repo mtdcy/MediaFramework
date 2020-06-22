@@ -33,7 +33,7 @@
 //
 
 #define LOG_TAG   "EBML"
-#define LOG_NDEBUG 0
+//#define LOG_NDEBUG 0
 #include "MediaTypes.h"
 
 #include "EBML.h"
@@ -625,6 +625,15 @@ sp<EBMLElement> ReadEBMLElement(const sp<ABuffer>& buffer, uint32_t flags) {
     int64_t masterLength = size.u64;
     List<Entry> parents;
     for (;;) {
+        // put these @ begin of loop, so break | continue freely later
+        while (masterLength == 0 && parents.size()) {
+            DEBUG("%s: @@@ ", master->name);
+            Entry e = parents.back();
+            parents.pop_back();
+            master = e.element;
+            masterLength = e.length;
+        }
+        
         size_t offset = buffer->offset();   // element position
         
         id      = EBMLGetCodedInteger(buffer);
@@ -634,13 +643,17 @@ sp<EBMLElement> ReadEBMLElement(const sp<ABuffer>& buffer, uint32_t flags) {
             break;
         }
         
+        const size_t elementLength = id.length + size.length + size.u64;
+        
         sp<EBMLElement> element = MakeEBMLElement(id, size);
         if (element.isNIL()) {
-            ERROR("unknown element %#x, broken file?", id.u64);
-            break;
+            ERROR("%s: + unsupported element %#x, length %zu[%zu][%zu]",
+                  master->name, id.u64, (size_t)size.u64, elementLength, masterLength);
+            buffer->skipBytes(size.u64);
+            masterLength -= elementLength;
+            continue;
         }
         
-        const size_t elementLength = id.length + size.length + size.u64;
         DEBUG("%s: + %s @ %" PRIu64 " length = %zu[%zu][%zu]",
              master->name, element->name, offset, (size_t)size.u64, elementLength, masterLength);
         
@@ -697,14 +710,6 @@ sp<EBMLElement> ReadEBMLElement(const sp<ABuffer>& buffer, uint32_t flags) {
             while (size.u64 && parents.size()) {
                 DEBUG("%s: @@@ ", master->name);
                 size.u64 -= masterLength;
-                Entry e = parents.back();
-                parents.pop_back();
-                master = e.element;
-                masterLength = e.length;
-            }
-        } else {
-            while (masterLength == 0 && parents.size()) {
-                DEBUG("%s: @@@ ", master->name);
                 Entry e = parents.back();
                 parents.pop_back();
                 master = e.element;

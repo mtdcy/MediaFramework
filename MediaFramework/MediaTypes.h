@@ -296,7 +296,6 @@ typedef uint32_t eReadMode;
 enum {
     kFrameTypeUnknown       = 0,
     kFrameTypeSync          = (1<<0),
-    kFrameTypeDepended      = (1<<1),
     kFrameTypeDisposal      = (1<<2),
     kFrameTypeReference     = (1<<3),
 };

@@ -44,11 +44,14 @@ __BEGIN_NAMESPACE_MPX
 namespace MPEG4 {
     // ISO/IEC 14496-10 Section 7.4.1 Table 7.1
     enum eNALUnitType {
+        NALU_TYPE_UNKNOWN       = 0,    ///<
+        // VCL
         NALU_TYPE_SLICE         = 1,    ///< coded slice of a non-IDR pitrue
         NALU_TYPE_DPA           = 2,    ///< coded slice data partition A
         NALU_TYPE_DPB           = 3,    ///< ..
         NALU_TYPE_DPC           = 4,    ///<
         NALU_TYPE_IDR           = 5,    ///< coded slice of an IDR piture
+        // NON-VCL
         NALU_TYPE_SEI           = 6,    ///< supplement enhance information
         NALU_TYPE_SPS           = 7,    ///< sequence parameter set
         NALU_TYPE_PPS           = 8,    ///< picture parameter set
@@ -66,17 +69,39 @@ namespace MPEG4 {
         NALU_TYPE_EXT           = 20,   ///< coded slice extension
     };
 
-    // ISO/IEC 14496-10 Section 7.3.1
-    // The bitstream can be in one of two formats:
-    //  a. the NAL unit stream format (basic), -> NAL units
-    //  b. the byte stream format, start code prefix + NAL unit -> Annex B
-    //
-    // NAL = HEADER + RBSP(Raw Byte Sequence Payload)
-    struct NAL {
-        uint8_t     header;
-        sp<Buffer>  rbsp;
+    enum eSliceType {
+        SLICE_TYPE_P            = 0,    ///<
+        SLICE_TYPE_B            = 1,
+        SLICE_TYPE_I            = 2,
+        SLICE_TYPE_SP           = 3,    ///<
+        SLICE_TYPE_SI           = 4,    ///< intra prediction only
+        SLICE_TYPE_P2           = 5,
+        SLICE_TYPE_B2           = 6,
+        SLICE_TYPE_I2           = 7,
+        SLICE_TYPE_SP2          = 8,
+        SLICE_TYPE_SI2          = 9,
     };
 
+    // ISO/IEC 14496-10 Section 7.3.1
+    // The bitstream can be in one of two formats:
+    //  a. the NAL unit stream format (basic), -> NALU
+    //  b. the byte stream format, start code prefix + NALU -> Annex B
+    //
+    // NALU = HEADER + RBSP(Raw Byte Sequence Payload)
+    struct NALU {
+        uint8_t         nal_ref_idc;    // 0: non-referenced picture
+        eNALUnitType    nal_unit_type;
+        union {
+            struct {
+                uint32_t    first_mb_in_slice;
+                eSliceType  slice_type;
+                // ...
+            } slice_header;  // SLICE | DPA | IDR
+        };
+        MediaError      parse(const sp<ABuffer>&);
+    };
+
+    // https://stackoverflow.com/questions/24884827/possible-locations-for-sequence-picture-parameter-sets-for-h-264-stream
     // NAL is the basic unit, the are two h264 stream format
     // a. Annexb format: SC + NALU + SC + NALU + ...
     // b. avcc format: [avcC + ] length + NALU + length + NALU
@@ -105,11 +130,11 @@ namespace MPEG4 {
 
     // ISO/IEC 14495-15, 'avcC'
     struct AVCDecoderConfigurationRecord {
-        AVCDecoderConfigurationRecord(const sp<ABuffer>&);
+        AVCDecoderConfigurationRecord() {}
+        MediaError parse(const sp<ABuffer>&);
         MediaError compose(sp<ABuffer>&) const;
         size_t size() const;
 
-        bool        valid;
         uint8_t     AVCProfileIndication;
         uint8_t     AVCLevelIndication;
         uint8_t     lengthSizeMinusOne;

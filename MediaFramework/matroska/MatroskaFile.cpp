@@ -279,6 +279,8 @@ struct MatroskaFile : public MediaFile {
             ERROR("missing TRACKS");
             return kMediaErrorBadFormat;
         }
+        
+        PrintEBMLElements(TRACKS);
 
         bool stage2 = false;
         List<EBMLMasterElement::Entry>::const_iterator it = TRACKS->children.cbegin();
@@ -501,8 +503,8 @@ struct MatroskaFile : public MediaFile {
                     }
                     trakInfo->setObject(kKeyESDS, esds);
                 } else if (trak.format == kVideoCodecH264) {
-                    MPEG4::AVCDecoderConfigurationRecord avcC(trak.csd->cloneBytes());
-                    if (avcC.valid) {
+                    MPEG4::AVCDecoderConfigurationRecord avcC;
+                    if (avcC.parse(trak.csd->cloneBytes()) == kMediaNoError) {
                         trakInfo->setObject(kKeyavcC, trak.csd);
                     } else {
                         ERROR("bad avcC");
@@ -563,13 +565,14 @@ struct MatroskaFile : public MediaFile {
 
         sp<EBMLIntegerElement> TIMECODE = FindEBMLElement(mCluster, ID_TIMECODE);
         List<EBMLMasterElement::Entry>::iterator it = mCluster->children.begin();
-        for (; it != mCluster->children.end(); ++it) {
+        for (; it != mCluster->children.end();) {
             sp<EBMLElement> Element = (*it).element;
             if (Element->id.u64 != ID_BLOCKGROUP && Element->id.u64 != ID_SIMPLEBLOCK) {
+                ++it;
                 continue;
             }
             
-            mCluster->children.erase(it);
+            it = mCluster->children.erase(it);
             sp<EBMLSimpleBlockElement> block;
             if (Element->id.u64 == ID_BLOCKGROUP) {
                 sp<EBMLMasterElement> BLOCKGROUP = Element;

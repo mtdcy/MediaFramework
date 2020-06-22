@@ -320,8 +320,8 @@ struct AVMediaPacket : public MediaPacket {
 static sp<Buffer> prepareAVCC(const AVStream * st) {
     sp<ABuffer> avcc = new Buffer((const char *)st->codecpar->extradata,
                  st->codecpar->extradata_size);
-    MPEG4::AVCDecoderConfigurationRecord avcC(avcc->cloneBytes());
-    if (avcC.valid) {
+    MPEG4::AVCDecoderConfigurationRecord avcC;
+    if (avcC.parse(avcc->cloneBytes()) == kMediaNoError) {
         return avcc;
     } else {
         ERROR("bad avcC");

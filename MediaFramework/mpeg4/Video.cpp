@@ -49,8 +49,8 @@ __BEGIN_NAMESPACE(MPEG4)
 // 也因为这个特性，MP4、MKV通常用AVCC格式来存储
 eH264StreamFormat GetH264StreamFormat(const sp<Buffer>& stream) {
     if (stream->show(8) == 1) {     // avcc format with avcC
-        AVCDecoderConfigurationRecord avcC(stream);
-        if (avcC.valid) {
+        AVCDecoderConfigurationRecord avcC;
+        if (avcC.parse(stream->cloneBytes()) == kMediaNoError) {
             return kH264AvccFormat;
         }
     }
@@ -86,18 +86,17 @@ eH264StreamFormat GetH264StreamFormat(const sp<Buffer>& stream) {
 //!         bit(8*pictureParameterSetLength) pictureParameterSetNALUnit;
 //!     }
 //! }
-AVCDecoderConfigurationRecord::AVCDecoderConfigurationRecord(const sp<ABuffer>& buffer) :
-valid(false) {
+MediaError AVCDecoderConfigurationRecord::parse(const sp<ABuffer>& buffer) {
     // 1
-    if (buffer->r8() != 1) return;           // configurationVersion = 1
+    if (buffer->r8() != 1) return kMediaErrorBadContent;           // configurationVersion = 1
     // 3
     AVCProfileIndication = buffer->r8();
     uint8_t profile_compatibility = buffer->r8();
     AVCLevelIndication = buffer->r8();
     // (6 + 2 + 3 + 5) / 8 = 2
-    if (buffer->read(6) != 0x3f) return;     // bit(6) reserved = ‘111111’b;
+    if (buffer->read(6) != 0x3f) return kMediaErrorBadContent;     // bit(6) reserved = ‘111111’b;
     lengthSizeMinusOne = buffer->read(2);    //
-    if (buffer->read(3) != 0x7) return;      // bit(3) reserved = ‘111’b;
+    if (buffer->read(3) != 0x7) return kMediaErrorBadContent;      // bit(3) reserved = ‘111’b;
     size_t numOfSequenceParameterSets = buffer->read(5);
     // n * (2 + x)
     for (size_t i = 0; i < numOfSequenceParameterSets; ++i) {
@@ -111,7 +110,7 @@ valid(false) {
         size_t pictureParameterSetLength = buffer->rb16();
         PPSs.push(buffer->readBytes(pictureParameterSetLength));
     }
-    valid = true;
+    return kMediaNoError;
 }
 
 MediaError AVCDecoderConfigurationRecord::compose(sp<ABuffer>& buffer) const {
@@ -155,6 +154,32 @@ size_t AVCDecoderConfigurationRecord::size() const {
         n += (2 + (*it)->size());
     }
     return n;
+}
+
+uint32_t ReadExpGolombCodes(const sp<ABuffer>& data) {
+    int32_t leadingZeroBits = -1;
+    for (uint8_t b = 0; !b; leadingZeroBits++) {
+        b = data->read(1);
+    }
+    return pow(2, leadingZeroBits) - 1 +
+                (leadingZeroBits ? data->read(leadingZeroBits) : 0);
+}
+
+MediaError NALU::parse(const sp<ABuffer>& data) {
+    if (data->read(1) != 0) return kMediaErrorBadContent;
+    nal_ref_idc     = data->read(2);
+    nal_unit_type   = (eNALUnitType)data->read(5);
+    if (nal_unit_type == NALU_TYPE_PREFIX || nal_unit_type == NALU_TYPE_EXT) {
+        // TODO
+    }
+    // TODO: Emulation Prevention code
+    
+    if (nal_unit_type == NALU_TYPE_SLICE || nal_unit_type == NALU_TYPE_DPA || nal_unit_type == NALU_TYPE_IDR) {
+        slice_header.first_mb_in_slice   = ReadExpGolombCodes(data);
+        slice_header.slice_type          = (eSliceType)ReadExpGolombCodes(data);
+        //...
+    }
+    return kMediaNoError;
 }
 
 __END_NAMESPACE(MPEG4)

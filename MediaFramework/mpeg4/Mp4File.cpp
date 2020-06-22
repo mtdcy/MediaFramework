@@ -37,6 +37,7 @@
 #include <ABE/ABE.h>
 
 #include "Systems.h"
+#include "Video.h"
 #include "id3/ID3.h"
 #include "Box.h"
 
@@ -99,17 +100,15 @@ struct Sample {
 };
 
 struct Mp4Track : public SharedObject {
-    Mp4Track() : enabled(true), type(kCodecTypeUnknown), codec(0),
-    sampleIndex(0), duration(kMediaTimeInvalid),
-    startTime(0),
-    bitReate(0), samplesRead(0) { }
+    Mp4Track() : enabled(true), type(kCodecTypeUnknown), codec(0), duration(kMediaTimeInvalid),
+    sampleIndex(0), startIndex(0), bitReate(0), samplesRead(0) { }
 
     bool                enabled;    // enabled by default
     eCodecType          type;
     uint32_t            codec;  // eAudioCodec|eVideoCodec
-    size_t              sampleIndex;
     MediaTime           duration;
-    MediaTime           startTime;
+    size_t              sampleIndex;
+    size_t              startIndex;
     Vector<Sample>      sampleTable;
     int32_t             bitReate;
 
@@ -124,6 +123,10 @@ struct Mp4Track : public SharedObject {
         } audio;
     };
     sp<CommonBox>       esds;
+    
+    union {
+        uint8_t         lengthSizeMinusOne;     // for h264, @see AVCDecoderConfigurationRecord.lengthSizeMinusOne
+    };
     
     // statistics
     size_t              samplesRead;
@@ -208,6 +211,15 @@ static sp<Mp4Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderB
             track->bitReate = btrt->avgBitrate;
         } else {
             INFO("ignore box %s", (const char *)&box->Type);
+        }
+    }
+    
+    if (track->codec == kVideoCodecH264) {
+        if (track->esds != NULL) {
+            AVCDecoderConfigurationRecord avcC;
+            if (avcC.parse(track->esds->data->cloneBytes()) == kMediaNoError) {
+                track->lengthSizeMinusOne = avcC.lengthSizeMinusOne;
+            }
         }
     }
 
@@ -301,7 +313,6 @@ static sp<Mp4Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderB
             // do no other samples depend on this one?
             if (sample_is_depended_on == 2) s.flags |= kFrameTypeDisposal;
             // 3: depends only on I-frame.
-            if (is_leading == 3)            s.flags |= kFrameTypeDepended;
             
 #if 0       // FIXME: handle is_leading & sample_has_redundacy properly
             if (is_leading == 2)            s.flags |= kFrameFlagLeading;
@@ -314,7 +325,6 @@ static sp<Mp4Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderB
         for (size_t i = 0; i < track->sampleTable.size(); ++i) {
             Sample& s = track->sampleTable[i];
             if (s.flags & kFrameTypeSync) continue;
-            s.flags |= kFrameTypeDepended;
         }
     }
 
@@ -396,10 +406,10 @@ static MediaError seekTrack(sp<Mp4Track>& track,
     }
 
     track->sampleIndex  = result;   // key sample index
-    track->startTime    = MediaTime(tbl[mid].dts, track->duration.timescale);
+    track->startIndex   = mid;
 
-    INFO("seek %.3f(s)[%.3f(s)] => [%zu - %zu - %zu] => %zu # %zu",
-            ts.seconds(), track->startTime.seconds(),
+    INFO("seek %.3f(s) => [%zu - %zu - %zu] => %zu # %zu",
+            ts.seconds(),
             first, mid, second, result,
             search_count);
 
@@ -602,85 +612,105 @@ struct Mp4File : public MediaFile {
         }
 
         for (;;) {
-        // find the lowest pos
-        size_t trackIndex = mTracks.size();
-        int64_t los = mContent->capacity();
+            // find the lowest pos
+            size_t trackIndex = mTracks.size();
+            int64_t los = mContent->capacity();
 
-        for (size_t i = 0; i < mTracks.size(); ++i) {
-            sp<Mp4Track>& track = mTracks[i];
-            if (!track->enabled) continue;
-            if (track->sampleIndex >= track->sampleTable.size()) continue;
-            
-            int64_t pos = track->sampleTable[track->sampleIndex].offset;
-            if (pos <= los) {
-                los = pos;
-                trackIndex = i;
+            for (size_t i = 0; i < mTracks.size(); ++i) {
+                sp<Mp4Track>& track = mTracks[i];
+                if (!track->enabled) continue;
+                if (track->sampleIndex >= track->sampleTable.size()) continue;
+
+                int64_t pos = track->sampleTable[track->sampleIndex].offset;
+                if (pos <= los) {
+                    los = pos;
+                    trackIndex = i;
+                }
             }
-        }
-        
-        if (trackIndex >= mTracks.size()) {
-            //CHECK_TRUE(mContent->size() == 0, "FIXME: report eos with data exists");
-            INFO("eos @ %" PRId64 "[%" PRId64 "]", mContent->offset(), mContent->size());
-            return NULL;
-        }
 
-        sp<Mp4Track>& track = mTracks[trackIndex];
-        Vector<Sample>& tbl = track->sampleTable;
-        size_t sampleIndex = track->sampleIndex++;
+            if (trackIndex >= mTracks.size()) {
+                //CHECK_TRUE(mContent->size() == 0, "FIXME: report eos with data exists");
+                INFO("eos @ %" PRId64 "[%" PRId64 "]", mContent->offset(), mContent->size());
+                return NULL;
+            }
 
-        // read sample data
-        Sample& s = tbl[sampleIndex];
-        
-        mContent->skipBytes(s.offset - mContent->offset());
+            sp<Mp4Track>& track = mTracks[trackIndex];
+            Vector<Sample>& tbl = track->sampleTable;
+            size_t sampleIndex = track->sampleIndex++;
 
-        sp<Buffer> sample = mContent->readBytes(s.size);
+            // read sample data
+            Sample& s = tbl[sampleIndex];
 
-        if (sample == 0 || sample->size() < s.size) {
-            ERROR("read return error or corrupt file?.");
-            ERROR("report eos...");
-            return NULL;
-        }
-        
-        DEBUG("[%zu] read sample @%" PRId64 "(%" PRId64 "), %zu bytes, dts %" PRId64 ", pts %" PRId64,
-              trackIndex, s.offset, mContent->offset(), s.size, s.dts, s.pts);
-        
-        // statistics
-        ++mNumPacketsRead;
-        ++track->samplesRead;
+            mContent->skipBytes(s.offset - mContent->offset());
 
-        // setup flags
-        uint32_t flags  = s.flags;
-#if 1
-        MediaTime dts( s.dts, track->duration.timescale);
-        if (dts < track->startTime) {
-            // we should only output the I-frame and closest P-frame
-            // FIXME: find out the closest P-frame
-            if (flags & (kFrameTypeSync|kFrameTypeDepended)) {
-                flags |= kFrameTypeReference;
+            sp<Buffer> sample = mContent->readBytes(s.size);
+
+            if (sample == 0 || sample->size() < s.size) {
+                ERROR("read return error or corrupt file?.");
+                ERROR("report eos...");
+                return NULL;
+            }
+
+            DEBUG("[%zu] read sample @%" PRId64 "(%" PRId64 "), %zu bytes, dts %" PRId64 ", pts %" PRId64,
+                    trackIndex, s.offset, mContent->offset(), s.size, s.dts, s.pts);
+
+            // statistics
+            ++mNumPacketsRead;
+            ++track->samplesRead;
+
+            // setup flags
+            uint32_t flags  = s.flags;
+
+            if (track->codec == kVideoCodecH264) {
+                if (sampleIndex < track->startIndex) {
+                    MPEG4::NALU nalu;
+                    sp<ABuffer> clone = sample->cloneBytes();
+                    clone->skipBytes(track->lengthSizeMinusOne + 1);
+                    if (nalu.parse(clone) == kMediaNoError) {
+                        DEBUG("[%zu] h264, type %#x ref %#x, falgs %#x",
+                                trackIndex,
+                                nalu.nal_unit_type,
+                                nalu.nal_ref_idc,
+                                s.flags);
+                    }
+                    // DROP orphan B-frames before start time.
+                    if (nalu.nal_unit_type == NALU_TYPE_SLICE &&
+                        nalu.nal_ref_idc == 0 && /* no other B-frame depends on us */
+                        (nalu.slice_header.slice_type == SLICE_TYPE_B ||
+                        nalu.slice_header.slice_type == SLICE_TYPE_B2)) {
+                        INFO("track %zu: drop frame", trackIndex);
+                        continue;
+                    } else {
+                        flags |= kFrameTypeReference;
+                    }
+                }
             } else {
-                INFO("track %zu: drop frame", trackIndex);
-                continue;
+                if (sampleIndex < track->startIndex) {
+                    if (flags & kFrameTypeSync) {
+                        flags |= kFrameTypeReference;
+                    } else {
+                        INFO("track %zu: drop frame", trackIndex);
+                        continue;
+                    }
+                }
             }
-        } else if (dts == track->startTime) {
-            INFO("track %zu: hit starting...", trackIndex);
+            
+            // init MediaPacket context
+            sp<MediaPacket> packet  = MediaPacket::Create(sample);
+            packet->index           = trackIndex;
+            packet->type            = flags;
+            if (s.pts < 0)
+                packet->pts =       kMediaTimeInvalid;
+            else
+                packet->pts =       MediaTime(s.pts, track->duration.timescale);
+            packet->dts     =       MediaTime(s.dts, track->duration.timescale);
+
+            if (ts != kMediaTimeInvalid) {
+                INFO("track %zu: read @ %.3fs", trackIndex, packet->dts.seconds());
+            }
+            return packet;
         }
-#endif
-        // init MediaPacket context
-        sp<MediaPacket> packet  = MediaPacket::Create(sample);
-        packet->index           = trackIndex;
-        packet->type            = flags;
-        if (s.pts < 0)
-            packet->pts =       kMediaTimeInvalid;
-        else
-            packet->pts =       MediaTime(s.pts, track->duration.timescale);
-        packet->dts     =       MediaTime(s.dts, track->duration.timescale);
-        
-        if (ts != kMediaTimeInvalid) {
-            INFO("track %zu: read @ %.3fs", trackIndex, packet->dts.seconds());
-        }
-        return packet;
-        }
-        
+
         return NULL;
     }
 };
@@ -708,24 +738,24 @@ int IsMp4File(const sp<ABuffer>& buffer) {
         }
 
         DEBUG("file: %4s %" PRIu64, BoxName(boxType), boxSize);
-        
+
         // mdat may show before moov, give mdat more scores
         if (boxType == kBoxTypeFTYP ||
-            boxType == kBoxTypeMDAT) {
+                boxType == kBoxTypeMDAT) {
             score += 50;
         } else if (boxType == kBoxTypeMOOV ||
-                   boxType == kBoxTypeTRAK ||
-                   boxType == kBoxTypeMDIA) {
+                boxType == kBoxTypeTRAK ||
+                boxType == kBoxTypeMDIA) {
             score += 20;    // this is a container box
             continue;
         } else if (boxType == kBoxTypeMETA ||
-                   boxType == kBoxTypeMVHD ||
-                   boxType == kBoxTypeTKHD ||
-                   boxType == kBoxTypeTREF ||
-                   boxType == kBoxTypeEDTS ||
-                   boxType == kBoxTypeMDHD ||
-                   boxType == kBoxTypeHDLR ||
-                   boxType == kBoxTypeMINF) {
+                boxType == kBoxTypeMVHD ||
+                boxType == kBoxTypeTKHD ||
+                boxType == kBoxTypeTREF ||
+                boxType == kBoxTypeEDTS ||
+                boxType == kBoxTypeMDHD ||
+                boxType == kBoxTypeHDLR ||
+                boxType == kBoxTypeMINF) {
             score += 10;
         }
 
