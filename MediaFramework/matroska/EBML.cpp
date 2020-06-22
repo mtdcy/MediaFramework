@@ -603,7 +603,14 @@ sp<EBMLElement> ReadEBMLElement(const sp<ABuffer>& buffer, uint32_t flags) {
     }
     
     sp<EBMLMasterElement> root  = MakeEBMLElement(id, size);
+#if LOG_NDEBUG == 0
     CHECK_FALSE(root.isNIL());
+#else
+    if (root.isNIL()) {
+        ERROR("bad element %#x @ %" PRIu64, id.u64, buffer->offset());
+        return NULL;
+    }
+#endif
     
     const size_t elementLength = id.length + size.length + size.u64;
     DEBUG("found root element %s @ %" PRIu64 " length = %zu[%zu]",
@@ -633,6 +640,7 @@ sp<EBMLElement> ReadEBMLElement(const sp<ABuffer>& buffer, uint32_t flags) {
             master = e.element;
             masterLength = e.length;
         }
+        if (master == root && masterLength == 0) break;
         
         size_t offset = buffer->offset();   // element position
         
@@ -657,7 +665,17 @@ sp<EBMLElement> ReadEBMLElement(const sp<ABuffer>& buffer, uint32_t flags) {
         DEBUG("%s: + %s @ %" PRIu64 " length = %zu[%zu][%zu]",
              master->name, element->name, offset, (size_t)size.u64, elementLength, masterLength);
         
+#if LOG_NDEBUG == 0
         CHECK_LE(elementLength, masterLength);
+#else
+        // sanity check on runtime
+        if (elementLength > masterLength) {
+            ERROR("%s: + bad element %s", master->name, element->name);
+            // skip remains bytes and exit
+            buffer->skipBytes(masterLength);
+            break;
+        }
+#endif
         masterLength -= elementLength;
         
         if (size.u64 == 0) {
@@ -706,8 +724,8 @@ sp<EBMLElement> ReadEBMLElement(const sp<ABuffer>& buffer, uint32_t flags) {
         // handle terminator box
         if (id.u64 == ID_VOID) {
             // void element will extend the master element length and
-            // will terminate multi master elements except level root element
-            while (size.u64 && parents.size()) {
+            // will terminate multi master elements except top level element(e.g. SEGMENTINFO)
+            while (size.u64 >= masterLength && parents.size()) {
                 DEBUG("%s: @@@ ", master->name);
                 size.u64 -= masterLength;
                 Entry e = parents.back();
@@ -716,8 +734,6 @@ sp<EBMLElement> ReadEBMLElement(const sp<ABuffer>& buffer, uint32_t flags) {
                 masterLength = e.length;
             }
         }
-        
-        if (master == root && masterLength == 0) break;
     }
     
     return root;

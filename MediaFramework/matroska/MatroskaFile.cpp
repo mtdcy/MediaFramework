@@ -166,9 +166,9 @@ sp<EBMLMasterElement> ReadSEGMENT(const sp<ABuffer>& buffer, int64_t * clusters)
     sp<EBMLMasterElement> SEGMENT = ReadEBMLElement(buffer, kEnumStopCluster);
     if (SEGMENT.isNIL()) return NULL;
     
-#if LOG_NDEBUG == 0
+//#if LOG_NDEBUG == 0
     PrintEBMLElements(SEGMENT);
-#endif
+//#endif
     
     // children inside reference to the segment element position excluding id & size
     offset += SEGMENT->id.length + SEGMENT->size.length;
@@ -177,6 +177,11 @@ sp<EBMLMasterElement> ReadSEGMENT(const sp<ABuffer>& buffer, int64_t * clusters)
     
     // FIXME: multi SEEKHEAD exists
     sp<EBMLMasterElement> SEEKHEAD = FindEBMLElement(SEGMENT, ID_SEEKHEAD);
+    if (SEEKHEAD.isNIL()) {
+        ERROR("SEEKHEAD is missing");
+        return SEGMENT;
+    }
+    
     // go through each element(ID_SEEK)
     List<EBMLMasterElement::Entry>::const_iterator it = SEEKHEAD->children.cbegin();
     for (; it != SEEKHEAD->children.cend(); ++it) {
@@ -405,29 +410,32 @@ struct MatroskaFile : public MediaFile {
 
         // CUES
         sp<EBMLMasterElement> CUES = FindEBMLElement(SEGMENT, ID_CUES);
-
-        it = CUES->children.cbegin();
-        for (; it != CUES->children.cend(); ++it) {     // CUES can be very large, use iterator
-            const EBMLMasterElement::Entry& e = *it;
-            if (e.element->id.u64 != ID_CUEPOINT) continue;
-            
-            sp<EBMLMasterElement> CUEPOINT = e.element;
-            TOCEntry entry;
-            
-            List<EBMLMasterElement::Entry>::const_iterator it0 = CUEPOINT->children.cbegin();
-            for (; it0 != CUEPOINT->children.cend(); ++it0) {
-                sp<EBMLIntegerElement> e = (*it0).element;
+        if (!CUES.isNIL()) {
+            it = CUES->children.cbegin();
+            for (; it != CUES->children.cend(); ++it) {     // CUES can be very large, use iterator
+                const EBMLMasterElement::Entry& e = *it;
+                if (e.element->id.u64 != ID_CUEPOINT) continue;
                 
-                if (e->id.u64 == ID_CUETIME) {
-                    entry.time = e->vint.u64;
-                } else if (e->id.u64 == ID_CUETRACKPOSITIONS) {     // may contains multi
-                    sp<EBMLIntegerElement> CUETRACK = FindEBMLElement(e, ID_CUETRACK);
-                    sp<EBMLIntegerElement> CUECLUSTERPOSITION = FindEBMLElement(e, ID_CUECLUSTERPOSITION);
+                sp<EBMLMasterElement> CUEPOINT = e.element;
+                TOCEntry entry;
+                
+                List<EBMLMasterElement::Entry>::const_iterator it0 = CUEPOINT->children.cbegin();
+                for (; it0 != CUEPOINT->children.cend(); ++it0) {
+                    sp<EBMLIntegerElement> e = (*it0).element;
                     
-                    entry.pos = CUECLUSTERPOSITION->vint.u64;
-                    mTracks[CUETRACK->vint.u32].toc.push(entry);
+                    if (e->id.u64 == ID_CUETIME) {
+                        entry.time = e->vint.u64;
+                    } else if (e->id.u64 == ID_CUETRACKPOSITIONS) {     // may contains multi
+                        sp<EBMLIntegerElement> CUETRACK = FindEBMLElement(e, ID_CUETRACK);
+                        sp<EBMLIntegerElement> CUECLUSTERPOSITION = FindEBMLElement(e, ID_CUECLUSTERPOSITION);
+                        
+                        entry.pos = CUECLUSTERPOSITION->vint.u64;
+                        mTracks[CUETRACK->vint.u32].toc.push(entry);
+                    }
                 }
             }
+        } else {
+            ERROR("CUES is missing");
         }
 
         DEBUG("cluster start @ %" PRId64, mSegment + mClusters);
