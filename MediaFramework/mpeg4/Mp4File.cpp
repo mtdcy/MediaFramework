@@ -619,7 +619,7 @@ struct Mp4File : public MediaFile {
         }
         
         if (trackIndex >= mTracks.size()) {
-            CHECK_TRUE(mContent->size() == 0, "FIXME: report eos with data exists");
+            //CHECK_TRUE(mContent->size() == 0, "FIXME: report eos with data exists");
             INFO("eos @ %" PRId64 "[%" PRId64 "]", mContent->offset(), mContent->size());
             return NULL;
         }
