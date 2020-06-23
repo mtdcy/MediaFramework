@@ -416,14 +416,28 @@ struct RenderSession : public IMediaSession {
         // -> onRender
     }
     
-    FORCE_INLINE void writeFrame(const sp<MediaFrame>& input) {
+    FORCE_INLINE MediaError writeFrame(const sp<MediaFrame>& input) {
         sp<MediaFrame> frame = input;
         if (!input.isNIL() && !mAudioConverter.isNIL()) {
             frame = mAudioConverter->convert(input);
         }
         
-        if (mOut != NULL) CHECK_TRUE(mOut->write(frame) == kMediaNoError);
-        else mMediaFrameEvent->fire(frame);
+        if (mOut != NULL) {
+            return mOut->write(frame);
+        } else {
+            // when using MediaFrameEvent, always return kMediaNoError
+            // either in block or non-block way
+            mMediaFrameEvent->fire(frame);
+            return kMediaNoError;
+        }
+    }
+    
+    // audio frame duration
+    FORCE_INLINE int64_t frameDuration(const sp<MediaFrame>& frame) {
+        if (frame->duration != kMediaTimeInvalid)
+            return frame->duration.useconds();
+        else
+            return (1000000LL * frame->a.samples) / frame->a.freq;
     }
 
     // render current frame
@@ -434,13 +448,12 @@ struct RenderSession : public IMediaSession {
         sp<MediaFrame> frame = mOutputQueue.front();
         CHECK_TRUE(frame != NULL);
 
-        // render immediately until clock updated
-        // render immediately for audio
-        if (mClockUpdated && mType != kCodecTypeAudio) {
+        // only master clock can skip this one time
+        if (mClockUpdated || mClock->role() != kClockRoleMaster) {
             int64_t early = frame->timecode.useconds() - mClock->get();
             
-            if (early > REFRESH_RATE) {  // 5ms
-                DEBUG("%s: overrun by %.3f(s)|%.3f(s)...", mName.c_str(),
+            if (early > 1000LL) {  // 1ms jitter
+                INFO("%s: overrun by %.3f(s)|%.3f(s)...", mName.c_str(),
                       early/1E6, frame->timecode.seconds());
                 return early;
             } else if (-early > REFRESH_RATE) {
@@ -452,27 +465,37 @@ struct RenderSession : public IMediaSession {
         }
 
         DEBUG("%s: render frame %.3f(s)", mName.c_str(), frame->timecode.seconds());
-        writeFrame(frame);
-        mOutputQueue.pop();
-        ++mFramesRenderred;
+        if (writeFrame(frame) == kMediaErrorResourceBusy) {
+            INFO("%s: overrun, resource busy", mName.c_str());
+            // when resource busy happens, it shows clock is not working as expect
+            // this happens when using audio as master clock and latency is not constant.
+            if (mType == kCodecTypeAudio)
+                return frameDuration(frame);
+            else
+                return REFRESH_RATE;
+        } else {
+            mOutputQueue.pop();
+            ++mFramesRenderred;
 
-        // setup clock to tick if we are master clock
-        // FIXME: if current frame is too big, update clock after write will cause clock advance too far
-        if (!mClockUpdated && mClock->role() == kClockRoleMaster) {
-            mClock->update(frame->timecode.useconds() - mLatency);
-            INFO("%s: update clock %.3f(s) (%.3f)", mName.c_str(),
-                 frame->timecode.seconds(), mClock->get() / 1E6);
-            mClockUpdated = true;
+            // setup clock to tick if we are master clock
+            // FIXME: if current frame is too big, update clock after write will cause clock advance too far
+            if (!mClockUpdated && mClock->role() == kClockRoleMaster) {
+                mClock->update(frame->timecode.useconds() - mLatency);
+                INFO("%s: update clock %.3f(s) (%.3f)", mName.c_str(),
+                     frame->timecode.seconds(), mClock->get() / 1E6);
+                mClockUpdated = true;
+            }
         }
-
+        
         // next frame render time.
-        if (mType == kCodecTypeAudio) {
-            return 0;
-        } else if (mOutputQueue.size()) {
+        if (mOutputQueue.size()) {
             sp<MediaFrame> next = mOutputQueue.front();
             int64_t delay = next->timecode.useconds() - mClock->get();
-            if (delay < 0)  return 0;
-            else            return delay;
+            if (delay < 0) {
+                return 0;
+            } else {
+                return delay;
+            }
         }
         
         DEBUG("refresh rate");
