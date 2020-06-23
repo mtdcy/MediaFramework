@@ -41,6 +41,8 @@
 #include "MediaTypes.h"
 #include "MediaOut.h"
 
+//#define BLOCKING_PLAYBACK
+
 #ifdef __APPLE__
 #include <OpenAL/OpenAL.h>
 #define MAC_OPENAL_EXT  // TODO
@@ -61,7 +63,7 @@
 
 __BEGIN_NAMESPACE_MPX
 
-// TODO: implement AudioConverter
+// https://www.openal.org/documentation/OpenAL_Programmers_Guide.pdf
 /**
  * OpenAL only takes s16 stereo interleaved pcm samples
  */
@@ -206,16 +208,21 @@ static MediaError playFrame(const sp<OpenALContext>& openAL, const sp<MediaFrame
         
         if (processed == 0 && queued >= NB_BUFFERS) {
             DEBUG("no buffer available");
+#ifdef BLOCKING_PLAYBACK
             SleepTimeUs(GetDuration(frame));
+#else
+            return kMediaErrorResourceBusy;
+#endif
         } else {
             ALuint buffer;
             if (processed) {
+                if (processed == NB_BUFFERS) {
+                    INFO("underrun may happens");
+                }
                 alSourceUnqueueBuffers(openAL->mSource, 1, &buffer);
-                CHECK_AL_ERROR();
-                alDeleteBuffers(1, &buffer);
-                CHECK_AL_ERROR();
+            } else {
+                alGenBuffers(1, &buffer);
             }
-            alGenBuffers(1, &buffer);
             CHECK_AL_ERROR();
             alBufferData(buffer,
                          alFormat,

@@ -69,6 +69,7 @@ struct API_EXPORT MediaOut : public SharedObject {
      * @return return kMediaNoError on success
      * @note push a NULL packet to notify codec of eos
      * @note write in block way, always return kMediaNoError if no error happens.
+     * @note write in non-block way, return kMediaErrorResourceBusy if device is busy
      */
     virtual MediaError      write(const sp<MediaFrame>& input) = 0;
     /**
