@@ -117,7 +117,7 @@ sp<MediaOut> MediaOut::Create(const sp<Message>& formats, const sp<Message>& opt
     eCodecType type = (eCodecType)formats->findInt32(kKeyType);
     switch (type) {
         case kCodecTypeAudio:
-#ifdef WITH_SDL
+#if defined(WITH_SDL) && !defined(__APPLE__)
             return CreateSDLAudio(formats, options);
 #else
             return CreateOpenALOut(formats, options);
