@@ -40,13 +40,8 @@
 #include "MediaPlayer.h"
 #include "AudioConverter.h"
 
-// TODO: calc count based on duration
-// max count: 1s
-// min count: 500ms
-#define MIN_COUNT (4)
-#define MAX_COUNT (8)
-#define MIN_LENGTH  200000LL    // 200ms
-#define MAX_LENGTH  500000LL    // 500ms
+#define MIN_COUNT (16)
+#define MAX_COUNT (32)
 
 // default refresh rate
 // video: 120 fps => 8.3ms / frame
@@ -76,12 +71,13 @@ __BEGIN_NAMESPACE_MPX
 sp<IMediaSession> CreateDecodeSession(const sp<Message>& format, const sp<Message>& options);
 
 struct RenderSession : public IMediaSession {
-    enum eRenderState {
-        kRenderInitialized,
-        kRenderReady,
-        kRenderTicking,
-        kRenderFlushed,
-        kRenderEnd
+    enum eState {
+        kStateInit,
+        kStatePrepare,
+        kStateReady,
+        kStateRendering,
+        kStatePaused,
+        kStatePrepareInt,
     };
 
     // external static context
@@ -103,7 +99,7 @@ struct RenderSession : public IMediaSession {
     struct RenderJob;
     sp<RenderJob>           mRenderJob;      // for present current frame
     List<sp<MediaFrame> >   mOutputQueue;       // output frame queue
-    eRenderState            mState;
+    eState                  mState;
     bool                    mClockUpdated;
     bool                    mInputEOS;
 
@@ -130,7 +126,7 @@ struct RenderSession : public IMediaSession {
     mOut(NULL), mClock(NULL), mLatency(0),
     // render context
     mType(kCodecTypeAudio), mGeneration(0),
-    mRenderJob(new RenderJob(this)), mState(kRenderInitialized),
+    mRenderJob(new RenderJob(this)), mState(kStateInit),
     mClockUpdated(false), mInputEOS(false),
     mLastFrameTime(kMediaTimeInvalid),
     // statistics
@@ -224,6 +220,7 @@ struct RenderSession : public IMediaSession {
         
         // request frames
         requestFrame(kMediaTimeInvalid);
+        if (mState == kStateInit) mState = kStatePrepare;
         // -> onFrameReady
 
         // if no clock, start render directly
@@ -272,11 +269,12 @@ struct RenderSession : public IMediaSession {
         onInit(format, NULL);
     }
 
-    void requestFrame(const MediaTime& time) {
-        if (time != kMediaTimeInvalid) {
+    void requestFrame(const MediaTime& time = kMediaTimeInvalid) {
+        if (ABE_UNLIKELY(time != kMediaTimeInvalid)) {
             INFO("%s: flush renderer @ %.3f", mName.c_str(), time.seconds());
             
             // clear state
+            mState          = kStatePrepareInt;
             mClockUpdated   = false;
             mLastFrameTime  = kMediaTimeInvalid;
             mInputEOS       = false;
@@ -287,22 +285,16 @@ struct RenderSession : public IMediaSession {
 
             // flush output
             if (!mOut.isNIL()) mOut->flush();
-
-            mState = kRenderFlushed;
         }
         
         // don't request frame if eos detected.
         if (mInputEOS) return;
-
-        if (mOutputQueue.size()) {
-            sp<MediaFrame>& first = mOutputQueue.front();
-            sp<MediaFrame>& last = mOutputQueue.back();
-            MediaTime length = last->timecode - first->timecode;
-            if (length.useconds() >= MAX_LENGTH) {
-                DEBUG("%s: output queue is full, length = %zu",
-                      mName.c_str(), mOutputQueue.size());
-                return;
-            }
+        
+        // max length limit is not neccesary, put limit here to debug requestFrame calls
+        if (mOutputQueue.size() >= MAX_COUNT) {
+            INFO("%s: output queue is full, length = %zu",
+                 mName.c_str(), mOutputQueue.size());
+            return;
         }
         
         mFrameRequestEvent->fire(mFrameReadyEvent, time);
@@ -334,22 +326,18 @@ struct RenderSession : public IMediaSession {
         }
 
         // case 1: eos
-        if (frame == NULL) {
+        if (frame.isNIL()) {
             INFO("%s: eos detected", mName.c_str());
             mInputEOS = true;
             if (mLastFrameTime == kMediaTimeInvalid) {
                 WARN("%s: eos at start", mName.c_str());
                 notify(kSessionInfoEnd, NULL);
             }
-            // NOTHING TO DO
+            // notify session end after all frames been renderred.
             return;
         }
-        
-        // if no clock exists. write frames directly
-        if (mClock.isNIL()) {
-            writeFrame(frame);
-            return;
-        }
+        DEBUG("%s: one frame ready @ %.3f(s), queue = %zu, state = %d",
+             mName.c_str(), frame->timecode.seconds(), mOutputQueue.size(), mState);
 
         // check pts
         if (frame->timecode == kMediaTimeInvalid) {
@@ -357,42 +345,59 @@ struct RenderSession : public IMediaSession {
             // FIXME:
         }
         
+        // queue frame, frames must be pts order
+        DEBUG("%s: %.3f(s)", mName.c_str(), frame->timecode.seconds());
         if (mLastFrameTime == kMediaTimeInvalid) {
             INFO("%s: first frame %.3f(s)", mName.c_str(), frame->timecode.seconds());
+            // always play the first video frame
+            if (mType == kCodecTypeVideo && !mClock.isNIL()) {
+                playFrame(frame);
+                // queue this frame too
+            }
+        } else if (frame->timecode <= mLastFrameTime) {
+            // sanity check on frame timecode, frames MUST be in pts order.
+            WARN("%s: unordered frame %.3f(s) < last %.3f(s)",
+                    mName.c_str(), frame->timecode.seconds(),
+                    mLastFrameTime.seconds());
         }
         
-        // always render the first video
-        if (mLastFrameTime == kMediaTimeInvalid && mType == kCodecTypeVideo) {
-            writeFrame(frame);
+        
+        // if no clock exists. play frames directly
+        if (mClock.isNIL()) {
+            playFrame(frame);
+            requestFrame();
+        } else if (frame->timecode.useconds() < mClock->get()) {
+            // DROP expired frames
+            ERROR("%s: underrun, drop frame, %.3f(s) vs %.3f(s), queue length %zu",
+                  mName.c_str(), frame->timecode.seconds(), mClock->get() / 1E6, mOutputQueue.size());
+            // request another frame
+            requestFrame();
         } else {
-            // queue frame, frames must be pts order
-            DEBUG("%s: %.3f(s)", mName.c_str(), frame->timecode.seconds());
-            if (frame->timecode <= mLastFrameTime) {
-                WARN("%s: unordered frame %.3f(s) < last %.3f(s)",
-                        mName.c_str(), frame->timecode.seconds(),
-                        mLastFrameTime.seconds());
-            }
-            
-            // handle outdated frames
-            if (frame->timecode.useconds() < mClock->get()) {
-                ERROR("%s: underrun, drop frame, %.3f(s) vs %.3f(s), queue length %zu",
-                      mName.c_str(), frame->timecode.seconds(), mClock->get() / 1E6, mOutputQueue.size());
-            } else {
-                mOutputQueue.push(frame);
+            mOutputQueue.push(frame);
+
+            // prepare done ?
+            if (mState == kStatePrepare || mState == kStatePrepareInt) {
+                if (mOutputQueue.size() >= MIN_COUNT) {
+                    INFO("%s: prepare done, queue length %zu", mName.c_str(), mOutputQueue.size());
+                    if (mState == kStatePrepare) {
+                        mState = kStateReady;
+                        sp<Message> formats;
+                        if (!mOut.isNIL()) {
+                            formats = mOut->formats();
+                        }
+                        notify(kSessionInfoReady, formats);
+                        // STOP here and wait for render start
+                    } else {
+                        mState = kStateRendering;
+                    }
+                } else {
+                    // request more frames until reach MIN_COUNT
+                    requestFrame();
+                }
             }
         }
-
-        // request more frames
-        requestFrame(kMediaTimeInvalid);
-
-        // prepare done ?
-        if (mState == kRenderInitialized && (mOutputQueue.size() >= MIN_COUNT || mInputEOS)) {
-            INFO("%s: prepare done", mName.c_str());
-            mState = kRenderReady;
-            notify(kSessionInfoReady, NULL);
-        }
-
-        // remember last frame pts
+        
+        // remember last frame pts, even after we dropped it.
         mLastFrameTime = frame->timecode;
     }
 
@@ -407,14 +412,23 @@ struct RenderSession : public IMediaSession {
     void onRender() {
         CHECK_FALSE(mClock.isNIL());
         DEBUG("%s: output queue size %zu", mName.c_str(), mOutputQueue.size());
-    
-        if (mClock->isPaused()) {
-            INFO("%s: clock is paused", mName.c_str());
+        
+        if (ABE_UNLIKELY(mState == kStatePrepare || mState == kStatePrepareInt)) {
+            mDispatch->dispatch(mRenderJob, DEFAULT_REFRESH_RATE);
             return;
-        } else if (mInputEOS && mOutputQueue.empty()) {
+        } else if (ABE_UNLIKELY(mState == kStateReady || mState == kStatePaused)) {
+            mState = kStateRendering;
+            // FALL THROUGH
+        }
+    
+        if (ABE_UNLIKELY(mClock->isPaused())) {
+            INFO("%s: clock is paused @ %.3f(s)", mName.c_str(), mClock->get()/1E6);
+            mState = kStatePaused;
+            return;
+        } else if (ABE_UNLIKELY(mInputEOS && mOutputQueue.empty())) {
             // tell out device about eos
             INFO("%s: eos...", mName.c_str());
-            writeFrame(NULL);
+            playFrame(NULL);
             notify(kSessionInfoEnd, NULL);
             return;
         }
@@ -434,13 +448,13 @@ struct RenderSession : public IMediaSession {
         // -> onRender
     }
     
-    FORCE_INLINE MediaError writeFrame(const sp<MediaFrame>& input) {
+    FORCE_INLINE MediaError playFrame(const sp<MediaFrame>& input) {
         sp<MediaFrame> frame = input;
         if (!input.isNIL() && !mAudioConverter.isNIL()) {
             frame = mAudioConverter->convert(input);
         }
         
-        if (mOut != NULL) {
+        if (!mOut.isNIL()) {
             return mOut->write(frame);
         } else {
             mMediaFrameEvent->fire(frame);
@@ -452,6 +466,7 @@ struct RenderSession : public IMediaSession {
     // return next frame render time on success, or return -1
     // DO NOT DROP FRAMES HERE, DROP onFrameReady
     FORCE_INLINE int64_t render() {
+        CHECK_TRUE(mState == kStateRendering);
         DEBUG("%s: render with %zu frame ready", mName.c_str(), mOutputQueue.size());
 
         sp<MediaFrame> frame = mOutputQueue.front();
@@ -476,7 +491,7 @@ struct RenderSession : public IMediaSession {
         DEBUG("%s: render frame %.3f(s) @ %.3f(s)",
               mName.c_str(), frame->timecode.seconds(), currentMediaTime / 1E6);
         
-        MediaError st = writeFrame(frame);
+        MediaError st = playFrame(frame);
         if (st != kMediaNoError) {
             ERROR("%s: play frame return error %#x", mName.c_str(), st);
             notify(kSessionInfoError, NULL);
