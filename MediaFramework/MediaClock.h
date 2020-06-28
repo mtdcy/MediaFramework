@@ -79,11 +79,12 @@ class API_EXPORT SharedClock : public SharedObject {
         void        set(int64_t us);
         /**
          * start this clock.
+         * @note only alter clock state, media time won't update yet.
          */
         void        start();
         /**
-         * pause this clock. after paused, media time and system
-         * time won't update, get() always return the same time.
+         * pause this clock.
+         * @note only alter clock state, media time still updating.
          */
         void        pause();
         /**
@@ -177,6 +178,19 @@ class API_EXPORT Clock : public SharedObject {
 
         /** @see SharedClock::speed() */
         double      speed() const;
+    
+        /**
+         * update clock start media time
+         * @note start shared clock if not started
+         */
+        void        start();
+    
+        /**
+         * update clock pause media time
+         * @note pause shared clock if not paused
+         */
+        void        pause();
+    
         /**
          * update clock media time
          * @param us media time
@@ -190,6 +204,7 @@ class API_EXPORT Clock : public SharedObject {
          * otherwise do NOTHING.
          */
         void        reload() const;
+        int64_t     getInt() const;
 
     private:
         // NO lock here

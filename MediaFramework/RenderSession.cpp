@@ -45,9 +45,18 @@
 // min count: 500ms
 #define MIN_COUNT (4)
 #define MAX_COUNT (8)
-#define REFRESH_RATE (10000LL)    // 10ms
 #define MIN_LENGTH  200000LL    // 200ms
 #define MAX_LENGTH  500000LL    // 500ms
+
+// default refresh rate
+// video: 120 fps => 8.3ms / frame
+// audio: normal frame duration => 10ms or 20ms
+#define DEFAULT_REFRESH_RATE (10000LL)    // 5ms
+
+// the jitter time allowed for render()
+// short jitter time means smooth frame presentation,
+// but it will cost more cpu times.
+#define JITTER_TIME 5000LL      // [-5ms, 5ms]
 
 // media session <= control session
 //  packet ready event
@@ -135,7 +144,6 @@ struct RenderSession : public IMediaSession {
     }
 
     void onInit(const sp<Message>& formats, const sp<Message>& options) {
-        DEBUG("%s: onInit...", mName.c_str());
         // setup external context
         if (!options.isNIL()) {
             CHECK_TRUE(options->contains(kKeyFrameRequestEvent));
@@ -291,7 +299,8 @@ struct RenderSession : public IMediaSession {
             sp<MediaFrame>& last = mOutputQueue.back();
             MediaTime length = last->timecode - first->timecode;
             if (length.useconds() >= MAX_LENGTH) {
-                DEBUG("%s: output queue is full", mName.c_str());
+                DEBUG("%s: output queue is full, length = %zu",
+                      mName.c_str(), mOutputQueue.size());
                 return;
             }
         }
@@ -363,7 +372,14 @@ struct RenderSession : public IMediaSession {
                         mName.c_str(), frame->timecode.seconds(),
                         mLastFrameTime.seconds());
             }
-            mOutputQueue.push(frame);
+            
+            // handle outdated frames
+            if (frame->timecode.useconds() < mClock->get()) {
+                ERROR("%s: underrun, drop frame, %.3f(s) vs %.3f(s), queue length %zu",
+                      mName.c_str(), frame->timecode.seconds(), mClock->get() / 1E6, mOutputQueue.size());
+            } else {
+                mOutputQueue.push(frame);
+            }
         }
 
         // request more frames
@@ -403,80 +419,91 @@ struct RenderSession : public IMediaSession {
             return;
         }
         
-        int64_t next = REFRESH_RATE;
+        int64_t next = DEFAULT_REFRESH_RATE;
         if (!mInputEOS && mOutputQueue.empty()) {
             WARN("%s: underrun happens ...", mName.c_str());
         } else {
             next = render();
-            CHECK_GE(next, 0);
+            if (next < 0) {
+                // render() return error, stop render
+                return;
+            }
         }
         
         mDispatch->dispatch(mRenderJob, next);
-        requestFrame(kMediaTimeInvalid);
         // -> onRender
     }
     
-    FORCE_INLINE void writeFrame(const sp<MediaFrame>& input) {
+    FORCE_INLINE MediaError writeFrame(const sp<MediaFrame>& input) {
         sp<MediaFrame> frame = input;
         if (!input.isNIL() && !mAudioConverter.isNIL()) {
             frame = mAudioConverter->convert(input);
         }
         
-        if (mOut != NULL) CHECK_TRUE(mOut->write(frame) == kMediaNoError);
-        else mMediaFrameEvent->fire(frame);
+        if (mOut != NULL) {
+            return mOut->write(frame);
+        } else {
+            mMediaFrameEvent->fire(frame);
+            return kMediaNoError;
+        }
     }
 
     // render current frame
-    // return next frame render time
+    // return next frame render time on success, or return -1
+    // DO NOT DROP FRAMES HERE, DROP onFrameReady
     FORCE_INLINE int64_t render() {
         DEBUG("%s: render with %zu frame ready", mName.c_str(), mOutputQueue.size());
 
         sp<MediaFrame> frame = mOutputQueue.front();
         CHECK_TRUE(frame != NULL);
-
-        // render immediately until clock updated
-        // render immediately for audio
-        if (mClockUpdated && mType != kCodecTypeAudio) {
-            int64_t early = frame->timecode.useconds() - mClock->get();
+        
+        const int64_t currentMediaTime = mClock->get();
+        // only master clock can skip this one time
+        if (mClock->role() == kClockRoleSlave || mClockUpdated) {
+            int64_t early = frame->timecode.useconds() - currentMediaTime - mLatency;
             
-            if (early > REFRESH_RATE) {  // 5ms
-                DEBUG("%s: overrun by %.3f(s)|%.3f(s)...", mName.c_str(),
-                      early/1E6, frame->timecode.seconds());
+            if (early > JITTER_TIME) {
+                INFO("%s: overrun by %.3f(s), %.3f(s) vs %.3f(s)...", mName.c_str(),
+                      early/1E6, frame->timecode.seconds(), currentMediaTime / 1E6);
                 return early;
-            } else if (-early > REFRESH_RATE) {
-                WARN("%s: render late by %.3f(s)|%.3f(s), drop frame...", mName.c_str(),
-                     -early/1E6, frame->timecode.seconds());
-                mOutputQueue.pop();
-                return 0;
+            } else if (early < -JITTER_TIME) {
+                WARN("%s: underrun by %.3f(s), %.3f(s) vs %.3f(s)...", mName.c_str(),
+                      -early/1E6, frame->timecode.seconds(), currentMediaTime / 1E6);
+                // only warn here, DO NOT drop frames, onFrameReady will handle outdated frames
             }
         }
 
-        DEBUG("%s: render frame %.3f(s)", mName.c_str(), frame->timecode.seconds());
-        writeFrame(frame);
+        DEBUG("%s: render frame %.3f(s) @ %.3f(s)",
+              mName.c_str(), frame->timecode.seconds(), currentMediaTime / 1E6);
+        
+        MediaError st = writeFrame(frame);
+        if (st != kMediaNoError) {
+            ERROR("%s: play frame return error %#x", mName.c_str(), st);
+            notify(kSessionInfoError, NULL);
+            return -1;
+        }
+    
         mOutputQueue.pop();
         ++mFramesRenderred;
-
-        // setup clock to tick if we are master clock
-        // FIXME: if current frame is too big, update clock after write will cause clock advance too far
-        if (!mClockUpdated && mClock->role() == kClockRoleMaster) {
+        
+        // request a new frame
+        requestFrame(kMediaTimeInvalid);
+        
+        // update clock
+        if (mClock->role() == kClockRoleMaster && !mClockUpdated) {
             mClock->update(frame->timecode.useconds() - mLatency);
-            INFO("%s: update clock %.3f(s) (%.3f)", mName.c_str(),
-                 frame->timecode.seconds(), mClock->get() / 1E6);
+            INFO("%s: update clock %.3f(s) - %.3f(s), latency %.3f(s)", mName.c_str(),
+                 frame->timecode.seconds(), mClock->get() / 1E6, mLatency / 1E6);
             mClockUpdated = true;
         }
-
-        // next frame render time.
-        if (mType == kCodecTypeAudio) {
-            return 0;
-        } else if (mOutputQueue.size()) {
-            sp<MediaFrame> next = mOutputQueue.front();
-            int64_t delay = next->timecode.useconds() - mClock->get();
-            if (delay < 0)  return 0;
-            else            return delay;
-        }
         
-        DEBUG("refresh rate");
-        return REFRESH_RATE;
+        // render next frame n usecs later.
+        int64_t next = DEFAULT_REFRESH_RATE;
+        if (mOutputQueue.size()) {
+            next = mOutputQueue.front()->timecode.useconds() - mClock->get();
+            if (next < 0) next = 0;
+        }
+        return next;
     }
 
     // using clock to control render session, start|pause|...
@@ -519,6 +546,7 @@ struct RenderSession : public IMediaSession {
         }
 
         mClockUpdated = false;
+        mClock->start();
         onRender();
     }
 
@@ -531,6 +559,8 @@ struct RenderSession : public IMediaSession {
             options->setInt32(kKeyPause, 1);
             mOut->configure(options);
         }
+        INFO("%s: paused @ %.3f(s)", mName.c_str(), mClock->get() / 1E6);
+        mClock->pause();
     }
     
     void onPrepareRenderer() {

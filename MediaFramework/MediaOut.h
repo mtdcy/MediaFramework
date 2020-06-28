@@ -39,6 +39,12 @@
 
 __BEGIN_DECLS
 
+// key - kKeyMode
+enum {
+    kModeBlock      = FOURCC('!blk'),
+    kModeNonBlock   = FOURCC('~blk'),
+};
+
 __END_DECLS
 
 #ifdef __cplusplus
@@ -67,9 +73,8 @@ struct API_EXPORT MediaOut : public SharedObject {
      * push a MediaFrame to this output device.
      * @param input     reference of MediaFrame
      * @return return kMediaNoError on success
-     * @note push a NULL packet to notify codec of eos
-     * @note write in block way, always return kMediaNoError if no error happens.
-     * @note write in non-block way, return kMediaErrorResourceBusy if device is busy
+     * @note push a NULL frame to notify codec of eos
+     * @note push maybe in block or non-block way, block by default
      */
     virtual MediaError      write(const sp<MediaFrame>& input) = 0;
     /**

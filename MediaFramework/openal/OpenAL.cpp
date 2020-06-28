@@ -41,8 +41,6 @@
 #include "MediaTypes.h"
 #include "MediaOut.h"
 
-//#define BLOCKING_PLAYBACK
-
 #ifdef __APPLE__
 #include <OpenAL/OpenAL.h>
 #define MAC_OPENAL_EXT  // TODO
@@ -67,8 +65,6 @@ __BEGIN_NAMESPACE_MPX
 /**
  * OpenAL only takes s16 stereo interleaved pcm samples
  */
-#define NB_BUFFERS  (4)
-
 struct OpenALContext : public SharedObject {
     AudioFormat     mAudioFormat;
     ALCdevice *     mDevice;
@@ -101,7 +97,7 @@ static sp<OpenALContext> initOpenALContext(const AudioFormat& audio) {
     // device enumeration
     if (alcIsExtensionPresent(openAL->mDevice, "ALC_ENUMERATION_EXT") == AL_TRUE) {
         const ALCchar * devices = alcGetString(openAL->mDevice, ALC_DEVICE_SPECIFIER);
-        const ALCchar *device = devices, *next = devices + 1;
+        const ALCchar * device = devices, *next = devices + 1;
         size_t len = 0;
 
         INFO("Devices list:");
@@ -126,6 +122,15 @@ static sp<OpenALContext> initOpenALContext(const AudioFormat& audio) {
     }
     
     flushOpenAL(openAL);
+    
+    // FIXME:
+    // alcProcessContext is asynchronous, it takes some time to complete
+    // the operation internally. If we start playing immediately after
+    // init, playback will not start immediately, and will cause the buffer
+    // queue to become larger.
+    // In short, the client does not know when playback will start.
+    alcProcessContext(openAL->mContext);
+    CHECK_AL_ERROR();
     
     return openAL;
 }
@@ -155,28 +160,27 @@ static MediaError flushOpenAL(sp<OpenALContext>& openAL) {
 }
 
 static void deinitOpenAL(sp<OpenALContext>& openAL) {
+    alcSuspendContext(openAL->mContext);
+    CHECK_AL_ERROR();
+    
+    ALint queued;
     ALint processed;
+    alGetSourcei(openAL->mSource, AL_BUFFERS_QUEUED, &queued);
     alGetSourcei(openAL->mSource, AL_BUFFERS_PROCESSED, &processed);
     CHECK_AL_ERROR();
-    if (processed > 0) {
-        ALuint buffer[NB_BUFFERS];
-        alSourceUnqueueBuffers(openAL->mSource, processed, &buffer[0]);
-        INFO("delete %zu buffers", (size_t)processed);
-        alDeleteBuffers(processed, &buffer[0]);
+    if (queued != processed) {
+        ERROR("deinit: %zu buffers queued but only %zu buffers processed", queued, processed);
+    }
+    INFO("delete %zu buffers", (size_t)processed);
+    while (processed-- > 0) {
+        ALuint buffer;
+        alSourceUnqueueBuffers(openAL->mSource, 1, &buffer);
+        alDeleteBuffers(processed, &buffer);
     }
     alDeleteSources((ALsizei)1, &openAL->mSource);
     alcMakeContextCurrent(NULL);
     alcDestroyContext(openAL->mContext);
     alcCloseDevice(openAL->mDevice);
-}
-
-static FORCE_INLINE int64_t GetDuration(const sp<MediaFrame>& frame) {
-    if (frame->duration != kMediaTimeInvalid)
-        return frame->duration.useconds();
-    else {
-        CHECK_GT(frame->a.samples, 0);
-        return (1000000LL * frame->a.samples) / frame->a.freq;
-    }
 }
 
 static MediaError playFrame(const sp<OpenALContext>& openAL, const sp<MediaFrame>& frame) {
@@ -188,7 +192,7 @@ static MediaError playFrame(const sp<OpenALContext>& openAL, const sp<MediaFrame
     if (frame.isNIL()) {
         DEBUG("eos");
         while (state == AL_PLAYING) {
-            DEBUG("wait for al stopping, state %d", state);
+            DEBUG("wait for al stopping, state %#x", state);
             // FIXME: find a better way to do this
             SleepTimeMs(100);
             alGetSourcei(openAL->mSource, AL_SOURCE_STATE, &state);
@@ -203,56 +207,49 @@ static MediaError playFrame(const sp<OpenALContext>& openAL, const sp<MediaFrame
         alFormat = frame->a.channels == 2 ? AL_FORMAT_STEREO8 : AL_FORMAT_MONO8;
     }
     
-    for (;;) {
-        ALint queued, processed;
-        alGetSourcei(openAL->mSource, AL_BUFFERS_QUEUED, &queued);
-        CHECK_AL_ERROR();
-        alGetSourcei(openAL->mSource, AL_BUFFERS_PROCESSED, &processed);
-        CHECK_AL_ERROR();
-        DEBUG("queued %d, processed %d, state %#x", queued, processed, state);
-        
-        if (processed == 0 && queued >= NB_BUFFERS) {
-            DEBUG("no buffer available");
-#ifdef BLOCKING_PLAYBACK
-            SleepTimeUs(GetDuration(frame));
-#else
-            return kMediaErrorResourceBusy;
-#endif
-        } else {
-            ALuint buffer;
-            if (ABE_UNLIKELY(queued < NB_BUFFERS)) {
-                alGenBuffers(1, &buffer);
-            } else {
-                CHECK_GT(processed, 0);
-                alSourceUnqueueBuffers(openAL->mSource, 1, &buffer);
-            }
-            CHECK_AL_ERROR();
-            alBufferData(buffer,
-                         alFormat,
-                         (const ALvoid *)frame->planes[0].data,
-                         (ALsizei)frame->planes[0].size,
-                         (ALsizei)frame->a.freq);
-            CHECK_AL_ERROR();
-            
-            alSourceQueueBuffers(openAL->mSource, 1, &buffer);
-            CHECK_AL_ERROR();
-            break;
-        }
-    }
+    ALint queued, processed;
+    alGetSourcei(openAL->mSource, AL_BUFFERS_QUEUED, &queued);
+    CHECK_AL_ERROR();
+    alGetSourcei(openAL->mSource, AL_BUFFERS_PROCESSED, &processed);
+    CHECK_AL_ERROR();
+    DEBUG("queued %d, processed %d, state %#x", queued, processed, state);
     
+    // underrun happens?
+    if (queued && queued == processed) {
+        WARN("underrun..., queued buffers %d vs processed buffers %d",
+             queued, processed);
+    }
+
+    ALuint buffer;
+    if (ABE_LIKELY(processed > 0)) {
+        if (ABE_UNLIKELY(processed > 1)) {
+            ALuint buffers[processed - 1];
+            alSourceUnqueueBuffers(openAL->mSource, processed - 1, &buffers[0]);
+            alDeleteBuffers(processed - 1, &buffers[0]);
+            CHECK_AL_ERROR();
+        }
+        alSourceUnqueueBuffers(openAL->mSource, 1, &buffer);
+    } else {
+        alGenBuffers(1, &buffer);
+    }
+    CHECK_AL_ERROR();
+    alBufferData(buffer,
+                 alFormat,
+                 (const ALvoid *)frame->planes[0].data,
+                 (ALsizei)frame->planes[0].size,
+                 (ALsizei)frame->a.freq);
+    CHECK_AL_ERROR();
+    
+    alSourceQueueBuffers(openAL->mSource, 1, &buffer);
+    CHECK_AL_ERROR();
+    
+    // the first frame or after underrun happens
     if (state != AL_PLAYING) {
         INFO("start open al source");
         alSourcePlay(openAL->mSource);
+        CHECK_AL_ERROR();
     }
     
-#if 0
-    const int64_t elapsed = SystemTimeUs() - now;
-    // give 1ms jitter time
-    if (elapsed > frame->duration.useconds() + 1000LL) {
-        WARN("write frame takes %.3f(s) > frame duration %.3f(s)",
-             elapsed / 1E6, frame->duration.seconds());
-    }
-#endif
     return kMediaNoError;
 }
 
@@ -283,6 +280,8 @@ struct OpenALOut : public MediaOut {
         format->setInt32(kKeyFormat, mOpenAL->mAudioFormat.format);
         format->setInt32(kKeyChannels, mOpenAL->mAudioFormat.channels);
         format->setInt32(kKeySampleRate, mOpenAL->mAudioFormat.freq);
+        format->setInt32(kKeyMode, kModeNonBlock);
+        format->setInt32(kKeyLatency, 0);   // FIXME
         return format;
     }
     
