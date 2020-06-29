@@ -224,46 +224,27 @@ template <typename FROM, typename TO> struct resample1<FROM, TO, double> {
 // 1. https://trac.ffmpeg.org/wiki/AudioChannelManipulation#a5.1stereo
 // 2.
 template <typename TYPE>
-static FORCE_INLINE void downmix(const sp<MediaFrame>& frame) {
-    CHECK_GT(frame->a.channels, 2);
-    TYPE * planes[MEDIA_FRAME_NB_PLANES] = {
-        (TYPE *)frame->planes[0].data,   // FL
-        (TYPE *)frame->planes[1].data,   // FR
-        (TYPE *)frame->planes[2].data,   // C
-        (TYPE *)frame->planes[3].data,   // LFE
-        (TYPE *)frame->planes[4].data,   // BL
-        (TYPE *)frame->planes[5].data,   // BR
-        (TYPE *)frame->planes[6].data,
-        (TYPE *)frame->planes[7].data
-    };
+static FORCE_INLINE void downmix(sp<MediaFrame>& frame) {
+    CHECK_GT(frame->audio.channels, 2);
+    MediaBuffer* planes = frame->planes.buffers;
     
-    if (frame->a.channels >= 6) {
-        for (size_t i = 0; i < frame->a.samples; ++i) {
-            planes[0][i] += 0.707 * planes[2][i] + 0.707 + planes[4][i] + planes[3][i];
-            planes[1][i] += 0.707 * planes[2][i] + 0.707 + planes[5][i] + planes[3][i];
+    if (frame->audio.channels >= 6) {
+        for (size_t i = 0; i < frame->audio.samples; ++i) {
+            planes[0].data[i] += 0.707 * planes[2].data[i] + 0.707 + planes[4].data[i] + planes[3].data[i];
+            planes[1].data[i] += 0.707 * planes[2].data[i] + 0.707 + planes[5].data[i] + planes[3].data[i];
         }
     } else {
         FATAL("FIXME");
     }
 }
 
-// is frame using a single continued buffer ?
-static FORCE_INLINE bool IsSingleBuffer(const sp<MediaFrame>& frame) {
-    uint8_t * ptr = frame->planes[0].data;
-    for (size_t i = 0; i < MEDIA_FRAME_NB_PLANES; ++i) {
-        if (frame->planes[i].data == NULL) break;
-        if (ptr != frame->planes[i].data) return false;
-        ptr += frame->planes[i].size;
-    }
-    return true;
-}
-
+#define NB_CHANNELS     (8)
 // default resampler: linear interpolation
 template <typename FROM, typename TO, typename COEFFS_TYPE>
 struct AudioResamplerLinear : public AudioConverter {
     AudioFormat     mInput;
     AudioFormat     mOutput;
-    State<TO, COEFFS_TYPE>     mStates[MEDIA_FRAME_NB_PLANES];
+    State<TO, COEFFS_TYPE>     mStates[NB_CHANNELS];
 
     AudioResamplerLinear(const AudioFormat& input, const AudioFormat& output) :
         AudioConverter(), mInput(input), mOutput(output) {
@@ -272,25 +253,25 @@ struct AudioResamplerLinear : public AudioConverter {
 
     virtual void reset() {
         State<TO, COEFFS_TYPE> state((COEFFS_TYPE)mInput.freq / mOutput.freq);
-        for (size_t i = 0; i < MEDIA_FRAME_NB_PLANES; ++i) {
+        for (size_t i = 0; i < NB_CHANNELS; ++i) {
             mStates[i] = state;
         }
     }
 
     virtual sp<MediaFrame> convert(const sp<MediaFrame>& input) {
-        size_t nb_samples = (input->a.samples * mOutput.freq) / mInput.freq + 1;
+        size_t nb_samples = (input->audio.samples * mOutput.freq) / mInput.freq + 1;
         AudioFormat format = mOutput;
         format.samples = nb_samples;    // this is wrong
         // TODO: do in place convert
 
         sp<MediaFrame> output = MediaFrame::Create(format);
 
-        for (size_t i = 0; i < input->a.channels; ++i) {
-            output->a.samples = resample1<FROM, TO, COEFFS_TYPE>()(mStates[i],
-                    (const FROM *)input->planes[i].data,
-                    input->a.samples,
-                    (TO *)output->planes[i].data);
-            output->planes[i].size = sizeof(TO) * output->a.samples;
+        for (size_t i = 0; i < input->audio.channels; ++i) {
+            output->audio.samples = resample1<FROM, TO, COEFFS_TYPE>()(mStates[i],
+                                                                       (const FROM *)input->planes.buffers[i].data,
+                    input->audio.samples,
+                                                                       (TO *)output->planes.buffers[i].data);
+            output->planes.buffers[i].size = sizeof(TO) * output->audio.samples;
         }
 
         return output;
@@ -309,44 +290,44 @@ struct AudioSampleConverter : public AudioConverter {
     virtual sp<MediaFrame> convert(const sp<MediaFrame>& input) {
         sp<MediaFrame> output = input;
         if (sizeof(TO) > sizeof(FROM) || mInterleave) {
-            mOutput.samples     = input->a.samples;
+            mOutput.samples     = input->audio.samples;
             output              = MediaFrame::Create(mOutput);
-            output->a           = mOutput;
+            output->audio       = mOutput;
             output->timecode    = input->timecode;
             output->duration    = input->duration;
         } else {
-            output->a           = mOutput;
+            output->audio       = mOutput;
         }
         // ELSE, do in place convert
         
         // the MediaFrame::Create always using a single buffer
         
         if (mInterleave) {
-            TO * orig = (TO*)output->planes[0].data;
-            const size_t samples = input->planes[0].size / sizeof(FROM);
-            for (size_t i = 0; i < output->a.channels; ++i) {
-                if (input->planes[i].data == NULL) break;
-                FROM * src = (FROM*)input->planes[i].data;
+            TO * orig = (TO*)output->planes.buffers[0].data;
+            const size_t samples = input->planes.buffers[0].size / sizeof(FROM);
+            for (size_t i = 0; i < output->audio.channels; ++i) {
+                if (input->planes.buffers[i].data == NULL) break;
+                FROM * src = (FROM*)input->planes.buffers[i].data;
                 TO * dest = orig + i;
                 for (size_t j = 0; j < samples; ++j) {
                     *dest = expr<FROM, TO>(*src++);
-                    dest += output->a.channels;
+                    dest += output->audio.channels;
                 }
             }
-            output->planes[0].size = sizeof(TO) * samples * output->a.channels;
-            output->planes[1].data = NULL;
+            output->planes.buffers[0].size = sizeof(TO) * samples * output->audio.channels;
+            output->planes.buffers[1].data = NULL;
         } else {
-            for (size_t i = 0; i < output->a.channels; ++i) {
-                if (input->planes[i].data == NULL) break;
-                FROM * src = (FROM*)input->planes[i].data;
-                TO * dest = (TO*)output->planes[i].data;
-                const size_t samples = input->planes[i].size / sizeof(FROM);
+            for (size_t i = 0; i < output->audio.channels; ++i) {
+                if (input->planes.buffers[i].data == NULL) break;
+                FROM * src = (FROM*)input->planes.buffers[i].data;
+                TO * dest = (TO*)output->planes.buffers[i].data;
+                const size_t samples = input->planes.buffers[i].size / sizeof(FROM);
                 for (size_t j = 0; j < samples; ++j) {
                     *dest++ = expr<FROM, TO>(*src++);
                 }
-                output->planes[i].size = samples * sizeof(TO);
+                output->planes.buffers[i].size = samples * sizeof(TO);
             }
-            output->planes[output->a.channels].data = NULL;
+            output->planes.buffers[output->audio.channels].data = NULL;
         }
             
         return output;
@@ -365,12 +346,7 @@ struct AudioInterleave : public AudioConverter {
     
     virtual sp<MediaFrame> convert(const sp<MediaFrame>& input) {
         sp<MediaFrame> output = input;
-        if (!IsSingleBuffer(input)) {
-            FATAL("TODO: create buffer for packed samples");
-        }
-        // ELSE do in place convert
         
-        // TODO
     }
 };
 
@@ -379,7 +355,7 @@ sp<AudioConverter> AudioConverter::Create(const AudioFormat& in,
         const sp<Message>& options) {
     INFO("create AudioConverter %s >> %s", GetAudioFormatString(in).c_str(), GetAudioFormatString(out).c_str());
     
-    bool packed = IsSampleFormatPacked(out.format);
+    bool packed = IsPackedSampleFormat(out.format);
     // convert without resampler
     if (in.freq == out.freq) {
         switch (out.format) {

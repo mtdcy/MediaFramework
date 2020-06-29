@@ -51,12 +51,12 @@ typedef MediaEvent<size_t> TrackSelectEvent;
  * For pushing packets to target. when a packet is ready,
  * fire this event, and target will get the packet.
  */
-typedef MediaEvent<sp<MediaPacket> > PacketReadyEvent;
+typedef MediaEvent<sp<MediaFrame> > PacketReadyEvent;   // TODO: using FrameReadyEvent
 
 /**
  * For pull packets from packet source.
  */
-typedef MediaEvent2<sp<PacketReadyEvent>, MediaTime> PacketRequestEvent;
+typedef MediaEvent2<sp<PacketReadyEvent>, MediaTime> PacketRequestEvent;    // TODO: using PacketRequestEvent
 
 /**
  * For pushing frames to target. when a frame is ready,

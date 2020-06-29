@@ -64,63 +64,6 @@ struct TrackContext : public SharedObject {
     }
 };
 
-struct MediaFrameTunnel : public MediaFrame {
-    sp<MediaPacket>     mPacket;
-    
-    MediaFrameTunnel(const sp<TrackContext>& track, const sp<MediaPacket>& packet) {
-        for (size_t i = 0; i < MEDIA_FRAME_NB_PLANES; ++i) {
-            planes[i].data = NULL;
-            planes[i].size = 0;
-        }
-        planes[0].data  = packet->data;
-        planes[0].size  = packet->size;
-        timecode        = packet->dts;
-        duration        = packet->duration;
-        
-        if (track->mType == kCodecTypeAudio) {
-            a           = track->mAudioFormat;
-            a.samples   = packet->size / (a.channels * GetSampleFormatBytes(a.format));
-        } else if (track->mType == kCodecTypeVideo) {
-            v           = track->mVideoFormat;
-        }
-        mPacket         = packet;
-    }
-};
-
-struct PacketReadyTunnel : public PacketReadyEvent {
-    sp<TrackContext>    mTrack;
-    sp<FrameReadyEvent> mFrameReadyEvent;
-    
-    PacketReadyTunnel(const sp<TrackContext>& track, const sp<FrameReadyEvent>& event) :
-    PacketReadyEvent(Looper::Current()),
-    mTrack(track),
-    mFrameReadyEvent(event) { }
-    
-    virtual void onEvent(const sp<MediaPacket>& packet) {
-        // EOS
-        if (packet.isNIL()) {
-            mFrameReadyEvent->fire(NULL);
-            return;
-        }
-        
-        sp<MediaFrameTunnel> frame = new MediaFrameTunnel(mTrack, packet);
-        mFrameReadyEvent->fire(frame);
-    }
-};
-
-struct FrameRequestTunnel : public FrameRequestEvent {
-    sp<TrackContext>    mTrack;
-    
-    FrameRequestTunnel(const sp<TrackContext>& track) :
-    FrameRequestEvent(Looper::Current()),
-    mTrack(track) { }
-    
-    virtual void onEvent(const sp<FrameReadyEvent>& request, const MediaTime& time) {
-        sp<PacketReadyEvent> event = new PacketReadyTunnel(mTrack, request);
-        mTrack->mPacketRequestEvent->fire(event, time);
-    }
-};
-
 struct Tiger : public IMediaPlayer {
     // external static context
     sp<PlayerInfoEvent>     mInfoEvent;
@@ -243,6 +186,7 @@ struct Tiger : public IMediaPlayer {
 
             sp<SessionInfoEvent> infoEvent = new OnDecoderInfo(this, mTrackID);
             if (codec == kAudioCodecPCM) {
+#if 0 // FIXME
                 track->mPacketRequestEvent  = pre;
                 int32_t bits = trackFormat->findInt32(kKeySampleBits, 16);
                 switch (bits) {
@@ -261,6 +205,7 @@ struct Tiger : public IMediaPlayer {
                 sampleFormat->setObject(kKeyFrameRequestEvent, new FrameRequestTunnel(track));
                 
                 infoEvent->fire(kSessionInfoReady, sampleFormat);
+#endif
                 // > onInitRenderer
             } else {
                 sp<Message> options = new Message;

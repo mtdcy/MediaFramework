@@ -357,7 +357,7 @@ static MediaError seekTrack(sp<Mp4Track>& track,
     const Vector<Sample>& tbl = track->sampleTable;
     // dts&pts in tbl using duration's timescale
     MediaTime ts = _ts;
-    ts.scale(track->duration.timescale);
+    ts.rescale(track->duration.scale);
 
     size_t first = 0;
     size_t second = tbl.size() - 1;
@@ -599,7 +599,7 @@ struct Mp4File : public MediaFile {
         return status;
     }
 
-    virtual sp<MediaPacket> read(const eReadMode& mode,
+    virtual sp<MediaFrame> read(const eReadMode& mode,
             const MediaTime& ts = kMediaTimeInvalid) {
 
         if (ts != kMediaTimeInvalid) {
@@ -695,18 +695,14 @@ struct Mp4File : public MediaFile {
                 }
             }
             
-            // init MediaPacket context
-            sp<MediaPacket> packet  = MediaPacket::Create(sample);
-            packet->index           = trackIndex;
-            packet->type            = flags;
-            if (s.pts < 0)
-                packet->pts =       kMediaTimeInvalid;
-            else
-                packet->pts =       MediaTime(s.pts, track->duration.timescale);
-            packet->dts     =       MediaTime(s.dts, track->duration.timescale);
+            // init MediaFrame context
+            sp<MediaFrame> packet   = MediaFrame::Create(sample);
+            packet->id              = trackIndex;
+            packet->flags           = flags;
+            packet->timecode        = MediaTime(s.dts, track->duration.scale);
 
             if (ts != kMediaTimeInvalid) {
-                INFO("track %zu: read @ %.3fs", trackIndex, packet->dts.seconds());
+                INFO("track %zu: read @ %.3fs", trackIndex, packet->timecode.seconds());
             }
             return packet;
         }

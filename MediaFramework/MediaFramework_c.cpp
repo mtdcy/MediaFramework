@@ -48,34 +48,36 @@ MediaFrameRef AudioFrameCreate(const AudioFormat * audio) {
 }
 
 MediaFrameRef ImageFrameCreate(const ImageFormat * image) {
-    // TODO
+    sp<MediaFrame> frame = MediaFrame::Create(*image);
+    return frame->RetainObject();
 }
 
-MediaFrameRef ImageFrameGenerate(const ImageFormat * image, BufferObjectRef buffer) {
+MediaFrameRef ImageFrameGenerate(const ImageFormat * image, BufferObjectRef ref) {
+    sp<Buffer> buffer = ref;
     sp<MediaFrame> frame = MediaFrame::Create(*image, buffer);
     return frame->RetainObject();
 }
 
 uint8_t * MediaFrameGetPlaneData(MediaFrameRef ref, size_t index) {
     sp<MediaFrame> frame = ref;
-    CHECK_LT(index, MEDIA_FRAME_NB_PLANES);
-    return frame->planes[index].data;
+    CHECK_LT(index, frame->planes.count);
+    return frame->planes.buffers[index].data;
 }
 
 size_t MediaFrameGetPlaneSize(MediaFrameRef ref, size_t index) {
     sp<MediaFrame> frame = ref;
-    CHECK_LT(index, MEDIA_FRAME_NB_PLANES);
-    return frame->planes[index].size;
+    CHECK_LT(index, frame->planes.count);
+    return frame->planes.buffers[index].size;
 }
 
 AudioFormat * MediaFrameGetAudioFormat(MediaFrameRef ref) {
     sp<MediaFrame> frame = ref;
-    return &frame->a;
+    return &frame->audio;
 }
 
 ImageFormat * MediaFrameGetImageFormat(MediaFrameRef ref) {
     sp<MediaFrame> frame = ref;
-    return &frame->v;
+    return &frame->video;
 }
 
 void * MediaFrameGetOpaque(MediaFrameRef ref) {
@@ -95,12 +97,12 @@ MediaError ImageFrameReversePixel(MediaFrameRef ref) {
 
 MediaError ImageFramePlanarization(MediaFrameRef ref) {
     sp<MediaFrame> frame = ref;
-    return frame->planarization();
+    //return frame->planarization(); FIXME
 }
 
 MediaError ImageFrameToRGB(MediaFrameRef ref) {
     sp<MediaFrame> frame = ref;
-    return frame->yuv2rgb();
+    //return frame->yuv2rgb(); FIXME
 }
 
 struct UserFrameEvent : public MediaFrameEvent {

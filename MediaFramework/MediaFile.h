@@ -104,14 +104,14 @@ struct API_EXPORT MediaFile : public SharedObject {
      * @note the file may have to avoid seek too much, as we
      *       are read each track seperately
      */
-    virtual sp<MediaPacket> read(const eReadMode& mode = kReadModeDefault,
+    virtual sp<MediaFrame> read(const eReadMode& mode = kReadModeDefault,
             const MediaTime& ts = kMediaTimeInvalid) = 0;
 
     /**
      * write packets to file object
      * @param
      */
-    virtual MediaError  write(const sp<MediaPacket>& packet) { return kMediaErrorInvalidOperation; }
+    virtual MediaError  write(const sp<MediaFrame>& packet) { return kMediaErrorInvalidOperation; }
 };
 __END_NAMESPACE_MPX
 #endif

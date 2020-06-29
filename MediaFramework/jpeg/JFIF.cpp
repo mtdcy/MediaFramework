@@ -308,7 +308,7 @@ struct JPEG_JFIF : public ImageFile {
         
     }
     
-    virtual sp<MediaPacket> read() {
+    virtual sp<MediaFrame> read() {
         
     }
     
@@ -316,7 +316,7 @@ struct JPEG_JFIF : public ImageFile {
         
     }
     
-    virtual MediaError write(const sp<MediaPacket>&) {
+    virtual MediaError write(const sp<MediaFrame>&) {
         
     }
     

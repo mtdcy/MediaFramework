@@ -264,21 +264,20 @@ static sp<AVFormatObject> openInput(const sp<ABuffer>& buffer, bool find_stream_
 }
 
 // TODO: we perfer packet in dts order, reorder if out of order
-struct AVMediaPacket : public MediaPacket {
+struct AVMediaFrame : public MediaFrame {
     AVPacket *  pkt;
     
-    AVMediaPacket(sp<AVStreamObject>& st, AVPacket * ref) :
-    MediaPacket(ref->data, ref->size) {
+    AVMediaFrame(sp<AVStreamObject>& st, AVPacket * ref) : MediaFrame() {
         pkt = av_packet_alloc();
         av_packet_ref(pkt, ref);
         CHECK_EQ(st->stream->index, pkt->stream_index);
         
-        size    = pkt->size;
-        index   = pkt->stream_index;
-        type    = kFrameTypeUnknown;
-        if (pkt->flags & AV_PKT_FLAG_KEY)           type |= kFrameTypeSync;
-        if (pkt->flags & AV_PKT_FLAG_DISCARD)       type |= kFrameTypeReference;
-        if (pkt->flags & AV_PKT_FLAG_DISPOSABLE)    type |= kFrameTypeDisposal;
+        id                      = pkt->stream_index;
+        flags                   = kFrameTypeUnknown;
+        planes.buffers[0].size  = pkt->size;
+        if (pkt->flags & AV_PKT_FLAG_KEY)           flags |= kFrameTypeSync;
+        if (pkt->flags & AV_PKT_FLAG_DISCARD)       flags |= kFrameTypeReference;
+        if (pkt->flags & AV_PKT_FLAG_DISPOSABLE)    flags |= kFrameTypeDisposal;
         
         if (st->calc_dts) {
             if (pkt->duration == 0) {
@@ -286,20 +285,14 @@ struct AVMediaPacket : public MediaPacket {
             }
             
             st->last_dts += MediaTime(pkt->duration * st->stream->time_base.num, st->stream->time_base.den);
-            dts = st->last_dts;
+            timecode = st->last_dts;
         } else {
             if (pkt->dts == AV_NOPTS_VALUE) {
                 ERROR("stream %d: missing dts", st->stream->index);
-                dts = MediaTime(pkt->pts * st->stream->time_base.num, st->stream->time_base.den);
+                timecode = MediaTime(pkt->pts * st->stream->time_base.num, st->stream->time_base.den);
             } else {
-                dts = MediaTime(pkt->dts * st->stream->time_base.num, st->stream->time_base.den);
+                timecode = MediaTime(pkt->dts * st->stream->time_base.num, st->stream->time_base.den);
             }
-        }
-        
-        if (pkt->pts == AV_NOPTS_VALUE) {
-            pts = dts;
-        } else {
-            pts = MediaTime(pkt->pts * st->stream->time_base.num, st->stream->time_base.den);
         }
         
         if (pkt->duration > 0) {
@@ -312,7 +305,7 @@ struct AVMediaPacket : public MediaPacket {
         opaque  = pkt;
     }
     
-    virtual ~AVMediaPacket() {
+    virtual ~AVMediaFrame() {
         av_packet_free(&pkt);
     }
 };
@@ -447,7 +440,7 @@ struct AVFormat : public MediaFile {
         return status;
     }
     
-    virtual sp<MediaPacket> read(const eReadMode& mode, const MediaTime& ts) {
+    virtual sp<MediaFrame> read(const eReadMode& mode, const MediaTime& ts) {
         if (ts != kMediaTimeInvalid) {
             INFO("seek to %.3f(s)", ts.seconds());
             avformat_seek_file(mObject->context, -1,
@@ -476,7 +469,7 @@ struct AVFormat : public MediaFile {
         sp<AVStreamObject> st = mObject->streams[pkt->stream_index];
         if (st->enabled == false) return read(mode, kMediaTimeInvalid);
         
-        sp<MediaPacket> packet = new AVMediaPacket(st, pkt);
+        sp<MediaFrame> packet = new AVMediaFrame(st, pkt);
         av_packet_free(&pkt);
         
         DEBUG("trak %zu: %zu bytes@%p, %.3f(s)", packet->index, packet->size, packet->data, packet->dts.seconds());

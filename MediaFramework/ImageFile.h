@@ -52,11 +52,11 @@ struct API_EXPORT ImageFile : public SharedObject {
     
     virtual sp<Message> formats() const = 0;
     
-    virtual sp<MediaPacket> read() = 0;
+    virtual sp<MediaFrame> read() = 0;
     
     virtual sp<MediaFrame> readImage() = 0;
     
-    virtual MediaError write(const sp<MediaPacket>&) = 0;
+    virtual MediaError write(const sp<MediaFrame>&) = 0;
     
     virtual MediaError writeImage(const sp<MediaFrame>&) = 0;
 };

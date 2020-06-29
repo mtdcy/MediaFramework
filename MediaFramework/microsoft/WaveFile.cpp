@@ -230,7 +230,7 @@ struct WaveFile : public MediaFile {
         mContent->skipBytes(mDataOffset + offset);
     }
 
-    virtual sp<MediaPacket> read(const eReadMode& mode, const MediaTime& ts) {
+    virtual sp<MediaFrame> read(const eReadMode& mode, const MediaTime& ts) {
         if (ts != kMediaTimeInvalid) {
             seek(ts);
         }
@@ -246,13 +246,13 @@ struct WaveFile : public MediaFile {
             return NULL;
         }
 
-        sp<MediaPacket> packet = MediaPacket::Create(data);
+        sp<MediaFrame> packet = MediaFrame::Create(data);
 
-        packet->index       = 0;
-        packet->type        = kFrameTypeSync;
-        packet->pts         = pts;
-        packet->dts         = pts;
-        packet->duration    = (packet->size) / sampleBytes;
+        packet->id          = 0;
+        packet->flags       = kFrameTypeSync;
+        //packet->pts         = pts;
+        packet->timecode    = pts;
+        packet->duration    = (packet->planes.buffers[0].size) / sampleBytes;
 
         return packet;
     }

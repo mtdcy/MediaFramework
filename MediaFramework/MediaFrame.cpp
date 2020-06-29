@@ -85,7 +85,7 @@ size_t GetSampleFormatBytes(eSampleFormat format) {
     return 0;
 }
 
-bool IsSampleFormatPacked(eSampleFormat format) {
+bool IsPackedSampleFormat(eSampleFormat format) {
     switch (format) {
         case kSampleFormatU8Packed:
         case kSampleFormatS16Packed:
@@ -101,18 +101,85 @@ __END_DECLS
 
 __BEGIN_NAMESPACE_MPX
 
-MediaFrame::MediaFrame() : timecode(kMediaTimeInvalid), duration(kMediaTimeInvalid) {
-    for (size_t i = 0; i < MEDIA_FRAME_NB_PLANES; ++i) {
-        planes[i].data = NULL;
-        planes[i].size = 0;
+#define NB_PLANES   (8)
+struct FullPlaneMediaFrame : public MediaFrame {
+    MediaBuffer     extend_planes[NB_PLANES -1];    // placeholder
+    sp<Buffer>      underlyingBuffer;
+    
+    FullPlaneMediaFrame(sp<Buffer>& buffer) : MediaFrame(), underlyingBuffer(buffer) {
+        // pollute only the first plane
+        planes.count                = 1;
+        planes.buffers[0].capacity  = underlyingBuffer->capacity();
+        planes.buffers[0].size      = underlyingBuffer->size();
+        planes.buffers[0].data      = (uint8_t *)underlyingBuffer->data();  // FIXME: unsafe cast
     }
-    format = 0;
-    opaque = NULL;
+};
+
+MediaFrame::MediaFrame() : SharedObject(), id(0),
+timecode(kMediaTimeInvalid), duration(kMediaTimeInvalid),
+format(0), opaque(NULL) {
+    
 }
 
-sp<ABuffer> MediaFrame::readPlane(size_t index) const {
-    if (planes[index].data == NULL) return NULL;
-    return new Buffer((const char *)planes[index].data, planes[index].size);
+sp<MediaFrame> MediaFrame::Create(size_t n) {
+    sp<Buffer> buffer = new Buffer(n);
+    sp<MediaFrame> frame = new FullPlaneMediaFrame(buffer);
+    return frame;
+}
+
+sp<MediaFrame> MediaFrame::Create(sp<Buffer>& buffer) {
+    sp<MediaFrame> frame = new FullPlaneMediaFrame(buffer);
+    return frame;
+}
+
+sp<MediaFrame> MediaFrame::Create(const AudioFormat& audio) {
+    const size_t bytes = GetSampleFormatBytes(audio.format);
+    const size_t total = bytes * audio.channels * audio.samples;
+    sp<Buffer> buffer = new Buffer(total);
+    sp<MediaFrame> frame = new FullPlaneMediaFrame(buffer);
+    
+    if (!IsPackedSampleFormat(audio.format)) {
+        // plannar samples
+        frame->planes.buffers[0].size = bytes * audio.samples;
+        uint8_t * next = frame->planes.buffers[0].data + frame->planes.buffers[0].size;
+        for (size_t i = 1; i < audio.channels; ++i) {
+            frame->planes.buffers[i].size   = frame->planes.buffers[0].size;
+            frame->planes.buffers[i].data   = next;
+            next += frame->planes.buffers[i].size;
+        }
+        frame->planes.count = audio.channels;
+    }
+    
+    frame->audio    = audio;
+    return frame;
+}
+
+sp<MediaFrame> MediaFrame::Create(const ImageFormat& image, sp<Buffer>& buffer) {
+    const PixelDescriptor * desc = GetPixelFormatDescriptor(image.format);
+    CHECK_NULL(desc);
+    const size_t bytes = (image.width * image.height * desc->bpp) / 8;
+    if (buffer->capacity() < bytes) return NULL;
+    
+    sp<MediaFrame> frame = new FullPlaneMediaFrame(buffer);
+    
+    if (desc->planes > 1) {
+        frame->planes.buffers[0].size = (image.width * image.height * desc->plane[0].bpp) /
+        (8 * desc->plane[0].hss * desc->plane[0].vss);
+        uint8_t * next = frame->planes.buffers[0].data + frame->planes.buffers[0].size;
+        for (size_t i = 1; i < desc->planes; ++i) {
+            const size_t bytes = (image.width * image.height * desc->plane[i].bpp) /
+                                 (8 * desc->plane[i].hss * desc->plane[i].vss);
+            frame->planes.buffers[i].data   = next;
+            frame->planes.buffers[i].size   = bytes;
+            next += bytes;
+        }
+        frame->planes.count = desc->planes;
+    }
+    
+    frame->video    = image;
+    
+    DEBUG("create: %s", GetImageFrameString(frame).c_str());
+    return frame;
 }
 
 sp<MediaFrame> MediaFrame::Create(const ImageFormat& image) {
@@ -122,6 +189,12 @@ sp<MediaFrame> MediaFrame::Create(const ImageFormat& image) {
     
     sp<Buffer> buffer = new Buffer(bytes);
     return MediaFrame::Create(image, buffer);
+}
+
+sp<ABuffer> MediaFrame::readPlane(size_t index) const {
+    CHECK_LT(index, planes.count);
+    if (planes.buffers[index].data == NULL) return NULL;
+    return new Buffer((const char *)planes.buffers[index].data, planes.buffers[index].size);
 }
 
 size_t GetImageFormatPlaneLength(const ImageFormat& image, size_t i) {
@@ -135,35 +208,6 @@ size_t GetImageFormatBufferLength(const ImageFormat& image) {
     const PixelDescriptor * desc = GetPixelFormatDescriptor(image.format);
     CHECK_NULL(desc);
     return (image.width * image.height * desc->bpp) / 8;;
-}
-
-sp<MediaFrame> MediaFrame::Create(const ImageFormat& image, const sp<Buffer>& buffer) {
-    const PixelDescriptor * desc = GetPixelFormatDescriptor(image.format);
-    CHECK_NULL(desc);
-    const size_t bytes = (image.width * image.height * desc->bpp) / 8;
-    if (buffer->capacity() < bytes) return NULL;
-    
-    sp<MediaFrame> frame = new MediaFrame;
-    frame->mBuffer = buffer;
-    
-    if (desc->planes > 1) {
-        uint8_t * next = (uint8_t*)frame->mBuffer->data();
-        for (size_t i = 0; i < desc->planes; ++i) {
-            const size_t bytes = (image.width * image.height * desc->plane[i].bpp) /
-                                 (8 * desc->plane[i].hss * desc->plane[i].vss);
-            frame->planes[i].data   = next;
-            frame->planes[i].size   = bytes;
-            next += bytes;
-        }
-    } else {
-        frame->planes[0].data   = (uint8_t*)frame->mBuffer->data();
-        frame->planes[0].size   = bytes;
-    }
-    
-    frame->v    = image;
-    
-    DEBUG("create: %s", GetImageFrameString(frame).c_str());
-    return frame;
 }
 
 // TODO: borrow some code from ffmpeg
@@ -208,28 +252,28 @@ static FORCE_INLINE void swap32l(uint8_t * u8, size_t size) {
 
 MediaError MediaFrame::swapCbCr() {
     DEBUG("swap u/v: %s", GetImageFrameString(this).c_str());
-    switch (v.format) {
+    switch (video.format) {
         case kPixelFormat420YpCbCrPlanar:
         case kPixelFormat422YpCbCrPlanar:
         case kPixelFormat444YpCbCrPlanar: {
             // swap u & v planes
-            uint8_t * tmp0  = planes[1].data;
-            size_t tmp1     = planes[1].size;
-            planes[1]       = planes[2];
-            planes[2].data  = tmp0;
-            planes[2].size  = tmp1;
+            uint8_t * tmp0  = planes.buffers[1].data;
+            size_t tmp1     = planes.buffers[1].size;
+            planes.buffers[1]       = planes.buffers[2];
+            planes.buffers[2].data  = tmp0;
+            planes.buffers[2].size  = tmp1;
         } return kMediaNoError;
             
         case kPixelFormat420YpCbCrSemiPlanar:
         case kPixelFormat420YpCrCbSemiPlanar:
             // swap hi & low bytes of uv plane
-            swap16(planes[1].data, planes[1].size);
+            swap16(planes.buffers[1].data, planes.buffers[1].size);
             return kMediaNoError;
             
         case kPixelFormat422YpCbCr:
         case kPixelFormat422YpCrCb:
             // swap u & v bytes
-            swap32l(planes[0].data, planes[0].size);
+            swap32l(planes.buffers[0].data, planes.buffers[0].size);
             return kMediaNoError;
             
         case kPixelFormatRGB565:
@@ -261,15 +305,15 @@ static FORCE_INLINE void swap24(uint8_t * u8, size_t size) {
 
 MediaError MediaFrame::reversePixel() {
     DEBUG("reverse bytes: %s", GetImageFrameString(this).c_str());
-    if (planes[1].data) {   // is planar
+    if (planes.buffers[1].data) {   // is planar
         return kMediaErrorInvalidOperation;
     }
     
-    switch (v.format) {
+    switch (video.format) {
         case kPixelFormatRGB:
         case kPixelFormatBGR:
         case kPixelFormat444YpCbCr:
-            swap24(planes[0].data, planes[0].size);
+            swap24(planes.buffers[0].data, planes.buffers[0].size);
             return kMediaNoError;
             
         case kPixelFormatRGBA:
@@ -278,7 +322,7 @@ MediaError MediaFrame::reversePixel() {
         case kPixelFormatBGRA:
         case kPixelFormat422YpCbCr:
         case kPixelFormat422YpCrCb:
-            swap32(planes[0].data, planes[0].size);
+            swap32(planes.buffers[0].data, planes.buffers[0].size);
             return kMediaNoError;
             
         case kPixelFormatRGB565:
@@ -317,14 +361,14 @@ typedef int (*Packed2Planar_t)(const uint8_t* src,
                                 int dst_stride_v,
                                 int width,
                                 int height);
-
+#if 0
 MediaError MediaFrame::planarization() {
-    ePixelFormat planar = GetPlanar(v.format);
-    if (v.format == planar) return kMediaNoError;
-    const PixelDescriptor * a = GetPixelFormatDescriptor(v.format);
+    ePixelFormat planar = GetPlanar(video.format);
+    if (video.format == planar) return kMediaNoError;
+    const PixelDescriptor * a = GetPixelFormatDescriptor(video.format);
     const PixelDescriptor * b = GetPixelFormatDescriptor(planar);
     Packed2Planar_t hnd = NULL;
-    switch (v.format) {
+    switch (video.format) {
         case kPixelFormat422YpCrCb:
         case kPixelFormat422YpCbCr:
             hnd = libyuv::YUY2ToI422;
@@ -340,7 +384,7 @@ MediaError MediaFrame::planarization() {
         return kMediaErrorNotSupported;
     }
     
-    const size_t plane0 = v.width * v.height;
+    const size_t plane0 = video.width * video.height;
     sp<Buffer> dest = new Buffer((plane0 * b->bpp) / 8);
     const size_t size_y = (plane0 * b->plane[0].bpp) / (8 * b->plane[0].hss * b->plane[0].vss);
     uint8_t * dst_y     = (uint8_t *)dest->data();
@@ -349,20 +393,20 @@ MediaError MediaFrame::planarization() {
     const size_t size_v = (plane0 * b->plane[2].bpp) / (8 * b->plane[2].hss * b->plane[2].vss);
     uint8_t * dst_v     = dst_u + size_u;
     
-    hnd((const uint8_t *)planes[0].data, (v.width * a->bpp) / 8,
-        dst_y, (v.width * b->plane[0].bpp) / (8 * b->plane[0].hss),
-        dst_u, (v.width * b->plane[1].bpp) / (8 * b->plane[1].hss),
-        dst_v, (v.width * b->plane[2].bpp) / (8 * b->plane[2].hss),
-        v.width, v.height);
+    hnd((const uint8_t *)planes.buffers[0].data, (video.width * a->bpp) / 8,
+        dst_y, (video.width * b->plane[0].bpp) / (8 * b->plane[0].hss),
+        dst_u, (video.width * b->plane[1].bpp) / (8 * b->plane[1].hss),
+        dst_v, (video.width * b->plane[2].bpp) / (8 * b->plane[2].hss),
+        video.width, video.height);
     
-    const bool vu = v.format == kPixelFormat422YpCrCb;
-    planes[0].data  = dst_y;
-    planes[0].size  = size_y;
-    planes[1].data  = vu ? dst_v : dst_u;
-    planes[1].size  = vu ? size_v : size_u;
-    planes[2].data  = vu ? dst_u : dst_v;
-    planes[2].size  = vu ? size_u : size_v;
-    v.format        = b->format;
+    const bool vu = video.format == kPixelFormat422YpCrCb;
+    planes.buffers[0].data  = dst_y;
+    planes.buffers[0].size  = size_y;
+    planes.buffers[1].data  = vu ? dst_v : dst_u;
+    planes.buffers[1].size  = vu ? size_v : size_u;
+    planes.buffers[2].data  = vu ? dst_u : dst_v;
+    planes.buffers[2].size  = vu ? size_u : size_v;
+    video.format        = b->format;
     mBuffer         = dest;
     
     return kMediaNoError;
@@ -555,6 +599,7 @@ MediaError MediaFrame::yuv2rgb(const ePixelFormat& target, const eConversion&) {
     ERROR("yuv2rgb is not supported: %s -> %s", a->name, b->name);
     return kMediaErrorNotSupported;
 }
+#endif
 
 String GetAudioFormatString(const AudioFormat& a) {
     return String::format("audio %.4s: ch %d, freq %d, samples %d",
@@ -582,36 +627,15 @@ String GetImageFormatString(const ImageFormat& image) {
 }
 
 String GetImageFrameString(const sp<MediaFrame>& frame) {
-    String line = GetImageFormatString(frame->v);
-    for (size_t i = 0; i < MEDIA_FRAME_NB_PLANES; ++i) {
-        if (frame->planes[i].data == NULL) break;
-        line += String::format(" %zu@[%zu@%p]", i, frame->planes[i].size, frame->planes[i].data);
+    String line = GetImageFormatString(frame->video);
+    for (size_t i = 0; i < frame->planes.count; ++i) {
+        if (frame->planes.buffers[i].data == NULL) break;
+        line += String::format(" %zu@[%zu@%p]", i,
+                               frame->planes.buffers[i].size, frame->planes.buffers[i].data);
     }
-    line += String::format(", pts %" PRId64 "/%" PRId64,
-                           frame->timecode.value, frame->timecode.timescale);
+    line += String::format(", timecode %" PRId64 "/%" PRId64,
+                           frame->timecode.value, frame->timecode.scale);
     return line;
-}
-
-sp<MediaFrame> MediaFrame::Create(const AudioFormat& a) {
-    const size_t bytes = GetSampleFormatBytes(a.format);
-    const size_t total = bytes * a.channels * a.samples;
-    sp<MediaFrame> frame = new MediaFrame;
-    frame->mBuffer = new Buffer(total);
-    
-    if (IsSampleFormatPacked(a.format)) {
-        frame->planes[0].data       = (uint8_t*)frame->mBuffer->data();
-        frame->planes[0].size       = frame->mBuffer->capacity();
-    } else {
-        uint8_t * next = (uint8_t*)frame->mBuffer->data();
-        for (size_t i = 0; i < a.channels; ++i) {
-            frame->planes[i].size   = bytes * a.samples;
-            frame->planes[i].data   = next;
-            next += frame->planes[i].size;
-        }
-    }
-    
-    frame->a            = a;
-    return frame;
 }
 
 __END_NAMESPACE_MPX

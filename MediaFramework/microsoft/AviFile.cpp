@@ -350,7 +350,7 @@ struct AviFile : public MediaFile {
         return kMediaErrorInvalidOperation;
     }
     
-    virtual sp<MediaPacket> read(const eReadMode& mode, const MediaTime& ts) {
+    virtual sp<MediaFrame> read(const eReadMode& mode, const MediaTime& ts) {
         return NULL;
     }
 };

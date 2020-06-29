@@ -431,7 +431,7 @@ struct Mp3Packetizer : public MediaPacketizer {
     
     virtual String string() const { return "Mp3Packetizer"; }
 
-    virtual MediaError enqueue(const sp<MediaPacket>& in) {
+    virtual MediaError enqueue(const sp<MediaFrame>& in) {
         if (in == NULL) {
             DEBUG("flushing");
             mFlushing = true;
@@ -439,13 +439,13 @@ struct Mp3Packetizer : public MediaPacketizer {
         }
 
         if (__builtin_expect(mCommonHead == 0, false)) {
-            mNextFrameTime     = in->pts;
+            mNextFrameTime     = in->timecode;
             if (mNextFrameTime == kMediaTimeInvalid) {
                 mNextFrameTime = 0;
             }
         }
 
-        while (mBuffer->empty() < in->size) {
+        while (mBuffer->empty() < in->planes.buffers[0].size) {
             if (mNeedMoreData) {
                 CHECK_TRUE(mBuffer->resize(mBuffer->capacity() * 2));
                 DEBUG("resize internal buffer => %zu", mBuffer->capacity());
@@ -454,12 +454,12 @@ struct Mp3Packetizer : public MediaPacketizer {
             }
         }
 
-        mBuffer->writeBytes((const char *)in->data, in->size);
+        mBuffer->writeBytes((const char *)in->planes.buffers[0].data, in->planes.buffers[0].size);
         mNeedMoreData = false;
         return kMediaNoError;
     }
 
-    virtual sp<MediaPacket> dequeue() {
+    virtual sp<MediaFrame> dequeue() {
         DEBUG("internal buffer ready bytes %zu", mBuffer->size());
 
         if (mBuffer->size() <= 4) {
@@ -512,16 +512,14 @@ struct Mp3Packetizer : public MediaPacketizer {
         
         if (frame.isNIL()) return NULL;
         
-        sp<MediaPacket> packet = MediaPacket::Create(frame);
+        sp<MediaFrame> packet = MediaFrame::Create(frame);
 
         CHECK_TRUE(mFrameTime != kMediaTimeInvalid);
-        packet->size        = mpa.frameLengthInBytes;
-        packet->pts         = mNextFrameTime;
-        packet->dts         = mNextFrameTime;
-        packet->duration    = mFrameTime;
-        packet->type        = kFrameTypeSync;
-        //packet->properties  = mProperties;
-        mNextFrameTime      += mFrameTime;
+        packet->planes.buffers[0].size  = mpa.frameLengthInBytes;
+        packet->timecode                = mNextFrameTime;
+        packet->duration                = mFrameTime;
+        packet->flags                   = kFrameTypeSync;
+        mNextFrameTime                  += mFrameTime;
 
         return packet;
     }
@@ -549,7 +547,7 @@ struct Mp3File : public MediaFile {
 
     MediaTime               mAnchorTime;
 
-    sp<MediaPacket>         mRawPacket;
+    sp<MediaFrame>         mRawPacket;
     sp<MediaPacketizer>     mPacketizer;
     
     sp<Message>             mID3v1;
@@ -682,7 +680,7 @@ struct Mp3File : public MediaFile {
             }
         } else {
             DEBUG("calc duration based on bitrate.");
-            mDuration   = MediaTime((8 * 1E6 * mNumBytes) / mHeader.bitRate, 1000000LL).scale(mHeader.sampleRate);
+            mDuration   = MediaTime((8 * 1E6 * mNumBytes) / mHeader.bitRate, 1000000LL).rescale(mHeader.sampleRate);
         }
         DEBUG("mBitRate %d, mDuration %.3f(s)", mHeader.bitRate, mDuration.seconds());
 
@@ -720,7 +718,7 @@ struct Mp3File : public MediaFile {
         return info;
     }
 
-    virtual sp<MediaPacket> read(const eReadMode& mode,
+    virtual sp<MediaFrame> read(const eReadMode& mode,
             const MediaTime& ts = kMediaTimeInvalid) {
         bool sawInputEOS = false;
 
@@ -754,7 +752,7 @@ struct Mp3File : public MediaFile {
             mPacketizer->flush();
         }
 
-        sp<MediaPacket> packet;
+        sp<MediaFrame> packet;
         for (;;) {
             if (mRawPacket == 0 && !sawInputEOS) {
                 DEBUG("read content at %" PRId64 "/%" PRId64,
@@ -766,7 +764,7 @@ struct Mp3File : public MediaFile {
                     DEBUG("saw content eos..");
                     sawInputEOS = true;
                 } else {
-                    mRawPacket = MediaPacket::Create(data);
+                    mRawPacket = MediaFrame::Create(data);
                 }
             }
 
@@ -794,8 +792,7 @@ struct Mp3File : public MediaFile {
             return NULL;
         }
 
-        packet->pts += mAnchorTime;
-        packet->dts += mAnchorTime;
+        packet->timecode += mAnchorTime;
 
         return packet;
     }

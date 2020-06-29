@@ -116,17 +116,19 @@ static FORCE_INLINE OSType get_cv_pix_format(ePixelFormat a) {
 
 // for store unorderred image buffers and sort them
 struct VTMediaFrame : public MediaFrame {
+    MediaBuffer     extended_buffers[3];    // placeholder
+    
     FORCE_INLINE VTMediaFrame(CVPixelBufferRef pixbuf, const MediaTime& pts, const MediaTime& _duration) : MediaFrame() {
-        planes[0].data  = NULL;
-        timecode    = pts;
-        duration    = _duration;
-        v.format    = kPixelFormatVideoToolbox;
-        v.width     = CVPixelBufferGetWidth(pixbuf);
-        v.height    = CVPixelBufferGetHeight(pixbuf);
-        v.rect.x    = 0;
-        v.rect.y    = 0;
-        v.rect.w    = v.width;
-        v.rect.h    = v.height;
+        planes.buffers[0].data  = NULL;
+        timecode        = pts;
+        duration        = _duration;
+        video.format    = kPixelFormatVideoToolbox;
+        video.width     = CVPixelBufferGetWidth(pixbuf);
+        video.height    = CVPixelBufferGetHeight(pixbuf);
+        video.rect.x    = 0;
+        video.rect.y    = 0;
+        video.rect.w    = video.width;
+        video.rect.h    = video.height;
         opaque = CVPixelBufferRetain(pixbuf);
     }
 
@@ -198,7 +200,7 @@ static FORCE_INLINE void OutputCallback(void *decompressionOutputRefCon,
 
     CHECK_NULL(decompressionOutputRefCon);
     CHECK_NULL(sourceFrameRefCon);  // strong ref to the packet
-    MediaPacket *packet = (MediaPacket*)sourceFrameRefCon;
+    MediaFrame *packet = (MediaFrame*)sourceFrameRefCon;
     packet->ReleaseObject();
     DEBUG("status %d, infoFlags %#x, imageBuffer %p, presentationTimeStamp %.3f(s)/%.3f(s)",
             status, infoFlags, imageBuffer,
@@ -230,8 +232,8 @@ static FORCE_INLINE void OutputCallback(void *decompressionOutputRefCon,
     sp<VTMediaFrame> frame = new VTMediaFrame(imageBuffer, pts, duration);
 
     // fix the width & height
-    frame->v.rect.w  = vtc->width;
-    frame->v.rect.h  = vtc->height;
+    frame->video.rect.w  = vtc->width;
+    frame->video.rect.h  = vtc->height;
 
     // vt feed on packet in dts order and output is also in dts order
     // we have to reorder frames in pts order
@@ -464,19 +466,19 @@ static FORCE_INLINE sp<VTContext> createSession(const sp<Message>& formats, cons
 }
 
 static FORCE_INLINE CMSampleBufferRef createCMSampleBuffer(sp<VTContext>& vtc,
-        const sp<MediaPacket>& packet) {
+        const sp<MediaFrame>& packet) {
     DEBUG("CMBlockBufferGetTypeID: %#x", CMBlockBufferGetTypeID());
     CMBlockBufferRef  blockBuffer = NULL;
     CMSampleBufferRef sampleBuffer = NULL;
 
     OSStatus status = CMBlockBufferCreateWithMemoryBlock(
             kCFAllocatorDefault,        // structureAllocator -> default allocator
-            (char*)packet->data,        // memoryBlock
-            packet->size,               // blockLength
+            (char*)packet->planes.buffers[0].data,        // memoryBlock
+            packet->planes.buffers[0].size,               // blockLength
             kCFAllocatorNull,           // blockAllocator -> no deallocation
             NULL,                       // customBlockSource
             0,                          // offsetToData
-            packet->size,               // dataLength
+            packet->planes.buffers[0].size,               // dataLength
             0,                          // flags
             &blockBuffer);
 
@@ -487,16 +489,19 @@ static FORCE_INLINE CMSampleBufferRef createCMSampleBuffer(sp<VTContext>& vtc,
     CHECK_NULL(blockBuffer);
 
     CMSampleTimingInfo timingInfo[1];
-    CHECK_TRUE(packet->dts != kMediaTimeInvalid);
-    timingInfo[0].decodeTimeStamp = CMTimeMake(packet->dts.value, packet->dts.timescale);
+    CHECK_TRUE(packet->timecode != kMediaTimeInvalid);
+    timingInfo[0].decodeTimeStamp = CMTimeMake(packet->timecode.value, packet->timecode.scale);
+    timingInfo[0].presentationTimeStamp = timingInfo[0].decodeTimeStamp;
+#if 0
     if (packet->pts != kMediaTimeInvalid) {
         timingInfo[0].presentationTimeStamp = CMTimeMake(packet->pts.value, packet->pts.timescale);
     } else {
         // assume decoding order = presentation order
         timingInfo[0].presentationTimeStamp = timingInfo[0].decodeTimeStamp;
     }
+#endif
     if (packet->duration != kMediaTimeInvalid) {
-        timingInfo[0].duration = CMTimeMake(packet->duration.value, packet->duration.timescale);
+        timingInfo[0].duration = CMTimeMake(packet->duration.value, packet->duration.scale);
     } else {
         timingInfo[0].duration = kCMTimeInvalid;
     }
@@ -561,11 +566,11 @@ sp<MediaFrame> readVideoToolboxFrame(CVPixelBufferRef pixbuf) {
 
             CHECK_LE(CVPixelBufferGetBytesPerRowOfPlane(pixbuf, i) *
                     CVPixelBufferGetHeightOfPlane(pixbuf, i),
-                    frame->planes[i].size);
-            frame->planes[i].size = CVPixelBufferGetBytesPerRowOfPlane(pixbuf, i) * CVPixelBufferGetHeightOfPlane(pixbuf, i);
-            memcpy(frame->planes[i].data,
+                     frame->planes.buffers[i].size);
+            frame->planes.buffers[i].size = CVPixelBufferGetBytesPerRowOfPlane(pixbuf, i) * CVPixelBufferGetHeightOfPlane(pixbuf, i);
+            memcpy(frame->planes.buffers[i].data,
                     CVPixelBufferGetBaseAddressOfPlane(pixbuf, i),
-                    frame->planes[i].size);
+                   frame->planes.buffers[i].size);
         }
     } else {
         // FIXME: is this right
@@ -574,17 +579,17 @@ sp<MediaFrame> readVideoToolboxFrame(CVPixelBufferRef pixbuf) {
         format.width = CVPixelBufferGetBytesPerRow(pixbuf);
         format.height = CVPixelBufferGetHeight(pixbuf);
         frame = MediaFrame::Create(format);
-        CHECK_LE(CVPixelBufferGetBytesPerRow(pixbuf) * CVPixelBufferGetHeight(pixbuf), frame->planes[0].size);
-        frame->planes[0].size = CVPixelBufferGetBytesPerRow(pixbuf) * CVPixelBufferGetHeight(pixbuf);
-        memcpy(frame->planes[0].data,
+        CHECK_LE(CVPixelBufferGetBytesPerRow(pixbuf) * CVPixelBufferGetHeight(pixbuf), frame->planes.buffers[0].size);
+        frame->planes.buffers[0].size = CVPixelBufferGetBytesPerRow(pixbuf) * CVPixelBufferGetHeight(pixbuf);
+        memcpy(frame->planes.buffers[0].data,
                 CVPixelBufferGetBaseAddress(pixbuf),
-                frame->planes[0].size);
+               frame->planes.buffers[0].size);
     }
 
-    frame->v.rect.x     = 0;
-    frame->v.rect.y     = 0;
-    frame->v.rect.w     = CVPixelBufferGetWidth(pixbuf);
-    frame->v.rect.h     = CVPixelBufferGetHeight(pixbuf);
+    frame->video.rect.x     = 0;
+    frame->video.rect.y     = 0;
+    frame->video.rect.w     = CVPixelBufferGetWidth(pixbuf);
+    frame->video.rect.h     = CVPixelBufferGetHeight(pixbuf);
 
     CVPixelBufferUnlockBaseAddress(pixbuf, kCVPixelBufferLock_ReadOnly);
 
@@ -620,7 +625,7 @@ struct VideoToolboxDecoder : public MediaDecoder {
         return mVTContext.isNIL() ? kMediaErrorNotSupported : kMediaNoError;
     }
 
-    virtual MediaError write(const sp<MediaPacket>& input) {
+    virtual MediaError write(const sp<MediaFrame>& input) {
         if (input == NULL) {
             INFO("eos");
             VTDecompressionSessionFinishDelayedFrames(mVTContext->decompressionSession);
@@ -635,7 +640,7 @@ struct VideoToolboxDecoder : public MediaDecoder {
                 input->dts.seconds(),
                 input->pts.seconds());
 
-        CHECK_TRUE(input->dts != kMediaTimeInvalid);
+        CHECK_TRUE(input->timecode != kMediaTimeInvalid);
 
         CMSampleBufferRef sampleBuffer = createCMSampleBuffer(mVTContext, input);
 
@@ -644,7 +649,7 @@ struct VideoToolboxDecoder : public MediaDecoder {
         VTDecodeFrameFlags decodeFlags = kVTDecodeFrame_EnableTemporalProcessing;
         //decodeFlags |= kVTDecodeFrame_EnableAsynchronousDecompression;
         //decodeFlags |= kVTDecodeFrame_1xRealTimePlayback;
-        if (input->type & kFrameTypeReference) {
+        if (input->flags & kFrameTypeReference) {
             INFO("reference frame");
             decodeFlags |= kVTDecodeFrame_DoNotOutputFrame;
         }

@@ -41,7 +41,7 @@
 
 __BEGIN_NAMESPACE_MPX
 
-// onPacketReady ----- MediaPacket ----> DecodeSession
+// onPacketReady ----- MediaFrame ----> DecodeSession
 //      ^                                   |
 //      |                                   |
 // OnRequestPacket                       MediaDecoder
@@ -78,7 +78,7 @@ struct DecodeSession : public IMediaSession {
     MediaTime               mLastPacketTime;    // test packets in dts order?
     struct OnFrameRequest;
     sp<OnFrameRequest>      mFrameRequestEvent;
-    List<sp<MediaPacket> >  mInputQueue;
+    List<sp<MediaFrame> >   mInputQueue;
     List<sp<FrameReadyEvent> > mRequestQueue;
     // statistics
     size_t                  mPacketsComsumed;
@@ -171,12 +171,12 @@ struct DecodeSession : public IMediaSession {
         OnPacketReady(DecodeSession *p, int gen) : PacketReadyEvent(p->mDispatch),
         thiz(p), mGeneration(gen) { }
 
-        virtual void onEvent(const sp<MediaPacket>& packet) {
+        virtual void onEvent(const sp<MediaFrame>& packet) {
             thiz->onPacketReady(packet, mGeneration);
         }
     };
 
-    void onPacketReady(const sp<MediaPacket>& pkt, int generation) {
+    void onPacketReady(const sp<MediaFrame>& pkt, int generation) {
         DEBUG("%s: onPacketReady %zu bytes @ %.3f", mName.c_str(), pkt->size, pkt->dts.seconds());
         if (mGeneration.load() != generation) {
             INFO("%s: ignore outdated packets", mName.c_str());
@@ -188,16 +188,16 @@ struct DecodeSession : public IMediaSession {
                   pkt->dts.seconds(), pkt->pts.seconds());
 
             if (mLastPacketTime == kMediaTimeInvalid) {
-                INFO("%s: first packet @ %.3f(s)|%.3f(s)", mName.c_str(),
-                     pkt->pts.seconds(), pkt->dts.seconds());
+                INFO("%s: first packet @ %.3f(s)", mName.c_str(),
+                     pkt->timecode.seconds());
             }
 
             // @see MediaFile::read(), packets should in dts order.
-            if (pkt->dts < mLastPacketTime) {
+            if (pkt->timecode < mLastPacketTime) {
                 WARN("%s: unorderred packet %.3f(s) < last %.3f(s)", mName.c_str(),
-                     pkt->dts.seconds(), mLastPacketTime.seconds());
+                     pkt->timecode.seconds(), mLastPacketTime.seconds());
             }
-            mLastPacketTime = pkt->dts;
+            mLastPacketTime = pkt->timecode;
         }
         
         if (ABE_UNLIKELY(pkt.isNIL())) {
@@ -259,7 +259,7 @@ struct DecodeSession : public IMediaSession {
             return;
         }
         
-        sp<MediaPacket> packet = mInputQueue.front();
+        sp<MediaFrame> packet = mInputQueue.front();
         MediaError st = mCodec->write(packet);
         // try again
         if (kMediaErrorResourceBusy == st) {
@@ -311,7 +311,7 @@ struct DecodeSession : public IMediaSession {
         if (mType == kCodecTypeAudio) {
             // fix duration
             if (frame->duration == kMediaTimeInvalid) {
-                frame->duration = MediaTime(frame->a.samples, frame->a.freq);
+                frame->duration = MediaTime(frame->audio.samples, frame->audio.freq);
             }
         }
         return frame;

@@ -132,27 +132,4 @@ sp<MediaOut> MediaOut::Create(const sp<Message>& formats, const sp<Message>& opt
     }
 }
 
-struct DefaultMediaPacket : public MediaPacket {
-    sp<Buffer> buffer;
-
-    FORCE_INLINE DefaultMediaPacket(uint8_t * const p, size_t length) :
-    MediaPacket(p, length) { }
-};
-
-sp<MediaPacket> MediaPacket::Create(size_t size) {
-    sp<Buffer> buffer = new Buffer(size);
-    sp<DefaultMediaPacket> packet = new DefaultMediaPacket((uint8_t *)buffer->data(),
-                                                           buffer->capacity());
-    packet->buffer  = buffer;
-    return packet;
-}
-
-sp<MediaPacket> MediaPacket::Create(sp<Buffer>& buffer) {
-    sp<DefaultMediaPacket> packet = new DefaultMediaPacket((uint8_t *)buffer->data(),
-                                                           buffer->capacity());
-    packet->buffer  = buffer;
-    packet->size    = buffer->size();
-    return packet;
-}
-
 __END_NAMESPACE_MPX

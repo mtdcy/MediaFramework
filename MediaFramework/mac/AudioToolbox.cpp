@@ -82,7 +82,7 @@ struct ATAC : public SharedObject {
     
     // compressed packet
     AudioStreamPacketDescription desc;
-    sp<MediaPacket>             packet;
+    sp<MediaFrame>             packet;
     
     // uncompressed frame
     sp<MediaFrame>              frame;
@@ -251,8 +251,8 @@ static OSStatus DecodeCallback(AudioConverterRef               inAudioConverter,
     
     ioData->mNumberBuffers              = 1;
     ioData->mBuffers[0].mNumberChannels = atac->inFormat.mChannelsPerFrame;
-    ioData->mBuffers[0].mDataByteSize   = atac->packet->size;
-    ioData->mBuffers[0].mData           = atac->packet->data;
+    ioData->mBuffers[0].mDataByteSize   = atac->packet->planes.buffers[0].size;
+    ioData->mBuffers[0].mData           = atac->packet->planes.buffers[0].data;
     *ioNumberDataPackets                = 1;
     
     if (outDataPacketDescription) {
@@ -261,12 +261,13 @@ static OSStatus DecodeCallback(AudioConverterRef               inAudioConverter,
     return 0;
 }
 
+#define NB_CHANNELS     (8)
 struct MyAudioBufferList {
     UInt32      mNumberBuffers;
-    AudioBuffer mBuffers[MEDIA_FRAME_NB_PLANES];
+    AudioBuffer mBuffers[NB_CHANNELS];
 };
 
-static MediaError decode(sp<ATAC>& atac, const sp<MediaPacket>& packet) {
+static MediaError decode(sp<ATAC>& atac, const sp<MediaFrame>& packet) {
     if (packet.isNIL()) {
         INFO("eos...");
     } else {
@@ -278,7 +279,7 @@ static MediaError decode(sp<ATAC>& atac, const sp<MediaPacket>& packet) {
     
     atac->packet                                = packet;
     atac->desc.mStartOffset                     = 0;
-    atac->desc.mDataByteSize                    = packet.isNIL() ? 0 : packet->size;
+    atac->desc.mDataByteSize                    = packet.isNIL() ? 0 : packet->planes.buffers[0].size;
     atac->desc.mVariableFramesInPacket          = 0;
     
     
@@ -297,14 +298,14 @@ static MediaError decode(sp<ATAC>& atac, const sp<MediaPacket>& packet) {
         outOutputData.mNumberBuffers            = atac->outFormat.mChannelsPerFrame;
         for (size_t i = 0; i < outOutputData.mNumberBuffers; ++i) {
             outOutputData.mBuffers[i].mNumberChannels   = 0;
-            outOutputData.mBuffers[i].mDataByteSize     = frame->planes[i].size;
-            outOutputData.mBuffers[i].mData             = frame->planes[i].data;
+            outOutputData.mBuffers[i].mDataByteSize     = frame->planes.buffers[i].size;
+            outOutputData.mBuffers[i].mData             = frame->planes.buffers[i].data;
         }
     } else {
         outOutputData.mNumberBuffers                = 1;
         outOutputData.mBuffers[0].mNumberChannels   = atac->inFormat.mChannelsPerFrame;
-        outOutputData.mBuffers[0].mDataByteSize     = frame->planes[0].size;
-        outOutputData.mBuffers[0].mData             = frame->planes[0].data;
+        outOutputData.mBuffers[0].mDataByteSize     = frame->planes.buffers[0].size;
+        outOutputData.mBuffers[0].mData             = frame->planes.buffers[0].data;
     }
     
     AudioStreamPacketDescription desc;
@@ -327,8 +328,8 @@ static MediaError decode(sp<ATAC>& atac, const sp<MediaPacket>& packet) {
         return kMediaNoError;
     }
     
-    frame->timecode     = packet->pts;
-    frame->duration     = MediaTime(frame->a.samples, frame->a.freq);
+    frame->timecode     = packet->timecode;
+    frame->duration     = MediaTime(frame->audio.samples, frame->audio.freq);
     atac->frame         = frame;
     return kMediaNoError;
 }
@@ -356,7 +357,7 @@ struct AudioCodec : public MediaDecoder {
         return format;
     }
     
-    virtual MediaError write(const sp<MediaPacket>& packet) {
+    virtual MediaError write(const sp<MediaFrame>& packet) {
         return decode(mATAC, packet);
     }
     

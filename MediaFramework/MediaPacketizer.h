@@ -55,12 +55,12 @@ struct API_EXPORT MediaPacketizer : public SharedObject {
      * @return return kMediaNoError on success, return kMediaErrorResourceBusy
      *                if internal buffer is full.
      */
-    virtual MediaError      enqueue(const sp<MediaPacket>& in) = 0;
+    virtual MediaError      enqueue(const sp<MediaFrame>& in) = 0;
     /**
      * dequeue a packet from packetizer
      * @return return reference to new packet, or NULL if no packet ready
      */
-    virtual sp<MediaPacket> dequeue() = 0;
+    virtual sp<MediaFrame> dequeue() = 0;
 
     /**
      * flush packetizer content and reset its state

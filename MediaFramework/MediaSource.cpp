@@ -48,7 +48,7 @@ struct MediaSource : public IMediaSession {
     sp<SessionInfoEvent>    mInfoEvent;
     // internal mutable context
     sp<MediaFile>           mMediaFile;
-    typedef List<sp<MediaPacket> > PacketList;
+    typedef List<sp<MediaFrame> > PacketList;
     Vector<PacketList>      mPackets;
     MediaTime               mLastReadTime;  //< avoid seek multi times by different track
     Bits<uint32_t>          mTrackMask;
@@ -128,7 +128,7 @@ struct MediaSource : public IMediaSession {
         }
                 
         while (!trackMask.empty()) {
-            sp<MediaPacket> packet;
+            sp<MediaFrame> packet;
             if (ABE_UNLIKELY(seek)) {
                 INFO("seek to %.3f", time.seconds());
                 packet = mMediaFile->read(kReadModeLastSync, time);
@@ -143,11 +143,11 @@ struct MediaSource : public IMediaSession {
                 break;
             }
             
-            PacketList& list = mPackets[packet->index];
+            PacketList& list = mPackets[packet->id];
             list.push(packet);
             DEBUG("[%zu] fill one packet, total %zu", packet->index, list.size());
             
-            trackMask.clear(packet->index);
+            trackMask.clear(packet->id);
         }
         
         if (trackMask.empty()) DEBUG("packet lists are ready");
@@ -243,11 +243,11 @@ struct MediaSource : public IMediaSession {
             return;
         }
         
-        sp<MediaPacket> packet = list.front();
+        sp<MediaFrame> packet = list.front();
         list.pop();
         
         if (time != kMediaTimeInvalid) {
-            INFO("first packet @ %.3fs", packet->dts.seconds());
+            INFO("first packet @ %.3fs", packet->timecode.seconds());
         }
         
         event->fire(packet);

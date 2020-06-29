@@ -257,13 +257,13 @@ struct RenderSession : public IMediaSession {
 
         sp<Message> format = new Message;
         if (mType == kCodecTypeVideo) {
-            format->setInt32(kKeyFormat, frame->v.format);
-            format->setInt32(kKeyWidth, frame->v.width);
-            format->setInt32(kKeyHeight, frame->v.height);
+            format->setInt32(kKeyFormat, frame->video.format);
+            format->setInt32(kKeyWidth, frame->video.width);
+            format->setInt32(kKeyHeight, frame->video.height);
         } else if (mType == kCodecTypeAudio) {
-            format->setInt32(kKeyFormat, frame->a.format);
-            format->setInt32(kKeyChannels, frame->a.channels);
-            format->setInt32(kKeySampleRate, frame->a.freq);
+            format->setInt32(kKeyFormat, frame->audio.format);
+            format->setInt32(kKeyChannels, frame->audio.channels);
+            format->setInt32(kKeySampleRate, frame->audio.freq);
         }
 
         onInit(format, NULL);

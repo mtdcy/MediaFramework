@@ -177,7 +177,7 @@ static FORCE_INLINE size_t unpack(AVFrame *frame, sp<MediaFrame>& out) {
     const TYPE * in = (const TYPE *)frame->data[0];
     for (size_t i = 0; i < frame->nb_samples; ++i) {
         for (size_t ch = 0; ch < frame->channels; ++ch) {
-            ((TYPE *)out->planes[ch].data)[i]   = *in++;
+            ((TYPE *)out->planes.buffers[ch].data)[i]   = *in++;
         }
     }
     return frame->nb_samples;
@@ -193,27 +193,27 @@ static FORCE_INLINE sp<MediaFrame> unpack(AVFrame * frame, AVCodecContext* avcc)
         case AV_SAMPLE_FMT_U8:
             format.format = kSampleFormatU8;
             out = MediaFrame::Create(format);
-            out->a.samples = unpack<uint8_t>(frame, out);
+            out->audio.samples = unpack<uint8_t>(frame, out);
             break;
         case AV_SAMPLE_FMT_S16:
             format.format = kSampleFormatS16;
             out = MediaFrame::Create(format);
-            out->a.samples = unpack<int16_t>(frame, out);
+            out->audio.samples = unpack<int16_t>(frame, out);
             break;
         case AV_SAMPLE_FMT_S32:
             format.format = kSampleFormatS32;
             out = MediaFrame::Create(format);
-            out->a.samples = unpack<int32_t>(frame, out);
+            out->audio.samples = unpack<int32_t>(frame, out);
             break;
         case AV_SAMPLE_FMT_FLT:
             format.format = kSampleFormatFLT;
             out = MediaFrame::Create(format);
-            out->a.samples = unpack<float>(frame, out);
+            out->audio.samples = unpack<float>(frame, out);
             break;
         case AV_SAMPLE_FMT_DBL:
             format.format = kSampleFormatDBL;
             out = MediaFrame::Create(format);
-            out->a.samples = unpack<double>(frame, out);
+            out->audio.samples = unpack<double>(frame, out);
             break;
         default:
             FATAL("FIXME");
@@ -226,43 +226,41 @@ static FORCE_INLINE sp<MediaFrame> unpack(AVFrame * frame, AVCodecContext* avcc)
 
 // map AVFrame to MediaFrame, so we don't have to realloc memory again
 struct AVMediaFrame : public MediaFrame {
+    MediaBuffer     extended_buffers[AV_NUM_DATA_POINTERS-1];   // placeholder
+    
     AVMediaFrame(AVCodecContext *avcc, AVFrame *frame) : MediaFrame() {
         opaque = av_frame_alloc();
         av_frame_ref((AVFrame*)opaque, frame);
 
-        for (size_t i = 0; i < MEDIA_FRAME_NB_PLANES; ++i) {
-            planes[i].data = NULL;
-        }
-
         if (avcc->codec_type == AVMEDIA_TYPE_AUDIO) {
-            a.format        = get_sample_format((AVSampleFormat)frame->format);
-            a.channels      = frame->channels;
-            a.freq          = frame->sample_rate;
-            a.samples       = frame->nb_samples;
+            audio.format        = get_sample_format((AVSampleFormat)frame->format);
+            audio.channels      = frame->channels;
+            audio.freq          = frame->sample_rate;
+            audio.samples       = frame->nb_samples;
             if (av_sample_fmt_is_planar((AVSampleFormat)frame->format)) {
                 for (size_t i = 0; i < frame->channels; ++i) {
-                    planes[i].data  = frame->data[i];
+                    planes.buffers[i].data  = frame->data[i];
                     // linesize may have extra bytes.
-                    planes[i].size  = frame->nb_samples * av_get_bytes_per_sample((AVSampleFormat)frame->format);
+                    planes.buffers[i].size  = frame->nb_samples * av_get_bytes_per_sample((AVSampleFormat)frame->format);
                 }
             } else {
-                planes[0].data  = frame->data[0];
-                planes[0].size  = frame->linesize[0];
+                planes.buffers[0].data  = frame->data[0];
+                planes.buffers[0].size  = frame->linesize[0];
             }
         } else if (avcc->codec_type == AVMEDIA_TYPE_VIDEO) {
-            v.format        = get_pix_format((AVPixelFormat)frame->format);
-            const PixelDescriptor * desc = GetPixelFormatDescriptor(v.format);
+            video.format        = get_pix_format((AVPixelFormat)frame->format);
+            const PixelDescriptor * desc = GetPixelFormatDescriptor(video.format);
             
-            v.width         = frame->linesize[0];
-            v.height        = frame->height;
-            v.rect.x        = 0;
-            v.rect.y        = 0;
-            v.rect.w        = avcc->width;
-            v.rect.h        = avcc->height;
+            video.width         = frame->linesize[0];
+            video.height        = frame->height;
+            video.rect.x        = 0;
+            video.rect.y        = 0;
+            video.rect.w        = avcc->width;
+            video.rect.h        = avcc->height;
             for (size_t i = 0; frame->data[i] != NULL; ++i) {
-                planes[i].data  = frame->data[i];
+                planes.buffers[i].data  = frame->data[i];
                 // frame->linesize[i] is wired, can not used to calc plane bytes
-                planes[i].size  = (v.width * v.height * desc->plane[i].bpp) / (desc->plane[i].hss * desc->plane[i].vss);
+                planes.buffers[i].size  = (video.width * video.height * desc->plane[i].bpp) / (desc->plane[i].hss * desc->plane[i].vss);
             }
         } else {
             FATAL("FIXME");
@@ -808,9 +806,9 @@ struct LavcDecoder : public MediaDecoder {
         return kMediaErrorNotSupported;
     }
 
-    virtual MediaError write(const sp<MediaPacket>& input) {
+    virtual MediaError write(const sp<MediaFrame>& input) {
         AVCodecContext *avcc = mContext;
-        if (input != NULL && input->data != NULL) {
+        if (input != NULL && input->planes.buffers[0].data != NULL) {
             ++mInputCount;
 
             DEBUG("%s: %.3f(s)|%.3f(s) flags %#x",
@@ -820,26 +818,23 @@ struct LavcDecoder : public MediaDecoder {
                     input->type);
 
             AVPacket *pkt   = av_packet_alloc();
-            pkt->data       = input->data;
-            pkt->size       = input->size;
+            pkt->data       = input->planes.buffers[0].data;
+            pkt->size       = input->planes.buffers[0].size;
 
-            CHECK_TRUE(input->dts != kMediaTimeInvalid);
-            pkt->dts        = MediaTime(input->dts).scale(avcc->pkt_timebase.den).value;
-            if (input->pts == kMediaTimeInvalid)
-                pkt->pts    = pkt->dts;
-            else
-                pkt->pts    = MediaTime(input->pts).scale(avcc->pkt_timebase.den).value;
+            CHECK_TRUE(input->timecode != kMediaTimeInvalid);
+            pkt->dts        = MediaTime(input->timecode).rescale(avcc->pkt_timebase.den).value;
+            pkt->pts        = AV_NOPTS_VALUE;
 
             pkt->flags      = 0;
-            if (input->type & kFrameTypeSync) {
+            if (input->flags & kFrameTypeSync) {
                 pkt->flags |= AV_PKT_FLAG_KEY;
             }
 
-            if (input->type & kFrameTypeReference) {
+            if (input->flags & kFrameTypeReference) {
                 pkt->flags |= AV_PKT_FLAG_DISCARD;
             }
             
-            if (input->type & kFrameTypeDisposal) {
+            if (input->flags & kFrameTypeDisposal) {
                 pkt->flags |= AV_PKT_FLAG_DISPOSABLE;
             }
 

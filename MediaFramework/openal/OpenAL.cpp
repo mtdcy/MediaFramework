@@ -200,11 +200,11 @@ static MediaError playFrame(const sp<OpenALContext>& openAL, const sp<MediaFrame
         }
         return kMediaNoError;
     }
-    CHECK_EQ(openAL->mAudioFormat.format, frame->a.format);
+    CHECK_EQ(openAL->mAudioFormat.format, frame->audio.format);
     
-    ALenum alFormat = frame->a.channels == 2 ? AL_FORMAT_STEREO16 : AL_FORMAT_MONO16;
-    if (frame->a.format == kSampleFormatU8Packed) {
-        alFormat = frame->a.channels == 2 ? AL_FORMAT_STEREO8 : AL_FORMAT_MONO8;
+    ALenum alFormat = frame->audio.channels == 2 ? AL_FORMAT_STEREO16 : AL_FORMAT_MONO16;
+    if (frame->audio.format == kSampleFormatU8Packed) {
+        alFormat = frame->audio.channels == 2 ? AL_FORMAT_STEREO8 : AL_FORMAT_MONO8;
     }
     
     ALint queued, processed;
@@ -235,9 +235,9 @@ static MediaError playFrame(const sp<OpenALContext>& openAL, const sp<MediaFrame
     CHECK_AL_ERROR();
     alBufferData(buffer,
                  alFormat,
-                 (const ALvoid *)frame->planes[0].data,
-                 (ALsizei)frame->planes[0].size,
-                 (ALsizei)frame->a.freq);
+                 (const ALvoid *)frame->planes.buffers[0].data,
+                 (ALsizei)frame->planes.buffers[0].size,
+                 (ALsizei)frame->audio.freq);
     CHECK_AL_ERROR();
     
     alSourceQueueBuffers(openAL->mSource, 1, &buffer);

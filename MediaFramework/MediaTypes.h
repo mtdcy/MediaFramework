@@ -409,9 +409,9 @@ typedef struct SampleDescriptor {
 // TODO
 API_EXPORT const SampleDescriptor * GetSampleFormatDescriptor(eSampleFormat);
 
-API_EXPORT eSampleFormat    GetSimilarSampleFormat(eSampleFormat);
+API_EXPORT eSampleFormat    GetSimilarSampleFormat(eSampleFormat);      ///< plannar <-> packed/interleaved
 API_EXPORT size_t           GetSampleFormatBytes(eSampleFormat);
-API_EXPORT bool             IsSampleFormatPacked(eSampleFormat);
+API_EXPORT bool             IsPackedSampleFormat(eSampleFormat);
 
 typedef struct AudioFormat {
     eSampleFormat       format;         ///< audio sample format @see eSampleFormat
@@ -420,11 +420,153 @@ typedef struct AudioFormat {
     size_t              samples;        ///< samples per channel
 } AudioFormat;
 
+typedef struct MediaBuffer {
+    size_t          capacity;           ///< max number bytes in data, readonly
+    size_t          size;               ///< number bytes polluted in data, read & write
+    uint8_t *       data;               ///< pointer to memory, read & write
+#ifdef __cplusplus
+    MediaBuffer() : capacity(0), size(0), data(NULL) { }
+#endif
+} MediaBuffer;
+
+typedef struct MediaBufferList {
+    size_t          count;              ///< number buffer in list
+    MediaBuffer     buffers[1];         ///< a variable length array with min length = 1
+#ifdef __cplusplus
+    MediaBufferList() : count(1) { }
+#endif
+} MediaBufferList;
+
+/**
+ * time struct for represent decoding and presentation time
+ * @note we prefer int64_t(us) for our framework, but files and decoders prefer
+ * time value & scale, so we using MediaTime for MediaFrame, but int64_t
+ * for rest of the framework.
+ * @note MediaTime should only be used inside, no export, using int64_t(us) export
+ * time related properties. so MediaTime will not derive from SharedObject
+ */
+typedef struct MediaTime {
+    int64_t     value;                  ///< numerator
+    int64_t     scale;                  ///< denominator
+#ifdef __cplusplus
+    MediaTime() : value(0), scale(0) { }    ///< invalid media time
+    MediaTime(int64_t us) : value(us), scale(1000000LL) { }
+    MediaTime(int64_t num, int64_t den) : value(num), scale(den) { }
+    double seconds() const          { return (double)value / scale;                 }
+    int64_t useconds() const        { return (1000000LL * value) / scale;           }
+    MediaTime& rescale(int64_t den) { value = (value * den) / scale; return *this;  }
+#endif
+} MediaTime;
+
 __END_DECLS
 
 #pragma mark Basic C++ Types
 #ifdef __cplusplus
 __BEGIN_NAMESPACE_MPX
+
+struct MediaFrame : public SharedObject {
+    uint32_t            id;             ///< frame id, can be track index or frame index
+    uint32_t            flags;          ///< frame flags, @see eFrameType
+    MediaTime           timecode;       ///< dts for compressed frame, pts for uncompressed frame
+    MediaTime           duration;       ///< frame duration
+    union {
+        uint32_t        format;
+        AudioFormat     audio;          ///< audio format
+        ImageFormat     video;          ///< video format
+        ImageFormat     image;          ///< image format
+    };
+    void *              opaque;         ///< invisible, for special purposes
+    MediaBufferList     planes;         ///< this SHOULD be the last data member
+
+    /**
+     * create a media frame with underlying buffer
+     * the underlying buffer is always continues, a single buffer for all planes
+     */
+    static sp<MediaFrame>   Create(size_t);                             ///< create a one plane frame with n bytes underlying buffer
+    static sp<MediaFrame>   Create(sp<Buffer>&);                        ///< create a one plane frame with Buffer
+    static sp<MediaFrame>   Create(const AudioFormat&);                 ///< create a audio frame
+    static sp<MediaFrame>   Create(const ImageFormat&);                 ///< create a video/image frame
+    static sp<MediaFrame>   Create(const ImageFormat&, sp<Buffer>&);    ///< create a video/image frame with Buffer
+
+    /** features below is not designed for realtime playback **/
+
+    /**
+     * read backend buffer of hwaccel frame
+     * @return should return NULL if plane is not exists
+     * @note default implementation: read directly from planes
+     */
+    virtual sp<ABuffer> readPlane(size_t) const;
+
+    /**
+     * keep luma component and swap two chroma components of Y'CbCr image
+     * @return return kMediaErrorInvalidOperation if source is not Y'CbCr
+     * @return return kMediaErrorNotSupported if no implementation
+     */
+    virtual MediaError swapCbCr();
+
+    /**
+     * convert pixel bytes-order <-> word-order, like rgba -> abgr
+     * @return return kMediaErrorInvalidOperation if source is planar
+     * @return return kMediaErrorNotSupported if no implementation
+     */
+    virtual MediaError reversePixel();
+#if 0 // FIXME
+    /**
+     * convert to planar pixel format
+     * @return return kMediaNoError on success or source is planar
+     * @return return kMediaErrorNotSupported if no implementation
+     * @note planarization may or may NOT be in place convert
+     * @note target pixel format is variant based on the implementation
+     */
+    virtual MediaError planarization();
+
+    /**
+     * convert yuv -> rgb
+     * @return return kMediaErrorInvalidOperation if source is rgb or target is not rgb
+     * @return return kMediaErrorNotSupported if no implementation
+     * @return target pixel is rgba by default, but no guarentee.
+     */
+    enum eConversion { kBT601, kBT709, kJFIF };
+    virtual MediaError yuv2rgb(const ePixelFormat& = kPixelFormatRGB32, const eConversion& = kBT601);
+#endif
+    /**
+     * rotate image
+     * @return kMediaErrorNotSupported if no implementation
+     */
+    enum eRotation { kRotate0, kRotate90, kRotate180, kRotate270 };
+    virtual MediaError rotate(const eRotation&) { return kMediaErrorNotSupported; }
+
+    protected:
+    MediaFrame();
+    virtual ~MediaFrame() { }
+    DISALLOW_EVILS(MediaFrame);
+};
+
+struct MediaUnit : public SharedObject {
+    MediaUnit() : SharedObject() { }
+    virtual ~MediaUnit() { }
+
+    static sp<MediaUnit>    create(const sp<Message>&, const sp<Message>&);
+    virtual sp<Message>     formats() const             = 0;
+    virtual MediaError      push(const sp<MediaFrame>&) = 0;
+    virtual sp<MediaFrame>  pull()                      = 0;
+    virtual MediaError      reset()                     = 0;
+};
+
+// ePixelFormat
+API_EXPORT String   GetPixelFormatString(const ePixelFormat&);
+API_EXPORT String   GetImageFormatString(const ImageFormat&);
+API_EXPORT String   GetImageFrameString(const sp<MediaFrame>&);
+API_EXPORT size_t   GetImageFormatPlaneLength(const ImageFormat&, size_t);
+API_EXPORT size_t   GetImageFormatBufferLength(const ImageFormat& image);
+
+// AudioFormat
+API_EXPORT String   GetAudioFormatString(const AudioFormat&);
+
+// get MediaFrame human readable string, for debug
+API_EXPORT String   GetAudioFrameString(const sp<MediaFrame>&);
+
+#pragma mark C++ Accesories
 
 // AudioFormat
 static FORCE_INLINE bool operator==(const AudioFormat& lhs, const AudioFormat& rhs) {
@@ -438,16 +580,23 @@ static FORCE_INLINE bool operator==(const ImageFormat& lhs, const ImageFormat& r
     return lhs.format == rhs.format && lhs.width == rhs.width && lhs.height == rhs.height;
 }
 
-static FORCE_INLINE bool operator!=(const ImageFormat& lhs, const ImageFormat& rhs) { return !operator==(lhs, rhs); }            
+static FORCE_INLINE bool operator!=(const ImageFormat& lhs, const ImageFormat& rhs) { return !operator==(lhs, rhs); }
 
-/**
- * time struct for represent decoding and presentation time
- * @note we prefer int64_t(us) for our framework, but files and decoders prefer
- * time value & scale, so we using MediaTime for MediaPacket and MediaFrame, but int64_t
- * for rest of the framework.
- * @note MediaTime should only be used inside, no export, using int64_t(us) export
- * time related properties. so MediaTime will not derive from SharedObject
- */
+// MediaTime
+// valid MediaTime always has scale != 0, so we make scale == 0
+API_EXPORT static const MediaTime kMediaTimeInvalid = MediaTime(-1, 0);
+
+#define _MT_COMPARE(op) FORCE_INLINE bool operator op(const MediaTime& lhs, const MediaTime& rhs) \
+{ return lhs.value * rhs.scale op rhs.value * lhs.scale; }
+
+_MT_COMPARE(<);
+_MT_COMPARE(<=);
+_MT_COMPARE(>);
+_MT_COMPARE(>=);
+_MT_COMPARE(==);
+_MT_COMPARE(!=);
+
+#undef _MT_COMPARE
 
 // the least common multiple
 static FORCE_INLINE int64_t LCM(int64_t a, int64_t b) {
@@ -461,67 +610,32 @@ static FORCE_INLINE int64_t LCM(int64_t a, int64_t b) {
     return (a * b) / gcd;
 }
 
-#define COMPARE(op) FORCE_INLINE bool operator op(const MediaTime& rhs) const \
-{ return (double)value/timescale op (double)rhs.value/rhs.timescale; }
-typedef struct MediaTime {
-    int64_t     value;
-    int64_t     timescale;
+FORCE_INLINE MediaTime operator+(const MediaTime& lhs, const MediaTime& rhs) {
+    const int64_t lcd = LCM(lhs.scale, rhs.scale);
+    return MediaTime(lhs.value * (lcd / lhs.scale) + rhs.value * (lcd / rhs.scale), lcd);
+}
 
-    FORCE_INLINE MediaTime() : value(0), timescale(1000000LL) { }
-    FORCE_INLINE MediaTime(int64_t num, int64_t den) : value(num), timescale(den) { }
-    FORCE_INLINE MediaTime(int64_t us) : value(us), timescale(1000000LL) { }
+FORCE_INLINE MediaTime operator-(const MediaTime& lhs, const MediaTime& rhs) {
+    const int64_t lcd = LCM(lhs.scale, rhs.scale);
+    return MediaTime(lhs.value * (lcd / lhs.scale) - rhs.value * (lcd / rhs.scale), lcd);
+}
 
-    FORCE_INLINE MediaTime& scale(int64_t den) {
-        if (timescale != den) {
-            value = (value * den) / timescale;
-            timescale = den;
-        }
-        return *this;
-    }
+FORCE_INLINE MediaTime& operator+=(MediaTime& lhs, const MediaTime& rhs) {
+    const int64_t lcd = LCM(lhs.scale, rhs.scale);
+    lhs.value = lhs.value * (lcd / lhs.scale) + rhs.value * (lcd / rhs.scale);
+    lhs.scale = lcd;
+    return lhs;
+}
 
-    FORCE_INLINE double seconds() const {
-        return (double)value / timescale;
-    }
+FORCE_INLINE MediaTime& operator-=(MediaTime& lhs, const MediaTime& rhs) {
+    const int64_t lcd = LCM(lhs.scale, rhs.scale);
+    lhs.value = lhs.value * (lcd / lhs.scale) - rhs.value * (lcd / rhs.scale);
+    lhs.scale = lcd;
+    return lhs;
+}
 
-    FORCE_INLINE int64_t useconds() const {
-        return (value * 1000000LL) / timescale;
-    }
 
-    FORCE_INLINE MediaTime operator+(const MediaTime& rhs) const {
-        int64_t lcd = LCM(timescale, rhs.timescale);
-        return MediaTime(value * (lcd / timescale) + rhs.value * (lcd / rhs.timescale), lcd);
-    }
-
-    FORCE_INLINE MediaTime operator-(const MediaTime& rhs) const {
-        int64_t lcd = LCM(timescale, rhs.timescale);
-        return MediaTime(value * (lcd / timescale) - rhs.value * (lcd / rhs.timescale), lcd);
-    }
-
-    FORCE_INLINE MediaTime& operator+=(const MediaTime& rhs) {
-        int64_t lcd = LCM(timescale, rhs.timescale);
-        value *= (lcd / timescale); value += rhs.value * (lcd / rhs.timescale);
-        timescale = lcd;
-        return *this;
-    }
-
-    FORCE_INLINE MediaTime& operator-=(const MediaTime& rhs) {
-        int64_t lcd = LCM(timescale, rhs.timescale);
-        value *= (lcd / timescale); value -= rhs.value * (lcd / rhs.timescale);
-        timescale = lcd;
-        return *this;
-    }
-
-    COMPARE(<);
-    COMPARE(<=);
-    COMPARE(==);
-    COMPARE(!=);
-    COMPARE(>);
-    COMPARE(>=);
-} MediaTime;
-#undef COMPARE
-
-API_EXPORT const MediaTime kMediaTimeInvalid( -1, 1 );
-
+#pragma mark MediaEvent/MediaEvent2
 template <typename T>
 class ABE_EXPORT MediaEvent : public Job {
     public:
@@ -573,138 +687,6 @@ class ABE_EXPORT MediaEvent2 : public Job {
             onEvent(p.a, p.b);
         }
 };
-
-/**
- * media packet class for compressed audio and video packets
- */
-struct API_EXPORT MediaPacket : public SharedObject {
-    uint8_t * const     data;       ///< packet data
-    const size_t        capacity;   ///< buffer capacity in bytes
-    size_t              size;       ///< data size in bytes
-
-    size_t              index;      ///< track index, 0 based value
-    eFrameType          type;       ///< @see eFrameType
-    MediaTime           dts;        ///< packet decoding time, mandatory
-    MediaTime           pts;        ///< packet presentation time, mandatory if decoding order != presentation order
-    MediaTime           duration;   ///< packet duration time
-
-    void *              opaque;     ///< opaque
-
-    MediaPacket(uint8_t * const p, size_t length) :
-        data(p), capacity(length), size(0), index(0),
-        dts(kMediaTimeInvalid), pts(kMediaTimeInvalid),
-        duration(kMediaTimeInvalid), opaque(NULL) { }
-
-    virtual ~MediaPacket() { }
-    
-    /**
-    * create a packet backend by Buffer
-    */
-    static sp<MediaPacket> Create(size_t size);
-    static sp<MediaPacket> Create(sp<Buffer>&);
-};
-
-/**
- * media frame structure for decompressed audio and video frames
- * the properties inside this structure have to make sure this
- * frame can be renderred properly without additional informations.
- */
-#define MEDIA_FRAME_NB_PLANES   (8)
-struct API_EXPORT MediaFrame : public SharedObject {
-    MediaTime               timecode;   ///< frame display timestamp
-    MediaTime               duration;   ///< duration of this frame
-    /**
-     * plane data struct.
-     * for planar frame, multi planes must exist. the backend memory may be
-     * or may not be continueslly.
-     * for packed frame, only one plane exists.
-     */
-    struct {
-        uint8_t *           data;       ///< plane data
-        size_t              size;       ///< data size in bytes
-    } planes[MEDIA_FRAME_NB_PLANES];    ///< for packed frame, only one plane exists
-
-    union {
-        uint32_t            format;     ///< sample format, @see ePixelFormat, @see eSampleFormat
-        AudioFormat         a;
-        ImageFormat         v;
-    };
-    void                    *opaque;    ///< opaque
-
-    /**
-     * create a media frame backend by Buffer
-     * the underlying buffer is always continues, a single buffer for all planes
-     */
-    static sp<MediaFrame>   Create(const ImageFormat&);
-    static sp<MediaFrame>   Create(const ImageFormat&, const sp<Buffer>&);
-    static sp<MediaFrame>   Create(const AudioFormat&);
-
-    /** features below is not designed for realtime playback **/
-
-    /**
-     * read backend buffer of hwaccel frame
-     * @return should return NULL if plane is not exists
-     * @note default implementation: read directly from planes
-     */
-    virtual sp<ABuffer> readPlane(size_t) const;
-
-    /**
-     * keep luma component and swap two chroma components of Y'CbCr image
-     * @return return kMediaErrorInvalidOperation if source is not Y'CbCr
-     * @return return kMediaErrorNotSupported if no implementation
-     */
-    virtual MediaError swapCbCr();
-
-    /**
-     * convert pixel bytes-order <-> word-order, like rgba -> abgr
-     * @return return kMediaErrorInvalidOperation if source is planar
-     * @return return kMediaErrorNotSupported if no implementation
-     */
-    virtual MediaError reversePixel();
-
-    /**
-     * convert to planar pixel format
-     * @return return kMediaNoError on success or source is planar
-     * @return return kMediaErrorNotSupported if no implementation
-     * @note planarization may or may NOT be in place convert
-     * @note target pixel format is variant based on the implementation
-     */
-    virtual MediaError planarization();
-
-    /**
-     * convert yuv -> rgb
-     * @return return kMediaErrorInvalidOperation if source is rgb or target is not rgb
-     * @return return kMediaErrorNotSupported if no implementation
-     * @return target pixel is rgba by default, but no guarentee.
-     */
-    enum eConversion { kBT601, kBT709, kJFIF };
-    virtual MediaError yuv2rgb(const ePixelFormat& = kPixelFormatRGB32, const eConversion& = kBT601);
-
-    /**
-     * rotate image
-     * @return kMediaErrorNotSupported if no implementation
-     */
-    enum eRotation { kRotate0, kRotate90, kRotate180, kRotate270 };
-    virtual MediaError rotate(const eRotation&) { return kMediaErrorNotSupported; }
-
-    protected:
-    MediaFrame();
-    virtual ~MediaFrame() { }
-    sp<Buffer>  mBuffer;
-};
-
-// ePixelFormat
-API_EXPORT String   GetPixelFormatString(const ePixelFormat&);
-API_EXPORT String   GetImageFormatString(const ImageFormat&);
-API_EXPORT String   GetImageFrameString(const sp<MediaFrame>&);
-API_EXPORT size_t   GetImageFormatPlaneLength(const ImageFormat&, size_t);
-API_EXPORT size_t   GetImageFormatBufferLength(const ImageFormat& image);
-
-// AudioFormat
-API_EXPORT String   GetAudioFormatString(const AudioFormat&);
-
-// get MediaFrame human readable string, for debug
-API_EXPORT String   GetAudioFrameString(const sp<MediaFrame>&);
 
 __END_NAMESPACE_MPX
 #endif // __cplusplus

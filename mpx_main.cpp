@@ -135,8 +135,8 @@ struct OnFrameUpdate : public MediaFrameEvent {
             return;
         }
         
-        if (g_out == NULL || frame->v != g_format) {
-            g_format = frame->v;
+        if (g_out == NULL || frame->video != g_format) {
+            g_format = frame->video;
             
             // setup local context
             sp<Message> format = new Message;

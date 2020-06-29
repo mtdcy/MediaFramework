@@ -174,15 +174,15 @@ static void SDLAudioCallback(void *opaque, uint8_t *buffer, int len) {
         }
         
         size_t copy = len;
-        size_t left = sdl->mPendingFrame->planes[0].size - sdl->mBytesRead;
+        size_t left = sdl->mPendingFrame->planes.buffers[0].size - sdl->mBytesRead;
         if (copy > left) copy = left;
         
-        memcpy(buffer, sdl->mPendingFrame->planes[0].data + sdl->mBytesRead, copy);
+        memcpy(buffer, sdl->mPendingFrame->planes.buffers[0].data + sdl->mBytesRead, copy);
         sdl->mBytesRead     += copy;
         buffer              += copy;
         len                 -= copy;
         
-        if (sdl->mBytesRead == sdl->mPendingFrame->planes[0].size) {
+        if (sdl->mBytesRead == sdl->mPendingFrame->planes.buffers[0].size) {
             sdl->mPendingFrame.clear();
             sdl->mWait.signal();
         }

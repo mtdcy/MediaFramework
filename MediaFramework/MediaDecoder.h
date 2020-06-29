@@ -81,14 +81,14 @@ struct API_EXPORT MediaDecoder : public SharedObject {
     virtual sp<Message>     formats() const = 0;
     
     /**
-     * push MediaPacket to codec in decoding order.
-     * @param input     reference of MediaPacket
+     * push MediaFrame to codec in decoding order.
+     * @param input     reference of MediaFrame
      * @return return kMediaNoError on success.
      *         return kMediaErrorResourceBusy if input is full,
      *         otherwise return error code.
      * @note push a NULL packet to notify codec of eos
      */
-    virtual MediaError      write(const sp<MediaPacket>& input) = 0;
+    virtual MediaError      write(const sp<MediaFrame>& input) = 0;
     /**
      * pull MediaFrame from codec in presentation order.
      * @return  return reference of new MediaFrame.

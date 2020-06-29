@@ -616,7 +616,7 @@ static sp<OpenGLContext> initOpenGLContext(const ImageFormat& image, const OpenG
 
 #ifdef __APPLE__
 static void drawVideoToolboxFrame(const sp<OpenGLContext>& glc, const sp<MediaFrame>& frame) {
-    CHECK_TRUE(frame->v.format == kPixelFormatVideoToolbox);
+    CHECK_TRUE(frame->video.format == kPixelFormatVideoToolbox);
     CHECK_NULL(frame->opaque);
     CVPixelBufferRef pixbuf = (CVPixelBufferRef)frame->opaque;
     CHECK_NULL(pixbuf);
@@ -642,8 +642,8 @@ static void drawVideoToolboxFrame(const sp<OpenGLContext>& glc, const sp<MediaFr
         CGLError err = CGLTexImageIOSurface2D(CGLGetCurrentContext(),
                                               glc->mOpenGLConfig->e_target,
                                               glc->mOpenGLConfig->a_format[i].internalformat,
-                                              (GLsizei)(frame->v.width / glc->mPixelDescriptor->plane[i].hss),
-                                              (GLsizei)(frame->v.height / glc->mPixelDescriptor->plane[i].vss),
+                                              (GLsizei)(frame->video.width / glc->mPixelDescriptor->plane[i].hss),
+                                              (GLsizei)(frame->video.height / glc->mPixelDescriptor->plane[i].vss),
                                               glc->mOpenGLConfig->a_format[i].format,
                                               glc->mOpenGLConfig->a_format[i].type,
                                               iosurface, i);
@@ -665,20 +665,20 @@ static MediaError drawFrame(const sp<OpenGLContext>& glc, const sp<MediaFrame>& 
     // setting up texture rectangle
     GLfloat x = 0;
     GLfloat y = 0;
-    GLfloat w = frame->v.width;
-    GLfloat h = frame->v.height;
+    GLfloat w = frame->video.width;
+    GLfloat h = frame->video.height;
     
-    if (frame->v.rect.w || frame->v.rect.h) {
-        x = frame->v.rect.x;
-        y = frame->v.rect.y;
-        w = frame->v.rect.w;
-        h = frame->v.rect.h;
+    if (frame->video.rect.w || frame->video.rect.h) {
+        x = frame->video.rect.x;
+        y = frame->video.rect.y;
+        w = frame->video.rect.w;
+        h = frame->video.rect.h;
     }
     
-    x /= frame->v.width;
-    w /= frame->v.width;
-    y /= frame->v.height;
-    h /= frame->v.height;
+    x /= frame->video.width;
+    w /= frame->video.width;
+    y /= frame->video.height;
+    h /= frame->video.height;
     
     // texture rectangle, vec2, each point in a row vector
     const GLfloat rect[8] = {
@@ -691,7 +691,7 @@ static MediaError drawFrame(const sp<OpenGLContext>& glc, const sp<MediaFrame>& 
     glVertexAttribPointer(glc->mTextureCoord, 2, GL_FLOAT, 0, 0, rect);
     
 #ifdef __APPLE__
-    if (frame->v.format == kPixelFormatVideoToolbox) {
+    if (frame->video.format == kPixelFormatVideoToolbox) {
         drawVideoToolboxFrame(glc, frame);
     } else
 #endif
@@ -704,12 +704,12 @@ static MediaError drawFrame(const sp<OpenGLContext>& glc, const sp<MediaFrame>& 
             
             glTexImage2D(glc->mOpenGLConfig->e_target, 0,
                          glc->mOpenGLConfig->a_format[i].internalformat,
-                         (GLsizei)(frame->v.width / glc->mPixelDescriptor->plane[i].hss),
-                         (GLsizei)(frame->v.height / glc->mPixelDescriptor->plane[i].vss),
+                         (GLsizei)(frame->video.width / glc->mPixelDescriptor->plane[i].hss),
+                         (GLsizei)(frame->video.height / glc->mPixelDescriptor->plane[i].vss),
                          0,
                          glc->mOpenGLConfig->a_format[i].format,
                          glc->mOpenGLConfig->a_format[i].type,
-                         (const GLvoid *)frame->planes[i].data);
+                         (const GLvoid *)frame->planes.buffers[i].data);
             index[i] = i;
         }
         
