@@ -33,7 +33,7 @@
 //
 
 #define LOG_TAG "mac.AT"
-#define LOG_NDEBUG 0
+//#define LOG_NDEBUG 0
 #include <ABE/ABE.h>
 
 #include <AudioToolbox/AudioToolbox.h>
@@ -80,8 +80,6 @@ struct ATAC : public SharedObject {
     AudioStreamBasicDescription inFormat;
     AudioStreamBasicDescription outFormat;
     
-    MediaTime                   anchor;
-    
     // compressed packet
     AudioStreamPacketDescription desc;
     sp<MediaPacket>             packet;
@@ -89,7 +87,7 @@ struct ATAC : public SharedObject {
     // uncompressed frame
     sp<MediaFrame>              frame;
     
-    ATAC() : anchor(kMediaTimeInvalid) { }
+    ATAC() : atac(NULL) { }
 };
 
 static eSampleFormat GetSampleFormat(const AudioStreamBasicDescription& format) {
@@ -179,7 +177,7 @@ static sp<ATAC> openATAC(const sp<Message>& formats) {
 
     atac->outFormat                     = atac->inFormat;
     atac->outFormat.mFormatID           = kAudioFormatLinearPCM;
-    atac->outFormat.mFormatFlags        = kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsPacked;// | kAudioFormatFlagIsNonInterleaved;
+    atac->outFormat.mFormatFlags        = kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsPacked | kAudioFormatFlagIsNonInterleaved;
     atac->outFormat.mBitsPerChannel     = formats->findInt32(kKeySampleBits, 16);
     if (!refineOutputFormat(atac->outFormat)) {
         ERROR("no matching output format");
@@ -229,7 +227,7 @@ static sp<ATAC> openATAC(const sp<Message>& formats) {
 }
 
 static void closeATAC(sp<ATAC>& atac) {
-    AudioConverterDispose(atac->atac);
+    if (atac->atac) AudioConverterDispose(atac->atac);
 }
 
 static OSStatus DecodeCallback(AudioConverterRef               inAudioConverter,
@@ -263,6 +261,11 @@ static OSStatus DecodeCallback(AudioConverterRef               inAudioConverter,
     return 0;
 }
 
+struct MyAudioBufferList {
+    UInt32      mNumberBuffers;
+    AudioBuffer mBuffers[MEDIA_FRAME_NB_PLANES];
+};
+
 static MediaError decode(sp<ATAC>& atac, const sp<MediaPacket>& packet) {
     if (packet.isNIL()) {
         INFO("eos...");
@@ -271,11 +274,6 @@ static MediaError decode(sp<ATAC>& atac, const sp<MediaPacket>& packet) {
             return kMediaErrorResourceBusy;
         }
         DEBUG("write packet %.3f(s)", packet->pts.seconds());
-    }
-    
-    if (atac->anchor == kMediaTimeInvalid) {
-        CHECK_FALSE(packet.isNIL());
-        atac->anchor = packet->pts;
     }
     
     atac->packet                                = packet;
@@ -294,15 +292,19 @@ static MediaError decode(sp<ATAC>& atac, const sp<MediaPacket>& packet) {
     sp<MediaFrame> frame                        = MediaFrame::Create(audio);
     
     const bool plannar                          = atac->outFormat.mFormatFlags & kAudioFormatFlagIsNonInterleaved;
-    AudioBufferList outOutputData;
+    MyAudioBufferList outOutputData;
     if (plannar) {
         outOutputData.mNumberBuffers            = atac->outFormat.mChannelsPerFrame;
-        // TODO
+        for (size_t i = 0; i < outOutputData.mNumberBuffers; ++i) {
+            outOutputData.mBuffers[i].mNumberChannels   = 0;
+            outOutputData.mBuffers[i].mDataByteSize     = frame->planes[i].size;
+            outOutputData.mBuffers[i].mData             = frame->planes[i].data;
+        }
     } else {
-        outOutputData.mNumberBuffers            = 1;
-        outOutputData.mBuffers[0].mNumberChannels = atac->inFormat.mChannelsPerFrame;
-        outOutputData.mBuffers[0].mDataByteSize = frame->planes[0].size;
-        outOutputData.mBuffers[0].mData         = frame->planes[0].data;
+        outOutputData.mNumberBuffers                = 1;
+        outOutputData.mBuffers[0].mNumberChannels   = atac->inFormat.mChannelsPerFrame;
+        outOutputData.mBuffers[0].mDataByteSize     = frame->planes[0].size;
+        outOutputData.mBuffers[0].mData             = frame->planes[0].data;
     }
     
     AudioStreamPacketDescription desc;
@@ -310,7 +312,7 @@ static MediaError decode(sp<ATAC>& atac, const sp<MediaPacket>& packet) {
                                                   DecodeCallback,
                                                   atac.get(),
                                                   &ioOutputDataPacketSize,
-                                                  &outOutputData,
+                                                  (AudioBufferList*)&outOutputData,
                                                   &desc);
 
     if (st != 0) {
@@ -318,6 +320,11 @@ static MediaError decode(sp<ATAC>& atac, const sp<MediaPacket>& packet) {
         printErrorCode(st);
         ERROR("append input data failed");
         return kMediaErrorBadContent;
+    }
+    
+    if (packet.isNIL()) {
+        INFO("eos...");
+        return kMediaNoError;
     }
     
     frame->timecode     = packet->pts;
