@@ -308,20 +308,18 @@ struct AudioSampleConverter : public AudioConverter {
     
     virtual sp<MediaFrame> convert(const sp<MediaFrame>& input) {
         sp<MediaFrame> output = input;
-        if (sizeof(TO) > sizeof(FROM) || (mInterleave && !IsSingleBuffer(input))) {
+        if (sizeof(TO) > sizeof(FROM) || mInterleave) {
             mOutput.samples     = input->a.samples;
             output              = MediaFrame::Create(mOutput);
             output->a           = mOutput;
             output->timecode    = input->timecode;
             output->duration    = input->duration;
+        } else {
+            output->a           = mOutput;
         }
         // ELSE, do in place convert
         
         // the MediaFrame::Create always using a single buffer
-        
-        if (input->a.channels > output->a.channels) {
-            downmix<FROM>(input);
-        }
         
         if (mInterleave) {
             TO * orig = (TO*)output->planes[0].data;
