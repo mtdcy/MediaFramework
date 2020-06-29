@@ -7,4 +7,5 @@
     branch = v1.x
 [submodule "FFmpegStatic"]
 	path = FFmpegStatic
-	url = https://github.com/mtdcy/FFmpegStatic.git
+    url = https://github.com/mtdcy/FFmpegStatic.git
+    branch = v1.x
