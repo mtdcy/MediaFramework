@@ -600,7 +600,7 @@ sp<MediaFrame> MediaFrame::Create(const AudioFormat& a) {
     
     if (IsSampleFormatPacked(a.format)) {
         frame->planes[0].data       = (uint8_t*)frame->mBuffer->data();
-        frame->planes[0].size       = frame->mBuffer->size();
+        frame->planes[0].size       = frame->mBuffer->capacity();
     } else {
         uint8_t * next = (uint8_t*)frame->mBuffer->data();
         for (size_t i = 0; i < a.channels; ++i) {
