@@ -114,6 +114,7 @@ file (GLOB PUBLIC_HEADERS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "MediaFramework/*
 
 if (APPLE)
     list (APPEND SOURCE_FILES MediaFramework/mac/VideoToolbox.cpp)
+    list (APPEND SOURCE_FILES MediaFramework/mac/AudioToolbox.cpp)
 endif()
 
 # build a static library for local unit test
@@ -151,6 +152,7 @@ if (APPLE)
     # VideoToolbox
     list (APPEND LIBS "-framework CoreFoundation -framework CoreMedia -framework CoreVideo")
     list (APPEND LIBS "-framework VideoToolbox")
+    list (APPEND LIBS "-framework AudioToolbox")
     # openGL & openAL
     list (APPEND LIBS "-framework OpenGL -framework OpenAL")
 elseif (WIN32)

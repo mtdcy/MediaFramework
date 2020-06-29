@@ -49,6 +49,7 @@ __BEGIN_NAMESPACE_MPX
 
 #ifdef __APPLE__
 sp<MediaDecoder> CreateVideoToolboxDecoder(const sp<Message>& formats, const sp<Message>& options);
+sp<MediaDecoder> CreateAudioToolbox(const sp<Message>& formats, const sp<Message>& options);
 bool IsVideoToolboxSupported(eVideoCodec format);
 #endif
 #ifdef WITH_FFMPEG
@@ -72,7 +73,9 @@ sp<MediaDecoder> MediaDecoder::Create(const sp<Message>& formats, const sp<Messa
 #endif
     
 #ifdef __APPLE__
-    if (type == kCodecTypeVideo && mode != kModeTypeSoftware) {
+    if (type == kCodecTypeAudio) {
+        return CreateAudioToolbox(formats, options);
+    } else if (type == kCodecTypeVideo && mode != kModeTypeSoftware) {
         eVideoCodec codec = (eVideoCodec)formats->findInt32(kKeyFormat);
         if (!IsVideoToolboxSupported(codec)) {
             INFO("codec %#x is not supported by VideoToolbox", codec);
