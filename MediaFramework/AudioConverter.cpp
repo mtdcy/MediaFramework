@@ -314,6 +314,8 @@ struct AudioSampleConverter : public AudioConverter {
             output->a           = mOutput;
             output->timecode    = input->timecode;
             output->duration    = input->duration;
+        } else {
+            output->a.format    = GetSimilarSampleFormat(input->a.format);
         }
         // ELSE, do in place convert
         
