@@ -32,7 +32,7 @@
 //          1. 20181126     initial version
 //
 
-#define LOG_TAG "DecodeSession"
+#define LOG_TAG "MediaCodec"
 //#define LOG_NDEBUG 0
 #include "MediaSession.h"
 #include "MediaDevice.h"
@@ -48,7 +48,7 @@ __BEGIN_NAMESPACE_MPX
 //      |                                   |
 //      |                                   v
 // PacketRequestEvent <-- OnPacketReady -- requestPacket
-struct DecodeSession : public IMediaSession {
+struct MediaCodec : public IMediaSession {
     // external static context
     // options
     eModeType               mMode;
@@ -84,7 +84,7 @@ struct DecodeSession : public IMediaSession {
     size_t                  mPacketsComsumed;
     size_t                  mFramesDecoded;
 
-    DecodeSession(const sp<Looper>& lp) : IMediaSession(lp),
+    MediaCodec(const sp<Looper>& lp) : IMediaSession(lp),
     // external static context
     mPacketRequestEvent(NULL), mInfoEvent(NULL),
     // internal static context
@@ -165,10 +165,10 @@ struct DecodeSession : public IMediaSession {
     }
 
     struct OnPacketReady : public PacketReadyEvent {
-        DecodeSession * thiz;
+        MediaCodec * thiz;
         const int mGeneration;
 
-        OnPacketReady(DecodeSession *p, int gen) : PacketReadyEvent(p->mDispatch),
+        OnPacketReady(MediaCodec *p, int gen) : PacketReadyEvent(p->mDispatch),
         thiz(p), mGeneration(gen) { }
 
         virtual void onEvent(const sp<MediaFrame>& packet) {
@@ -186,18 +186,6 @@ struct DecodeSession : public IMediaSession {
         if (!pkt.isNIL()) {
             DEBUG("%s: packet %.3f|%.3f(s) ready", mName.c_str(),
                   pkt->dts.seconds(), pkt->pts.seconds());
-
-            if (mLastPacketTime == kMediaTimeInvalid) {
-                INFO("%s: first packet @ %.3f(s)", mName.c_str(),
-                     pkt->timecode.seconds());
-            }
-
-            // @see MediaFile::read(), packets should in dts order.
-            if (pkt->timecode < mLastPacketTime) {
-                WARN("%s: unorderred packet %.3f(s) < last %.3f(s)", mName.c_str(),
-                     pkt->timecode.seconds(), mLastPacketTime.seconds());
-            }
-            mLastPacketTime = pkt->timecode;
         }
         
         if (ABE_UNLIKELY(pkt.isNIL())) {
@@ -318,9 +306,9 @@ struct DecodeSession : public IMediaSession {
     }
     
     struct OnFrameRequest : public FrameRequestEvent {
-        DecodeSession *thiz;
+        MediaCodec *thiz;
         
-        OnFrameRequest(DecodeSession *p) :
+        OnFrameRequest(MediaCodec *p) :
         FrameRequestEvent(p->mDispatch), thiz(p) { }
         
         virtual void onEvent(const sp<FrameReadyEvent>& event, const MediaTime& time) {
@@ -367,9 +355,9 @@ struct DecodeSession : public IMediaSession {
     }
 };
 
-sp<IMediaSession> CreateDecodeSession(const sp<Looper>& lp) {
-    sp<DecodeSession> decoder = new DecodeSession(lp);
-    return decoder;
+sp<IMediaSession> CreateMediaCodec(const sp<Looper>& lp) {
+    sp<MediaCodec> codec = new MediaCodec(lp);
+    return codec;
 }
 
 __END_NAMESPACE_MPX

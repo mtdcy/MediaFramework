@@ -278,20 +278,10 @@ struct AVMediaFrame : public MediaFrame {
         if (pkt->flags & AV_PKT_FLAG_DISCARD)       flags |= kFrameTypeReference;
         if (pkt->flags & AV_PKT_FLAG_DISPOSABLE)    flags |= kFrameTypeDisposal;
         
-        if (st->calc_dts) {
-            if (pkt->duration == 0) {
-                ERROR("stream %d: missing duration");
-            }
-            
-            st->last_dts += MediaTime(pkt->duration * st->stream->time_base.num, st->stream->time_base.den);
-            timecode = st->last_dts;
+        if (pkt->pts != AV_NOPTS_VALUE) {
+            timecode    = MediaTime(pkt->pts * st->stream->time_base.num, st->stream->time_base.den);
         } else {
-            if (pkt->dts == AV_NOPTS_VALUE) {
-                ERROR("stream %d: missing dts", st->stream->index);
-                timecode = MediaTime(pkt->pts * st->stream->time_base.num, st->stream->time_base.den);
-            } else {
-                timecode = MediaTime(pkt->dts * st->stream->time_base.num, st->stream->time_base.den);
-            }
+            timecode    = MediaTime(pkt->dts * st->stream->time_base.num, st->stream->time_base.den);
         }
         
         if (pkt->duration > 0) {

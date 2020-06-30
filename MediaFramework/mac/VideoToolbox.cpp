@@ -490,8 +490,8 @@ static FORCE_INLINE CMSampleBufferRef createCMSampleBuffer(sp<VTContext>& vtc,
 
     CMSampleTimingInfo timingInfo[1];
     CHECK_TRUE(packet->timecode != kMediaTimeInvalid);
-    timingInfo[0].decodeTimeStamp = CMTimeMake(packet->timecode.value, packet->timecode.scale);
-    timingInfo[0].presentationTimeStamp = timingInfo[0].decodeTimeStamp;
+    timingInfo[0].decodeTimeStamp = kCMTimeInvalid;
+    timingInfo[0].presentationTimeStamp = CMTimeMake(packet->timecode.value, packet->timecode.scale);
 #if 0
     if (packet->pts != kMediaTimeInvalid) {
         timingInfo[0].presentationTimeStamp = CMTimeMake(packet->pts.value, packet->pts.timescale);

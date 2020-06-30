@@ -38,6 +38,7 @@
 #define _MPX_MEDIA_AUDIO_CONVERTER_H
 
 #include <MediaFramework/MediaTypes.h>
+#include <MediaFramework/MediaFrame.h>
 
 #ifdef __cplusplus
 

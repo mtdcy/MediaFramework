@@ -36,6 +36,7 @@
 #define _MEDIA_MODULES_DEVICE_H
 
 #include <MediaFramework/MediaTypes.h>
+#include <MediaFramework/MediaFrame.h>
 
 /**
  * File Device:
@@ -140,7 +141,7 @@ __END_DECLS
 #ifdef __cplusplus
 __BEGIN_NAMESPACE_MPX
 
-class MediaDevice : public SharedObject {
+class API_EXPORT MediaDevice : public SharedObject {
     public:
         /**
          * create a media device with given formats and options

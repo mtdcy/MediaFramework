@@ -148,15 +148,17 @@ static sp<MediaFrame> CreatePacket(MatroskaTrack& trak,
     }
     packet->id          = trak.index;
     
-    //packet->pts         = MediaTime(timecode / trak.timescale, 1000000000LL / timescale);
+    packet->timecode         = MediaTime(timecode / trak.timescale, 1000000000LL / timescale);
+#if 0
     if (trak.frametime) {
-        packet->timecode    = MediaTime(trak.decodeTimeCode / trak.timescale, 1000000000LL / timescale);
+        packet->dts         = MediaTime(trak.decodeTimeCode / trak.timescale, 1000000000LL / timescale);
         packet->duration    = MediaTime(trak.frametime, 1000000000LL / timescale);
         trak.decodeTimeCode += trak.frametime;
     } else {
-        packet->timecode    = MediaTime(timecode / trak.timescale, 1000000000LL / timescale);
+        packet->dts         = MediaTime(timecode / trak.timescale, 1000000000LL / timescale);
         packet->duration    = kMediaTimeInvalid;
     }
+#endif
     packet->flags           = flag;
     return packet;
 }

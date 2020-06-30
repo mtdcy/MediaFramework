@@ -35,10 +35,8 @@
 #define LOG_TAG "MediaFrame"
 #define LOG_NDEBUG 0
 #include "MediaTypes.h"
+#include "MediaFrame.h"
 #include <libyuv.h>
-#ifdef __APPLE__
-#include <VideoToolbox/VideoToolbox.h>
-#endif
 
 __BEGIN_DECLS
 
@@ -178,7 +176,7 @@ sp<MediaFrame> MediaFrame::Create(const ImageFormat& image, sp<Buffer>& buffer) 
     
     frame->video    = image;
     
-    DEBUG("create: %s", GetImageFrameString(frame).c_str());
+    DEBUG("create: %s", frame->string().c_str());
     return frame;
 }
 
@@ -189,6 +187,15 @@ sp<MediaFrame> MediaFrame::Create(const ImageFormat& image) {
     
     sp<Buffer> buffer = new Buffer(bytes);
     return MediaFrame::Create(image, buffer);
+}
+
+String MediaFrame::string() const {
+    String line = String::format("[%.4s] id:%" PRIu32 ", flags:%#x, timecode:%" PRId64 "/%" PRId64 ", duration:%" PRId64 "/%" PRId64,
+                                 (const char *)&format, id, flags, timecode.value, timecode.scale, duration.value, duration.scale);
+    for (size_t i = 0; i < planes.count; ++i) {
+        line += String::format(", plane[%zu]: %zu bytes @ %p", i, planes.buffers[i].size, planes.buffers[i].data);
+    }
+    return line;
 }
 
 sp<ABuffer> MediaFrame::readPlane(size_t index) const {
@@ -251,7 +258,7 @@ static FORCE_INLINE void swap32l(uint8_t * u8, size_t size) {
 }
 
 MediaError MediaFrame::swapCbCr() {
-    DEBUG("swap u/v: %s", GetImageFrameString(this).c_str());
+    DEBUG("swap u/v: %s", string().c_str());
     switch (video.format) {
         case kPixelFormat420YpCbCrPlanar:
         case kPixelFormat422YpCbCrPlanar:
@@ -304,7 +311,7 @@ static FORCE_INLINE void swap24(uint8_t * u8, size_t size) {
 }
 
 MediaError MediaFrame::reversePixel() {
-    DEBUG("reverse bytes: %s", GetImageFrameString(this).c_str());
+    DEBUG("reverse bytes: %s", string().c_str());
     if (planes.buffers[1].data) {   // is planar
         return kMediaErrorInvalidOperation;
     }

@@ -26,13 +26,13 @@
  ******************************************************************************/
 
 
-// File:    MediaSource.cpp
+// File:    MediaFile.cpp
 // Author:  mtdcy.chen
 // Changes:
 //          1. 20181126     initial version
 //
 
-#define LOG_TAG "MediaSource"
+#define LOG_TAG "MediaFile"
 //#define LOG_NDEBUG 0
 #include "MediaTypes.h"
 #include "MediaDevice.h"
@@ -40,10 +40,7 @@
 
 __BEGIN_NAMESPACE_MPX
 
-// for MediaSession request packet, which always run in player's looper
-// TODO: seek
-
-struct MediaSource : public IMediaSession {
+struct MediaFile : public IMediaSession {
     // external static context
     sp<SessionInfoEvent>    mInfoEvent;
     // internal mutable context
@@ -56,7 +53,7 @@ struct MediaSource : public IMediaSession {
     List<sp<OnPacketRequest> > mRequestEvents;
     bool                    mEndOfSource;
     
-    MediaSource(const sp<Looper>& lp) : IMediaSession(lp),
+    MediaFile(const sp<Looper>& lp) : IMediaSession(lp),
     mMediaFile(NULL), mLastReadTime(kMediaTimeInvalid), mEndOfSource(false)
     {
         
@@ -178,8 +175,8 @@ struct MediaSource : public IMediaSession {
     }
     
     struct OnTrackSelect : public TrackSelectEvent {
-        MediaSource *thiz;
-        OnTrackSelect(MediaSource *p) :
+        MediaFile *thiz;
+        OnTrackSelect(MediaFile *p) :
         TrackSelectEvent(p->mDispatch),
         thiz(p) { }
         
@@ -205,10 +202,10 @@ struct MediaSource : public IMediaSession {
     }
 
     struct OnPacketRequest : public PacketRequestEvent {
-        MediaSource *thiz;
+        MediaFile *thiz;
         const size_t trackIndex;
         
-        OnPacketRequest(MediaSource *p, const size_t index) :
+        OnPacketRequest(MediaFile *p, const size_t index) :
         PacketRequestEvent(p->mDispatch),
         thiz(p), trackIndex(index) { }
         
@@ -266,8 +263,8 @@ struct MediaSource : public IMediaSession {
     }
 };
 
-sp<IMediaSession> CreateMediaSource(const sp<Looper>& lp) {
-    return new MediaSource(lp);
+sp<IMediaSession> CreateMediaFile(const sp<Looper>& lp) {
+    return new MediaFile(lp);
 }
 
 __END_NAMESPACE_MPX

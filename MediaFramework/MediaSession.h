@@ -38,6 +38,7 @@
 #define _MPX_MEDIA_SESSION_H
 
 #include <MediaFramework/MediaTypes.h>
+#include <MediaFramework/MediaFrame.h>
 
 __BEGIN_DECLS
 #pragma mark Keys

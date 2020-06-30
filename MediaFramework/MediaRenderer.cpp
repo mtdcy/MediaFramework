@@ -26,13 +26,13 @@
  ******************************************************************************/
 
 
-// File:    RenderSession.cpp
+// File:    MediaRenderer.cpp
 // Author:  mtdcy.chen
 // Changes:
 //          1. 20181126     initial version
 //
 
-#define LOG_TAG "RenderSession"
+#define LOG_TAG "MediaRenderer"
 //#define LOG_NDEBUG 0
 #include "MediaSession.h"
 #include "MediaDevice.h"
@@ -68,9 +68,7 @@
 
 __BEGIN_NAMESPACE_MPX
 
-sp<IMediaSession> CreateDecodeSession(const sp<Message>& format, const sp<Message>& options);
-
-struct RenderSession : public IMediaSession {
+struct MediaRenderer : public IMediaSession {
     enum eState {
         kStateInit,
         kStatePrepare,
@@ -118,7 +116,7 @@ struct RenderSession : public IMediaSession {
 
     bool valid() const { return mOut != NULL || mMediaFrameEvent != NULL; }
 
-    RenderSession(const sp<Looper>& lp) : IMediaSession(lp),
+    MediaRenderer(const sp<Looper>& lp) : IMediaSession(lp),
     // external static context
     mFrameRequestEvent(NULL), mInfoEvent(NULL),
     // internal static context
@@ -302,9 +300,9 @@ struct RenderSession : public IMediaSession {
     }
 
     struct OnFrameReady : public FrameReadyEvent {
-        RenderSession *thiz;
+        MediaRenderer *thiz;
         const int mGeneration;
-        OnFrameReady(RenderSession *p, int gen) :
+        OnFrameReady(MediaRenderer *p, int gen) :
             FrameReadyEvent(p->mDispatch), thiz(p), mGeneration(gen) { }
 
         virtual void onEvent(const sp<MediaFrame>& frame) {
@@ -401,8 +399,8 @@ struct RenderSession : public IMediaSession {
     }
 
     struct RenderJob : public Job {
-        RenderSession *thiz;
-        RenderJob(RenderSession *s) : Job(), thiz(s) { }
+        MediaRenderer *thiz;
+        RenderJob(MediaRenderer *s) : Job(), thiz(s) { }
         virtual void onJob() {
             thiz->onRender();
         }
@@ -522,8 +520,8 @@ struct RenderSession : public IMediaSession {
 
     // using clock to control render session, start|pause|...
     struct OnClockEvent : public ClockEvent {
-        RenderSession *thiz;
-        OnClockEvent(RenderSession *p) : ClockEvent(p->mDispatch), thiz(p) { }
+        MediaRenderer *thiz;
+        OnClockEvent(MediaRenderer *p) : ClockEvent(p->mDispatch), thiz(p) { }
 
         virtual void onEvent(const eClockState& cs) {
             DEBUG("clock state => %d", cs);
@@ -595,7 +593,7 @@ struct RenderSession : public IMediaSession {
     }
 };
 
-sp<IMediaSession> CreateRenderSession(const sp<Looper>& lp) {
-    return new RenderSession(lp);
+sp<IMediaSession> CreateMediaRenderer(const sp<Looper>& lp) {
+    return new MediaRenderer(lp);
 }
 __END_NAMESPACE_MPX

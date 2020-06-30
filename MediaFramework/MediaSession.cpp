@@ -68,9 +68,9 @@ void IMediaSession::onLastRetain() {
     mDispatch.clear();
 }
 
-sp<IMediaSession> CreateMediaSource(const sp<Looper>&);
-sp<IMediaSession> CreateDecodeSession(const sp<Looper>&);
-sp<IMediaSession> CreateRenderSession(const sp<Looper>&);
+sp<IMediaSession> CreateMediaFile(const sp<Looper>&);
+sp<IMediaSession> CreateMediaCodec(const sp<Looper>&);
+sp<IMediaSession> CreateMediaRenderer(const sp<Looper>&);
 sp<IMediaSession> IMediaSession::Create(const sp<Message>& format, const sp<Message>& options) {
     sp<Looper> looper = options->findObject(kKeyLooper);
     if (looper.isNIL()) {
@@ -86,11 +86,11 @@ sp<IMediaSession> IMediaSession::Create(const sp<Message>& format, const sp<Mess
     
     sp<IMediaSession> session;
     if (format->contains(kKeyURL)) {
-        session = CreateMediaSource(looper);
+        session = CreateMediaFile(looper);
     } else if (options->contains(kKeyPacketRequestEvent)) {
-        session = CreateDecodeSession(looper);
+        session = CreateMediaCodec(looper);
     } else if (options->contains(kKeyFrameRequestEvent)) {
-        session = CreateRenderSession(looper);
+        session = CreateMediaRenderer(looper);
     }
     if (session.isNIL()) {
         ERROR("create session failed << %s << %s", format->string().c_str(), options->string().c_str());

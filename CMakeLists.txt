@@ -67,18 +67,11 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 # target source 
 set (SOURCE_FILES
+    # basic 
     MediaFramework/PixelFormatDescriptor.cpp
-    MediaFramework/MediaFramework.cpp
     MediaFramework/MediaFrame.cpp
     MediaFramework/MediaDevice.cpp
-    MediaFramework/MediaClock.cpp
-    MediaFramework/MediaSession.cpp
-    MediaFramework/DecodeSession.cpp
-    MediaFramework/RenderSession.cpp
-    MediaFramework/MediaSource.cpp 
-    MediaFramework/MediaPlayer.cpp
-    MediaFramework/AudioConverter.cpp 
-    MediaFramework/Tiger.cpp 
+    # files
     MediaFramework/microsoft/Microsoft.cpp
     MediaFramework/microsoft/WaveFile.cpp
     MediaFramework/id3/ID3.cpp
@@ -91,13 +84,24 @@ set (SOURCE_FILES
     MediaFramework/mpeg4/Mp4File.cpp
     MediaFramework/matroska/EBML.cpp
     MediaFramework/matroska/MatroskaFile.cpp
+    # output
     MediaFramework/opengl/OpenGL.cpp
     MediaFramework/openal/OpenAL.cpp
+    # image
     MediaFramework/jpeg/TIFF.cpp
     MediaFramework/jpeg/JFIF.cpp
     MediaFramework/jpeg/Exif.cpp
     MediaFramework/jpeg/JPEG.cpp
-    MediaFramework/MediaFramework_c.cpp
+    # sessions
+    MediaFramework/AudioConverter.cpp 
+    MediaFramework/MediaClock.cpp
+    MediaFramework/MediaSession.cpp
+    MediaFramework/MediaFile.cpp 
+    MediaFramework/MediaCodec.cpp
+    MediaFramework/MediaRenderer.cpp
+    MediaFramework/MediaPlayer.cpp
+    MediaFramework/Tiger.cpp 
+    MediaFramework/MediaFramework.cpp
     )
 
 if (WITH_FFMPEG)
@@ -107,7 +111,6 @@ endif()
 
 if (WITH_SDL)
     list (APPEND SOURCE_FILES MediaFramework/sdl2/SDLAudio.cpp)
-    #MediaFramework/sdl2/SDLVideo.cpp
 endif()
 
 file (GLOB PUBLIC_HEADERS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "MediaFramework/*.h")

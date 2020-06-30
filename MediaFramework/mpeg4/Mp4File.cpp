@@ -689,7 +689,10 @@ struct Mp4File : public MediaDevice {
             sp<MediaFrame> packet   = MediaFrame::Create(sample);
             packet->id              = trackIndex;
             packet->flags           = flags;
-            packet->timecode        = MediaTime(s.dts, track->duration.scale);
+            if (s.pts < 0)
+                packet->timecode    = MediaTime(s.dts, track->duration.scale);
+            else
+                packet->timecode    = MediaTime(s.pts, track->duration.scale);
             return packet;
         }
 

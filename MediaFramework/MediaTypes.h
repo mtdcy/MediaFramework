@@ -174,21 +174,23 @@ typedef uint32_t eCodecType;
  * which is very common in audio processing, but not in HAL
  */
 enum {
+    // plannar sample formats
+    // we prefer plannar samples inside framework
     kSampleFormatUnknown    = kFormatUnknown,
-    kSampleFormatU8         = FOURCC('u8  '),
-    kSampleFormatS16        = FOURCC('s16 '),
-    kSampleFormatS32        = FOURCC('s32 '),
-    kSampleFormatFLT        = FOURCC('flt '),
-    kSampleFormatDBL        = FOURCC('dbl '),
-    // packed sample formats.
+    kSampleFormatU8         = FOURCC(' u8p'),
+    kSampleFormatS16        = FOURCC('s16p'),
+    kSampleFormatS32        = FOURCC('s32p'),
+    kSampleFormatFLT        = FOURCC('fltp'),
+    kSampleFormatDBL        = FOURCC('dblp'),
+    // packed/interleaved sample formats.
     // samples for each channel are interleaved
     // for audio input/output device only
     // most audio HAL only support interleaved samples
-    kSampleFormatU8Packed   = FOURCC('u8p '),
-    kSampleFormatS16Packed  = FOURCC('s16p'),
-    kSampleFormatS32Packed  = FOURCC('s32p'),
-    kSampleFormatFLTPacked  = FOURCC('fltp'),
-    kSampleFormatDBLPacked  = FOURCC('dblp'),
+    kSampleFormatU8Packed   = FOURCC(' u8i'),
+    kSampleFormatS16Packed  = FOURCC('s16i'),
+    kSampleFormatS32Packed  = FOURCC('s32i'),
+    kSampleFormatFLTPacked  = FOURCC('flti'),
+    kSampleFormatDBLPacked  = FOURCC('dbli'),
 };
 typedef uint32_t eSampleFormat;
 
@@ -346,23 +348,6 @@ typedef struct AudioFormat {
     size_t              samples;        ///< samples per channel
 } AudioFormat;
 
-typedef struct MediaBuffer {
-    size_t          capacity;           ///< max number bytes in data, readonly
-    size_t          size;               ///< number bytes polluted in data, read & write
-    uint8_t *       data;               ///< pointer to memory, read & write
-#ifdef __cplusplus
-    MediaBuffer() : capacity(0), size(0), data(NULL) { }
-#endif
-} MediaBuffer;
-
-typedef struct MediaBufferList {
-    size_t          count;              ///< number buffer in list
-    MediaBuffer     buffers[1];         ///< a variable length array with min length = 1
-#ifdef __cplusplus
-    MediaBufferList() : count(1) { }
-#endif
-} MediaBufferList;
-
 /**
  * time struct for represent decoding and presentation time
  * @note we prefer int64_t(us) for our framework, but files and decoders prefer
@@ -390,96 +375,14 @@ __END_DECLS
 #ifdef __cplusplus
 __BEGIN_NAMESPACE_MPX
 
-struct MediaFrame : public SharedObject {
-    uint32_t            id;             ///< frame id, can be track index or frame index
-    uint32_t            flags;          ///< frame flags, @see eFrameType
-    MediaTime           timecode;       ///< dts for compressed frame, pts for uncompressed frame
-    MediaTime           duration;       ///< frame duration
-    union {
-        uint32_t        format;
-        AudioFormat     audio;          ///< audio format
-        ImageFormat     video;          ///< video format
-        ImageFormat     image;          ///< image format
-    };
-    void *              opaque;         ///< invisible, for special purposes
-    MediaBufferList     planes;         ///< this SHOULD be the last data member
-
-    /**
-     * create a media frame with underlying buffer
-     * the underlying buffer is always continues, a single buffer for all planes
-     */
-    static sp<MediaFrame>   Create(size_t);                             ///< create a one plane frame with n bytes underlying buffer
-    static sp<MediaFrame>   Create(sp<Buffer>&);                        ///< create a one plane frame with Buffer
-    static sp<MediaFrame>   Create(const AudioFormat&);                 ///< create a audio frame
-    static sp<MediaFrame>   Create(const ImageFormat&);                 ///< create a video/image frame
-    static sp<MediaFrame>   Create(const ImageFormat&, sp<Buffer>&);    ///< create a video/image frame with Buffer
-
-    /** features below is not designed for realtime playback **/
-
-    /**
-     * read backend buffer of hwaccel frame
-     * @return should return NULL if plane is not exists
-     * @note default implementation: read directly from planes
-     */
-    virtual sp<ABuffer> readPlane(size_t) const;
-
-    /**
-     * keep luma component and swap two chroma components of Y'CbCr image
-     * @return return kMediaErrorInvalidOperation if source is not Y'CbCr
-     * @return return kMediaErrorNotSupported if no implementation
-     */
-    virtual MediaError swapCbCr();
-
-    /**
-     * convert pixel bytes-order <-> word-order, like rgba -> abgr
-     * @return return kMediaErrorInvalidOperation if source is planar
-     * @return return kMediaErrorNotSupported if no implementation
-     */
-    virtual MediaError reversePixel();
-#if 0 // FIXME
-    /**
-     * convert to planar pixel format
-     * @return return kMediaNoError on success or source is planar
-     * @return return kMediaErrorNotSupported if no implementation
-     * @note planarization may or may NOT be in place convert
-     * @note target pixel format is variant based on the implementation
-     */
-    virtual MediaError planarization();
-
-    /**
-     * convert yuv -> rgb
-     * @return return kMediaErrorInvalidOperation if source is rgb or target is not rgb
-     * @return return kMediaErrorNotSupported if no implementation
-     * @return target pixel is rgba by default, but no guarentee.
-     */
-    enum eConversion { kBT601, kBT709, kJFIF };
-    virtual MediaError yuv2rgb(const ePixelFormat& = kPixelFormatRGB32, const eConversion& = kBT601);
-#endif
-    /**
-     * rotate image
-     * @return kMediaErrorNotSupported if no implementation
-     */
-    enum eRotation { kRotate0, kRotate90, kRotate180, kRotate270 };
-    virtual MediaError rotate(const eRotation&) { return kMediaErrorNotSupported; }
-
-    protected:
-    MediaFrame();
-    virtual ~MediaFrame() { }
-    DISALLOW_EVILS(MediaFrame);
-};
-
 // ePixelFormat
 API_EXPORT String   GetPixelFormatString(const ePixelFormat&);
 API_EXPORT String   GetImageFormatString(const ImageFormat&);
-API_EXPORT String   GetImageFrameString(const sp<MediaFrame>&);
 API_EXPORT size_t   GetImageFormatPlaneLength(const ImageFormat&, size_t);
 API_EXPORT size_t   GetImageFormatBufferLength(const ImageFormat& image);
 
 // AudioFormat
 API_EXPORT String   GetAudioFormatString(const AudioFormat&);
-
-// get MediaFrame human readable string, for debug
-API_EXPORT String   GetAudioFrameString(const sp<MediaFrame>&);
 
 #pragma mark C++ Accesories
 
