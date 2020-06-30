@@ -35,6 +35,7 @@
 #define LOG_TAG "ID3"
 //#define LOG_NDEBUG 0
 #include "ID3.h"
+#include "MediaDevice.h"
 
 #include <zlib.h>
 

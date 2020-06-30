@@ -36,10 +36,10 @@
 //#define LOG_NDEBUG 0
 #include <ABE/ABE.h>
 
-#include <VideoToolbox/VideoToolbox.h>
+#include "MediaTypes.h"
+#include "MediaDevice.h"
 
-#include <MediaFramework/MediaTypes.h>
-#include <MediaFramework/MediaDecoder.h>
+#include <VideoToolbox/VideoToolbox.h>
 
 #include "mpeg4/Systems.h"
 
@@ -596,7 +596,7 @@ sp<MediaFrame> readVideoToolboxFrame(CVPixelBufferRef pixbuf) {
     return frame;
 }
 
-struct VideoToolboxDecoder : public MediaDecoder {
+struct VideoToolboxDecoder : public MediaDevice {
     sp<VTContext>   mVTContext;
 
     VideoToolboxDecoder() { }
@@ -611,10 +611,6 @@ struct VideoToolboxDecoder : public MediaDecoder {
         return info;
     }
 
-    virtual MediaError configure(const Message& options) {
-        return kMediaErrorInvalidOperation;
-    }
-
     virtual MediaError init(const sp<Message>& format, const sp<Message>& options) {
         INFO("create VideoToolbox for %s", format->string().c_str());
 
@@ -625,7 +621,11 @@ struct VideoToolboxDecoder : public MediaDecoder {
         return mVTContext.isNIL() ? kMediaErrorNotSupported : kMediaNoError;
     }
 
-    virtual MediaError write(const sp<MediaFrame>& input) {
+    virtual MediaError configure(const sp<Message>& options) {
+        return kMediaErrorInvalidOperation;
+    }
+
+    virtual MediaError push(const sp<MediaFrame>& input) {
         if (input == NULL) {
             INFO("eos");
             VTDecompressionSessionFinishDelayedFrames(mVTContext->decompressionSession);
@@ -672,7 +672,7 @@ struct VideoToolboxDecoder : public MediaDecoder {
         return kMediaNoError;
     }
 
-    virtual sp<MediaFrame> read() {
+    virtual sp<MediaFrame> pull() {
         AutoLock _l(mVTContext->mLock);
         if (mVTContext->mImages.empty()) {
             if (mVTContext->mInputEOS) INFO("eos...");
@@ -686,7 +686,7 @@ struct VideoToolboxDecoder : public MediaDecoder {
         return frame;
     }
 
-    virtual MediaError flush() {
+    virtual MediaError reset() {
         VTDecompressionSessionFinishDelayedFrames(mVTContext->decompressionSession);
         VTDecompressionSessionWaitForAsynchronousFrames(mVTContext->decompressionSession);
 
@@ -706,7 +706,7 @@ bool IsVideoToolboxSupported(eVideoCodec format) {
     //return VTIsHardwareDecodeSupported(cm);
 }
 
-sp<MediaDecoder> CreateVideoToolboxDecoder(const sp<Message>& formats, const sp<Message>& options) {
+sp<MediaDevice> CreateVideoToolboxDecoder(const sp<Message>& formats, const sp<Message>& options) {
     sp<VideoToolboxDecoder> vt = new VideoToolboxDecoder();
     if (vt->init(formats, options) == kMediaNoError) return vt;
     return NULL;

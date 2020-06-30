@@ -39,6 +39,14 @@
 
 #include <MediaFramework/MediaTypes.h>
 
+__BEGIN_DECLS
+#pragma mark Keys
+enum {
+    kKeyURL         = FOURCC('!url'),       ///< string
+    kKeyLooper      = FOURCC('lper'),       ///< sp<Looper>
+};
+__END_DECLS
+
 #ifdef __cplusplus
 __BEGIN_NAMESPACE_MPX
 

@@ -36,11 +36,10 @@
 //#define LOG_NDEBUG 0
 #include <ABE/ABE.h>
 
+#include "MediaTypes.h"
+#include "MediaDevice.h"
+
 #include <AudioToolbox/AudioToolbox.h>
-
-#include <MediaFramework/MediaTypes.h>
-#include <MediaFramework/MediaDecoder.h>
-
 
 __BEGIN_NAMESPACE_MPX
 
@@ -334,10 +333,10 @@ static MediaError decode(sp<ATAC>& atac, const sp<MediaFrame>& packet) {
     return kMediaNoError;
 }
 
-struct AudioCodec : public MediaDecoder {
+struct AudioCodec : public MediaDevice {
     sp<ATAC>            mATAC;
     
-    AudioCodec() : MediaDecoder() { }
+    AudioCodec() : MediaDevice() { }
     
     virtual ~AudioCodec() {
         closeATAC(mATAC);
@@ -357,11 +356,15 @@ struct AudioCodec : public MediaDecoder {
         return format;
     }
     
-    virtual MediaError write(const sp<MediaFrame>& packet) {
+    virtual MediaError configure(const sp<Message>& options) {
+        return kMediaErrorNotSupported;
+    }
+    
+    virtual MediaError push(const sp<MediaFrame>& packet) {
         return decode(mATAC, packet);
     }
     
-    virtual sp<MediaFrame> read() {
+    virtual sp<MediaFrame> pull() {
         sp<MediaFrame> frame = mATAC->frame;
         mATAC->frame.clear();
         
@@ -374,7 +377,7 @@ struct AudioCodec : public MediaDecoder {
         return frame;
     }
     
-    virtual MediaError flush() {
+    virtual MediaError reset() {
         AudioConverterReset(mATAC->atac);
         mATAC->packet.clear();
         mATAC->frame.clear();
@@ -382,7 +385,7 @@ struct AudioCodec : public MediaDecoder {
     }
 };
 
-sp<MediaDecoder> CreateAudioToolbox(const sp<Message>& formats, const sp<Message>& options) {
+sp<MediaDevice> CreateAudioToolbox(const sp<Message>& formats, const sp<Message>& options) {
     sp<AudioCodec> codec = new AudioCodec;
     if (codec->init(formats, options) == kMediaNoError)
         return codec;

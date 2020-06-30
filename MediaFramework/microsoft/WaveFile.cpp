@@ -35,7 +35,7 @@
 #define LOG_TAG "WaveFile"
 #define LOG_NDEBUG 0
 #include "MediaTypes.h"
-#include "MediaFile.h"
+#include "MediaDevice.h"
 #include "Microsoft.h"
 #include "RIFF.h"
 #include "id3/ID3.h"
@@ -94,7 +94,7 @@ static sp<RIFF::Chunk> ReadChunk(const sp<ABuffer>& buffer) {
     return ck;
 }
 
-struct WaveFile : public MediaFile {
+struct WaveFile : public MediaDevice {
     sp<ABuffer>         mContent;
     int64_t             mDataOffset;
     int64_t             mDataLength;
@@ -106,7 +106,7 @@ struct WaveFile : public MediaFile {
     // for non-pcm formats
     uint32_t            dwSampleLength;
 
-    WaveFile() : MediaFile(),
+    WaveFile() : MediaDevice(),
     mDataOffset(0), mDataLength(0),
     mFormat(NULL), dwSampleLength(0) { }
 
@@ -211,14 +211,24 @@ struct WaveFile : public MediaFile {
         formats->setObject(kKeyTrack,       track);
         return formats;
     }
+    
+    virtual MediaError configure(const sp<Message>& options) {
+        if (options->contains(kKeySeek)) {
+            int64_t us = options->findInt64(kKeySeek);
+            seek(us);
+            return kMediaNoError;
+        }
+        
+        return kMediaErrorNotSupported;
+    }
 
-    void seek(const MediaTime& time) {
+    void seek(int64_t us) {
         const Microsoft::WAVEFORMATEX& wave = mFormat->Wave;
         int32_t byterate = wave.nAvgBytesPerSec;
         if (wave.wBitsPerSample) {
             byterate = (wave.nChannels * wave.nSamplesPerSec * wave.wBitsPerSample) / 8;
         }
-        int64_t offset = time.seconds() * byterate;
+        int64_t offset = (us * byterate) / 1000000LL;
 
         if (offset > mDataLength) offset = mDataLength;
         int32_t align = (wave.nChannels * wave.wBitsPerSample) / 8;
@@ -229,12 +239,12 @@ struct WaveFile : public MediaFile {
         mContent->resetBytes();
         mContent->skipBytes(mDataOffset + offset);
     }
+    
+    virtual MediaError push(const sp<MediaFrame>&) {
+        return kMediaErrorInvalidOperation;
+    }
 
-    virtual sp<MediaFrame> read(const eReadMode& mode, const MediaTime& ts) {
-        if (ts != kMediaTimeInvalid) {
-            seek(ts);
-        }
-        
+    virtual sp<MediaFrame> pull() {
         const Microsoft::WAVEFORMATEX& wave = mFormat->Wave;
         const size_t sampleBytes = ((wave.nChannels * wave.wBitsPerSample) >> 3);
         int64_t samplesRead = (mContent->offset() - mDataOffset) / sampleBytes;
@@ -256,9 +266,13 @@ struct WaveFile : public MediaFile {
 
         return packet;
     }
+    
+    virtual MediaError reset() {
+        return kMediaNoError;
+    }
 };
 
-sp<MediaFile> CreateWaveFile(const sp<ABuffer>& buffer) {
+sp<MediaDevice> CreateWaveFile(const sp<ABuffer>& buffer) {
     sp<WaveFile> wave = new WaveFile;
     if (wave->init(buffer) == kMediaNoError)
         return wave;

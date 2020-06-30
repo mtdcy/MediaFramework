@@ -30,17 +30,17 @@
  ******************************************************************************/
 
 
-// File:    MediaFile.cpp
+// File:    MediaDevice.cpp
 // Author:  mtdcy.chen
 // Changes: 
 //          1. 20160701     initial version
 //
 
-#define LOG_TAG "MediaFile"
+#define LOG_TAG "MediaDevice"
 #define LOG_NDEBUG 0
 
-#include "MediaFile.h"
 #include "MediaTypes.h"
+#include "MediaDevice.h"
 #include "id3/ID3.h"
 #include "matroska/EBML.h"
 
@@ -135,40 +135,152 @@ static eFileFormat GetFormat(const sp<ABuffer>& data) {
     return format;
 }
 
-sp<MediaFile> CreateMp3File(const sp<ABuffer>&);
-sp<MediaFile> CreateMp4File(const sp<ABuffer>&);
-sp<MediaFile> CreateMatroskaFile(const sp<ABuffer>&);
-sp<MediaFile> CreateLibavformat(const sp<ABuffer>&);
-sp<MediaFile> CreateWaveFile(const sp<ABuffer>&);
-sp<MediaFile> MediaFile::Create(const sp<ABuffer>& buffer, const eMode mode) {
-    CHECK_TRUE(mode == Read, "TODO: only support read");
+sp<MediaDevice> CreateMp3File(const sp<ABuffer>&);
+sp<MediaDevice> CreateMp4File(const sp<ABuffer>&);
+sp<MediaDevice> CreateMatroskaFile(const sp<ABuffer>&);
+sp<MediaDevice> CreateLibavformat(const sp<ABuffer>&);
+sp<MediaDevice> CreateWaveFile(const sp<ABuffer>&);
+
+#ifdef __APPLE__
+sp<MediaDevice> CreateVideoToolboxDecoder(const sp<Message>& formats, const sp<Message>& options);
+sp<MediaDevice> CreateAudioToolbox(const sp<Message>& formats, const sp<Message>& options);
+bool IsVideoToolboxSupported(eVideoCodec format);
+#endif
+#ifdef WITH_FFMPEG
+sp<MediaDevice> CreateLavcDecoder(const sp<Message>& formats, const sp<Message>& options);
+#endif
+
+sp<MediaDevice> CreateOpenALOut(const sp<Message>& formats, const sp<Message>& options);
+sp<MediaDevice> CreateOpenGLOut(const sp<Message>& formats, const sp<Message>& options);
+#ifdef WITH_SDL
+sp<MediaDevice> CreateSDLAudio(const sp<Message>& formats, const sp<Message>& options);
+#endif
+
+sp<MediaDevice> CreateMp3Packetizer();
+
+sp<MediaDevice> MediaDevice::create(const sp<Message>& formats, const sp<Message>& options) {
+    // ENV
+    String env0 = GetEnvironmentValue("FORCE_AVFORMAT");
+    String env1 = GetEnvironmentValue("FORCE_AVCODEC");
+    bool FORCE_AVFORMAT = env0.equals("1") || env0.lower().equals("yes");
+    bool FORCE_AVCODEC = env1.equals("1") || env1.lower().equals("yes");
     
-    String env = GetEnvironmentValue("FORCE_AVFORMAT");
-    bool force = env.equals("1") || env.lower().equals("yes");
-    
-    sp<ABuffer> head = buffer->readBytes(kScanLength);
-    buffer->skipBytes(-head->size());   // reset our buffer read pointer
-    
-    // skip id3v2, id3v2 is bad for file format detection
-    if (ID3::SkipID3v2(head) == kMediaNoError) {
-        head = head->readBytes(head->size());
+    uint32_t format = formats->findInt32(kKeyFormat, 0);
+    sp<ABuffer> buffer = formats->findObject(kKeyContent);
+    if (format == 0 && !buffer.isNIL()) {
+        sp<ABuffer> head = buffer->readBytes(kScanLength);
+        buffer->skipBytes(-head->size());   // reset our buffer read pointer
+        
+        // skip id3v2, id3v2 is bad for file format detection
+        if (ID3::SkipID3v2(head) == kMediaNoError) {
+            head = head->readBytes(head->size());
+        }
+        
+        format = GetFormat(head);
     }
     
-    const eFileFormat format = GetFormat(head);
-    if (format == kFileFormatUnknown) return NULL;
+    if (format == 0) {
+        ERROR("create device failed, unknown format");
+        return NULL;
+    }
+    
+    uint32_t mode = formats->findInt32(kKeyMode, kModeTypeDefault);
+#ifdef WITH_FFMPEG
+    if (mode == kModeTypeSoftware) {
+        FORCE_AVCODEC = true;
+    }
+#endif
     
     switch (format) {
         case kFileFormatWave:
-            return force ? CreateLibavformat(buffer) : CreateWaveFile(buffer);
+            return FORCE_AVFORMAT ? CreateLibavformat(buffer) : CreateWaveFile(buffer);
         case kFileFormatMp3:
-            return force ? CreateLibavformat(buffer) : CreateMp3File(buffer);
+            return FORCE_AVFORMAT ? CreateLibavformat(buffer) : CreateMp3File(buffer);
         case kFileFormatMp4:
-            return force ? CreateLibavformat(buffer) : CreateMp4File(buffer);
+            return FORCE_AVFORMAT ? CreateLibavformat(buffer) : CreateMp4File(buffer);
         case kFileFormatMkv:
-            return force ? CreateLibavformat(buffer) : CreateMatroskaFile(buffer);
-        default:
+            return FORCE_AVFORMAT ? CreateLibavformat(buffer) : CreateMatroskaFile(buffer);
+        case kFileFormatApe:
+        case kFileFormatFlac:
+        case kFileFormatAvi:
+        case kFileFormatLAVF:
             return CreateLibavformat(buffer);
+        case kAudioCodecAAC:
+        case kAudioCodecAC3:
+#ifdef __APPLE__
+            return CreateAudioToolbox(formats, options);
+#elif defined(WITH_FFMPEG)
+            return CreateLavcDecoder(formats, options);
+#else
+            break;
+#endif
+        case kAudioCodecMP3:
+        case kAudioCodecAPE:
+        case kAudioCodecWMA:
+        case kAudioCodecDTS:
+        case kAudioCodecFLAC:
+        case kAudioCodecLAVC:
+#ifdef WITH_FFMPEG
+            return CreateLavcDecoder(formats, options);
+#else
+            break;
+#endif
+        case kVideoCodecMPEG4:
+        case kVideoCodecH263:
+        case kVideoCodecH264:
+        case kVideoCodecHEVC:
+        case kVideoCodecVP8:
+        case kVideoCodecVP9:
+        case kVideoCodecVC1:
+        case kVideoCodecLAVC:
+        case kVideoCodecMicrosoftMPEG4:
+#ifdef WITH_FFMPEG
+            if (FORCE_AVCODEC) {
+                return CreateLavcDecoder(formats, options);
+            }
+#endif
+            
+#ifdef __APPLE__
+            if (IsVideoToolboxSupported(format)) {
+                return CreateVideoToolboxDecoder(formats, options);
+            }
+#endif
+
+#ifdef WITH_FFMPEG
+            return CreateLavcDecoder(formats, options);
+#else
+            break;
+#endif
+            
+        case kImageCodecBMP:
+        case kImageCodecJPEG:
+        case kImageCodecGIF:
+        case kImageCodecPNG:
+            // TODO
+            break;
+
+        case kSampleFormatS16:
+        case kSampleFormatS16Packed:
+        case kSampleFormatS32:
+        case kSampleFormatS32Packed:
+            // only s16 & s32 sample format
+#if defined(WITH_SDL) && !defined(__APPLE__)
+            return CreateSDLAudio(formats, options);
+#else
+            return CreateOpenALOut(formats, options);
+#endif
+        case kPixelFormat420YpCbCrPlanar:
+        case kPixelFormat420YpCrCbPlanar:
+        case kPixelFormat420YpCbCrSemiPlanar:
+        case kPixelFormat420YpCrCbSemiPlanar:
+        case kPixelFormatVideoToolbox:
+            return CreateOpenGLOut(formats, options);
+        default:
+            break;
     }
+    
+    ERROR("no media device for [%.4s]", (const char *)&format);
+    return NULL;
 }
 
 __END_NAMESPACE_MPX

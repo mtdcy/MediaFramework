@@ -35,10 +35,8 @@
 #define LOG_TAG   "Matroska"
 //#define LOG_NDEBUG 0
 #include "MediaTypes.h"
+#include "MediaDevice.h"
 
-#include <MediaFramework/MediaPacketizer.h>
-
-#include <MediaFramework/MediaFile.h>
 #include "mpeg4/Audio.h"
 #include "mpeg4/Video.h"
 #include "mpeg4/Systems.h"
@@ -124,7 +122,7 @@ struct MatroskaTrack {
     uint8_t                 compAlgo;       // ID_CONTENTCOMPALGO, 0 - zlib, 1 - bzlib, 2 - lzo1x, 3 - header strip
     sp<Buffer>              compSettings;   //
 
-    sp<MediaPacketizer>     packetizer;
+    sp<MediaDevice>         packetizer;
     
     // for block parse
     int64_t                 decodeTimeCode;
@@ -225,7 +223,7 @@ sp<EBMLMasterElement> ReadSEGMENT(const sp<ABuffer>& buffer, int64_t * clusters)
 
 #define TIMESCALE_DEF 1000000UL
 bool decodeMPEGAudioFrameHeader(const Buffer& frame, uint32_t *sampleRate, uint32_t *numChannels);
-struct MatroskaFile : public MediaFile {
+struct MatroskaFile : public MediaDevice {
     int64_t                 mSegment;   // offset of SEGMENT
     int64_t                 mClusters;  // offset of CLUSTERs
     MediaTime               mDuration;
@@ -235,7 +233,7 @@ struct MatroskaFile : public MediaFile {
     sp<EBMLMasterElement>   mCluster;
     List<sp<MediaFrame> >  mPackets;
 
-    MatroskaFile() : MediaFile(), mDuration(0), mTimeScale(TIMESCALE_DEF), mContent(NULL) { }
+    MatroskaFile() : MediaDevice(), mDuration(0), mTimeScale(TIMESCALE_DEF), mContent(NULL) { }
 
     MediaError init(const sp<ABuffer>& buffer) {
         // check ebml header
@@ -535,15 +533,28 @@ struct MatroskaFile : public MediaFile {
         return info;
     }
     
-    void seek(const MediaTime& time) {
+    virtual MediaError configure(const sp<Message>& options) {
+        if (options->contains(kKeySeek)) {
+            seek(options->findInt64(kKeySeek));
+            return kMediaNoError;
+        }
+        
+        return kMediaErrorNotSupported;
+    }
+    
+    void seek(int64_t us) {
         DEBUG("seek @ %.3fs", time.seconds());
+        mCluster.clear();
+        mPackets.clear();
+        
         // seek with the first track who has toc
         HashTable<size_t, MatroskaTrack>::const_iterator it = mTracks.cbegin();
         for (; it != mTracks.cend(); ++it) {
             const MatroskaTrack& trak = it.value();
             if (trak.toc.empty()) continue;
             
-            uint64_t timecode = MediaTime(time).rescale(1000000000LL / mTimeScale).value * trak.timescale;
+            //uint64_t timecode = MediaTime(time).rescale(1000000000LL / mTimeScale).value * trak.timescale;
+            uint64_t timecode = (us * trak.timescale * 1000LL) / mTimeScale;
             
             List<TOCEntry>::const_iterator it0 = trak.toc.crbegin();
             for (; it0 != trak.toc.crend(); --it0) {
@@ -610,10 +621,10 @@ struct MatroskaFile : public MediaFile {
                                                       type);
 
                 if (trak.packetizer != NULL) {
-                    if (trak.packetizer->enqueue(packet) != kMediaNoError) {
+                    if (trak.packetizer->push(packet) != kMediaNoError) {
                         DEBUG("[%zu] packetizer enqueue failed", packet->index);
                     }
-                    packet = trak.packetizer->dequeue();
+                    packet = trak.packetizer->pull();
                 }
 
                 if (packet != NULL) {
@@ -635,17 +646,14 @@ struct MatroskaFile : public MediaFile {
 
         return kMediaNoError;
     }
+    
+    virtual MediaError push(const sp<MediaFrame>&) {
+        return kMediaErrorInvalidOperation;
+    }
 
     // https://matroska.org/technical/specs/notes.html#TimecodeScale
     // https://matroska.org/technical/specs/notes.html
-    virtual sp<MediaFrame> read(const eReadMode& mode,
-            const MediaTime& ts = kMediaTimeInvalid) {
-        if (ts != kMediaTimeInvalid) {
-            mCluster.clear();
-            mPackets.clear();
-            seek(ts);
-        }
-
+    virtual sp<MediaFrame> pull() {
         for (;;) {
             while (mPackets.empty()) {
                 if (preparePackets() != kMediaNoError) {
@@ -672,9 +680,13 @@ struct MatroskaFile : public MediaFile {
 
         return NULL;
     }
+    
+    virtual MediaError reset() {
+        return kMediaNoError;
+    }
 };
 
-sp<MediaFile> CreateMatroskaFile(const sp<ABuffer>& buffer) {
+sp<MediaDevice> CreateMatroskaFile(const sp<ABuffer>& buffer) {
     sp<MatroskaFile> file = new MatroskaFile;
     if (file->init(buffer) == kMediaNoError) return file;
     return NIL;

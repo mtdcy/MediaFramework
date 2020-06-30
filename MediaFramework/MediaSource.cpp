@@ -35,8 +35,8 @@
 #define LOG_TAG "MediaSource"
 //#define LOG_NDEBUG 0
 #include "MediaTypes.h"
+#include "MediaDevice.h"
 #include "MediaSession.h"
-#include "MediaFile.h"
 
 __BEGIN_NAMESPACE_MPX
 
@@ -47,7 +47,7 @@ struct MediaSource : public IMediaSession {
     // external static context
     sp<SessionInfoEvent>    mInfoEvent;
     // internal mutable context
-    sp<MediaFile>           mMediaFile;
+    sp<MediaDevice>         mMediaFile;
     typedef List<sp<MediaFrame> > PacketList;
     Vector<PacketList>      mPackets;
     MediaTime               mLastReadTime;  //< avoid seek multi times by different track
@@ -82,14 +82,16 @@ struct MediaSource : public IMediaSession {
             return;
         }
         
-        mMediaFile = MediaFile::Create(pipe);
+        sp<Message> formats = new Message;
+        formats->setObject(kKeyContent, pipe);
+        mMediaFile = MediaDevice::create(formats, NULL);
         if (mMediaFile.isNIL()) {
             ERROR("create file failed");
             notify(kSessionInfoError, NULL);
             return;
         }
         
-        sp<Message> formats = mMediaFile->formats();
+        formats = mMediaFile->formats();
         size_t numTracks = formats->findInt32(kKeyCount, 1);
         for (size_t i = 0; i < numTracks; ++i) {
             sp<Message> trackFormat = formats->findObject(kKeyTrack + i);
@@ -131,12 +133,15 @@ struct MediaSource : public IMediaSession {
             sp<MediaFrame> packet;
             if (ABE_UNLIKELY(seek)) {
                 INFO("seek to %.3f", time.seconds());
-                packet = mMediaFile->read(kReadModeLastSync, time);
+                sp<Message> options = new Message;
+                options->setInt64(kKeySeek, time.useconds());
+                if (mMediaFile->configure(options) != kMediaNoError) {
+                    ERROR("seek failed");
+                }
                 mLastReadTime   = time;
                 seek            = false;
-            } else {
-                packet = mMediaFile->read();
             }
+            packet = mMediaFile->pull();
             
             if (packet.isNIL()) {
                 INFO("End Of File...");

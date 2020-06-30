@@ -37,8 +37,7 @@
 #define LOG_TAG "Lavc"
 //#define LOG_NDEBUG 0
 #include "MediaTypes.h"
-
-#include <MediaFramework/MediaDecoder.h>
+#include "MediaDevice.h"
 
 #include <mpeg4/Systems.h>
 #include <mpeg4/Audio.h>
@@ -745,14 +744,14 @@ static AVCodecContext * initContext(eModeType mode, const sp<Message>& formats, 
 sp<MediaFrame> readVideoToolboxFrame(CVPixelBufferRef);
 #endif
 
-struct LavcDecoder : public MediaDecoder {
+struct LavcDecoder : public MediaDevice {
     AVCodecContext *        mContext;
 
     // statistics
     size_t                  mInputCount;
     size_t                  mOutputCount;
 
-    LavcDecoder() : MediaDecoder(),
+    LavcDecoder() : MediaDevice(),
     mContext(NULL),
     mInputCount(0),
     mOutputCount(0) { }
@@ -802,11 +801,11 @@ struct LavcDecoder : public MediaDecoder {
         return info;
     }
 
-    virtual MediaError configure(const Message& options) {
+    virtual MediaError configure(const sp<Message>& options) {
         return kMediaErrorNotSupported;
     }
 
-    virtual MediaError write(const sp<MediaFrame>& input) {
+    virtual MediaError push(const sp<MediaFrame>& input) {
         AVCodecContext *avcc = mContext;
         if (input != NULL && input->planes.buffers[0].data != NULL) {
             ++mInputCount;
@@ -862,7 +861,7 @@ struct LavcDecoder : public MediaDecoder {
         }
     }
 
-    virtual sp<MediaFrame> read() {
+    virtual sp<MediaFrame> pull() {
         AVFrame *internal = av_frame_alloc();
         AVCodecContext *avcc = mContext;
 
@@ -932,7 +931,7 @@ struct LavcDecoder : public MediaDecoder {
         return out;
     }
 
-    virtual MediaError flush() {
+    virtual MediaError reset() {
         AVCodecContext *avcc = mContext;
         if (avcc && avcodec_is_open(avcc)) {
             avcodec_flush_buffers(avcc);
@@ -942,7 +941,7 @@ struct LavcDecoder : public MediaDecoder {
     }
 };
 
-sp<MediaDecoder> CreateLavcDecoder(const sp<Message>& formats, const sp<Message>& options) {
+sp<MediaDevice> CreateLavcDecoder(const sp<Message>& formats, const sp<Message>& options) {
     sp<LavcDecoder> lavc = new LavcDecoder;
     if (lavc->init(formats, options) == kMediaNoError) return lavc;
     return NULL;

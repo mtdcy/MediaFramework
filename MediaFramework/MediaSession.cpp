@@ -35,6 +35,7 @@
 #define LOG_TAG "MediaSession"
 //#define LOG_NDEBUG 0
 #include "MediaSession.h"
+#include "MediaDevice.h"
 
 __BEGIN_NAMESPACE_MPX
 

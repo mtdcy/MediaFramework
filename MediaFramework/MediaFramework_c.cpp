@@ -35,10 +35,6 @@ __USING_NAMESPACE_MPX
 
 ImageFileRef ImageFileOpen(ContentObjectRef ref) {
     sp<ABuffer> pipe = ref;
-    sp<ImageFile> file = ImageFile::Create();
-    if (file->init(pipe, NULL) == kMediaNoError) {
-        return file->RetainObject();
-    }
     return NULL;
 }
 
@@ -167,9 +163,9 @@ void MediaPlayerPause(MediaPlayerRef ref) {
     return mp->pause();
 }
 
-MediaOutRef MediaOutCreate(MessageObjectRef format, MessageObjectRef options) {
-    sp<MediaOut> out = MediaOut::Create(format, options);
-    return (MediaOutRef)out->RetainObject();
+MediaDeviceRef MediaDeviceCreate(MessageObjectRef format, MessageObjectRef options) {
+    sp<MediaDevice> device = MediaDevice::create(format, options);
+    return (MediaDeviceRef)device->RetainObject();
 }
 
 #if 0
@@ -186,20 +182,30 @@ MediaOutRef MediaOutCreateForImage(const ImageFormat * image, MessageObjectRef o
 }
 #endif
 
-MediaError MediaOutWrite(MediaOutRef ref, MediaFrameRef frame) {
-    sp<MediaOut> out = ref;
-    return out->write(frame);
+MessageObjectRef MediaDeviceFormats(MediaDeviceRef ref) {
+    sp<MediaDevice> device = ref;
+    return device->formats().get();
 }
 
-MediaError MediaOutFlush(MediaOutRef ref) {
-    sp<MediaOut> out = ref;
-    return out->flush();
+MediaFrameRef MediaDevicePull(MediaDeviceRef ref) {
+    sp<MediaDevice> device = ref;
+    return device->pull().get();
 }
 
-MediaError MediaOutConfigure(MediaOutRef ref, MessageObjectRef options) {
+MediaError MediaDevicePush(MediaDeviceRef ref, MediaFrameRef frame) {
+    sp<MediaDevice> device = ref;
+    return device->push(frame);
+}
+
+MediaError MediaDeviceReset(MediaDeviceRef ref) {
+    sp<MediaDevice> device = ref;
+    return device->reset();
+}
+
+MediaError MediaDeviceConfigure(MediaDeviceRef ref, MessageObjectRef options) {
     if (options == NULL) return kMediaErrorBadValue;
-    sp<MediaOut> out = ref;
-    return out->configure(options);
+    sp<MediaDevice> device = ref;
+    return device->configure(options);
 }
 
 int64_t MediaClockGetTime(MediaClockRef ref) {

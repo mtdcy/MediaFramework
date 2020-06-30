@@ -37,13 +37,11 @@
 
 // MediaFramework
 #include <MediaFramework/MediaTypes.h>
-#include <MediaFramework/ImageFile.h>
-#include <MediaFramework/MediaFile.h>
-#include <MediaFramework/MediaDecoder.h>
-#include <MediaFramework/MediaOut.h>
+#include <MediaFramework/MediaDevice.h>
 #include <MediaFramework/MediaClock.h>
 #include <MediaFramework/MediaSession.h>
 #include <MediaFramework/MediaPlayer.h>
+#include <MediaFramework/ImageFile.h>
 
 //#ifndef __cplusplus
 __BEGIN_DECLS
@@ -110,16 +108,18 @@ typedef void (*PlayerInfoCallback)(ePlayerInfoType, const MessageObjectRef, void
 API_EXPORT PlayerInfoEventRef   PlayerInfoEventCreate(LooperObjectRef, PlayerInfoCallback, void *);
 #define PlayerInfoEventRelease(x) SharedObjectRelease((SharedObjectRef)x)
 
-// MediaOut
-typedef SharedObjectRef         MediaOutRef;
+// MediaDevice
+typedef SharedObjectRef         MediaDeviceRef;
 
-API_EXPORT MediaOutRef          MediaOutCreate(MessageObjectRef, MessageObjectRef);
+API_EXPORT MediaDeviceRef       MediaDeviceCreate(MessageObjectRef, MessageObjectRef);
 //API_EXPORT MediaOutRef          MediaOutCreateForImage(const ImageFormat *, MessageObjectRef);
-#define MediaOutRelease(x)      SharedObjectRelease((SharedObjectRef)x)
+#define MediaDeviceRelease(x)   SharedObjectRelease((SharedObjectRef)x)
 
-API_EXPORT MediaError           MediaOutWrite(MediaOutRef, MediaFrameRef);
-API_EXPORT MediaError           MediaOutFlush(MediaOutRef);
-API_EXPORT MediaError           MediaOutConfigure(MediaOutRef, MessageObjectRef);
+API_EXPORT MessageObjectRef     MediaDeviceFormats(MediaDeviceRef);
+API_EXPORT MediaError           MediaDeviceConfigure(MediaDeviceRef, MessageObjectRef);
+API_EXPORT MediaError           MediaDevicePush(MediaDeviceRef, MediaFrameRef);
+API_EXPORT MediaFrameRef        MediaDevicePull(MediaDeviceRef);
+API_EXPORT MediaError           MediaDeviceReset(MediaDeviceRef);
 
 __END_DECLS
 //#endif // __cplusplus

@@ -35,11 +35,9 @@
 #define LOG_TAG "Player"
 //#define LOG_NDEBUG 0
 #include "MediaPlayer.h"
+#include "MediaDevice.h"
 #include "MediaSession.h"
-#include "MediaFile.h"
 #include "MediaClock.h"
-#include "MediaDecoder.h"
-#include "MediaOut.h"
 
 __BEGIN_NAMESPACE_MPX
 

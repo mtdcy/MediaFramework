@@ -40,7 +40,7 @@
 #define LOG_TAG "OpenGL"
 //#define LOG_NDEBUG 0
 #include "MediaTypes.h"
-#include "MediaOut.h"
+#include "MediaDevice.h"
 
 #define SL(x)   #x
 
@@ -784,11 +784,11 @@ MediaError OpenGLObject::translation(float x, float y) {
 }
 #endif
 
-struct OpenGLOut : public MediaOut {
+struct OpenGLOut : public MediaDevice {
     ImageFormat         mFormat;
     sp<OpenGLContext>   mOpenGL;
     
-    OpenGLOut() : MediaOut(), mOpenGL(NULL) { }
+    OpenGLOut() : MediaDevice(), mOpenGL(NULL) { }
     
     MediaError prepare(const sp<Message>& format, const sp<Message>& options) {
         CHECK_TRUE(format != NULL);
@@ -839,7 +839,7 @@ struct OpenGLOut : public MediaOut {
         return kMediaErrorInvalidOperation;
     }
 
-    virtual MediaError write(const sp<MediaFrame> &input) {
+    virtual MediaError push(const sp<MediaFrame> &input) {
         if (input == NULL) {
             INFO("eos...");
             return kMediaNoError;
@@ -848,8 +848,12 @@ struct OpenGLOut : public MediaOut {
         DEBUG("write : %s", GetImageFrameString(input).c_str());
         return drawFrame(mOpenGL, input);
     }
+    
+    virtual sp<MediaFrame> pull() {
+        return NULL;
+    }
 
-    virtual MediaError flush() {
+    virtual MediaError reset() {
         //glClearColor(0, 0, 0, 0);
         //glClear(GL_COLOR_BUFFER_BIT);
         //glFlush();
@@ -857,7 +861,7 @@ struct OpenGLOut : public MediaOut {
     }
 };
 
-sp<MediaOut> CreateOpenGLOut(const sp<Message>& formats, const sp<Message>& options) {
+sp<MediaDevice> CreateOpenGLOut(const sp<Message>& formats, const sp<Message>& options) {
     sp<OpenGLOut> gl = new OpenGLOut();
     if (gl->prepare(formats, options) == kMediaNoError)
         return gl;

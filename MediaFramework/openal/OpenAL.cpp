@@ -39,7 +39,7 @@
 #define LOG_TAG "OpenAL"
 //#define LOG_NDEBUG 0
 #include "MediaTypes.h"
-#include "MediaOut.h"
+#include "MediaDevice.h"
 
 #ifdef __APPLE__
 #include <OpenAL/OpenAL.h>
@@ -253,10 +253,10 @@ static MediaError playFrame(const sp<OpenALContext>& openAL, const sp<MediaFrame
     return kMediaNoError;
 }
 
-struct OpenALOut : public MediaOut {
+struct OpenALOut : public MediaDevice {
     sp<OpenALContext>   mOpenAL;
     
-    OpenALOut() : MediaOut() { }
+    OpenALOut() : MediaDevice() { }
     
     virtual ~OpenALOut() {
         if (mOpenAL.isNIL()) return;
@@ -296,16 +296,20 @@ struct OpenALOut : public MediaOut {
         return kMediaErrorInvalidOperation;
     }
     
-    virtual MediaError write(const sp<MediaFrame>& frame) {
+    virtual MediaError push(const sp<MediaFrame>& frame) {
         return playFrame(mOpenAL, frame);
     }
     
-    virtual MediaError flush() {
+    virtual sp<MediaFrame> pull() {
+        return NULL;
+    }
+    
+    virtual MediaError reset() {
         return flushOpenAL(mOpenAL);
     }
 };
 
-sp<MediaOut> CreateOpenALOut(const sp<Message>& formats, const sp<Message>& options) {
+sp<MediaDevice> CreateOpenALOut(const sp<Message>& formats, const sp<Message>& options) {
     sp<OpenALOut> out = new OpenALOut;
     if (out->init(formats, options) != kMediaNoError)
         return NULL;

@@ -85,29 +85,35 @@ enum {
 };
 typedef uint32_t MediaError;
 
+enum {
+    kFormatUnknown      = FOURCC('?!!?'),       ///< unknown format
+};
+
 // nobody really care about file format
 enum {
-    kFileFormatUnknown,
+    kFileFormatUnknown  = kFormatUnknown,
     kFileFormatAny      = FOURCC('****'),       ///< it is a usefull file without details
     // audio
     kFileFormatWave     = FOURCC('WAVE'),
-    kFileFormatMp3      = FOURCC('mp3 '),
-    kFileFormatFlac     = FOURCC('fLaC'),
-    kFileFormatApe      = FOURCC('APE '),
+    kFileFormatMp3      = FOURCC('Fmp3'),
+    kFileFormatFlac     = FOURCC('FLaC'),
+    kFileFormatApe      = FOURCC('FAPE'),
     // video
     kFileFormatMp4      = FOURCC('mp4 '),       ///< mp4 & m4a
     kFileFormatMkv      = FOURCC('mkv '),
     kFileFormatAvi      = FOURCC('avi '),
     // images
-    kFileFormatJpeg     = FOURCC('jpeg'),
-    kFileFormatGif      = FOURCC('gif '),
-    kFileFormatPng      = FOURCC('png '),
+    kFileFormatJpeg     = FOURCC('Fjpg'),
+    kFileFormatGif      = FOURCC('Fgif'),
+    kFileFormatPng      = FOURCC('Fpng'),
+    //
+    kFileFormatLAVF     = FOURCC('lavf'),   // extend our capability by libavformat
 };
 typedef uint32_t eFileFormat;
 
 enum {
-    kAudioCodecUnknown,
-    kAudioCodecPCM      = FOURCC('PCM '),
+    kAudioCodecUnknown  = kFormatUnknown,
+    kAudioCodecPCM      = FOURCC('LPCM'),
     kAudioCodecFLAC     = FOURCC('fLaC'),
     kAudioCodecMP3      = FOURCC('mp3 '),
     kAudioCodecVorbis   = FOURCC('Vorb'),
@@ -116,12 +122,12 @@ enum {
     kAudioCodecWMA      = FOURCC('wma '),
     kAudioCodecAPE      = FOURCC('APE '),
     kAudioCodecDTS      = FOURCC('DTS '),
-    kAudioCodecFFmpeg   = FOURCC('lavc'),   // extend our capability by ffmpeg
+    kAudioCodecLAVC     = FOURCC('Alac'),   // extend our capability by libavcodec
 };
 typedef uint32_t eAudioCodec;
 
 enum {
-    kVideoCodecUnknown,
+    kVideoCodecUnknown  = kFormatUnknown,
     kVideoCodecMPEG4    = FOURCC('mp4v'),   // MPEG-4, Part 2: Visual
     kVideoCodecH263     = FOURCC('s263'),   //
     kVideoCodecH264     = FOURCC('avc1'),   // MPEG-4, Part 10: Advanced Video Coding
@@ -129,7 +135,7 @@ enum {
     kVideoCodecVP8      = FOURCC('VP80'),   // free codec by On2
     kVideoCodecVP9      = FOURCC('VP90'),   // free codec by Google
     kVideoCodecVC1      = FOURCC('vc1 '),   // SMPTE 421M, Microsoft WMV9
-    kVideoCodecFFmpeg   = FOURCC('lavc'),   // extend our capability by ffmpeg
+    kVideoCodecLAVC     = FOURCC('Vlac'),   // extend our capability by libavcodec
     
     // Microsoft Version Codecs
     // support by ffmpeg, including different sub codecs, need MVCM to distinguish them
@@ -146,7 +152,7 @@ typedef uint32_t eTextFormat;
 #endif
 
 enum {
-    kImageCodecUnknown,
+    kImageCodecUnknown  = kFormatUnknown,
     kImageCodecPNG      = FOURCC('png '),
     kImageCodecJPEG     = FOURCC('jpeg'),
     kImageCodecBMP      = FOURCC('bmp '),
@@ -155,7 +161,7 @@ enum {
 typedef uint32_t eImageCodec;
 
 enum {
-    kCodecTypeUnknown,
+    kCodecTypeUnknown       = kFormatUnknown,
     kCodecTypeVideo         = FOURCC('vide'),
     kCodecTypeAudio         = FOURCC('audi'),
     kCodecTypeSubtitle      = FOURCC('subt'),
@@ -168,7 +174,7 @@ typedef uint32_t eCodecType;
  * which is very common in audio processing, but not in HAL
  */
 enum {
-    kSampleFormatUnknown,
+    kSampleFormatUnknown    = kFormatUnknown,
     kSampleFormatU8         = FOURCC('u8  '),
     kSampleFormatS16        = FOURCC('s16 '),
     kSampleFormatS32        = FOURCC('s32 '),
@@ -199,7 +205,7 @@ typedef uint32_t eSampleFormat;
  *
  */
 enum {
-    kPixelFormatUnknown,                ///< Unknown
+    kPixelFormatUnknown                 = kFormatUnknown,
 
     /** Y'CbCr color space section **/
     /** Y'CbCr 420 family **/
@@ -234,7 +240,7 @@ enum {
     kPixelFormatABGR                    = FOURCC('ABGR'),   ///< packed ABGR, 32 bpp, AABBGGRR, RGBA in word-order
 
     /** hardware pixel format section **/
-    kPixelFormatVideoToolbox            = FOURCC('vt  '),   ///< hardware frame from video toolbox
+    kPixelFormatVideoToolbox            = FOURCC('vtbx'),   ///< hardware frame from video toolbox
 
     /** alias section. TODO: set alias to platform preferred **/
     kPixelFormatRGB16                   = kPixelFormatBGR565,
@@ -244,7 +250,7 @@ enum {
 typedef uint32_t ePixelFormat;
 
 enum {
-    kColorUnknown,
+    kColorUnknown       = kFormatUnknown,
     kColorYpCbCr        = FOURCC('Cyuv'),
     kColorRGB           = FOURCC('Crgb')
 };
@@ -270,19 +276,6 @@ enum {
 typedef uint32_t eRotate;
 
 /**
- * read behavior modes
- */
-enum {
-    kReadModeNormal,            ///< read next packet, -ts
-    kReadModeNextSync,          ///< read next sync packet, +ts
-    kReadModeLastSync,          ///< read last sync packet, +ts
-    kReadModeClosestSync,       ///< read closest sync packet, +ts
-    ///< @note special read mode
-    kReadModeDefault = kReadModeNormal
-};
-typedef uint32_t eReadMode;
-
-/**
  * kFrameTypeSync: sync frame, depends on nobody.
  *      @note seek can only seek at this kind of frame.
  * kFrameTypeDepended: none sync frame and be depended by others. e.g. P-frame
@@ -300,73 +293,6 @@ enum {
     kFrameTypeReference     = (1<<3),
 };
 typedef uint32_t    eFrameType;
-
-enum {
-    // common keys
-    kKeyFormat          = FOURCC(' fmt'),       ///< int32_t, @see eFileFormat/eAudioCodec/eVideoCodec/eSampleFormat/ePixelFormat
-    kKeyRequestFormat   = FOURCC('!fmt'),       ///< int32_t
-    kKeyType            = FOURCC('type'),       ///< int32_t, @see eCodecType
-    kKeyMode            = FOURCC('mode'),       ///< int32_t, @see eReadMode
-    kKeyTime            = FOURCC('time'),       ///< int64_t, us
-    kKeyDuration        = FOURCC('dura'),       ///< int64_t, us
-    kKeyLatency         = FOURCC('late'),       ///< int64_t, us
-    kKeyChannels        = FOURCC('chan'),       ///< int32_t
-    kKeySampleRate      = FOURCC('srat'),       ///< int32_t
-    kKeySampleBits      = FOURCC('#bit'),       ///< int32_t
-    kKeyChannelMap      = FOURCC('cmap'),       ///< int32_t
-    kKeyWidth           = FOURCC('widt'),       ///< int32_t
-    kKeyHeight          = FOURCC('heig'),       ///< int32_t
-    kKeyRotate          = FOURCC('?rot'),       ///< int32_t, eRotate
-    kKeyCount           = FOURCC('#cnt'),       ///< int32_t
-    kKeyError           = FOURCC('!err'),       ///< int32_t, MediaError
-    kKeyBitrate         = FOURCC('btrt'),       ///< int32_t
-    kKeyTracks          = FOURCC('trak'),       ///< int32_t, bit mask
-    kKeyURL             = FOURCC(' url'),       ///< String
-    kKeyLooper          = FOURCC('lper'),       ///< sp<Looper>
-    kKeyTrack           = FOURCC('0trk'),       ///< int32_t
-    kKeyOpenGLContext   = FOURCC('oglt'),       ///< void *
-    kKeyPause           = FOURCC('paus'),       ///< int32_t, bool
-    kKeyESDS            = FOURCC('esds'),       ///< sp<Buffer>
-    kKeyavcC            = FOURCC('avcC'),       ///< sp<Buffer>
-    kKeyhvcC            = FOURCC('hvcC'),       ///< sp<Buffer>
-    kKeyCodecSpecData   = FOURCC('#csd'),       ///< sp<Buffer>
-    kKeyTags            = FOURCC('tag0'),       ///< sp<Message>
-    kKeyEncoderDelay    = FOURCC('edly'),       ///< int32_t
-    kKeyEncoderPadding  = FOURCC('epad'),       ///< int32_t
-    
-    // Microsoft codec manager data
-    kKeyMicrosoftVCM    = FOURCC('MVCM'),       ///< sp<Buffer>, Microsoft VCM, exists in matroska, @see BITMAPINFOHEADER
-    kKeyMicorsoftACM    = FOURCC('MACM'),       ///< sp<Buffer>, Microsoft ACM, exists in matroska, @see WAVEFORMATEX
-};
-
-enum {
-    // meta data keys, default value type string
-    kKeyTitle           = FOURCC('0tit'),   ///< titles
-    kKeyAlbum           = FOURCC(' alb'),
-    kKeyComposer        = FOURCC(' wrt'),
-    kKeyGenre           = FOURCC(' gen'),
-    kKeyEncoder         = FOURCC(' enc'),
-    kKeyArtist          = FOURCC(' art'),
-    kKeyAlbumArtist     = FOURCC('aart'),   // what's this
-    kKeyPerformer       = FOURCC('perf'),
-    kKeyAuthor          = FOURCC('auth'),
-    kKeyDate            = FOURCC('date'),
-    kKeyYear            = FOURCC('year'),
-    kKeyCompilation     = FOURCC('cpil'),
-    kKeyComment         = FOURCC('comm'),
-    kKeyTrackNum        = FOURCC('trkn'),
-    kKeyDiskNum         = FOURCC('disk'),
-    kKeyLanguage        = FOURCC('lang'),
-    kKeyLocation        = FOURCC('loci'),
-    kKeyCopyright       = FOURCC('cprt'),
-    kKeyLicense         = FOURCC('lics'),
-    kKeyBPM             = FOURCC(' BPM'),
-    kKeyCustom          = FOURCC('0000'),   ///< user defined texts
-    kKeyAlbumArt        = FOURCC('alma'),   ///< sp<Buffer>
-
-    // special meta data
-    kKeyiTunSMPB        = FOURCC('smpb'),   // String, m4a only
-};
 
 #pragma mark Basic Types
 typedef struct PixelDescriptor {
@@ -540,17 +466,6 @@ struct MediaFrame : public SharedObject {
     MediaFrame();
     virtual ~MediaFrame() { }
     DISALLOW_EVILS(MediaFrame);
-};
-
-struct MediaUnit : public SharedObject {
-    MediaUnit() : SharedObject() { }
-    virtual ~MediaUnit() { }
-
-    static sp<MediaUnit>    create(const sp<Message>&, const sp<Message>&);
-    virtual sp<Message>     formats() const             = 0;
-    virtual MediaError      push(const sp<MediaFrame>&) = 0;
-    virtual sp<MediaFrame>  pull()                      = 0;
-    virtual MediaError      reset()                     = 0;
 };
 
 // ePixelFormat

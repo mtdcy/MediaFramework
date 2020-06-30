@@ -40,8 +40,7 @@
 #include "Video.h"
 #include "id3/ID3.h"
 #include "Box.h"
-
-#include <MediaFramework/MediaFile.h>
+#include "MediaDevice.h"
 
 
 // reference: 
@@ -351,13 +350,10 @@ static sp<Mp4Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderB
     return track;
 }
 
-static MediaError seekTrack(sp<Mp4Track>& track,
-        const MediaTime& _ts,
-        const eReadMode& mode) {
+static MediaError seekTrack(sp<Mp4Track>& track, int64_t us) {
     const Vector<Sample>& tbl = track->sampleTable;
     // dts&pts in tbl using duration's timescale
-    MediaTime ts = _ts;
-    ts.rescale(track->duration.scale);
+    us = (us * track->duration.scale) / 1000000LL;
 
     size_t first = 0;
     size_t second = tbl.size() - 1;
@@ -370,8 +366,8 @@ static MediaError seekTrack(sp<Mp4Track>& track,
         mid = (first + second) / 2; // truncated happens
         const Sample& s0 = tbl[mid];
         const Sample& s1 = tbl[mid + 1];
-        if (s0.dts <= ts.value && s1.dts > ts.value) first = second = mid;
-        else if (s0.dts > ts.value) second = mid;
+        if (s0.dts <= us && s1.dts > us) first = second = mid;
+        else if (s0.dts > us) second = mid;
         else first = mid;
         ++search_count;
     }
@@ -393,30 +389,19 @@ static MediaError seekTrack(sp<Mp4Track>& track,
         ++second;
     }
 
-    size_t result;
-    if (mode == kReadModeLastSync) {
-        result = first;
-    } else if (mode == kReadModeNextSync) {
-        result = second;
-    } else { // closest
-        if (mid - first > second - mid)
-            result = second;
-        else
-            result = first;
-    }
-
+    const size_t result = first;
     track->sampleIndex  = result;   // key sample index
     track->startIndex   = mid;
 
     INFO("seek %.3f(s) => [%zu - %zu - %zu] => %zu # %zu",
-            ts.seconds(),
+            us / 1E6,
             first, mid, second, result,
             search_count);
 
     return kMediaNoError;
 }
 
-struct Mp4File : public MediaFile {
+struct Mp4File : public MediaDevice {
     sp<ABuffer>             mContent;
     Vector<sp<Mp4Track > >  mTracks;
     MediaTime               mDuration;
@@ -428,10 +413,9 @@ struct Mp4File : public MediaFile {
     // statistics
     size_t                  mNumPacketsRead;
 
-    Mp4File() : MediaFile(), mContent(NULL),
-    mDuration(kMediaTimeInvalid),
-    mNumPacketsRead(0)
-    { }
+    Mp4File() : MediaDevice(), mContent(NULL),
+    mDuration(kMediaTimeInvalid), mNumPacketsRead(0) {
+    }
 
     virtual ~Mp4File() { }
 
@@ -586,7 +570,7 @@ struct Mp4File : public MediaFile {
     
     virtual MediaError configure(const sp<Message>& options) {
         INFO("configure << %s", options->string().c_str());
-        MediaError status = kMediaErrorInvalidOperation;
+        MediaError status = kMediaErrorNotSupported;
         if (options->contains(kKeyTracks)) {
             Bits<uint32_t> mask = options->findInt32(kKeyTracks);
             CHECK_FALSE(mask.empty());
@@ -596,21 +580,27 @@ struct Mp4File : public MediaFile {
             }
             status = kMediaNoError;
         }
+        
+        if (options->contains(kKeySeek)) {
+            seek(options->findInt64(kKeySeek));
+            status = kMediaNoError;
+        }
         return status;
     }
-
-    virtual sp<MediaFrame> read(const eReadMode& mode,
-            const MediaTime& ts = kMediaTimeInvalid) {
-
-        if (ts != kMediaTimeInvalid) {
-            // seeking
-            for (size_t i = 0; i < mTracks.size(); ++i) {
-                sp<Mp4Track>& track = mTracks[i];
-                // find new sample index
-                seekTrack(track, ts, mode);
-            }
+    
+    void seek(int64_t us) {
+        for (size_t i = 0; i < mTracks.size(); ++i) {
+            sp<Mp4Track>& track = mTracks[i];
+            // find new sample index
+            seekTrack(track, us);
         }
+    }
+    
+    virtual MediaError push(const sp<MediaFrame>&) {
+        return kMediaErrorInvalidOperation;
+    }
 
+    virtual sp<MediaFrame> pull() {
         for (;;) {
             // find the lowest pos
             size_t trackIndex = mTracks.size();
@@ -700,18 +690,18 @@ struct Mp4File : public MediaFile {
             packet->id              = trackIndex;
             packet->flags           = flags;
             packet->timecode        = MediaTime(s.dts, track->duration.scale);
-
-            if (ts != kMediaTimeInvalid) {
-                INFO("track %zu: read @ %.3fs", trackIndex, packet->timecode.seconds());
-            }
             return packet;
         }
 
         return NULL;
     }
+    
+    virtual MediaError reset() {
+        return kMediaNoError;
+    }
 };
 
-sp<MediaFile> CreateMp4File(const sp<ABuffer>& buffer) {
+sp<MediaDevice> CreateMp4File(const sp<ABuffer>& buffer) {
     sp<Mp4File> file = new Mp4File;
     if (file->init(buffer) == kMediaNoError) return file;
     return NIL;

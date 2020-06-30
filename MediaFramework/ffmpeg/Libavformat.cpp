@@ -34,8 +34,7 @@
 
 #define LOG_TAG   "Lavf"
 //#define LOG_NDEBUG 0
-#include <ABE/ABE.h>
-#include <MediaFramework/MediaFile.h>
+#include "MediaDevice.h"
 
 #include <FFmpeg.h>
 
@@ -328,7 +327,7 @@ static sp<Buffer> prepareHVCC(const AVStream * st) {
                       st->codecpar->extradata_size);
 }
 
-struct AVFormat : public MediaFile {
+struct AVFormat : public MediaDevice {
     sp<AVFormatObject>  mObject;
     
     AVFormat() : mObject(NIL) { }
@@ -437,19 +436,24 @@ struct AVFormat : public MediaFile {
             }
             status = kMediaNoError;
         }
+        
+        if (options->contains(kKeySeek)) {
+            avformat_seek_file(mObject->context,
+                               -1,
+                               0,
+                               options->findInt64(kKeySeek),
+                               mObject->context->duration,
+                               0);
+            status = kMediaNoError;
+        }
         return status;
     }
     
-    virtual sp<MediaFrame> read(const eReadMode& mode, const MediaTime& ts) {
-        if (ts != kMediaTimeInvalid) {
-            INFO("seek to %.3f(s)", ts.seconds());
-            avformat_seek_file(mObject->context, -1,
-                               0,
-                               ts.useconds(),
-                               mObject->context->duration,
-                               0);
-        }
-        
+    virtual MediaError push(const sp<MediaFrame>&) {
+        return kMediaErrorInvalidOperation;
+    }
+    
+    virtual sp<MediaFrame> pull() {
         AVPacket * pkt = av_packet_alloc();
         pkt->data = NULL; pkt->size = 0;
         
@@ -463,11 +467,11 @@ struct AVFormat : public MediaFile {
         
         if (pkt->flags & AV_PKT_FLAG_CORRUPT) {
             WARN("corrupt packet");
-            return read(mode, kMediaTimeInvalid);
+            return pull();
         }
         
         sp<AVStreamObject> st = mObject->streams[pkt->stream_index];
-        if (st->enabled == false) return read(mode, kMediaTimeInvalid);
+        if (st->enabled == false) return pull();
         
         sp<MediaFrame> packet = new AVMediaFrame(st, pkt);
         av_packet_free(&pkt);
@@ -476,9 +480,13 @@ struct AVFormat : public MediaFile {
         
         return packet;
     }
+    
+    virtual MediaError reset() {
+        return kMediaNoError;
+    }
 };
 
-sp<MediaFile> CreateLibavformat(const sp<ABuffer>& buffer) {
+sp<MediaDevice> CreateLibavformat(const sp<ABuffer>& buffer) {
     sp<AVFormat> file = new AVFormat;
     if (file->open(buffer) == kMediaNoError) return file;
     return NIL;

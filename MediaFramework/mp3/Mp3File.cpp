@@ -39,9 +39,7 @@
 
 #include <stdio.h> // FIXME: sscanf
 
-#include "MediaPacketizer.h"
-#include "MediaFile.h"
-
+#include "MediaDevice.h"
 
 __BEGIN_NAMESPACE_MPX
 
@@ -414,7 +412,7 @@ static bool parseVBRIHeader(const sp<ABuffer>& firstFrame, VBRIHeader *head) {
     return true;
 }
 
-struct Mp3Packetizer : public MediaPacketizer {
+struct Mp3Packetizer : public MediaDevice {
     sp<Buffer>  mBuffer;
     uint32_t    mCommonHead;
     bool        mNeedMoreData;
@@ -423,15 +421,22 @@ struct Mp3Packetizer : public MediaPacketizer {
     MediaTime   mFrameTime;
     sp<Message> mProperties;
 
-    Mp3Packetizer() : MediaPacketizer(), mBuffer(new Buffer(4096, Buffer::Ring)),
+    Mp3Packetizer() : MediaDevice(), mBuffer(new Buffer(4096, Buffer::Ring)),
     mCommonHead(0), mNeedMoreData(true), mFlushing(false),
     mNextFrameTime(kMediaTimeInvalid), mFrameTime(kMediaTimeInvalid) { }
 
     virtual ~Mp3Packetizer() { }
     
-    virtual String string() const { return "Mp3Packetizer"; }
-
-    virtual MediaError enqueue(const sp<MediaFrame>& in) {
+    virtual sp<Message> formats() const {
+        // TODO: formats is available after the first frame
+        return new Message;
+    }
+    
+    virtual MediaError configure(const sp<Message>&) {
+        return kMediaErrorNotSupported;
+    }
+    
+    virtual MediaError push(const sp<MediaFrame>& in) {
         if (in == NULL) {
             DEBUG("flushing");
             mFlushing = true;
@@ -459,7 +464,7 @@ struct Mp3Packetizer : public MediaPacketizer {
         return kMediaNoError;
     }
 
-    virtual sp<MediaFrame> dequeue() {
+    virtual sp<MediaFrame> pull() {
         DEBUG("internal buffer ready bytes %zu", mBuffer->size());
 
         if (mBuffer->size() <= 4) {
@@ -524,15 +529,16 @@ struct Mp3Packetizer : public MediaPacketizer {
         return packet;
     }
     
-    virtual void flush() {
+    virtual MediaError reset() {
         mBuffer->clearBytes();
         mNextFrameTime = kMediaTimeInvalid;
         mCommonHead = 0;
         mNeedMoreData = true;
+        return kMediaNoError;
     }
 };
 
-struct Mp3File : public MediaFile {
+struct Mp3File : public MediaDevice {
     sp<ABuffer>             mContent;
     int64_t                 mFirstFrameOffset;
     MPEGAudioFrameHeader    mHeader;
@@ -547,8 +553,8 @@ struct Mp3File : public MediaFile {
 
     MediaTime               mAnchorTime;
 
-    sp<MediaFrame>         mRawPacket;
-    sp<MediaPacketizer>     mPacketizer;
+    sp<MediaFrame>          mRawPacket;
+    sp<MediaDevice>         mPacketizer;
     
     sp<Message>             mID3v1;
     sp<Message>             mID3v2;
@@ -717,41 +723,52 @@ struct Mp3File : public MediaFile {
         info->setObject(kKeyTrack, trak);
         return info;
     }
+    
+    virtual MediaError configure(const sp<Message>& options) {
+        if (options->contains(kKeySeek)) {
+            seek(options->findInt64(kKeySeek));
+            return kMediaNoError;
+        }
+        return kMediaErrorNotSupported;
+    }
+    
+    void seek(int64_t us) {
+        int64_t pos = 0;
+        double percent   = us / mDuration.useconds();
+        if (percent < 0) percent = 0;
+        else if (percent > 1) percent = 1;
 
-    virtual sp<MediaFrame> read(const eReadMode& mode,
-            const MediaTime& ts = kMediaTimeInvalid) {
-        bool sawInputEOS = false;
+        if (mTOC.size()) {
+            float a = percent * (mTOC.size() - 1);
+            int index = (int)a;
 
-        if (ts != kMediaTimeInvalid) {
-            int64_t pos = 0;
-            double percent   = ts.seconds() / mDuration.seconds();
-            if (percent < 0) percent = 0;
-            else if (percent > 1) percent = 1;
+            int64_t fa  = mTOC[index];
+            int64_t fb  = mTOC[index + 1];
 
-            if (mTOC.size()) {
-                float a = percent * (mTOC.size() - 1);
-                int index = (int)a;
-
-                int64_t fa  = mTOC[index];
-                int64_t fb  = mTOC[index + 1];
-
-                pos = fa + (fb - fa) * (a - index);
-            } else {
-                if (mVBR) {
-                    WARN("seek vbr without toc");
-                }
-
-                pos = mNumBytes * percent + mFirstFrameOffset;
+            pos = fa + (fb - fa) * (a - index);
+        } else {
+            if (mVBR) {
+                WARN("seek vbr without toc");
             }
 
-            DEBUG("seek to %" PRId64 " of %" PRId64, pos, mContent->size());
-            mContent->skipBytes(-(pos - mContent->offset()));
-            // TODO: calc anchor time by index.
-            mAnchorTime     = ts;
-
-            mPacketizer->flush();
+            pos = mNumBytes * percent + mFirstFrameOffset;
         }
 
+        DEBUG("seek to %" PRId64 " of %" PRId64, pos, mContent->size());
+        mContent->skipBytes(-(pos - mContent->offset()));
+        // TODO: calc anchor time by index.
+        mAnchorTime = us;
+        mAnchorTime.rescale(mHeader.sampleRate);
+        
+        mPacketizer->reset();
+    }
+    
+    virtual MediaError push(const sp<MediaFrame>&) {
+        return kMediaErrorInvalidOperation;
+    }
+
+    virtual sp<MediaFrame> pull() {
+        bool sawInputEOS = false;
         sp<MediaFrame> packet;
         for (;;) {
             if (mRawPacket == 0 && !sawInputEOS) {
@@ -770,13 +787,13 @@ struct Mp3File : public MediaFile {
 
             if (sawInputEOS) {
                 DEBUG("flushing...");
-                mPacketizer->enqueue(NULL);
-            } else if (mPacketizer->enqueue(mRawPacket) == kMediaNoError) {
+                mPacketizer->push(NULL);
+            } else if (mPacketizer->push(mRawPacket) == kMediaNoError) {
                 DEBUG("enqueue buffer done");
                 mRawPacket.clear();
             }
 
-            packet = mPacketizer->dequeue();
+            packet = mPacketizer->pull();
             if (packet == NULL) {
                 if (sawInputEOS) {
                     break;
@@ -796,15 +813,21 @@ struct Mp3File : public MediaFile {
 
         return packet;
     }
+    
+    virtual MediaError reset() {
+        mAnchorTime     = 0;
+        mPacketizer->reset();
+        return kMediaNoError;
+    }
 };
 
-sp<MediaFile> CreateMp3File(const sp<ABuffer>& buffer) {
+sp<MediaDevice> CreateMp3File(const sp<ABuffer>& buffer) {
     sp<Mp3File> file = new Mp3File;
     if (file->init(buffer) == kMediaNoError) return file;
     return NIL;
 }
 
-sp<MediaPacketizer> CreateMp3Packetizer() {
+sp<MediaDevice> CreateMp3Packetizer() {
     return new Mp3Packetizer;
 }
 

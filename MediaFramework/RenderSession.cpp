@@ -35,7 +35,7 @@
 #define LOG_TAG "RenderSession"
 //#define LOG_NDEBUG 0
 #include "MediaSession.h"
-#include "MediaOut.h"
+#include "MediaDevice.h"
 #include "MediaClock.h"
 #include "MediaPlayer.h"
 #include "AudioConverter.h"
@@ -89,7 +89,7 @@ struct RenderSession : public IMediaSession {
     String                  mName;  // for Log
     sp<FrameReadyEvent>     mFrameReadyEvent;
     sp<MediaFrameEvent>     mMediaFrameEvent;
-    sp<MediaOut>            mOut;
+    sp<MediaDevice>         mOut;
     sp<Clock>               mClock;
     int64_t                 mLatency;
 
@@ -188,8 +188,7 @@ struct RenderSession : public IMediaSession {
         // if external out device exists
         if (mMediaFrameEvent.isNIL()) {
             sp<Message> outFormat = formats->dup();
-            outFormat->setInt32(kKeyType, mType);
-            mOut = MediaOut::Create(outFormat, options);
+            mOut = MediaDevice::create(outFormat, options);
 
             if (mOut.isNIL()) {
                 ERROR("%s: create out failed", mName.c_str());
@@ -232,7 +231,7 @@ struct RenderSession : public IMediaSession {
     virtual void onRelease() {
         mDispatch->flush();
         if (!mOut.isNIL()) {
-            mOut->flush();
+            mOut->reset();
             mOut.clear();
         }
         mFrameReadyEvent.clear();
@@ -251,7 +250,7 @@ struct RenderSession : public IMediaSession {
 
         // init MediaOut
         if (!mOut.isNIL()) {
-            mOut->flush();
+            mOut->reset();
             mOut.clear();
         }
 
@@ -284,7 +283,7 @@ struct RenderSession : public IMediaSession {
             mFrameReadyEvent = new OnFrameReady(this, ++mGeneration);
 
             // flush output
-            if (!mOut.isNIL()) mOut->flush();
+            if (!mOut.isNIL()) mOut->reset();
         }
         
         // don't request frame if eos detected.
@@ -455,7 +454,7 @@ struct RenderSession : public IMediaSession {
         }
         
         if (!mOut.isNIL()) {
-            return mOut->write(frame);
+            return mOut->push(frame);
         } else {
             mMediaFrameEvent->fire(frame);
             return kMediaNoError;

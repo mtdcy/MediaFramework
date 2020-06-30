@@ -35,7 +35,7 @@
 #define LOG_TAG "DecodeSession"
 //#define LOG_NDEBUG 0
 #include "MediaSession.h"
-#include "MediaDecoder.h"
+#include "MediaDevice.h"
 
 #define MIN_PACKETS     (2)
 
@@ -57,7 +57,7 @@ struct DecodeSession : public IMediaSession {
 
     // internal static context
     String                  mName;                      // for Log
-    sp<MediaDecoder>        mCodec;                     // reference to codec
+    sp<MediaDevice>         mCodec;                     // reference to codec
     sp<PacketReadyEvent>    mPacketReadyEvent;          // when packet ready
     eCodecType              mType;
 
@@ -125,10 +125,10 @@ struct DecodeSession : public IMediaSession {
         sp<Message> options0 = new Message;
         options0->setInt32(kKeyMode, mMode);
 
-        mCodec = MediaDecoder::Create(formats, options0);
+        mCodec = MediaDevice::create(formats, options0);
         if (mCodec.isNIL() && mMode == kModeTypeNormal) {
             options0->setInt32(kKeyMode, kModeTypeSoftware);
-            mCodec = MediaDecoder::Create(formats, options0);
+            mCodec = MediaDevice::create(formats, options0);
         }
         
         if (mCodec.isNIL()) {
@@ -251,7 +251,7 @@ struct DecodeSession : public IMediaSession {
         // enter draining mode ?
         if (ABE_UNLIKELY(mInputQueue.empty() && mInputEOS)) {
             if (!mSignalCodecEOS) {
-                mCodec->write(NULL);
+                mCodec->push(NULL);
                 mSignalCodecEOS = true;
             }
             sp<MediaFrame> frame = drain();
@@ -260,7 +260,7 @@ struct DecodeSession : public IMediaSession {
         }
         
         sp<MediaFrame> packet = mInputQueue.front();
-        MediaError st = mCodec->write(packet);
+        MediaError st = mCodec->push(packet);
         // try again
         if (kMediaErrorResourceBusy == st) {
             DEBUG("%s: codec report busy", mName.c_str());
@@ -297,7 +297,7 @@ struct DecodeSession : public IMediaSession {
     }
     
     FORCE_INLINE sp<MediaFrame> drain() {
-        sp<MediaFrame> frame = mCodec->read();
+        sp<MediaFrame> frame = mCodec->pull();
         if (frame.isNIL()) {
             if (mInputEOS) {
                 INFO("%s: codec eos...", mName.c_str());
@@ -355,7 +355,7 @@ struct DecodeSession : public IMediaSession {
             mPacketReadyEvent = new OnPacketReady(this, ++mGeneration);
             
             // flush codec
-            mCodec->flush();
+            mCodec->reset();
             
             // request @ time
             mRequestQueue.push(event);

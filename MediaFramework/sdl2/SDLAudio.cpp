@@ -39,7 +39,7 @@
 
 #define LOG_TAG "SDLAudio"
 //#define LOG_NDEBUG 0
-#include "MediaOut.h"
+#include "MediaDevice.h"
 
 #include <SDL.h>
 #define NB_SAMPLES  2048    // buffer sample count
@@ -200,10 +200,10 @@ static void SDLAudioCallback(void *opaque, uint8_t *buffer, int len) {
     }
 }
 
-struct SDLAudio : public MediaOut {
+struct SDLAudio : public MediaDevice {
     sp<SDLAudioContext>     mSDL;
 
-    FORCE_INLINE SDLAudio() : MediaOut(), mSDL(NULL) { }
+    FORCE_INLINE SDLAudio() : MediaDevice(), mSDL(NULL) { }
     FORCE_INLINE virtual ~SDLAudio() {
         if (mSDL != NULL) closeDevice(mSDL);
         mSDL.clear();
@@ -243,7 +243,7 @@ struct SDLAudio : public MediaOut {
         return kMediaErrorInvalidOperation;
     }
 
-    virtual MediaError write(const sp<MediaFrame>& input) {
+    virtual MediaError push(const sp<MediaFrame>& input) {
         DEBUG("write");
         AutoLock _l(mSDL->mLock);
         if (input == NULL) {
@@ -276,8 +276,12 @@ struct SDLAudio : public MediaOut {
 
         return kMediaNoError;
     }
+    
+    virtual sp<MediaFrame> pull() {
+        return NULL;
+    }
 
-    virtual MediaError flush() {
+    virtual MediaError reset() {
         AutoLock _l(mSDL->mLock);
         INFO("flushing in state %d...", SDL_GetAudioStatus());
 
@@ -294,7 +298,7 @@ struct SDLAudio : public MediaOut {
 
 };
 
-sp<MediaOut> CreateSDLAudio(const sp<Message>& formats, const sp<Message>& options) {
+sp<MediaDevice> CreateSDLAudio(const sp<Message>& formats, const sp<Message>& options) {
     sp<SDLAudio> sdl = new SDLAudio;
     if (sdl->prepare(formats, options) == kMediaNoError)
         return sdl;
