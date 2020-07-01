@@ -311,7 +311,6 @@ struct MediaRenderer : public IMediaSession {
     };
 
     void onFrameReady(const sp<MediaFrame>& frame, int generation) {
-        DEBUG("%s: one frame ready", mName.c_str());
         if (mGeneration.load() != generation) {
             INFO("%s: ignore outdated frames", mName.c_str());
             return;
@@ -333,8 +332,8 @@ struct MediaRenderer : public IMediaSession {
             // notify session end after all frames been renderred.
             return;
         }
-        DEBUG("%s: one frame ready @ %.3f(s), queue = %zu, state = %d",
-             mName.c_str(), frame->timecode.seconds(), mOutputQueue.size(), mState);
+        
+        DEBUG("one frame ready %s", pkt->string().c_str());
 
         // check pts
         if (frame->timecode == kMediaTimeInvalid) {

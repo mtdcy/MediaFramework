@@ -66,7 +66,7 @@ static SDL_Window * window = NULL;
 static sp<IMediaPlayer> mp;
 static double position = 0;
 
-static sp<MediaOut> g_out;
+static sp<MediaDevice> g_out;
 static ImageFormat g_format;
 static sp<Clock> g_clock;
 static bool g_paused;
@@ -131,7 +131,7 @@ struct OnFrameUpdate : public MediaFrameEvent {
     
     virtual void onEvent(const sp<MediaFrame>& frame) {
         if (frame == NULL) {
-            if (g_out != NULL) g_out->flush();
+            if (g_out != NULL) g_out->reset();
             return;
         }
         
@@ -146,7 +146,7 @@ struct OnFrameUpdate : public MediaFrameEvent {
             format->setInt32(kKeyHeight, g_format.height);
             format->setInt32(kKeyType, kCodecTypeVideo);
             
-            g_out = MediaOut::Create(format, options);
+            g_out = MediaDevice::create(format, options);
             CHECK_FALSE(g_out.isNIL());
         }
         
@@ -160,7 +160,7 @@ struct OnFrameUpdate : public MediaFrameEvent {
 #endif
         if (frame == NULL) return;
         
-        g_out->write(frame);
+        g_out->push(frame);
         
 #if DOUBLE_BUFFER
         //SDL_GL_SwapWindow(window);

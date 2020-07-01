@@ -227,7 +227,7 @@ template <typename TYPE>
 static FORCE_INLINE void downmix(sp<MediaFrame>& frame) {
     CHECK_GT(frame->audio.channels, 2);
     MediaBuffer* planes = frame->planes.buffers;
-    
+
     if (frame->audio.channels >= 6) {
         for (size_t i = 0; i < frame->audio.samples; ++i) {
             planes[0].data[i] += 0.707 * planes[2].data[i] + 0.707 + planes[4].data[i] + planes[3].data[i];
@@ -268,9 +268,9 @@ struct AudioResamplerLinear : public AudioConverter {
 
         for (size_t i = 0; i < input->audio.channels; ++i) {
             output->audio.samples = resample1<FROM, TO, COEFFS_TYPE>()(mStates[i],
-                                                                       (const FROM *)input->planes.buffers[i].data,
+                    (const FROM *)input->planes.buffers[i].data,
                     input->audio.samples,
-                                                                       (TO *)output->planes.buffers[i].data);
+                    (TO *)output->planes.buffers[i].data);
             output->planes.buffers[i].size = sizeof(TO) * output->audio.samples;
         }
 
@@ -282,26 +282,31 @@ template <typename FROM, typename TO>
 struct AudioSampleConverter : public AudioConverter {
     AudioFormat     mOutput;
     bool            mInterleave;
-    AudioSampleConverter(const AudioFormat& input, const AudioFormat& output, bool interleave) :
-    mOutput(output), mInterleave(interleave) { }
-    
+    AudioSampleConverter(const AudioFormat& input, const AudioFormat& output) : AudioConverter(),
+    mOutput(output), mInterleave(false) {
+        // TODO: plannarization
+        mInterleave = !IsPackedSampleFormat(input.format) && IsPackedSampleFormat(output.format);
+    }
+
     virtual void reset() { /* NOTHING */ }
-    
+
     virtual sp<MediaFrame> convert(const sp<MediaFrame>& input) {
-        sp<MediaFrame> output = input;
+        AudioFormat audio       = mOutput;
+        audio.samples           = input->audio.samples;
+        sp<MediaFrame> output   = input;
         if (sizeof(TO) > sizeof(FROM) || mInterleave) {
             mOutput.samples     = input->audio.samples;
             output              = MediaFrame::Create(mOutput);
-            output->audio       = mOutput;
+            output->audio       = audio;
             output->timecode    = input->timecode;
             output->duration    = input->duration;
         } else {
-            output->audio       = mOutput;
+            output->audio       = audio;
         }
         // ELSE, do in place convert
-        
+
         // the MediaFrame::Create always using a single buffer
-        
+
         if (mInterleave) {
             TO * orig = (TO*)output->planes.buffers[0].data;
             const size_t samples = input->planes.buffers[0].size / sizeof(FROM);
@@ -315,38 +320,36 @@ struct AudioSampleConverter : public AudioConverter {
                 }
             }
             output->planes.buffers[0].size = sizeof(TO) * samples * output->audio.channels;
-            output->planes.buffers[1].data = NULL;
+            output->planes.count = 1;
         } else {
-            for (size_t i = 0; i < output->audio.channels; ++i) {
-                if (input->planes.buffers[i].data == NULL) break;
-                FROM * src = (FROM*)input->planes.buffers[i].data;
-                TO * dest = (TO*)output->planes.buffers[i].data;
+            for (size_t i = 0; i < output->planes.count; ++i) {
+                FROM * src = (FROM *)input->planes.buffers[i].data;
+                TO * dest = (TO *)output->planes.buffers[i].data;
                 const size_t samples = input->planes.buffers[i].size / sizeof(FROM);
                 for (size_t j = 0; j < samples; ++j) {
                     *dest++ = expr<FROM, TO>(*src++);
                 }
                 output->planes.buffers[i].size = samples * sizeof(TO);
             }
-            output->planes.buffers[output->audio.channels].data = NULL;
         }
-            
+
         return output;
     }
 };
 
 template <typename TYPE>
 static TYPE interleave() {
-    
+
 }
 
 struct AudioInterleave : public AudioConverter {
     AudioInterleave() { }
-    
+
     virtual void reset() { /* NOTHING */ }
-    
+
     virtual sp<MediaFrame> convert(const sp<MediaFrame>& input) {
         sp<MediaFrame> output = input;
-        
+
     }
 };
 
@@ -354,7 +357,7 @@ sp<AudioConverter> AudioConverter::Create(const AudioFormat& in,
         const AudioFormat& out,
         const sp<Message>& options) {
     INFO("create AudioConverter %s >> %s", GetAudioFormatString(in).c_str(), GetAudioFormatString(out).c_str());
-    
+
     bool packed = IsPackedSampleFormat(out.format);
     // convert without resampler
     if (in.freq == out.freq) {
@@ -364,41 +367,41 @@ sp<AudioConverter> AudioConverter::Create(const AudioFormat& in,
                 switch (in.format) {
                     case kSampleFormatU8:
                     case kSampleFormatU8Packed:
-                        return new AudioSampleConverter<uint8_t, int16_t>(in, out, packed);
+                        return new AudioSampleConverter<uint8_t, int16_t>(in, out);
                     case kSampleFormatS16:
                     case kSampleFormatS16Packed:
-                        return new AudioSampleConverter<int16_t, int16_t>(in, out, packed);
+                        return new AudioSampleConverter<int16_t, int16_t>(in, out);
                     case kSampleFormatS32:
                     case kSampleFormatS32Packed:
-                        return new AudioSampleConverter<int32_t, int16_t>(in, out, packed);
+                        return new AudioSampleConverter<int32_t, int16_t>(in, out);
                     case kSampleFormatFLT:
                     case kSampleFormatFLTPacked:
-                        return new AudioSampleConverter<float, int16_t>(in, out, packed);
+                        return new AudioSampleConverter<float, int16_t>(in, out);
                     case kSampleFormatDBL:
                     case kSampleFormatDBLPacked:
-                        return new AudioSampleConverter<double, int16_t>(in, out, packed);
+                        return new AudioSampleConverter<double, int16_t>(in, out);
                     default: break;
                 } break;
             case kSampleFormatS32:
             case kSampleFormatS32Packed:
-            switch (in.format) {
+                switch (in.format) {
                     case kSampleFormatU8:
                     case kSampleFormatU8Packed:
-                        return new AudioSampleConverter<uint8_t, int32_t>(in, out, packed);
+                        return new AudioSampleConverter<uint8_t, int32_t>(in, out);
                     case kSampleFormatS16:
                     case kSampleFormatS16Packed:
-                        return new AudioSampleConverter<int16_t, int32_t>(in, out, packed);
+                        return new AudioSampleConverter<int16_t, int32_t>(in, out);
                     case kSampleFormatS32:
                     case kSampleFormatS32Packed:
-                        return new AudioSampleConverter<int32_t, int32_t>(in, out, packed);
+                        return new AudioSampleConverter<int32_t, int32_t>(in, out);
                     case kSampleFormatFLT:
                     case kSampleFormatFLTPacked:
-                        return new AudioSampleConverter<float, int32_t>(in, out, packed);
+                        return new AudioSampleConverter<float, int32_t>(in, out);
                     case kSampleFormatDBL:
                     case kSampleFormatDBLPacked:
-                        return new AudioSampleConverter<double, int32_t>(in, out, packed);
+                        return new AudioSampleConverter<double, int32_t>(in, out);
                     default: break;
-            } break;
+                } break;
             default: break;
         }
     } else {

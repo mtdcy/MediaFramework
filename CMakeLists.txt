@@ -68,7 +68,6 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 # target source 
 set (SOURCE_FILES
     # basic 
-    MediaFramework/PixelFormatDescriptor.cpp
     MediaFramework/MediaFrame.cpp
     MediaFramework/MediaDevice.cpp
     # files
@@ -94,6 +93,7 @@ set (SOURCE_FILES
     MediaFramework/jpeg/JPEG.cpp
     # sessions
     MediaFramework/AudioConverter.cpp 
+    MediaFramework/ColorConverter.cpp
     MediaFramework/MediaClock.cpp
     MediaFramework/MediaSession.cpp
     MediaFramework/MediaFile.cpp 

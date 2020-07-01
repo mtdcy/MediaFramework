@@ -33,16 +33,41 @@
 //
 
 #define LOG_TAG "WaveFile"
-#define LOG_NDEBUG 0
+//#define LOG_NDEBUG 0
 #include "MediaTypes.h"
 #include "MediaDevice.h"
 #include "Microsoft.h"
 #include "RIFF.h"
 #include "id3/ID3.h"
 
+// samples:
+//  http://www-mmsp.ece.mcgill.ca/Documents/AudioFormats/WAVE/Samples.html
 // TODO: 
 // 1. fix support for compressed audio, like mp3...
 __BEGIN_NAMESPACE_MPX
+
+// samples in wave always stored as interleaved
+eSampleFormat GetSampleFormat(const Microsoft::WAVEFORMATEX& wave) {
+    uint32_t format = wave.wFormat;
+    if (wave.wFormat == Microsoft::WAVE_FORMAT_EXTENSIBLE)
+        format = wave.wSubFormat;
+    switch (format) {
+        case Microsoft::WAVE_FORMAT_PCM:
+            switch (wave.wBitsPerSample) {
+                case 8:     return kSampleFormatU8Packed;
+                case 16:    return kSampleFormatS16Packed;
+                case 24:
+                case 32:    return kSampleFormatS32Packed;
+                default:    break;
+            } break;
+        case Microsoft::WAVE_FORMAT_IEEE_FLOAT:
+            return kSampleFormatFLTPacked;
+        default:
+            break;
+    }
+    FATAL("FIXME");
+    return kSampleFormatUnknown;
+}
 
 static const size_t kFrameSize  = 2048;
 
@@ -192,17 +217,14 @@ struct WaveFile : public MediaDevice {
 
         sp<Message> track = new Message;
 
-        track->setInt32(kKeyType,      kCodecTypeAudio);
-        track->setInt32(kKeyFormat,         kAudioCodecPCM);
+        track->setInt32(kKeyType,           kCodecTypeAudio);
+        track->setInt32(kKeyFormat,         GetSampleFormat(wave));
         track->setInt32(kKeyChannels,       wave.nChannels);
         track->setInt32(kKeySampleRate,     wave.nSamplesPerSec);
         if (bitrate)
             track->setInt32(kKeyBitrate,    bitrate);
         if (duration)
             track->setInt64(kKeyDuration,   duration);
-
-        if (wave.wBitsPerSample)
-            track->setInt32(kKeySampleBits, wave.wBitsPerSample);
         
         sp<ABuffer> acm = new Buffer(WAVEFORMATEX_MAX_LENGTH);
         wave.compose(acm);
@@ -244,6 +266,7 @@ struct WaveFile : public MediaDevice {
         return kMediaErrorInvalidOperation;
     }
 
+#define S24LE(x)    ((x)[0] | (((x)[1] << 8) & 0xFF00) | (((x)[2] << 16) & 0xFF0000))
     virtual sp<MediaFrame> pull() {
         const Microsoft::WAVEFORMATEX& wave = mFormat->Wave;
         const size_t sampleBytes = ((wave.nChannels * wave.wBitsPerSample) >> 3);
@@ -255,15 +278,36 @@ struct WaveFile : public MediaDevice {
             INFO("EOS...");
             return NULL;
         }
+        
+        AudioFormat audio;
+        audio.format    = GetSampleFormat(wave);
+        audio.channels  = wave.nChannels;
+        audio.freq      = wave.nSamplesPerSec;
+        audio.samples   = data->size() / sampleBytes;
 
-        sp<MediaFrame> packet = MediaFrame::Create(data);
+        sp<MediaFrame> packet;
+        if (wave.wBitsPerSample == 24) {
+            // 24 bits -> 32 bits samples
+            sp<Buffer> to   = new Buffer((data->capacity() / 3) * 4);
+            uint8_t * src    = (uint8_t *)data->data() + data->size();
+            int32_t * dest  = (int32_t *)to->base() + audio.samples * audio.channels;
+            for (size_t i = 0; i < audio.samples * audio.channels; ++i) {
+                src -= 3;
+                *--dest = S24LE(src) << 8;
+            }
+            to->setBytesRange(0, audio.samples * audio.channels * sizeof(int32_t));
+            data = to;
+        }
+        packet = MediaFrame::Create(data);
 
         packet->id          = 0;
         packet->flags       = kFrameTypeSync;
+        packet->audio       = audio;
         //packet->pts         = pts;
         packet->timecode    = pts;
-        packet->duration    = (packet->planes.buffers[0].size) / sampleBytes;
+        packet->duration    = MediaTime(packet->planes.buffers[0].size / sampleBytes, wave.nSamplesPerSec);
 
+        DEBUG("pull %s", packet->string().c_str());
         return packet;
     }
     

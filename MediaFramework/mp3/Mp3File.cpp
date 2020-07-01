@@ -810,7 +810,7 @@ struct Mp3File : public MediaDevice {
         }
 
         packet->timecode += mAnchorTime;
-
+        DEBUG("pull %s", packet->string.c_str());
         return packet;
     }
     

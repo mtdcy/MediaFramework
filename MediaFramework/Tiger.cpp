@@ -41,6 +41,24 @@
 
 __BEGIN_NAMESPACE_MPX
 
+static bool IsRawFormat(uint32_t format) {
+    switch (format) {
+        case kSampleFormatU8:
+        case kSampleFormatS16:
+        case kSampleFormatS32:
+        case kSampleFormatFLT:
+        case kSampleFormatDBL:
+        case kSampleFormatU8Packed:
+        case kSampleFormatS16Packed:
+        case kSampleFormatS32Packed:
+        case kSampleFormatFLTPacked:
+        case kSampleFormatDBLPacked:
+            return true;
+        default:
+            return false;
+    }
+}
+
 struct TrackContext : public SharedObject {
     eCodecType          mType;
     size_t              mTrackIndex;
@@ -185,27 +203,10 @@ struct Tiger : public IMediaPlayer {
             track->mMediaSource     = mMediaSource;
 
             sp<SessionInfoEvent> infoEvent = new OnDecoderInfo(this, mTrackID);
-            if (codec == kAudioCodecPCM) {
-#if 0 // FIXME
-                track->mPacketRequestEvent  = pre;
-                int32_t bits = trackFormat->findInt32(kKeySampleBits, 16);
-                switch (bits) {
-                    case 8:     track->mAudioFormat.format = kSampleFormatU8;   break;
-                    case 16:    track->mAudioFormat.format = kSampleFormatS16;  break;
-                    case 32:    track->mAudioFormat.format = kSampleFormatS32;  break;
-                        // TODO: handle flt & dbl
-                }
-                track->mAudioFormat.channels = trackFormat->findInt32(kKeyChannels);
-                track->mAudioFormat.freq = trackFormat->findInt32(kKeySampleRate);
-                
-                sp<Message> sampleFormat = new Message;
-                sampleFormat->setInt32(kKeyFormat, track->mAudioFormat.format);
-                sampleFormat->setInt32(kKeyChannels, track->mAudioFormat.channels);
-                sampleFormat->setInt32(kKeySampleRate, track->mAudioFormat.freq);
-                sampleFormat->setObject(kKeyFrameRequestEvent, new FrameRequestTunnel(track));
-                
-                infoEvent->fire(kSessionInfoReady, sampleFormat);
-#endif
+            if (IsRawFormat(codec)) {
+                // NO codec required -> init MediaRenderer directly
+                trackFormat->setObject(kKeyFrameRequestEvent, pre);
+                infoEvent->fire(kSessionInfoReady, trackFormat);
                 // > onInitRenderer
             } else {
                 sp<Message> options = new Message;

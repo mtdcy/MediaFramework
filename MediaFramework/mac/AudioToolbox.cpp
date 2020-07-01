@@ -47,8 +47,8 @@ struct {
     eAudioCodec         codec;
     AudioFormatID       id;
 } kFormatMap[] = {
-    { kAudioCodecPCM,       kAudioFormatLinearPCM   },
     { kAudioCodecAAC,       kAudioFormatMPEG4AAC    },
+    { kAudioCodecAC3,       kAudioFormatAC3         },
     // END OF LIST
     { kAudioCodecUnknown,   0                       }
 };
@@ -151,7 +151,8 @@ static sp<ATAC> openATAC(const sp<Message>& formats) {
     sp<ATAC> atac = new ATAC;
     AudioComponentDescription desc;
     
-    AudioFormatID formatID  = GetAudioFormatID(formats->findInt32(kKeyFormat));
+    eSampleFormat format    = (eSampleFormat)formats->findInt32(kKeyFormat);
+    AudioFormatID formatID  = GetAudioFormatID(format);
     
     atac->inFormat.mFormatID            = formatID;
     atac->inFormat.mSampleRate          = formats->findInt32(kKeySampleRate);
@@ -177,7 +178,7 @@ static sp<ATAC> openATAC(const sp<Message>& formats) {
     atac->outFormat                     = atac->inFormat;
     atac->outFormat.mFormatID           = kAudioFormatLinearPCM;
     atac->outFormat.mFormatFlags        = kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsPacked | kAudioFormatFlagIsNonInterleaved;
-    atac->outFormat.mBitsPerChannel     = formats->findInt32(kKeySampleBits, 16);
+    atac->outFormat.mBitsPerChannel     = 16;   // force s16le
     if (!refineOutputFormat(atac->outFormat)) {
         ERROR("no matching output format");
         return NULL;
@@ -361,6 +362,7 @@ struct AudioCodec : public MediaDevice {
     }
     
     virtual MediaError push(const sp<MediaFrame>& packet) {
+        DEBUG("push %s", packet->string().c_str());
         return decode(mATAC, packet);
     }
     
@@ -373,7 +375,7 @@ struct AudioCodec : public MediaDevice {
             return NULL;
         }
         
-        DEBUG("read frame @ %.3f(s)", frame->timecode.seconds());
+        DEBUG("pull %s", frame->string().c_str());
         return frame;
     }
     

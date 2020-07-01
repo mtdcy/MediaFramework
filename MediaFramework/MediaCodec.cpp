@@ -177,15 +177,9 @@ struct MediaCodec : public IMediaSession {
     };
 
     void onPacketReady(const sp<MediaFrame>& pkt, int generation) {
-        DEBUG("%s: onPacketReady %zu bytes @ %.3f", mName.c_str(), pkt->size, pkt->dts.seconds());
         if (mGeneration.load() != generation) {
             INFO("%s: ignore outdated packets", mName.c_str());
             return;
-        }
-
-        if (!pkt.isNIL()) {
-            DEBUG("%s: packet %.3f|%.3f(s) ready", mName.c_str(),
-                  pkt->dts.seconds(), pkt->pts.seconds());
         }
         
         if (ABE_UNLIKELY(pkt.isNIL())) {
@@ -193,6 +187,7 @@ struct MediaCodec : public IMediaSession {
             mInputEOS = true;
             mSignalCodecEOS = false;
         } else {
+            DEBUG("one packet ready %s", pkt->string().c_str());
             mInputQueue.push(pkt);
             
             if (mState == Prepare || mState == PrepareInt) {
@@ -278,8 +273,7 @@ struct MediaCodec : public IMediaSession {
         CHECK_FALSE(mRequestQueue.empty());
         sp<FrameReadyEvent> request = mRequestQueue.front();
         mRequestQueue.pop();
-        DEBUG("%s: answer request with frame @ %.3f(s), remain requests %zu",
-              mName.c_str(), frame->timecode.seconds(), mRequestQueue.size());
+        DEBUG("send %s", frame->string().c_str());
         request->fire(frame);
         if (!frame.isNIL()) ++mFramesDecoded;
     }

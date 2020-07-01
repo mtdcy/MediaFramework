@@ -82,6 +82,7 @@ enum {
     kMediaErrorOutOfMemory          = 0xA007,   ///< Out Of Memory
     kMediaErrorSystemError          = 0xA008,   ///< system error except OOM
     kMediaErrorResourceBusy         = 0xA009,
+    kMediaErrorBadParameters        = 0xA0A0,
 };
 typedef uint32_t MediaError;
 
@@ -111,9 +112,9 @@ enum {
 };
 typedef uint32_t eFileFormat;
 
+// compressed audio codec format
 enum {
     kAudioCodecUnknown  = kFormatUnknown,
-    kAudioCodecPCM      = FOURCC('LPCM'),
     kAudioCodecFLAC     = FOURCC('fLaC'),
     kAudioCodecMP3      = FOURCC('mp3 '),
     kAudioCodecVorbis   = FOURCC('Vorb'),
@@ -126,6 +127,7 @@ enum {
 };
 typedef uint32_t eAudioCodec;
 
+// compressed video codec format
 enum {
     kVideoCodecUnknown  = kFormatUnknown,
     kVideoCodecMPEG4    = FOURCC('mp4v'),   // MPEG-4, Part 2: Visual
@@ -151,6 +153,7 @@ enum {
 typedef uint32_t eTextFormat;
 #endif
 
+// image codec format
 enum {
     kImageCodecUnknown  = kFormatUnknown,
     kImageCodecPNG      = FOURCC('png '),
@@ -160,6 +163,7 @@ enum {
 };
 typedef uint32_t eImageCodec;
 
+// codec type
 enum {
     kCodecTypeUnknown       = kFormatUnknown,
     kCodecTypeVideo         = FOURCC('vide'),
@@ -170,6 +174,7 @@ enum {
 typedef uint32_t eCodecType;
 
 /**
+ * uncompressed audio format
  * we always use planar data instead of interleaved,
  * which is very common in audio processing, but not in HAL
  */
@@ -195,6 +200,7 @@ enum {
 typedef uint32_t eSampleFormat;
 
 /**
+ * uncompressed pixel format
  * about byte-order and word-order of pixels:
  * @note we use letters to represent byte-order instead of word-order
  * @note byte-order is commonly used in files & network & opengl
@@ -204,7 +210,6 @@ typedef uint32_t eSampleFormat;
  * @note yuv pixels usually in byte-order
  * https://en.wikipedia.org/wiki/RGBA_color_space
  * https://en.wikipedia.org/wiki/YCbCr
- *
  */
 enum {
     kPixelFormatUnknown                 = kFormatUnknown,
@@ -232,13 +237,13 @@ enum {
     kPixelFormat420YpCbCr10Planar       = FOURCC('v210'),  ///< Planar Y'CbCr 10-bit 4:2:0, 15bpp, 3 planes: Y'/Cb/Cr
 
     /** RGB color space section **/
-    kPixelFormatRGB565                  = FOURCC('RGB '),   ///< packed RGB 5:6:5, 16 bpp,
+    kPixelFormatRGB565                  = FOURCC('RGB '),   ///< packed RGB 5:6:5, 16 bpp, RGB565 in byte-order
     kPixelFormatBGR565                  = FOURCC('BGR '),   ///< packed BGR 5:6:5, 16 bpp, RGB565 in word-order
-    kPixelFormatRGB                     = FOURCC('24RG'),   ///< packed RGB 8:8:8, 24 bpp, byte-order
+    kPixelFormatRGB                     = FOURCC('24RG'),   ///< packed RGB 8:8:8, 24 bpp, RGB byte-order
     kPixelFormatBGR                     = FOURCC('24BG'),   ///< packed BGR 8:8:8, 24 bpp, RGB in word-order
-    kPixelFormatARGB                    = FOURCC('ARGB'),   ///< packed ARGB, 32 bpp, AARRGGBB, byte-order
+    kPixelFormatARGB                    = FOURCC('ARGB'),   ///< packed ARGB, 32 bpp, AARRGGBB, ARGB in byte-order
     kPixelFormatBGRA                    = FOURCC('BGRA'),   ///< packed BGRA, 32 bpp, BBGGRRAA, ARGB in word-order
-    kPixelFormatRGBA                    = FOURCC('RGBA'),   ///< packed RGBA, 32 bpp, RRGGBBAA, byte-order
+    kPixelFormatRGBA                    = FOURCC('RGBA'),   ///< packed RGBA, 32 bpp, RRGGBBAA, RGBA in byte-order
     kPixelFormatABGR                    = FOURCC('ABGR'),   ///< packed ABGR, 32 bpp, AABBGGRR, RGBA in word-order
 
     /** hardware pixel format section **/

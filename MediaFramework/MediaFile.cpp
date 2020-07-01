@@ -252,6 +252,7 @@ struct MediaFile : public IMediaSession {
             INFO("first packet @ %.3fs", packet->timecode.seconds());
         }
         
+        DEBUG("send %s", packet->string().c_str());
         event->fire(packet);
         
         if (!mEndOfSource) fillPacket();

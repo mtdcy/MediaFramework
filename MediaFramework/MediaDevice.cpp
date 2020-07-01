@@ -184,7 +184,11 @@ sp<MediaDevice> MediaDevice::create(const sp<Message>& formats, const sp<Message
         return NULL;
     }
     
-    uint32_t mode = formats->findInt32(kKeyMode, kModeTypeDefault);
+    uint32_t mode = kModeTypeDefault;
+    if (!options.isNIL()) {
+        mode = options->findInt32(kKeyMode, kModeTypeDefault);
+    }
+    
 #ifdef WITH_FFMPEG
     if (mode == kModeTypeSoftware) {
         FORCE_AVCODEC = true;

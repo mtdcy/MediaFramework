@@ -671,12 +671,7 @@ struct MatroskaFile : public MediaDevice {
             sp<MediaFrame> packet = mPackets.front();
             mPackets.pop();
 
-            DEBUG("[%zu] packet %zu bytes, pts %.3f, dts %.3f, flags %#x",
-                    packet->index,
-                    packet->size,
-                    packet->pts.seconds(),
-                    packet->dts.seconds(),
-                    packet->type);
+            DEBUG("pull %s", packet->string().c_str());
             return packet;
         }
 

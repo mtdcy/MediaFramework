@@ -39,15 +39,83 @@
 #include <MediaFramework/MediaFrame.h>
 
 /**
- * File Device:
+ * Formats
+ *  audio track formats:
+ *   kKeyFormat:        eAudioCodec     [*] audio codec
+ *   kKeyType:          eCodecType      [ ] codec type, default:kCodecTypeAudio
+ *   kKeyChannels:      uint32_t        [*] audio channels
+ *   kKeySampleRate:    uint32_t        [*] audio sample rate
+ *   kKeyChannelMap:    uint32_t        [ ] audio channel map
+ *   kKeyESDS:          sp<Buffer>      [ ] audio magic data
  *
+ *  audio sample formats:
+ *   kKeyFormat:        eSampleFormat   [*] sample format
+ *   kKeyType:          eCodecType      [ ] codec type, default:kCodecTypeAudio
+ *   kKeyChannels:      uint32_t        [*] audio channels
+ *   kKeySampleRate:    uint32_t        [*] audio sample rate
+ *
+ *  video track formats:
+ *   kKeyFormat:        eVideoCodec     [*] video codec
+ *   kKeyType:          eCodecType      [*] codec type, default:kCodecTypeVideo
+ *   kKeyWidth:         uint32_t        [*] video width
+ *   kKeyHeight:        uint32_t        [*] video height
+ *   kKeyavcC:          sp<Buffer>      [ ] h264 avcC data
+ *   kKeyhvcC:          sp<Buffer>      [ ] hevc hvcC data
+ *
+ *  video pixel formats:
+ *   kKeyFormat:        ePixelFormat    [*] pixel format
+ *   kKeyType:          eCodecType      [*] codec type, default:kCodecTypeVideo   
+ *   kKeyWidth:         uint32_t        [*] video width
+ *   kKeyHeight:        uint32_t        [*] video height
+ *
+ *  common track formats:
+ *   kKeyBitrate:       uint32_t        [ ] bit rate
+ */
+
+/**
+ * File Device:
+ *  input formats:
+ *   kKeyContent:       sp<ABuffer>     [*] media content
+ *
+ *  input options:
+ *
+ *  output formats:
+ *   kKeyFormat:        eFileFormat     [*] file format
+ *   kKeyDuration:      int64_t         [ ] file duration in us
+ *   kKeyBitrate:       uint32_t        [ ] bit rate
+ *   kKeyMetaData:      sp<Message>     [ ] file meta data
+ *   kKeyCount:         uint32_t        [ ] track count, default:1
+ *   kKeyTrack + i:     sp<Message>     [*] audio/video/subtitle track format
+ *
+ *  configure options:
+ *   kKeySeek:          int64_t         [ ] perform seek
+ *   kKeyTracks:        uint32_t        [ ] perform track select based on track mask
  *
  * Codec Device:
+ *  input formats:
+ *   ... audio/video track formats
+ *   kKeyRequestFormat: uint32_t        [ ] track request format
  *
+ *  input options:
+ *   kKeyMode:          eModeType       [ ] codec mode
+ *   kKeyPause:         bool            [ ] pause/unpause codec, some codec may need this
+ *
+ *  output formats:
+ *   ... sample formats/pixel formats
  *
  * Output Device:
+ *  input formats:
+ *   ... sample formats/pixel formats
  *
+ *  input options:
  *
+ *  output formats:
+ *   ... sample formats/pixel formats
+ *   kKeyLatency:       int64_t         [ ] device push latency in us
+ *   kKeyMode:          eBlockModeType  [ ] device push mode, default:kModeBlock
+ *
+ *  configure options:
+ *   kKeyPause:         bool            [ ] pause/unpause device
  */
 
 __BEGIN_DECLS
@@ -64,25 +132,24 @@ enum {
     kKeySeek            = FOURCC('seek'),       ///< int64_t, us
     kKeyDuration        = FOURCC('dura'),       ///< int64_t, us
     kKeyLatency         = FOURCC('late'),       ///< int64_t, us
-    kKeyChannels        = FOURCC('chan'),       ///< int32_t
-    kKeySampleRate      = FOURCC('srat'),       ///< int32_t
-    kKeySampleBits      = FOURCC('#bit'),       ///< int32_t
-    kKeyChannelMap      = FOURCC('cmap'),       ///< int32_t
-    kKeyWidth           = FOURCC('widt'),       ///< int32_t
-    kKeyHeight          = FOURCC('heig'),       ///< int32_t
-    kKeyRotate          = FOURCC('?rot'),       ///< int32_t, eRotate
-    kKeyCount           = FOURCC('#cnt'),       ///< int32_t
-    kKeyError           = FOURCC('!err'),       ///< int32_t, MediaError
-    kKeyBitrate         = FOURCC('btrt'),       ///< int32_t
+    kKeyChannels        = FOURCC('chan'),       ///< uint32_t
+    kKeySampleRate      = FOURCC('srat'),       ///< uint32_t
+    kKeyChannelMap      = FOURCC('cmap'),       ///< uint32_t
+    kKeyWidth           = FOURCC('widt'),       ///< uint32_t
+    kKeyHeight          = FOURCC('heig'),       ///< uint32_t
+    kKeyRotate          = FOURCC('?rot'),       ///< uint32_t, eRotate
+    kKeyCount           = FOURCC('#cnt'),       ///< uint32_t
+    kKeyBitrate         = FOURCC('btrt'),       ///< uint32_t
     kKeyTracks          = FOURCC('trak'),       ///< int32_t, bit mask
-    kKeyTrack           = FOURCC('0trk'),       ///< int32_t
+    kKeyTrack           = FOURCC('0trk'),       ///< sp<Message>
+    kKeyError           = FOURCC('!err'),       ///< int32_t, MediaError
     kKeyOpenGLContext   = FOURCC('oglt'),       ///< void *
     kKeyPause           = FOURCC('paus'),       ///< int32_t, bool
     kKeyESDS            = FOURCC('esds'),       ///< sp<Buffer>
     kKeyavcC            = FOURCC('avcC'),       ///< sp<Buffer>
     kKeyhvcC            = FOURCC('hvcC'),       ///< sp<Buffer>
     kKeyCodecSpecData   = FOURCC('#csd'),       ///< sp<Buffer>
-    kKeyTags            = FOURCC('tag0'),       ///< sp<Message>
+    kKeyMetaData        = FOURCC('meta'),       ///< sp<Message>
     kKeyEncoderDelay    = FOURCC('edly'),       ///< int32_t
     kKeyEncoderPadding  = FOURCC('epad'),       ///< int32_t
     
@@ -90,6 +157,7 @@ enum {
     kKeyMicrosoftVCM    = FOURCC('MVCM'),       ///< sp<Buffer>, Microsoft VCM, exists in matroska, @see BITMAPINFOHEADER
     kKeyMicorsoftACM    = FOURCC('MACM'),       ///< sp<Buffer>, Microsoft ACM, exists in matroska, @see WAVEFORMATEX
 };
+typedef uint32_t eKeyType;
 
 #pragma mark Meta Data Keys
 // meta data keys, default value type is string
@@ -123,18 +191,20 @@ enum {
 
 #pragma mark Values
 // key - kKeyMode
-enum eModeType {
+enum {
     kModeTypeNormal     = 0,                ///< use hardware accel if available
     kModeTypeSoftware,                      ///< no hardware accel.
     kModeTypePreview,
     kModeTypeDefault    = kModeTypeNormal
 };
+typedef uint32_t eModeType;
 
 // key - kKeyMode
 enum {
     kModeBlock      = FOURCC('!blk'),
     kModeNonBlock   = FOURCC('~blk'),
 };
+typedef uint32_t eBlockModeType;
 
 __END_DECLS
 

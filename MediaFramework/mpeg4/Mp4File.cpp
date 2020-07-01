@@ -693,6 +693,8 @@ struct Mp4File : public MediaDevice {
                 packet->timecode    = MediaTime(s.dts, track->duration.scale);
             else
                 packet->timecode    = MediaTime(s.pts, track->duration.scale);
+            
+            DEBUG("pull %s", packet->string().c_str());
             return packet;
         }
 

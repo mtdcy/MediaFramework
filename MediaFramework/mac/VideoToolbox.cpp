@@ -634,11 +634,7 @@ struct VideoToolboxDecoder : public MediaDevice {
             return kMediaNoError;
         }
 
-        DEBUG("queue packet %p: size %zu, dts %.3f(s), pts %.3f(s)",
-                input->data,
-                input->size,
-                input->dts.seconds(),
-                input->pts.seconds());
+        DEBUG("push %s", input->string().c_str());
 
         CHECK_TRUE(input->timecode != kMediaTimeInvalid);
 
@@ -682,7 +678,7 @@ struct VideoToolboxDecoder : public MediaDevice {
         
         sp<VTMediaFrame> frame = mVTContext->mImages.front();
         mVTContext->mImages.pop();
-
+        DEBUG("pull %s", frame->string().c_str());
         return frame;
     }
 

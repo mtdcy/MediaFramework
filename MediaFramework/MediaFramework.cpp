@@ -81,26 +81,6 @@ void * MediaFrameGetOpaque(MediaFrameRef ref) {
     return frame->opaque;
 }
 
-MediaError ImageFrameSwapCbCr(MediaFrameRef ref) {
-    sp<MediaFrame> frame = ref;
-    return frame->swapCbCr();
-}
-
-MediaError ImageFrameReversePixel(MediaFrameRef ref) {
-    sp<MediaFrame> frame = ref;
-    return frame->reversePixel();
-}
-
-MediaError ImageFramePlanarization(MediaFrameRef ref) {
-    sp<MediaFrame> frame = ref;
-    //return frame->planarization(); FIXME
-}
-
-MediaError ImageFrameToRGB(MediaFrameRef ref) {
-    sp<MediaFrame> frame = ref;
-    //return frame->yuv2rgb(); FIXME
-}
-
 struct UserFrameEvent : public MediaFrameEvent {
     FrameCallback Callback;
     void * opaque;

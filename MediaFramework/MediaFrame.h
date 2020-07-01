@@ -61,7 +61,8 @@ __END_DECLS
 #ifdef __cplusplus
 __BEGIN_NAMESPACE_MPX
 /**
- * @note MediaFrame MUST be decoding order.
+ * @note MediaFrame MUST be in decoding order for compressed frame.
+ * @note MediaFrame MUST be in presentation order for uncompressed frame.
  * @note NO dts field, the codec just need to decoding frames one by one, dts is useless.
  */
 struct API_EXPORT MediaFrame : public SharedObject {
@@ -99,46 +100,7 @@ struct API_EXPORT MediaFrame : public SharedObject {
      * @note default implementation: read directly from planes
      */
     virtual sp<ABuffer> readPlane(size_t) const;
-
-    /**
-     * keep luma component and swap two chroma components of Y'CbCr image
-     * @return return kMediaErrorInvalidOperation if source is not Y'CbCr
-     * @return return kMediaErrorNotSupported if no implementation
-     */
-    virtual MediaError swapCbCr();
-
-    /**
-     * convert pixel bytes-order <-> word-order, like rgba -> abgr
-     * @return return kMediaErrorInvalidOperation if source is planar
-     * @return return kMediaErrorNotSupported if no implementation
-     */
-    virtual MediaError reversePixel();
-#if 0 // FIXME
-    /**
-     * convert to planar pixel format
-     * @return return kMediaNoError on success or source is planar
-     * @return return kMediaErrorNotSupported if no implementation
-     * @note planarization may or may NOT be in place convert
-     * @note target pixel format is variant based on the implementation
-     */
-    virtual MediaError planarization();
-
-    /**
-     * convert yuv -> rgb
-     * @return return kMediaErrorInvalidOperation if source is rgb or target is not rgb
-     * @return return kMediaErrorNotSupported if no implementation
-     * @return target pixel is rgba by default, but no guarentee.
-     */
-    enum eConversion { kBT601, kBT709, kJFIF };
-    virtual MediaError yuv2rgb(const ePixelFormat& = kPixelFormatRGB32, const eConversion& = kBT601);
-#endif
-    /**
-     * rotate image
-     * @return kMediaErrorNotSupported if no implementation
-     */
-    enum eRotation { kRotate0, kRotate90, kRotate180, kRotate270 };
-    virtual MediaError rotate(const eRotation&) { return kMediaErrorNotSupported; }
-
+    
     protected:
     MediaFrame();
     virtual ~MediaFrame() { }

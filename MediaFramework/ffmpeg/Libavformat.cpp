@@ -81,7 +81,6 @@ struct {
     uint32_t            format;
 } kCodecMap[] = {
     // AUDIO
-    { AV_CODEC_ID_PCM_F16LE,    kAudioCodecPCM},
     { AV_CODEC_ID_FLAC,         kAudioCodecFLAC},
     { AV_CODEC_ID_MP3,          kAudioCodecMP3},
     { AV_CODEC_ID_MP2,          kAudioCodecMP3},  // mpeg layer info store in packet head, client don't need to known
@@ -466,7 +465,7 @@ struct AVFormat : public MediaDevice {
         sp<MediaFrame> packet = new AVMediaFrame(st, pkt);
         av_packet_free(&pkt);
         
-        DEBUG("trak %zu: %zu bytes@%p, %.3f(s)", packet->index, packet->size, packet->data, packet->dts.seconds());
+        DEBUG("pull %s", packet->string().c_str());
         
         return packet;
     }

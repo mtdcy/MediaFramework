@@ -78,7 +78,7 @@ MediaError WAVEFORMATEX::parse(const sp<ABuffer>& buffer) {
     if (cbSize == 0)    return kMediaNoError;
     // 18 bytes
 
-    DEBUG("audio format %u.",     wFormat);
+    DEBUG("audio format %#x.",    wFormat);
     DEBUG("number channels %u.",  nChannels);
     DEBUG("sample rate %u.",      nSamplesPerSec);
     DEBUG("byte rate %u.",        nAvgBytesPerSec);
@@ -96,21 +96,21 @@ MediaError WAVEFORMATEX::parse(const sp<ABuffer>& buffer) {
         wValidBitsPerSample     = buffer->rl16();
         dwChannelMask           = buffer->rl32();
         
-        uint8_t subFormat[16];
-        for (size_t i = 0; i < 16; ++i)
+        wSubFormat              = buffer->rl32();
+        
+        uint8_t subFormat[12];
+        for (size_t i = 0; i < 12; ++i)
             subFormat[i]        = buffer->r8();
         // 18 + 22 = 40 bytes
 
-        DEBUG("valid bits per sample %u.",    wValidBitsPerSample);
-        DEBUG("dwChannelMask %#x.",           dwChannelMask);
+        DEBUG("valid bits per sample %u.",  wValidBitsPerSample);
+        DEBUG("dwChannelMask %#x.",         dwChannelMask);
+        DEBUG("wSubFormat %#x",             wSubFormat);
 
         if (memcmp(subFormat, subformat_base_guid, 12)) {
             ERROR("invalid extensible format %16s.", (char *)subFormat);
             return kMediaErrorBadValue;
         }
-        
-        // TODO: parse subFormat GUID
-        DEBUG("sub format %u.",               wSubFormat);
 
         if (dwChannelMask != 0 && __builtin_popcount(dwChannelMask) != nChannels) {
             WARN("channels mask mismatch with channel count.");

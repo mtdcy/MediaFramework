@@ -37,6 +37,7 @@
 
 // MediaFramework
 #include <MediaFramework/MediaTypes.h>
+#include <MediaFramework/MediaFrame.h>
 #include <MediaFramework/MediaDevice.h>
 #include <MediaFramework/MediaClock.h>
 #include <MediaFramework/MediaSession.h>
@@ -66,14 +67,6 @@ API_EXPORT AudioFormat *        MediaFrameGetAudioFormat(MediaFrameRef);
 API_EXPORT ImageFormat *        MediaFrameGetImageFormat(MediaFrameRef);
 
 API_EXPORT void *               MediaFrameGetOpaque(MediaFrameRef);
-
-API_EXPORT MediaError           ImageFrameSwapCbCr(MediaFrameRef);
-
-API_EXPORT MediaError           ImageFrameReversePixel(MediaFrameRef);
-
-API_EXPORT MediaError           ImageFramePlanarization(MediaFrameRef);
-
-API_EXPORT MediaError           ImageFrameToRGB(MediaFrameRef);
 
 // Clock, get a clock from MediaPlayerRef, used to update ui
 typedef SharedObjectRef         MediaClockRef;

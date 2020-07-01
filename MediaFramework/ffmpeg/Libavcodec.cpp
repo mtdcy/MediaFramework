@@ -810,11 +810,7 @@ struct LavcDecoder : public MediaDevice {
         if (input != NULL && input->planes.buffers[0].data != NULL) {
             ++mInputCount;
 
-            DEBUG("%s: %.3f(s)|%.3f(s) flags %#x",
-                    avcodec_get_name(avcc->codec_id),
-                    input->pts.seconds(),
-                    input->dts.seconds(),
-                    input->type);
+            DEBUG("push %s", input->string().c_str());
 
             AVPacket *pkt   = av_packet_alloc();
             pkt->data       = input->planes.buffers[0].data;
@@ -928,6 +924,7 @@ struct LavcDecoder : public MediaDevice {
 
         av_frame_free(&internal);
         ++mOutputCount;
+        DEBUG("pull %s", out->string().c_str());
         return out;
     }
 
