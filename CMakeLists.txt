@@ -134,11 +134,11 @@ endif()
 set_target_properties (${PROJECT_NAME}_shared PROPERTIES OUTPUT_NAME ${PROJECT_NAME})
 set_target_properties (${PROJECT_NAME}_static PROPERTIES OUTPUT_NAME ${PROJECT_NAME})
 
-include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/ABE)
-include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/FFmpegStatic/out/static/include)
-include_directories(BEFORE ${CMAKE_CURRENT_BINARY_DIR}/FFmpegStatic)    # FFmpeg.h
-include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
-include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/MediaFramework)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/ABE)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/FFmpegStatic/out/static/include)
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/external/FFmpegStatic)    # FFmpeg.h
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/MediaFramework)
 
 list (APPEND LIBS ABE_shared FFmpegStatic z)
 
@@ -147,7 +147,7 @@ if (WITH_SDL)
 find_package (SDL2 REQUIRED)
 message(${SDL2_INCLUDE_DIR})
 message(${SDL2_LIBRARY})
-include_directories(BEFORE ${SDL2_INCLUDE_DIR})
+include_directories(${SDL2_INCLUDE_DIR})
 list (APPEND LIBS ${SDL2_LIBRARY})
 endif()
 
@@ -165,7 +165,7 @@ else()
 endif()
 
 # libyuv
-include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/external/libyuv/include)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/libyuv/include)
 list (APPEND LIBS yuv)
 
 target_link_libraries(${PROJECT_NAME}_static ${LIBS})
@@ -208,7 +208,7 @@ target_link_libraries(matroska ${PROJECT_NAME}_shared)
 #------------------------------------------------------------------------------#
 # unit test 
 # note: unittest won't work until libraries installed
-include_directories(BEFORE ${gtest_SOURCE_DIR}/include)
+include_directories(${gtest_SOURCE_DIR}/include)
 add_executable (${PROJECT_NAME}_unittest EXCLUDE_FROM_ALL test.cpp)
 target_link_libraries(${PROJECT_NAME}_unittest ${PROJECT_NAME}_shared)
 target_link_libraries(${PROJECT_NAME}_unittest gtest gtest_main)
