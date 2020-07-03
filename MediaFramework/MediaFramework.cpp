@@ -160,7 +160,9 @@ MessageObjectRef MediaDeviceFormats(MediaDeviceRef ref) {
 
 MediaFrameRef MediaDevicePull(MediaDeviceRef ref) {
     sp<MediaDevice> device = ref;
-    return device->pull()->RetainObject();
+    sp<MediaFrame> frame = device->pull();
+    if (frame.isNIL()) return NULL;
+    return frame->RetainObject();
 }
 
 MediaError MediaDevicePush(MediaDeviceRef ref, MediaFrameRef frame) {

@@ -135,7 +135,7 @@ static const PixelDescriptor kPixel422YpCbCrPlanar = {
 };
 
 static const PixelDescriptor kPixel422YpCrCbPlanar = {
-    .name           = "422p",
+    .name           = "yv16",
     .format         = kPixelFormat422YpCrCbPlanar,
     .similar        = { kPixelFormat422YpCrCb, kPixelFormat422YpCbCrPlanar, kPixelFormatUnknown },
     .color          = kColorYpCbCr,
@@ -249,7 +249,7 @@ static const PixelDescriptor kPixelBGR565 = {
 };
 
 static const PixelDescriptor kPixelRGB = {
-    .name           = "RGB24",
+    .name           = "RGB888",
     .format         = kPixelFormatRGB,
     .similar        = { kPixelFormatUnknown, kPixelFormatUnknown, kPixelFormatBGR },
     .color          = kColorRGB,
@@ -261,7 +261,7 @@ static const PixelDescriptor kPixelRGB = {
 };
 
 static const PixelDescriptor kPixelBGR = {
-    .name           = "BGR24",
+    .name           = "BGR888",
     .format         = kPixelFormatBGR,
     .similar        = { kPixelFormatUnknown, kPixelFormatUnknown, kPixelFormatRGB },
     .color          = kColorRGB,
@@ -938,11 +938,16 @@ static MediaError planeswap_init(MediaUnitContext ref, const MediaFormat * iform
 static MediaError planeswap_process(MediaUnitContext ref, const MediaBufferList * input, MediaBufferList * output) {
     sp<ColorConvertorContext> ccc = ref;
     if (input->count != 3 || input->count != output->count) {
+        ERROR("bad buffer count` %s => %s",
+              GetMediaBufferListString(*input).c_str(), GetMediaBufferListString(*output).c_str());
         return kMediaErrorBadParameters;
     }
     for (size_t i = 0; i < input->count; ++i) {
-        if (input->buffers[i].size > output->buffers[i].capacity)
+        if (input->buffers[i].size > output->buffers[i].capacity) {
+            ERROR("bad buffer capacity %s => %s",
+            GetMediaBufferListString(*input).c_str(), GetMediaBufferListString(*output).c_str());
             return kMediaErrorBadParameters;
+        }
     }
     // support inplace process
     // swap u/v
@@ -1263,8 +1268,7 @@ struct ColorConverter : public MediaDevice {
             format0 = format1;
         }
         
-        ERROR("init ColorConverter failed");
-        return kMediaErrorBadParameters;
+        return kMediaNoError;
     }
     
     virtual sp<Message> formats() const {
