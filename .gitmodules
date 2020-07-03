@@ -1,11 +1,3 @@
 [submodule "external/libyuv"]
 	path = external/libyuv
     url = https://github.com/mtdcy/libyuv.git
-[submodule "ABE"]
-	path = ABE
-    url = https://github.com/mtdcy/ABE.git
-    branch = v1.x
-[submodule "FFmpegStatic"]
-	path = FFmpegStatic
-    url = https://github.com/mtdcy/FFmpegStatic.git
-    branch = v1.x
