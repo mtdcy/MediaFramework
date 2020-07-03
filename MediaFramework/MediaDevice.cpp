@@ -212,6 +212,7 @@ sp<MediaDevice> MediaDevice::create(const sp<Message>& formats, const sp<Message
         case kAudioCodecAAC:
         case kAudioCodecAC3:
 #ifdef __APPLE__
+return CreateLavcDecoder(formats, options);
             return CreateAudioToolbox(formats, options);
 #elif defined(WITH_FFMPEG)
             return CreateLavcDecoder(formats, options);
@@ -274,9 +275,11 @@ sp<MediaDevice> MediaDevice::create(const sp<Message>& formats, const sp<Message
             return CreateOpenALOut(formats, options);
 #endif
         case kPixelFormat420YpCbCrPlanar:
-        case kPixelFormat420YpCrCbPlanar:
         case kPixelFormat420YpCbCrSemiPlanar:
         case kPixelFormat420YpCrCbSemiPlanar:
+        case kPixelFormatRGB32:
+        case kPixelFormatRGB24:
+        case kPixelFormatRGB16:
         case kPixelFormatVideoToolbox:
             return CreateOpenGLOut(formats, options);
         default:

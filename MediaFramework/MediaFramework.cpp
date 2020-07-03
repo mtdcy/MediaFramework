@@ -33,52 +33,56 @@ __BEGIN_DECLS
 
 __USING_NAMESPACE_MPX
 
-ImageFileRef ImageFileOpen(ContentObjectRef ref) {
-    sp<ABuffer> pipe = ref;
-    return NULL;
-}
-
-MediaFrameRef AudioFrameCreate(const AudioFormat * audio) {
-    sp<MediaFrame> frame = MediaFrame::Create(*audio);
-    return (MediaFrameRef)frame->RetainObject();
-}
-
-MediaFrameRef ImageFrameCreate(const ImageFormat * image) {
-    sp<MediaFrame> frame = MediaFrame::Create(*image);
+MediaFrameRef MediaFrameCreate(size_t n) {
+    sp<MediaFrame> frame = MediaFrame::Create(n);
+    if (frame.isNIL()) return NULL;
     return frame->RetainObject();
 }
 
-MediaFrameRef ImageFrameGenerate(const ImageFormat * image, BufferObjectRef ref) {
+MediaFrameRef MediaFrameCreateWithBuffer(BufferObjectRef ref) {
+    sp<Buffer> buffer = ref;
+    sp<MediaFrame> frame = MediaFrame::Create(buffer);
+    if (frame.isNIL()) return NULL;
+    return frame->RetainObject();
+}
+
+MediaFrameRef MediaFrameCreateWithAudioFormat(const AudioFormat * audio) {
+    sp<MediaFrame> frame = MediaFrame::Create(*audio);
+    if (frame.isNIL()) return NULL;
+    return frame->RetainObject();
+}
+
+MediaFrameRef MediaFrameCreateWithImageFormat(const ImageFormat * image) {
+    sp<MediaFrame> frame = MediaFrame::Create(*image);
+    if (frame.isNIL()) return NULL;
+    return frame->RetainObject();
+}
+
+MediaFrameRef MediaFrameCreateWithImageBuffer(const ImageFormat * image, BufferObjectRef ref) {
     sp<Buffer> buffer = ref;
     sp<MediaFrame> frame = MediaFrame::Create(*image, buffer);
+    if (frame.isNIL()) return NULL;
     return frame->RetainObject();
+}
+
+size_t MediaFrameGetPlaneCount(const MediaFrameRef ref) {
+    return static_cast<const MediaFrame*>(ref)->planes.count;
+}
+
+size_t MediaFrameGetPlaneSize(const MediaFrameRef ref, size_t index) {
+    return static_cast<MediaFrame*>(ref)->planes.buffers[index].size;
 }
 
 uint8_t * MediaFrameGetPlaneData(MediaFrameRef ref, size_t index) {
-    sp<MediaFrame> frame = ref;
-    CHECK_LT(index, frame->planes.count);
-    return frame->planes.buffers[index].data;
-}
-
-size_t MediaFrameGetPlaneSize(MediaFrameRef ref, size_t index) {
-    sp<MediaFrame> frame = ref;
-    CHECK_LT(index, frame->planes.count);
-    return frame->planes.buffers[index].size;
+    return static_cast<MediaFrame*>(ref)->planes.buffers[index].data;
 }
 
 AudioFormat * MediaFrameGetAudioFormat(MediaFrameRef ref) {
-    sp<MediaFrame> frame = ref;
-    return &frame->audio;
+    return &(static_cast<MediaFrame*>(ref)->audio);
 }
 
 ImageFormat * MediaFrameGetImageFormat(MediaFrameRef ref) {
-    sp<MediaFrame> frame = ref;
-    return &frame->video;
-}
-
-void * MediaFrameGetOpaque(MediaFrameRef ref) {
-    sp<MediaFrame> frame = ref;
-    return frame->opaque;
+    return &(static_cast<MediaFrame*>(ref)->video);
 }
 
 struct UserFrameEvent : public MediaFrameEvent {
@@ -145,31 +149,18 @@ void MediaPlayerPause(MediaPlayerRef ref) {
 
 MediaDeviceRef MediaDeviceCreate(MessageObjectRef format, MessageObjectRef options) {
     sp<MediaDevice> device = MediaDevice::create(format, options);
+    if (device.isNIL()) return NULL;
     return (MediaDeviceRef)device->RetainObject();
 }
 
-#if 0
-MediaOutRef MediaOutCreateForImage(const ImageFormat * image, MessageObjectRef options) {
-    sp<MediaOut> out = MediaOut::Create(kCodecTypeVideo);
-    sp<Message> format = new Message;
-    format->setInt32(kKeyFormat, image->format);
-    format->setInt32(kKeyWidth, image->width);
-    format->setInt32(kKeyHeight, image->height);
-    if (out->prepare(format, options) != kMediaNoError) {
-        return NULL;
-    }
-    return (MediaOutRef)out->RetainObject();
-}
-#endif
-
 MessageObjectRef MediaDeviceFormats(MediaDeviceRef ref) {
     sp<MediaDevice> device = ref;
-    return device->formats().get();
+    return device->formats()->RetainObject();
 }
 
 MediaFrameRef MediaDevicePull(MediaDeviceRef ref) {
     sp<MediaDevice> device = ref;
-    return device->pull().get();
+    return device->pull()->RetainObject();
 }
 
 MediaError MediaDevicePush(MediaDeviceRef ref, MediaFrameRef frame) {
@@ -186,6 +177,13 @@ MediaError MediaDeviceConfigure(MediaDeviceRef ref, MessageObjectRef options) {
     if (options == NULL) return kMediaErrorBadValue;
     sp<MediaDevice> device = ref;
     return device->configure(options);
+}
+
+MediaDeviceRef ColorConverterCreate(const ImageFormat * input, const ImageFormat * output, MessageObjectRef ref) {
+    sp<Message> options = ref;
+    sp<MediaDevice> cc = CreateColorConverter(*input, *output, options);
+    if (cc.isNIL()) return NULL;
+    return cc->RetainObject();
 }
 
 int64_t MediaClockGetTime(MediaClockRef ref) {

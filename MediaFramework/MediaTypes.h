@@ -70,24 +70,27 @@ __BEGIN_DECLS
                 | (((uint32_t)(x) << 8) & 0xff0000)     \
                 | (((uint32_t)(x) << 24) & 0xff000000))
 
+#define MEDIA_ENUM_MAX              (0xFFFFFFFF)
 enum {
     kMediaNoError                   = 0,
-    kMediaErrorUnknown              = 0xA000,
-    kMediaErrorNotSupported         = 0xA001,
-    kMediaErrorInvalidOperation     = 0xA002,
-    kMediaErrorBadContent           = 0xA003,
-    kMediaErrorBadFormat            = 0xA004,
-    kMediaErrorBadValue             = 0xA005,
-    kMediaErrorTryAgain             = 0xA006,
-    kMediaErrorOutOfMemory          = 0xA007,   ///< Out Of Memory
-    kMediaErrorSystemError          = 0xA008,   ///< system error except OOM
-    kMediaErrorResourceBusy         = 0xA009,
-    kMediaErrorBadParameters        = 0xA0A0,
+    kMediaErrorUnknown              = FOURCC('unkn'),
+    kMediaErrorNotSupported         = FOURCC('?sup'),
+    kMediaErrorInvalidOperation     = FOURCC('inva'),
+    kMediaErrorBadContent           = FOURCC('badc'),
+    kMediaErrorBadParameters        = FOURCC('badp'),
+    kMediaErrorBadFormat            = FOURCC('badf'),
+    kMediaErrorBadValue             = FOURCC('badv'),
+    kMediaErrorTryAgain             = FOURCC('agan'),
+    kMediaErrorResourceBusy         = FOURCC('busy'),
+    kMediaErrorOutOfMemory          = FOURCC('!oom'),   ///< Out Of Memory
+    kMediaErrorSystemError          = FOURCC('!sys'),   ///< system error except OOM
+    
+    kMediaErrorMax                  = MEDIA_ENUM_MAX
 };
 typedef uint32_t MediaError;
 
 enum {
-    kFormatUnknown      = FOURCC('?!!?'),       ///< unknown format
+    kFormatUnknown      = FOURCC('----'),       ///< unknown format
 };
 
 // nobody really care about file format
@@ -109,6 +112,8 @@ enum {
     kFileFormatPng      = FOURCC('Fpng'),
     //
     kFileFormatLAVF     = FOURCC('lavf'),   // extend our capability by libavformat
+    
+    kFileFormatMax      = MEDIA_ENUM_MAX
 };
 typedef uint32_t eFileFormat;
 
@@ -123,7 +128,9 @@ enum {
     kAudioCodecWMA      = FOURCC('wma '),
     kAudioCodecAPE      = FOURCC('APE '),
     kAudioCodecDTS      = FOURCC('DTS '),
-    kAudioCodecLAVC     = FOURCC('Alac'),   // extend our capability by libavcodec
+    kAudioCodecLAVC     = FOURCC('FFau'),   // extend our capability by libavcodec
+    
+    kAudioCodecMax      = MEDIA_ENUM_MAX
 };
 typedef uint32_t eAudioCodec;
 
@@ -137,12 +144,14 @@ enum {
     kVideoCodecVP8      = FOURCC('VP80'),   // free codec by On2
     kVideoCodecVP9      = FOURCC('VP90'),   // free codec by Google
     kVideoCodecVC1      = FOURCC('vc1 '),   // SMPTE 421M, Microsoft WMV9
-    kVideoCodecLAVC     = FOURCC('Vlac'),   // extend our capability by libavcodec
+    kVideoCodecLAVC     = FOURCC('FFvi'),   // extend our capability by libavcodec
     
     // Microsoft Version Codecs
     // support by ffmpeg, including different sub codecs, need MVCM to distinguish them
     // https://wiki.multimedia.cx/index.php/Microsoft_MPEG-4
     kVideoCodecMicrosoftMPEG4   = FOURCC('MPG4'),   // Microsoft MPEG4, @see kKeyMVCM
+    
+    kVideoCodecMax      = MEDIA_ENUM_MAX
 };
 typedef uint32_t eVideoCodec;
 
@@ -160,6 +169,8 @@ enum {
     kImageCodecJPEG     = FOURCC('jpeg'),
     kImageCodecBMP      = FOURCC('bmp '),
     kImageCodecGIF      = FOURCC('gif '),
+    
+    kImageCodecMax      = MEDIA_ENUM_MAX
 };
 typedef uint32_t eImageCodec;
 
@@ -170,6 +181,8 @@ enum {
     kCodecTypeAudio         = FOURCC('audi'),
     kCodecTypeSubtitle      = FOURCC('subt'),
     kCodecTypeImage         = FOURCC('imag'),
+    
+    kCodecTypeMax           = MEDIA_ENUM_MAX
 };
 typedef uint32_t eCodecType;
 
@@ -196,6 +209,8 @@ enum {
     kSampleFormatS32Packed  = FOURCC('s32i'),
     kSampleFormatFLTPacked  = FOURCC('flti'),
     kSampleFormatDBLPacked  = FOURCC('dbli'),
+    
+    kSampleFormatMax        = MEDIA_ENUM_MAX
 };
 typedef uint32_t eSampleFormat;
 
@@ -207,7 +222,7 @@ typedef uint32_t eSampleFormat;
  * @note word-order is commonly used in os and libraries for rgb
  * @note libyuv using word-order pixels
  * @note ffmpeg using byte-order pixels
- * @note yuv pixels usually in byte-order
+ * @note yuv pixels usually in represent in byte-order
  * https://en.wikipedia.org/wiki/RGBA_color_space
  * https://en.wikipedia.org/wiki/YCbCr
  */
@@ -246,20 +261,24 @@ enum {
     kPixelFormatRGBA                    = FOURCC('RGBA'),   ///< packed RGBA, 32 bpp, RRGGBBAA, RGBA in byte-order
     kPixelFormatABGR                    = FOURCC('ABGR'),   ///< packed ABGR, 32 bpp, AABBGGRR, RGBA in word-order
 
-    /** hardware pixel format section **/
-    kPixelFormatVideoToolbox            = FOURCC('vtbx'),   ///< hardware frame from video toolbox
-
     /** alias section. TODO: set alias to platform preferred **/
     kPixelFormatRGB16                   = kPixelFormatBGR565,
-    KPixelFormatRGB24                   = kPixelFormatBGR,
+    kPixelFormatRGB24                   = kPixelFormatBGR,
     kPixelFormatRGB32                   = kPixelFormatBGRA, ///< ARGB in word-order, application usally using this
+
+    /** hardware pixel format section **/
+    kPixelFormatVideoToolbox            = FOURCC('vtbx'),   ///< hardware frame from video toolbox
+    
+    kPixelFormatMax                     = MEDIA_ENUM_MAX
 };
 typedef uint32_t ePixelFormat;
 
 enum {
     kColorUnknown       = kFormatUnknown,
     kColorYpCbCr        = FOURCC('Cyuv'),
-    kColorRGB           = FOURCC('Crgb')
+    kColorRGB           = FOURCC('Crgb'),
+    
+    kColorMax           = MEDIA_ENUM_MAX
 };
 typedef uint32_t eColorSpace;
 /*
@@ -271,6 +290,8 @@ typedef uint32_t eColorSpace;
 enum {
     kYpCbCrFullRange    = FOURCC('CRfu'),
     kYpCbCrVideoRange   = FOURCC('CRvi'),
+    
+    kYpCbCrRangeMax     = MEDIA_ENUM_MAX
 };
 typedef uint32_t eYpCbCrRange;
 
@@ -278,15 +299,15 @@ enum {
     kRotate0            = FOURCC('R000'),
     kRotate90           = FOURCC('R090'),
     kRotate180          = FOURCC('R180'),
-    kRotate270          = FOURCC('R270')
+    kRotate270          = FOURCC('R270'),
+    
+    kRotateMax          = MEDIA_ENUM_MAX
 };
 typedef uint32_t eRotate;
 
 /**
  * kFrameTypeSync: sync frame, depends on nobody.
  *      @note seek can only seek at this kind of frame.
- * kFrameTypeDepended: none sync frame and be depended by others. e.g. P-frame
- *      @note when combine with kFrameTypeSync, this one will be ignored.
  * kFrameTypeDisposal: none sync frame and not be depened by others. e.g. B-frame
  *      @note this kind of frame can be discard, decoder make the choice
  *      @note some B-frame be depended by others, in this case, no type should set.
@@ -298,25 +319,32 @@ enum {
     kFrameTypeSync          = (1<<0),
     kFrameTypeDisposal      = (1<<2),
     kFrameTypeReference     = (1<<3),
+    
+    kFrameTypeMax           = MEDIA_ENUM_MAX
 };
 typedef uint32_t    eFrameType;
 
 #pragma mark Basic Types
+
+enum { kPlanar = 0, kPacked = 0, kUVSwap, kWordOrder, kSimilarMax };
 typedef struct PixelDescriptor {
-    const char * const  name;       ///< pixel format name
-    const ePixelFormat  format;     ///< pixel format value
-    const eColorSpace   color;      ///< color space
-    const size_t        bpp;        ///< avg pixel bpp => image size
-    const size_t        planes;     ///< number planes => image size
+    const char * const  name;                   ///< pixel format name
+    const ePixelFormat  format;                 ///< pixel format value
+    const ePixelFormat  similar[kSimilarMax];   ///< similar format
+    const eColorSpace   color;                  ///< color space
+    const size_t        bpp;                    ///< avg pixel bpp => image size
+    const size_t        nb_planes;              ///< number planes => image size
     struct {
-        const size_t    bpp;        ///< plane pixel bpp
-        const size_t    hss;        ///< horizontal subsampling
-        const size_t    vss;        ///< vertical subsampling
-    } const plane[4];
+        const size_t    bpp;                    ///< plane pixel bpp
+        const size_t    hss;                    ///< horizontal subsampling
+        const size_t    vss;                    ///< vertical subsampling
+    } const planes[4];
 } PixelDescriptor;
 
 // get information about pixel format
 API_EXPORT const PixelDescriptor *  GetPixelFormatDescriptor(ePixelFormat);
+API_EXPORT bool                     IsPlanarPixelFormat(ePixelFormat);
+API_EXPORT bool                     IsSemiPlanarPixelFormat(ePixelFormat);
 
 typedef struct ImageRect {
     int32_t             x;
@@ -333,18 +361,17 @@ typedef struct ImageFormat {
 } ImageFormat;
 
 typedef struct SampleDescriptor {
-    const char * const  name;
-    const eSampleFormat format;
-    const size_t        planes;         ///<
-    // TODO
+    const char * const  name;           ///< sample format name
+    const eSampleFormat format;         ///< sample format
+    const eSampleFormat similar;        ///< corresponding planar/interleaved format
+    const bool          planar;         ///< is planar
+    const size_t        bytes;          ///< sample bytes
 } SampleDescriptor;
 
-// TODO
 API_EXPORT const SampleDescriptor * GetSampleFormatDescriptor(eSampleFormat);
-
-API_EXPORT eSampleFormat    GetSimilarSampleFormat(eSampleFormat);      ///< plannar <-> packed/interleaved
-API_EXPORT size_t           GetSampleFormatBytes(eSampleFormat);
-API_EXPORT bool             IsPackedSampleFormat(eSampleFormat);
+API_EXPORT eSampleFormat            GetSimilarSampleFormat(eSampleFormat);      ///< plannar <-> packed/interleaved
+API_EXPORT size_t                   GetSampleFormatBytes(eSampleFormat);
+API_EXPORT bool                     IsPlanarSampleFormat(eSampleFormat);
 
 typedef struct AudioFormat {
     eSampleFormat       format;         ///< audio sample format @see eSampleFormat
@@ -376,20 +403,16 @@ typedef struct MediaTime {
 
 __END_DECLS
 
-#pragma mark Basic C++ Types
+#pragma mark C++ Accesories
 #ifdef __cplusplus
 __BEGIN_NAMESPACE_MPX
-
-// ePixelFormat
-API_EXPORT String   GetPixelFormatString(const ePixelFormat&);
-API_EXPORT String   GetImageFormatString(const ImageFormat&);
-API_EXPORT size_t   GetImageFormatPlaneLength(const ImageFormat&, size_t);
-API_EXPORT size_t   GetImageFormatBufferLength(const ImageFormat& image);
 
 // AudioFormat
 API_EXPORT String   GetAudioFormatString(const AudioFormat&);
 
-#pragma mark C++ Accesories
+// ePixelFormat
+API_EXPORT String   GetPixelFormatString(const ePixelFormat&);
+API_EXPORT String   GetImageFormatString(const ImageFormat&);
 
 // AudioFormat
 static FORCE_INLINE bool operator==(const AudioFormat& lhs, const AudioFormat& rhs) {
@@ -456,7 +479,6 @@ FORCE_INLINE MediaTime& operator-=(MediaTime& lhs, const MediaTime& rhs) {
     lhs.scale = lcd;
     return lhs;
 }
-
 
 #pragma mark MediaEvent/MediaEvent2
 template <typename T>

@@ -259,7 +259,8 @@ struct AVMediaFrame : public MediaFrame {
             for (size_t i = 0; frame->data[i] != NULL; ++i) {
                 planes.buffers[i].data  = frame->data[i];
                 // frame->linesize[i] is wired, can not used to calc plane bytes
-                planes.buffers[i].size  = (video.width * video.height * desc->plane[i].bpp) / (desc->plane[i].hss * desc->plane[i].vss);
+                planes.buffers[i].capacity =
+                planes.buffers[i].size  = (video.width * video.height * desc->planes[i].bpp) / (8 * desc->planes[i].hss * desc->planes[i].vss);
             }
         } else {
             FATAL("FIXME");
@@ -817,8 +818,8 @@ struct LavcDecoder : public MediaDevice {
             pkt->size       = input->planes.buffers[0].size;
 
             CHECK_TRUE(input->timecode != kMediaTimeInvalid);
-            pkt->dts        = MediaTime(input->timecode).rescale(avcc->pkt_timebase.den).value;
-            pkt->pts        = AV_NOPTS_VALUE;
+            pkt->pts        = MediaTime(input->timecode).rescale(avcc->pkt_timebase.den).value;
+            pkt->dts        = AV_NOPTS_VALUE;
 
             pkt->flags      = 0;
             if (input->flags & kFrameTypeSync) {

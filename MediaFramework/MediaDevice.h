@@ -156,6 +156,8 @@ enum {
     // Microsoft codec manager data
     kKeyMicrosoftVCM    = FOURCC('MVCM'),       ///< sp<Buffer>, Microsoft VCM, exists in matroska, @see BITMAPINFOHEADER
     kKeyMicorsoftACM    = FOURCC('MACM'),       ///< sp<Buffer>, Microsoft ACM, exists in matroska, @see WAVEFORMATEX
+    
+    kKeyMax             = MEDIA_ENUM_MAX
 };
 typedef uint32_t eKeyType;
 
@@ -187,6 +189,8 @@ enum {
 
     // special meta data
     kKeyiTunSMPB        = FOURCC('smpb'),   // String, m4a only
+    
+    kMetaKeyMax         = MEDIA_ENUM_MAX
 };
 
 #pragma mark Values

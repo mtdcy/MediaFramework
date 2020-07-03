@@ -642,8 +642,8 @@ static void drawVideoToolboxFrame(const sp<OpenGLContext>& glc, const sp<MediaFr
         CGLError err = CGLTexImageIOSurface2D(CGLGetCurrentContext(),
                                               glc->mOpenGLConfig->e_target,
                                               glc->mOpenGLConfig->a_format[i].internalformat,
-                                              (GLsizei)(frame->video.width / glc->mPixelDescriptor->plane[i].hss),
-                                              (GLsizei)(frame->video.height / glc->mPixelDescriptor->plane[i].vss),
+                                              (GLsizei)(frame->video.width / glc->mPixelDescriptor->planes[i].hss),
+                                              (GLsizei)(frame->video.height / glc->mPixelDescriptor->planes[i].vss),
                                               glc->mOpenGLConfig->a_format[i].format,
                                               glc->mOpenGLConfig->a_format[i].type,
                                               iosurface, i);
@@ -704,8 +704,8 @@ static MediaError drawFrame(const sp<OpenGLContext>& glc, const sp<MediaFrame>& 
             
             glTexImage2D(glc->mOpenGLConfig->e_target, 0,
                          glc->mOpenGLConfig->a_format[i].internalformat,
-                         (GLsizei)(frame->video.width / glc->mPixelDescriptor->plane[i].hss),
-                         (GLsizei)(frame->video.height / glc->mPixelDescriptor->plane[i].vss),
+                         (GLsizei)(frame->video.width / glc->mPixelDescriptor->planes[i].hss),
+                         (GLsizei)(frame->video.height / glc->mPixelDescriptor->planes[i].vss),
                          0,
                          glc->mOpenGLConfig->a_format[i].format,
                          glc->mOpenGLConfig->a_format[i].type,

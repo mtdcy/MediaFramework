@@ -53,12 +53,13 @@ typedef union MediaFormat {
 } MediaFormat;
 
 typedef void * MediaUnitContext;
+typedef MediaError  (*InputCallback)(void *, size_t samples, MediaBufferList **);
 typedef struct MediaUnit {
     const char *            name;       ///< hunam readable string, DEBUGGING!
     const eMediaUnitFlags   flags;      ///< media unit flags
 
-    const MediaFormat *     iformats;   ///< supported input format list
-    const MediaFormat *     oformats;   ///< supported output format list
+    const uint32_t *        iformats;   ///< supported input format list
+    const uint32_t *        oformats;   ///< supported output format list
 
     /**
      * alloc/dealloc a media unit context
@@ -80,6 +81,13 @@ typedef struct MediaUnit {
      * @return return kMediaErrorBadParameters if in/out MediaBufferList is bad
      */
     MediaError          (*process)(MediaUnitContext, const MediaBufferList *, MediaBufferList *);
+    
+    /**
+     * complex process function
+     * @return return kMediaNoError on success, otherwise MediaError code.
+     * @return return kMediaErrorBadParameters if in/out MediaBufferList is bad 
+     */
+    MediaError          (*pull)(MediaUnitContext, MediaBufferList *, InputCallback icb, void *);
 
     /**
      * reset media unit

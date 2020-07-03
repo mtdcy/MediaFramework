@@ -60,6 +60,9 @@ __END_DECLS
 
 #ifdef __cplusplus
 __BEGIN_NAMESPACE_MPX
+
+API_EXPORT String   GetMediaBufferListString(const MediaBufferList&);
+
 /**
  * @note MediaFrame MUST be in decoding order for compressed frame.
  * @note MediaFrame MUST be in presentation order for uncompressed frame.

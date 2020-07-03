@@ -39,64 +39,17 @@
 
 __BEGIN_DECLS
 
-struct {
-    eSampleFormat   plannar;
-    eSampleFormat   packed;
-} kSampleFormatMap[] = {
-    { kSampleFormatU8,      kSampleFormatU8Packed   },
-    { kSampleFormatS16,     kSampleFormatS16Packed  },
-    { kSampleFormatS32,     kSampleFormatS32Packed  },
-    { kSampleFormatFLT,     kSampleFormatFLTPacked  },
-    { kSampleFormatDBL,     kSampleFormatDBLPacked  },
-    // END OF LIST
-    { kSampleFormatUnknown, kSampleFormatUnknown    },
-};
-
-eSampleFormat GetSimilarSampleFormat(eSampleFormat format) {
-    for (size_t i = 0; kSampleFormatMap[i].plannar != kSampleFormatUnknown; ++i) {
-        if (format == kSampleFormatMap[i].plannar)
-            return kSampleFormatMap[i].packed;
-        else if (format == kSampleFormatMap[i].packed)
-            return kSampleFormatMap[i].plannar;
-    }
-    FATAL("SHOULD NOT BE here");
-    return kSampleFormatUnknown;
-};
-
-size_t GetSampleFormatBytes(eSampleFormat format) {
-    switch (format) {
-        case kSampleFormatU8Packed:
-        case kSampleFormatU8:       return sizeof(uint8_t);
-        case kSampleFormatS16Packed:
-        case kSampleFormatS16:      return sizeof(int16_t);
-        case kSampleFormatS32Packed:
-        case kSampleFormatS32:      return sizeof(int32_t);
-        case kSampleFormatFLTPacked:
-        case kSampleFormatFLT:      return sizeof(float);
-        case kSampleFormatDBLPacked:
-        case kSampleFormatDBL:      return sizeof(double);
-        case kSampleFormatUnknown:  return 0;
-        default:                    break;
-    }
-    FATAL("FIXME");
-    return 0;
-}
-
-bool IsPackedSampleFormat(eSampleFormat format) {
-    switch (format) {
-        case kSampleFormatU8Packed:
-        case kSampleFormatS16Packed:
-        case kSampleFormatS32Packed:
-        case kSampleFormatFLTPacked:
-        case kSampleFormatDBLPacked:
-            return true;
-        default:
-            return false;;
-    }
-}
 __END_DECLS
 
 __BEGIN_NAMESPACE_MPX
+
+String GetMediaBufferListString(const MediaBufferList& list) {
+    String line = String::format("MediaBufferList %zu planes", list.count);
+    for (size_t i = 0; i < list.count; ++i) {
+        line += String::format(", [%zu] %zu bytes @ %p", i, list.buffers[i].size, list.buffers[i].data);
+    }
+    return line;
+}
 
 #define NB_PLANES   (8)
 struct FullPlaneMediaFrame : public MediaFrame {
@@ -108,7 +61,7 @@ struct FullPlaneMediaFrame : public MediaFrame {
         planes.count                = 1;
         planes.buffers[0].capacity  = underlyingBuffer->capacity();
         planes.buffers[0].size      = underlyingBuffer->size();
-        planes.buffers[0].data      = (uint8_t *)underlyingBuffer->data();  // FIXME: unsafe cast
+        planes.buffers[0].data      = (uint8_t *)underlyingBuffer->data();
     }
 };
 
@@ -135,7 +88,7 @@ sp<MediaFrame> MediaFrame::Create(const AudioFormat& audio) {
     sp<Buffer> buffer = new Buffer(total);
     sp<MediaFrame> frame = new FullPlaneMediaFrame(buffer);
     
-    if (!IsPackedSampleFormat(audio.format)) {
+    if (IsPlanarSampleFormat(audio.format)) {
         // plannar samples
         frame->planes.buffers[0].size = bytes * audio.samples;
         uint8_t * next = frame->planes.buffers[0].data + frame->planes.buffers[0].size;
@@ -155,25 +108,31 @@ sp<MediaFrame> MediaFrame::Create(const ImageFormat& image, sp<Buffer>& buffer) 
     const PixelDescriptor * desc = GetPixelFormatDescriptor(image.format);
     CHECK_NULL(desc);
     const size_t bytes = (image.width * image.height * desc->bpp) / 8;
-    if (buffer->capacity() < bytes) return NULL;
-    
-    sp<MediaFrame> frame = new FullPlaneMediaFrame(buffer);
-    
-    if (desc->planes > 1) {
-        frame->planes.buffers[0].size = (image.width * image.height * desc->plane[0].bpp) /
-        (8 * desc->plane[0].hss * desc->plane[0].vss);
-        uint8_t * next = frame->planes.buffers[0].data + frame->planes.buffers[0].size;
-        for (size_t i = 1; i < desc->planes; ++i) {
-            const size_t bytes = (image.width * image.height * desc->plane[i].bpp) /
-                                 (8 * desc->plane[i].hss * desc->plane[i].vss);
-            frame->planes.buffers[i].data   = next;
-            frame->planes.buffers[i].size   = bytes;
-            next += bytes;
-        }
-        frame->planes.count = desc->planes;
+    if (buffer->capacity() < bytes) {
+        ERROR("bad buffer capacity, expect %zu bytes, got %zu bytes", bytes, buffer->capacity());
+        return NULL;
+    }
+    if (buffer->size() && buffer->size() < bytes) {
+        ERROR("bad buffer data, expect %zu bytes, but got %zu bytes", bytes, buffer->size());
+        return NULL;
     }
     
-    frame->video    = image;
+    sp<MediaFrame> frame    = new FullPlaneMediaFrame(buffer);
+    frame->video            = image;
+    
+    if (desc->nb_planes > 1) {
+        uint8_t * next = frame->planes.buffers[0].data;
+        for (size_t i = 0; i < desc->nb_planes; ++i) {
+            const size_t bytes = (image.width * image.height * desc->planes[i].bpp) /
+                                 (8 * desc->planes[i].hss * desc->planes[i].vss);
+            
+            frame->planes.buffers[i].capacity   = bytes;
+            frame->planes.buffers[i].size       = buffer->size() ? bytes : 0;
+            frame->planes.buffers[i].data       = next;
+            next += bytes;
+        }
+        frame->planes.count = desc->nb_planes;
+    }
     
     DEBUG("create: %s", frame->string().c_str());
     return frame;
@@ -203,19 +162,6 @@ sp<ABuffer> MediaFrame::readPlane(size_t index) const {
     return new Buffer((const char *)planes.buffers[index].data, planes.buffers[index].size);
 }
 
-size_t GetImageFormatPlaneLength(const ImageFormat& image, size_t i) {
-    const PixelDescriptor * desc = GetPixelFormatDescriptor(image.format);
-    CHECK_NULL(desc);
-    return (image.width * image.height * desc->plane[i].bpp) /
-            (8 * desc->plane[i].hss * desc->plane[i].vss);
-}
-
-size_t GetImageFormatBufferLength(const ImageFormat& image) {
-    const PixelDescriptor * desc = GetPixelFormatDescriptor(image.format);
-    CHECK_NULL(desc);
-    return (image.width * image.height * desc->bpp) / 8;;
-}
-
 String GetAudioFormatString(const AudioFormat& a) {
     return String::format("audio %.4s: ch %d, freq %d, samples %d",
                           (const char *)&a.format,
@@ -229,7 +175,7 @@ String GetPixelFormatString(const ePixelFormat& pixel) {
     if (desc == NULL) return "unknown pixel";
     
     String line = String::format("pixel %s: [%zu planes %zu bpp]",
-                                 desc->name, desc->planes, desc->bpp);
+                                 desc->name, desc->nb_planes, desc->bpp);
     return line;
 }
 

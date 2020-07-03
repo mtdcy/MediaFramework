@@ -38,29 +38,14 @@
 #define _MPX_MEDIA_AUDIO_CONVERTER_H
 
 #include <MediaFramework/MediaTypes.h>
-#include <MediaFramework/MediaFrame.h>
+#include <MediaFramework/MediaDevice.h>
 
 #ifdef __cplusplus
-
 __BEGIN_NAMESPACE_MPX
 
-class AudioConverter : public SharedObject {
-    public:
-        static sp<AudioConverter> Create(const AudioFormat& input,
-                                         const AudioFormat& output,
-                                         const sp<Message>& options);
-    
-        AudioConverter() { }
-        
-        virtual ~AudioConverter() { }
-        
-        virtual sp<MediaFrame> convert(const sp<MediaFrame>&) = 0;
-        
-        virtual void reset() = 0;
-};
+sp<MediaDevice> CreateAudioConverter(const AudioFormat&, const AudioFormat&, const sp<Message>&);
 
 __END_NAMESPACE_MPX
-
 #endif // __cplusplus
 
 #endif // _MPX_MEDIA_AUDIO_CONVERTER_H

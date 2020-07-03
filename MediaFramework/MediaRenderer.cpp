@@ -109,7 +109,7 @@ struct MediaRenderer : public IMediaSession {
         AudioFormat         mAudio;
         ImageFormat         mImage;
     };
-    sp<AudioConverter>      mAudioConverter;
+    sp<MediaDevice>         mAudioConverter;
     
     // statistics
     size_t                  mFramesRenderred;
@@ -208,7 +208,7 @@ struct MediaRenderer : public IMediaSession {
                 if (audio.format != mAudio.format ||
                     audio.channels != mAudio.channels ||
                     audio.freq != mAudio.freq) {
-                    mAudioConverter = AudioConverter::Create(mAudio, audio, NULL);
+                    mAudioConverter = CreateAudioConverter(mAudio, audio, NULL);
                 }
             } else {
                 FATAL("FIXME");
@@ -369,6 +369,10 @@ struct MediaRenderer : public IMediaSession {
             // request another frame
             requestFrame();
         } else {
+            if (!mAudioConverter.isNIL()) {
+                mAudioConverter->push(frame);
+                mOutputQueue.push(mAudioConverter->pull());
+            } else
             mOutputQueue.push(frame);
 
             // prepare done ?
@@ -446,9 +450,11 @@ struct MediaRenderer : public IMediaSession {
     
     FORCE_INLINE MediaError playFrame(const sp<MediaFrame>& input) {
         sp<MediaFrame> frame = input;
+#if 0
         if (!input.isNIL() && !mAudioConverter.isNIL()) {
             frame = mAudioConverter->convert(input);
         }
+#endif
         
         if (!mOut.isNIL()) {
             return mOut->push(frame);

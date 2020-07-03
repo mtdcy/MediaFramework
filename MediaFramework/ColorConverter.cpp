@@ -66,6 +66,7 @@
  */
 
 #define LOG_TAG "ColorConverter"
+#define LOG_NDEBUG 0
 #include "MediaTypes.h"
 #include "MediaUnit.h"
 #include "ColorConverter.h"
@@ -91,218 +92,264 @@ __BEGIN_DECLS
 // 4 chroma in one plane
 #define PLANE_VALUE_SS1x1_4 { .bpp = 32, .hss = 1, .vss = 1 }
 
-static PixelDescriptor pixel420YpCbCrPlanar = {
+static const PixelDescriptor kPixel420YpCbCrPlanar = {
     .name           = "420p",
     .format         = kPixelFormat420YpCbCrPlanar,
+    .similar        = { kPixelFormatUnknown, kPixelFormat420YpCrCbPlanar, kPixelFormatUnknown},
     .color          = kColorYpCbCr,
     .bpp            = 12,
-    .planes         = 3,
-    .plane          = {
+    .nb_planes      = 3,
+    .planes         = {
         PLANE_VALUE_SS1x1,
         PLANE_VALUE_SS2x2,
         PLANE_VALUE_SS2x2,
     }
 };
 
-static PixelDescriptor pixel422YpCbCrPlanar = {
+static const PixelDescriptor kPixel420YpCrCbPlanar = {
+    .name           = "yv12",
+    .format         = kPixelFormat420YpCrCbPlanar,
+    .similar        = { kPixelFormatUnknown, kPixelFormat420YpCbCrPlanar, kPixelFormatUnknown},
+    .color          = kColorYpCbCr,
+    .bpp            = 12,
+    .nb_planes      = 3,
+    .planes         = {
+        PLANE_VALUE_SS1x1,
+        PLANE_VALUE_SS2x2,
+        PLANE_VALUE_SS2x2,
+    }
+};
+
+static const PixelDescriptor kPixel422YpCbCrPlanar = {
     .name           = "422p",
     .format         = kPixelFormat422YpCbCrPlanar,
+    .similar        = { kPixelFormat422YpCbCr, kPixelFormat422YpCrCbPlanar, kPixelFormatUnknown },
     .color          = kColorYpCbCr,
     .bpp            = 16,
-    .planes         = 3,
-    .plane          = {
+    .nb_planes      = 3,
+    .planes         = {
         PLANE_VALUE_SS1x1,
         PLANE_VALUE_SS2x1,
         PLANE_VALUE_SS2x1,
     }
 };
 
-static PixelDescriptor pixel444YpCbCrPlanar = {
+static const PixelDescriptor kPixel422YpCrCbPlanar = {
+    .name           = "422p",
+    .format         = kPixelFormat422YpCrCbPlanar,
+    .similar        = { kPixelFormat422YpCrCb, kPixelFormat422YpCbCrPlanar, kPixelFormatUnknown },
+    .color          = kColorYpCbCr,
+    .bpp            = 16,
+    .nb_planes      = 3,
+    .planes         = {
+        PLANE_VALUE_SS1x1,
+        PLANE_VALUE_SS2x1,
+        PLANE_VALUE_SS2x1,
+    }
+};
+
+static const PixelDescriptor kPixel444YpCbCrPlanar = {
     .name           = "444p",
     .format         = kPixelFormat444YpCbCrPlanar,
+    .similar        = { kPixelFormat444YpCbCr, kPixelFormatUnknown, kPixelFormatUnknown },
     .color          = kColorYpCbCr,
     .bpp            = 24,
-    .planes         = 3,
-    .plane          = {
+    .nb_planes      = 3,
+    .planes         = {
         PLANE_VALUE_SS1x1,
         PLANE_VALUE_SS1x1,
         PLANE_VALUE_SS1x1,
     }
 };
 
-static PixelDescriptor pixel420YpCbCrSemiPlanar = {
+static const PixelDescriptor kPixel420YpCbCrSemiPlanar = {
     .name           = "nv12",
     .format         = kPixelFormat420YpCbCrSemiPlanar,
+    .similar        = { kPixelFormatUnknown, kPixelFormat420YpCrCbSemiPlanar, kPixelFormatUnknown },
     .color          = kColorYpCbCr,
     .bpp            = 12,
-    .planes         = 2,
-    .plane          = {
+    .nb_planes      = 2,
+    .planes         = {
         PLANE_VALUE_SS1x1,
         PLANE_VALUE_SS2x2_2,    // u & v
     }
 };
 
-static PixelDescriptor pixel420YpCrCbSemiPlanar = {
+static const PixelDescriptor kPixel420YpCrCbSemiPlanar = {
     .name           = "nv21",
     .format         = kPixelFormat420YpCrCbSemiPlanar,
+    .similar        = { kPixelFormatUnknown, kPixelFormat420YpCbCrSemiPlanar, kPixelFormatUnknown },
     .color          = kColorYpCbCr,
     .bpp            = 12,
-    .planes         = 2,
-    .plane          = {
+    .nb_planes      = 2,
+    .planes         = {
         PLANE_VALUE_SS1x1,
         PLANE_VALUE_SS2x2_2,    // v & u
     }
 };
 
-static PixelDescriptor pixel422YpCbCr = {
+static const PixelDescriptor kPixel422YpCbCr = {
     .name           = "yuyv",
     .format         = kPixelFormat422YpCbCr,
+    .similar        = { kPixelFormat422YpCbCrPlanar, kPixelFormat422YpCrCb, kPixelFormatUnknown },
     .color          = kColorYpCbCr,
     .bpp            = 16,
-    .planes         = 1,
-    .plane          = {
+    .nb_planes      = 1,
+    .planes         = {
         PLANE_VALUE_SS1x1_2,
     }
 };
 
-static PixelDescriptor pixel422YpCrCb = {
+static const PixelDescriptor kPixel422YpCrCb = {
     .name           = "yvyu",
     .format         = kPixelFormat422YpCrCb,
+    .similar        = { kPixelFormat422YpCrCbPlanar, kPixelFormat422YpCbCr, kPixelFormatUnknown },
     .color          = kColorYpCbCr,
     .bpp            = 16,
-    .planes         = 1,
-    .plane          = {
+    .nb_planes      = 1,
+    .planes         = {
         PLANE_VALUE_SS1x1_2,
     }
 };
 
-static PixelDescriptor pixel444YpCbCr = {
+static const PixelDescriptor kPixel444YpCbCr = {
     .name           = "yuv444",
     .format         = kPixelFormat444YpCbCr,
+    .similar        = { kPixelFormat444YpCbCrPlanar, kPixelFormatUnknown, kPixelFormatUnknown },
     .color          = kColorYpCbCr,
     .bpp            = 24,
-    .planes         = 1,
-    .plane          = {
+    .nb_planes      = 1,
+    .planes         = {
         PLANE_VALUE_SS1x1_3,
     }
 };
 
-static PixelDescriptor pixelRGB565 = {
+static const PixelDescriptor kPixelRGB565 = {
     .name           = "RGB565",
     .format         = kPixelFormatRGB565,
+    .similar        = { kPixelFormatUnknown, kPixelFormatUnknown, kPixelFormatBGR565 },
     .color          = kColorRGB,
     .bpp            = 16,
-    .planes         = 1,
-    .plane          = {
+    .nb_planes      = 1,
+    .planes         = {
         PLANE_VALUE_SS1x1_2,
     }
 };
 
-static PixelDescriptor pixelBGR565 = {
+static const PixelDescriptor kPixelBGR565 = {
     .name           = "BGR565",
     .format         = kPixelFormatBGR565,
+    .similar        = { kPixelFormatUnknown, kPixelFormatUnknown, kPixelFormatRGB565 },
     .color          = kColorRGB,
     .bpp            = 16,
-    .planes         = 1,
-    .plane          = {
+    .nb_planes      = 1,
+    .planes         = {
         PLANE_VALUE_SS1x1_2,
     }
 };
 
-static PixelDescriptor pixelRGB = {
+static const PixelDescriptor kPixelRGB = {
     .name           = "RGB24",
     .format         = kPixelFormatRGB,
+    .similar        = { kPixelFormatUnknown, kPixelFormatUnknown, kPixelFormatBGR },
     .color          = kColorRGB,
     .bpp            = 24,
-    .planes         = 1,
-    .plane          = {
+    .nb_planes      = 1,
+    .planes         = {
         PLANE_VALUE_SS1x1_3,
     }
 };
 
-static PixelDescriptor pixelBGR = {
+static const PixelDescriptor kPixelBGR = {
     .name           = "BGR24",
     .format         = kPixelFormatBGR,
+    .similar        = { kPixelFormatUnknown, kPixelFormatUnknown, kPixelFormatRGB },
     .color          = kColorRGB,
     .bpp            = 24,
-    .planes         = 1,
-    .plane          = {
+    .nb_planes      = 1,
+    .planes         = {
         PLANE_VALUE_SS1x1_3,
     }
 };
 
-static PixelDescriptor pixelARGB = {
+static const PixelDescriptor kPixelARGB = {
     .name           = "ARGB",
     .format         = kPixelFormatARGB,
+    .similar        = { kPixelFormatUnknown, kPixelFormatUnknown, kPixelFormatBGRA },
     .color          = kColorRGB,
     .bpp            = 32,
-    .planes         = 1,
-    .plane          = {
+    .nb_planes      = 1,
+    .planes         = {
         PLANE_VALUE_SS1x1_4,
     }
 };
 
-static PixelDescriptor pixelBGRA = {
+static const PixelDescriptor kPixelBGRA = {
     .name           = "BGRA",
     .format         = kPixelFormatBGRA,
+    .similar        = { kPixelFormatUnknown, kPixelFormatUnknown, kPixelFormatARGB },
     .color          = kColorRGB,
     .bpp            = 32,
-    .planes         = 1,
-    .plane          = {
+    .nb_planes      = 1,
+    .planes         = {
         PLANE_VALUE_SS1x1_4,
     }
 };
 
-static PixelDescriptor pixelRGBA = {
+static const PixelDescriptor kPixelRGBA = {
     .name           = "RGBA",
     .format         = kPixelFormatRGBA,
+    .similar        = { kPixelFormatUnknown, kPixelFormatUnknown, kPixelFormatABGR },
     .color          = kColorRGB,
     .bpp            = 32,
-    .planes         = 1,
-    .plane          = {
+    .nb_planes      = 1,
+    .planes         = {
         PLANE_VALUE_SS1x1_4,
     }
 };
 
-static PixelDescriptor pixelABGR = {
+static const PixelDescriptor kPixelABGR = {
     .name           = "ABGR",
     .format         = kPixelFormatABGR,
+    .similar        = { kPixelFormatUnknown, kPixelFormatUnknown, kPixelFormatRGBA },
     .color          = kColorRGB,
     .bpp            = 32,
-    .planes         = 1,
-    .plane          = {
+    .nb_planes      = 1,
+    .planes         = {
         PLANE_VALUE_SS1x1_4,
     }
 };
 
-static const PixelDescriptor * LIST[] = {
+static const PixelDescriptor * kPixelDescriptorList[] = {
     // tri-planar YpCbCr
-    &pixel420YpCbCrPlanar,
-    &pixel422YpCbCrPlanar,
-    &pixel444YpCbCrPlanar,
+    &kPixel420YpCbCrPlanar,
+    &kPixel420YpCrCbPlanar,
+    &kPixel422YpCbCrPlanar,
+    &kPixel422YpCrCbPlanar,
+    &kPixel444YpCbCrPlanar,
     // bi-planar YpCbCr
-    &pixel420YpCbCrSemiPlanar,
-    &pixel420YpCrCbSemiPlanar,
+    &kPixel420YpCbCrSemiPlanar,
+    &kPixel420YpCrCbSemiPlanar,
     // packed YpCbCr
-    &pixel422YpCbCr,
-    &pixel422YpCrCb,
-    &pixel444YpCbCr,
+    &kPixel422YpCbCr,
+    &kPixel422YpCrCb,
+    &kPixel444YpCbCr,
     // rgb
-    &pixelRGB565,
-    &pixelBGR565,
-    &pixelRGB,
-    &pixelBGR,
-    &pixelARGB,
-    &pixelBGRA,
-    &pixelRGBA,
-    &pixelABGR,
+    &kPixelRGB565,
+    &kPixelBGR565,
+    &kPixelRGB,
+    &kPixelBGR,
+    &kPixelARGB,
+    &kPixelBGRA,
+    &kPixelRGBA,
+    &kPixelABGR,
     // END OF LIST
     NULL
 };
 
 const PixelDescriptor * GetPixelFormatDescriptor(ePixelFormat pixel) {
-    for (size_t i = 0; LIST[i] != NULL; ++i) {
-        const PixelDescriptor * desc = LIST[i];
+    for (size_t i = 0; kPixelDescriptorList[i] != NULL; ++i) {
+        const PixelDescriptor * desc = kPixelDescriptorList[i];
         if (desc->format == pixel) {
             return desc;
         }
@@ -311,50 +358,50 @@ const PixelDescriptor * GetPixelFormatDescriptor(ePixelFormat pixel) {
     return NULL;
 }
 
-static const MediaFormat sPlanarYUV[] = {
-    { .format = kPixelFormat420YpCbCrPlanar     },
-    { .format = kPixelFormat420YpCrCbPlanar     },
-    { .format = kPixelFormat422YpCbCrPlanar     },
-    { .format = kPixelFormat422YpCrCbPlanar     },
-    { .format = kPixelFormat444YpCbCrPlanar     },
+static const ePixelFormat kPlanarYUV[] = {
+    kPixelFormat420YpCbCrPlanar,
+    kPixelFormat420YpCrCbPlanar,
+    kPixelFormat422YpCbCrPlanar,
+    kPixelFormat422YpCrCbPlanar,
+    kPixelFormat444YpCbCrPlanar,
     // END OF LIST
-    { .format = kPixelFormatUnknown             },
+    kPixelFormatUnknown        ,
 };
 
 static bool IsPlanarYUV(const ePixelFormat& pixel) {
-    for (size_t i = 0; sPlanarYUV[i].format != kPixelFormatUnknown; ++i) {
-        if (sPlanarYUV[i].format == pixel)
+    for (size_t i = 0; kPlanarYUV[i] != kPixelFormatUnknown; ++i) {
+        if (kPlanarYUV[i] == pixel)
             return true;
     }
     return false;
 }
 
-static const MediaFormat sSemiPlanarYUV[] = {
-    { .format = kPixelFormat420YpCbCrSemiPlanar },
-    { .format = kPixelFormat420YpCrCbSemiPlanar },
+static const ePixelFormat kSemiPlanarYUV[] = {
+    kPixelFormat420YpCbCrSemiPlanar,
+    kPixelFormat420YpCrCbSemiPlanar,
     // END OF LIST
-    { .format = kPixelFormatUnknown             },
+    kPixelFormatUnknown            ,
 };
 
 static bool IsSemiPlanarYUV(const ePixelFormat& pixel) {
-    for (size_t i = 0; sSemiPlanarYUV[i].format != kPixelFormatUnknown; ++i) {
-        if (sSemiPlanarYUV[i].format == pixel)
+    for (size_t i = 0; kSemiPlanarYUV[i] != kPixelFormatUnknown; ++i) {
+        if (kSemiPlanarYUV[i] == pixel)
             return true;
     }
     return false;
 }
 
-static const MediaFormat sPackedYUV[] = {
-    { .format = kPixelFormat422YpCbCr           },
-    { .format = kPixelFormat422YpCrCb           },
-    { .format = kPixelFormat444YpCbCr           },
+static const ePixelFormat kPackedYUV[] = {
+    kPixelFormat422YpCbCr,
+    kPixelFormat422YpCrCb,
+    kPixelFormat444YpCbCr,
     // END OF LIST
-    { .format = kPixelFormatUnknown             },
+    kPixelFormatUnknown  ,
 };
 
 static bool IsPackedYUV(const ePixelFormat& pixel) {
-    for (size_t i = 0; sPackedYUV[i].format != kPixelFormatUnknown; ++i) {
-        if (sPackedYUV[i].format == pixel)
+    for (size_t i = 0; kPackedYUV[i] != kPixelFormatUnknown; ++i) {
+        if (kPackedYUV[i] == pixel)
             return true;
     }
     return false;
@@ -367,22 +414,22 @@ static bool IsYUV(const ePixelFormat& pixel) {
     return false;
 }
 
-static const MediaFormat sRGB[] = {
-    { .format = kPixelFormatRGB565              },
-    { .format = kPixelFormatBGR565              },
-    { .format = kPixelFormatRGB                 },
-    { .format = kPixelFormatBGR                 },
-    { .format = kPixelFormatARGB                },
-    { .format = kPixelFormatBGRA                },
-    { .format = kPixelFormatRGBA                },
-    { .format = kPixelFormatABGR                },
+static const ePixelFormat kRGB[] = {
+    kPixelFormatRGB565  ,
+    kPixelFormatBGR565  ,
+    kPixelFormatRGB     ,
+    kPixelFormatBGR     ,
+    kPixelFormatARGB    ,
+    kPixelFormatBGRA    ,
+    kPixelFormatRGBA    ,
+    kPixelFormatABGR    ,
     // END OF LIST
-    { .format = kPixelFormatUnknown             },
+    kPixelFormatUnknown ,
 };
 
 static bool IsRGB(const ePixelFormat& pixel) {
-    for (size_t i = 0; sRGB[i].format != kPixelFormatUnknown; ++i) {
-        if (sRGB[i].format == pixel)
+    for (size_t i = 0; kRGB[i] != kPixelFormatUnknown; ++i) {
+        if (kRGB[i] == pixel)
             return true;
     }
     return false;
@@ -446,6 +493,19 @@ typedef int (*Packed2SemiPlanar_t)(const uint8_t* src_argb, int src_stride_argb,
 typedef int (*ByteSwap_t)(const uint8_t * src, size_t src_bytes,
         uint8_t * dst, size_t dst_bytes);
 
+union hnd_t {
+    Planar2Planar_t         planar2planar;
+    Planar2SemiPlanar_t     planar2semiplanar;
+    Planar2Packed_t         planar2packed;
+    SemiPlanar2Planar_t     semiplanar2planar;
+    SemiPlanar2SemiPlanar_t semiplanar2semiplanar;
+    SemiPlanar2Packed_t     semiplanar2packed;
+    Packed2Planar_t         packed2planar;
+    Packed2SemiPlanar_t     packed2semiplanar;
+    Packed2Packed_t         packed2packed;
+    ByteSwap_t              byteswap;
+};
+
 // aabb -> bbaa
 static int swap16(const uint8_t * src, size_t src_bytes,
         uint8_t * dst, size_t dst_bytes) {
@@ -475,7 +535,7 @@ static int swap16_565(const uint8_t * src, size_t src_bytes,
 // aabbcc -> ccbbaa
 static int swap24(const uint8_t * src, size_t src_bytes,
         uint8_t * dst, size_t dst_bytes) {
-    for (size_t i = 0; i < src_bytes; ++i) {
+    for (size_t i = 0; i < src_bytes; i += 3) {
         // support inplace swap
         uint8_t a   = src[0];
         uint8_t b   = src[2];
@@ -509,403 +569,173 @@ static int swap32l(const uint8_t * src, size_t src_bytes,
     return 0;
 }
 
-static struct {
-    ePixelFormat        source;
-    ePixelFormat        target;
-    Planar2Planar_t     hnd;
-} kPlanar2PlanarMap[] = {
-    // -> YpCbCr
-    { kPixelFormat422YpCbCrPlanar,  kPixelFormat420YpCbCrPlanar,    libyuv::I422ToI420  },
-    { kPixelFormat444YpCbCrPlanar,  kPixelFormat420YpCbCrPlanar,    libyuv::I444ToI420  },
-    { kPixelFormat420YpCbCrPlanar,  kPixelFormat422YpCbCrPlanar,    libyuv::I420ToI422  },
-    { kPixelFormat420YpCbCrPlanar,  kPixelFormat444YpCbCrPlanar,    libyuv::I420ToI444  },
-    // END OF LIST
-    { kPixelFormatUnknown }
-};
-static Planar2Planar_t hnd_323(ePixelFormat source, ePixelFormat target) {
-    for (size_t i = 0; kPlanar2PlanarMap[i].source != kPixelFormatUnknown; ++i) {
-        if (kPlanar2PlanarMap[i].source == source && kPlanar2PlanarMap[i].target == target) {
-            return kPlanar2PlanarMap[i].hnd;
-        }
-    }
-    return NULL;
-}
-
-static int I420ToNV12(const uint8_t* src_y, int src_stride_y,
-        const uint8_t* src_u, int src_stride_u,
-        const uint8_t* src_v, int src_stride_v,
-        uint8_t* dst_y, int dst_stride_y,
-        uint8_t* dst_vu, int dst_stride_vu,
-        int width, int height) {
-    return libyuv::I420ToNV21(src_y, src_stride_y,
-            src_v, src_stride_v,
-            src_u, src_stride_u,
-            dst_y, dst_stride_y,
-            dst_vu, dst_stride_vu,
-            width, height);
-}
-
-static int I422ToNV12(const uint8_t* src_y, int src_stride_y,
-        const uint8_t* src_u, int src_stride_u,
-        const uint8_t* src_v, int src_stride_v,
-        uint8_t* dst_y, int dst_stride_y,
-        uint8_t* dst_vu, int dst_stride_vu,
-        int width, int height) {
-    return libyuv::I422ToNV21(src_y, src_stride_y,
-            src_v, src_stride_v,
-            src_u, src_stride_u,
-            dst_y, dst_stride_y,
-            dst_vu, dst_stride_vu,
-            width, height);
-}
-
-static int I444ToNV12(const uint8_t* src_y, int src_stride_y,
-        const uint8_t* src_u, int src_stride_u,
-        const uint8_t* src_v, int src_stride_v,
-        uint8_t* dst_y, int dst_stride_y,
-        uint8_t* dst_vu, int dst_stride_vu,
-        int width, int height) {
-    return libyuv::I444ToNV21(src_y, src_stride_y,
-            src_v, src_stride_v,
-            src_u, src_stride_u,
-            dst_y, dst_stride_y,
-            dst_vu, dst_stride_vu,
-            width, height);
-}
-
-static struct {
-    ePixelFormat        source;
-    ePixelFormat        target;
-    Planar2SemiPlanar_t hnd;
-} kPlanar2SemiPlanarMap[] = {
-    // -> YpCbCrSemiPlanar (NV12)
-    { kPixelFormat420YpCbCrPlanar,  kPixelFormat420YpCbCrSemiPlanar,    I420ToNV12          },
-    { kPixelFormat422YpCbCrPlanar,  kPixelFormat420YpCbCrSemiPlanar,    I422ToNV12          },
-    { kPixelFormat444YpCbCrPlanar,  kPixelFormat420YpCbCrSemiPlanar,    I444ToNV12          },
-    { kPixelFormat420YpCrCbPlanar,  kPixelFormat420YpCbCrSemiPlanar,    libyuv::I420ToNV21  },
-    { kPixelFormat422YpCrCbPlanar,  kPixelFormat420YpCbCrSemiPlanar,    libyuv::I422ToNV21  },
-    // -> YpCrCbSemiPlanar (NV21)
-    { kPixelFormat420YpCbCrPlanar,  kPixelFormat420YpCrCbSemiPlanar,    libyuv::I420ToNV21  },
-    { kPixelFormat422YpCbCrPlanar,  kPixelFormat420YpCrCbSemiPlanar,    libyuv::I422ToNV21  },
-    { kPixelFormat444YpCbCrPlanar,  kPixelFormat420YpCrCbSemiPlanar,    libyuv::I444ToNV21  },
-    { kPixelFormat420YpCrCbPlanar,  kPixelFormat420YpCrCbSemiPlanar,    I420ToNV12          },
-    { kPixelFormat422YpCrCbPlanar,  kPixelFormat420YpCrCbSemiPlanar,    I422ToNV12          },
-    // END OF LIST
-    { kPixelFormatUnknown }
-};
-static Planar2SemiPlanar_t hnd_322(ePixelFormat source, ePixelFormat target) {
-    for (size_t i = 0; kPlanar2SemiPlanarMap[i].source != kPixelFormatUnknown; ++i) {
-        if (kPlanar2SemiPlanarMap[i].source == source && kPlanar2SemiPlanarMap[i].target == target) {
-            return kPlanar2SemiPlanarMap[i].hnd;
-        }
-    }
-    return NULL;
-}
-
-static struct {
-    ePixelFormat    source;
-    ePixelFormat    target;
-    Planar2Packed_t hnd;
-} kPlanar2PackedMap[] = {
-    // YpCbCrPlanar -> RGBA (ABGR in word-order)
-    { kPixelFormat420YpCbCrPlanar,      kPixelFormatRGBA,       libyuv::I420ToABGR  },
-    { kPixelFormat422YpCbCrPlanar,      kPixelFormatRGBA,       libyuv::I422ToABGR  },
-    { kPixelFormat444YpCbCrPlanar,      kPixelFormatRGBA,       libyuv::I444ToABGR  },
-    // YpCbCrPlanar -> ABGR (RGBA in word-order)
-    { kPixelFormat420YpCbCrPlanar,      kPixelFormatABGR,       libyuv::I420ToRGBA  },
-    { kPixelFormat422YpCbCrPlanar,      kPixelFormatABGR,       libyuv::I422ToRGBA  },
-    //{ kPixelFormat444YpCbCrPlanar,      kPixelFormatABGR,       NULL                },
-    // YpCbCrPlanar -> ARGB (BGRA in word-order)
-    { kPixelFormat420YpCbCrPlanar,      kPixelFormatARGB,       libyuv::I420ToBGRA  },
-    { kPixelFormat422YpCbCrPlanar,      kPixelFormatARGB,       libyuv::I422ToBGRA  },
-    //{ kPixelFormat444YpCbCrPlanar,      kPixelFormatARGB,       NULL                },
-    // YpCbCrPlanar -> BGRA (ARGB in word-order)
-    { kPixelFormat420YpCbCrPlanar,      kPixelFormatBGRA,       libyuv::I420ToARGB  },
-    { kPixelFormat422YpCbCrPlanar,      kPixelFormatBGRA,       libyuv::I422ToARGB  },
-    { kPixelFormat444YpCbCrPlanar,      kPixelFormatBGRA,       libyuv::I444ToARGB  },
-    // YpCbCrPlanar -> BGR (RGB in word-order)
-    { kPixelFormat420YpCbCrPlanar,      kPixelFormatBGR,        libyuv::I420ToRGB24 },
-    //{ kPixelFormat422YpCbCrPlanar,      kPixelFormatBGR,        NULL                },
-    //{ kPixelFormat444YpCbCrPlanar,      kPixelFormatBGR,        NULL                },
-    // YpCbCrPlanar -> BGR565 (RGB in word-order)
-    { kPixelFormat420YpCbCrPlanar,      kPixelFormatBGR565,     libyuv::I420ToRGB565},
-    { kPixelFormat422YpCbCrPlanar,      kPixelFormatBGR565,     libyuv::I422ToRGB565},
-    //{ kPixelFormat444YpCbCrPlanar,      kPixelFormatBGR565,     NULL                },
-    // END OF LIST
-    { kPixelFormatUnknown }
-};
-static Planar2Packed_t hnd_321(ePixelFormat source, ePixelFormat target) {
-    for (size_t i = 0; kPlanar2PackedMap[i].source != kPixelFormatUnknown; ++i) {
-        if (kPlanar2PackedMap[i].source == source && kPlanar2PackedMap[i].target == target) {
-            return kPlanar2PackedMap[i].hnd;
-        }
-    }
-    return NULL;
-}
-
-static struct {
-    ePixelFormat        source;
-    ePixelFormat        target;
-    SemiPlanar2Planar_t hnd;
-} kSemiPlanar2PlanarMap[] = {
-    { kPixelFormat420YpCbCrSemiPlanar,  kPixelFormat420YpCbCrPlanar,    libyuv::NV12ToI420  },
-    { kPixelFormat420YpCrCbSemiPlanar,  kPixelFormat420YpCbCrPlanar,    libyuv::NV21ToI420  },
-    // END OF LIST
-    { kPixelFormatUnknown }
-};
-static SemiPlanar2Planar_t hnd_223(ePixelFormat source, ePixelFormat target) {
-    for (size_t i = 0; kSemiPlanar2PlanarMap[i].source != kPixelFormatUnknown; ++i) {
-        if (kSemiPlanar2PlanarMap[i].source == source && kSemiPlanar2PlanarMap[i].target == target) {
-            return kSemiPlanar2PlanarMap[i].hnd;
-        }
-    }
-    return NULL;
-}
-
-static struct {
-    ePixelFormat        source;
-    ePixelFormat        target;
-    SemiPlanar2SemiPlanar_t hnd;
-} kSemiPlanar2SemiPlanarMap[] = {
-    { kPixelFormat420YpCbCrSemiPlanar,  kPixelFormat420YpCrCbSemiPlanar,    libyuv::NV21ToNV12  },
-    { kPixelFormat420YpCrCbSemiPlanar,  kPixelFormat420YpCbCrSemiPlanar,    libyuv::NV21ToNV12  },
-    // END OF LIST
-    { kPixelFormatUnknown }
-};
-static SemiPlanar2SemiPlanar_t hnd_222(ePixelFormat source, ePixelFormat target) {
-    for (size_t i = 0; kSemiPlanar2SemiPlanarMap[i].source != kPixelFormatUnknown; ++i) {
-        if (kSemiPlanar2SemiPlanarMap[i].source == source && kSemiPlanar2SemiPlanarMap[i].target == target) {
-            return kSemiPlanar2SemiPlanarMap[i].hnd;
-        }
-    }
-    return NULL;
-}
-
-static struct {
-    ePixelFormat        source;
-    ePixelFormat        target;
-    SemiPlanar2Packed_t hnd;
-} kSemiPlanar2PackedMap[] = {
-    // YpCbCrPlanar -> BGRA (ARGB in word-order)
-    { kPixelFormat420YpCbCrSemiPlanar,  kPixelFormatBGRA,   libyuv::NV12ToARGB  },
-    { kPixelFormat420YpCrCbSemiPlanar,  kPixelFormatBGRA,   libyuv::NV21ToARGB  },
-    // YpCbCrPlanar -> ARGB (BGRA in word-order)
-    //{ kPixelFormat420YpCbCrSemiPlanar,  kPixelFormatARGB,   NULL                },
-    //{ kPixelFormat420YpCrCbSemiPlanar,  kPixelFormatARGB,   NULL                },
-    // YpCbCrPlanar -> RGBA (ABGR in word-order)
-    { kPixelFormat420YpCbCrSemiPlanar,  kPixelFormatRGBA,   libyuv::NV12ToABGR  },
-    { kPixelFormat420YpCrCbSemiPlanar,  kPixelFormatRGBA,   libyuv::NV21ToABGR  },
-    // YpCbCrPlanar -> ARGB (BGRA in word-order)
-    //{ kPixelFormat420YpCbCrSemiPlanar,  kPixelFormatARGB,   NULL                },
-    //{ kPixelFormat420YpCrCbSemiPlanar,  kPixelFormatARGB,   NULL                },
-    // YpCbCrPlanar -> BGR (RGB in word-order)
-    { kPixelFormat420YpCbCrSemiPlanar,  kPixelFormatBGR,    libyuv::NV12ToRGB24 },
-    { kPixelFormat420YpCrCbSemiPlanar,  kPixelFormatBGR,    libyuv::NV21ToRGB24 },
-    // YpCbCrPlanar -> BGR565 (RGB565 in word-order)
-    { kPixelFormat420YpCbCrSemiPlanar,  kPixelFormatBGR565, libyuv::NV12ToRGB565},
-    //{ kPixelFormat420YpCrCbSemiPlanar,  kPixelFormatBGR565, NULL                },
-    // END OF LIST
-    { kPixelFormatUnknown }
-};
-static SemiPlanar2Packed_t hnd_221(ePixelFormat source, ePixelFormat target) {
-    for (size_t i = 0; kSemiPlanar2PackedMap[i].source != kPixelFormatUnknown; ++i) {
-        if (kSemiPlanar2PackedMap[i].source == source && kSemiPlanar2PackedMap[i].target == target) {
-            return kSemiPlanar2PackedMap[i].hnd;
-        }
-    }
-    return NULL;
-}
-
-static struct {
-    ePixelFormat        source;
-    ePixelFormat        target;
-    Packed2Planar_t     hnd;
-} kPacked2PlanarMap[] = {
-    { kPixelFormat422YpCbCr,        kPixelFormat422YpCbCrPlanar,    libyuv::YUY2ToI422      },
-    { kPixelFormat422YpCrCb,        kPixelFormat422YpCrCbPlanar,    libyuv::YUY2ToI422      },
-    { kPixelFormat444YpCbCr,        kPixelFormat444YpCbCrPlanar,    (Packed2Planar_t)libyuv::SplitRGBPlane   },
-    // -> YpCbCrPlanar
-    { kPixelFormatBGRA,             kPixelFormat420YpCbCrPlanar,    libyuv::ARGBToI420      },
-    { kPixelFormatARGB,             kPixelFormat420YpCbCrPlanar,    libyuv::BGRAToI420      },
-    { kPixelFormatRGBA,             kPixelFormat420YpCbCrPlanar,    libyuv::ABGRToI420      },
-    { kPixelFormatABGR,             kPixelFormat420YpCbCrPlanar,    libyuv::RGBAToI420      },
-    { kPixelFormatBGR,              kPixelFormat420YpCbCrPlanar,    libyuv::RGB24ToI420     },
-    { kPixelFormatBGR565,           kPixelFormat420YpCbCrPlanar,    libyuv::RGB565ToI420    },
-    { kPixelFormatBGRA,             kPixelFormat422YpCbCrPlanar,    libyuv::ARGBToI422      },
-    { kPixelFormatBGRA,             kPixelFormat444YpCbCrPlanar,    libyuv::ARGBToI444      },
-    // END OF LIST
-    { kPixelFormatUnknown }
-};
-static Packed2Planar_t hnd_123(ePixelFormat source, ePixelFormat target) {
-    for (size_t i = 0; kPacked2PlanarMap[i].source != kPixelFormatUnknown; ++i) {
-        if (kPacked2PlanarMap[i].source == source && kPacked2PlanarMap[i].target == target) {
-            return kPacked2PlanarMap[i].hnd;
-        }
-    }
-    return NULL;
-}
-
-static struct {
-    ePixelFormat        source;
-    ePixelFormat        target;
-    Packed2SemiPlanar_t hnd;
-} kPacked2SemiPlanarMap[] = {
-    { kPixelFormatBGRA,     kPixelFormat420YpCbCrSemiPlanar,    libyuv::ARGBToNV12  },
-    { kPixelFormat422YpCbCr, kPixelFormat420YpCbCrSemiPlanar,   libyuv::YUY2ToNV12  },
-    { kPixelFormatBGRA,     kPixelFormat420YpCrCbSemiPlanar,    libyuv::ARGBToNV21  },
-    { kPixelFormatBGRA,     kPixelFormat420YpCrCbSemiPlanar,    libyuv::ARGBToNV21  },
-    // END OF LIST
-    { kPixelFormatUnknown }
-};
-static Packed2SemiPlanar_t hnd_122(ePixelFormat source, ePixelFormat target) {
-    for (size_t i = 0; kPacked2SemiPlanarMap[i].source != kPixelFormatUnknown; ++i) {
-        if (kPacked2SemiPlanarMap[i].source == source && kPacked2SemiPlanarMap[i].target == target) {
-            return kPacked2SemiPlanarMap[i].hnd;
-        }
-    }
-    return NULL;
-}
-
-static struct {
-    ePixelFormat        source;
-    ePixelFormat        target;
-    Packed2Packed_t     hnd;
-} kPacked2PackedMap[] = {
-    // YpCbCr -> BGRA (ARGB in word-order)
-    { kPixelFormat422YpCbCr,            kPixelFormatBGRA,   libyuv::YUY2ToARGB  },
-    //{ kPixelFormat422YpCrCb,            kPixelFormatBGRA,   NULL                },
-    // BGR (RGB in word-order) ->
-    { kPixelFormatBGR,                  kPixelFormatBGRA,   libyuv::RGB24ToARGB },
-    // BGR565 (RGB565 in word-order) ->
-    { kPixelFormatBGR565,               kPixelFormatBGRA,   libyuv::RGB565ToARGB},
-    // ABGR (RGBA in word-order) ->
-    { kPixelFormatABGR,                 kPixelFormatBGRA,   libyuv::RGBAToARGB  },
-    // RGBA (ABGR in word-order) ->
-    { kPixelFormatRGBA,                 kPixelFormatBGRA,   libyuv::ABGRToARGB  },
-    // BGRA (ARGB in word-order) ->
-    { kPixelFormatBGRA,                 kPixelFormatARGB,   libyuv::ARGBToBGRA  },
-    { kPixelFormatBGRA,                 kPixelFormatRGBA,   libyuv::ARGBToABGR  },
-    { kPixelFormatBGRA,                 kPixelFormatABGR,   libyuv::ARGBToRGBA  },
-    // ARGB (BGRA in word-order) ->
-    { kPixelFormatARGB,                 kPixelFormatBGRA,   libyuv::BGRAToARGB  },
-    // END OF LIST
-    { kPixelFormatUnknown }
-};
-static Packed2Packed_t hnd_121(ePixelFormat source, ePixelFormat target) {
-    for (size_t i = 0; kPacked2PackedMap[i].source != kPixelFormatUnknown; ++i) {
-        if (kPacked2PackedMap[i].source == source && kPacked2PackedMap[i].target == target) {
-            return kPacked2PackedMap[i].hnd;
-        }
-    }
-    return NULL;
-}
-
 __END_DECLS
 
 __BEGIN_NAMESPACE_MPX
 
+typedef struct convert_t {
+    const ePixelFormat      source;
+    const ePixelFormat      target;
+    const hnd_t             hnd;
+} convert_t;
+
+static const convert_t kTo420YpCbCrPlanar[] = {
+    { kPixelFormat422YpCbCrPlanar,      kPixelFormat420YpCbCrPlanar,    .hnd.planar2planar = libyuv::I422ToI420         },
+    { kPixelFormat444YpCbCrPlanar,      kPixelFormat420YpCbCrPlanar,    .hnd.planar2planar = libyuv::I444ToI420         },
+    { kPixelFormat420YpCbCrSemiPlanar,  kPixelFormat420YpCbCrPlanar,    .hnd.semiplanar2planar = libyuv::NV12ToI420     },
+    { kPixelFormat420YpCrCbSemiPlanar,  kPixelFormat420YpCbCrPlanar,    .hnd.semiplanar2planar = libyuv::NV21ToI420     },
+    { kPixelFormat422YpCbCr,            kPixelFormat420YpCbCrPlanar,    .hnd.packed2planar = libyuv::YUY2ToI420         },
+    { kPixelFormatBGRA,                 kPixelFormat420YpCbCrPlanar,    .hnd.packed2planar = libyuv::ARGBToI420         },
+    { kPixelFormatARGB,                 kPixelFormat420YpCbCrPlanar,    .hnd.packed2planar = libyuv::BGRAToI420         },
+    { kPixelFormatRGBA,                 kPixelFormat420YpCbCrPlanar,    .hnd.packed2planar = libyuv::ABGRToI420         },
+    { kPixelFormatABGR,                 kPixelFormat420YpCbCrPlanar,    .hnd.packed2planar = libyuv::RGBAToI420         },
+    { kPixelFormatBGR,                  kPixelFormat420YpCbCrPlanar,    .hnd.packed2planar = libyuv::RGB24ToI420        },
+    { kPixelFormatBGR565,               kPixelFormat420YpCbCrPlanar,    .hnd.packed2planar = libyuv::RGB565ToI420       },
+    // END OF LIST
+    { kPixelFormatUnknown }
+};
+
+static const convert_t kToRGB32[] = {
+    { kPixelFormat420YpCbCrPlanar,      kPixelFormatRGB32,              .hnd.planar2packed = libyuv::I420ToARGB         },
+    { kPixelFormat422YpCbCrPlanar,      kPixelFormatRGB32,              .hnd.planar2packed = libyuv::I422ToARGB         },
+    { kPixelFormat444YpCbCrPlanar,      kPixelFormatRGB32,              .hnd.planar2packed = libyuv::I444ToARGB         },
+    { kPixelFormat420YpCbCrSemiPlanar,  kPixelFormatRGB32,              .hnd.semiplanar2packed = libyuv::NV12ToARGB     },
+    { kPixelFormat420YpCrCbSemiPlanar,  kPixelFormatRGB32,              .hnd.semiplanar2packed = libyuv::NV21ToARGB     },
+    { kPixelFormat422YpCbCr,            kPixelFormatRGB32,              .hnd.packed2packed = libyuv::YUY2ToARGB         },
+    { kPixelFormatARGB,                 kPixelFormatRGB32,              .hnd.packed2packed = libyuv::BGRAToARGB         },
+    { kPixelFormatRGBA,                 kPixelFormatRGB32,              .hnd.packed2packed = libyuv::ABGRToARGB         },
+    { kPixelFormatABGR,                 kPixelFormatRGB32,              .hnd.packed2packed = libyuv::RGBAToARGB         },
+    { kPixelFormatBGR,                  kPixelFormatRGB32,              .hnd.packed2packed = libyuv::RGB24ToARGB        },
+    { kPixelFormatBGR565,               kPixelFormatRGB32,              .hnd.packed2packed = libyuv::RGB565ToARGB       },
+    // END OF LIST
+    { kPixelFormatUnknown }
+};
+
+static const convert_t kToRGB24[] = {
+    { kPixelFormat420YpCbCrPlanar,      kPixelFormatRGB24,              .hnd.planar2packed = libyuv::I420ToRGB24        },
+    { kPixelFormat420YpCbCrSemiPlanar,  kPixelFormatRGB24,              .hnd.semiplanar2packed = libyuv::NV12ToRGB24    },
+    { kPixelFormat420YpCrCbSemiPlanar,  kPixelFormatRGB24,              .hnd.semiplanar2packed = libyuv::NV21ToRGB24    },
+    // END OF LIST
+    { kPixelFormatUnknown }
+};
+
+static const convert_t kToRGB16[] = {
+    { kPixelFormat420YpCbCrPlanar,      kPixelFormatRGB16,              .hnd.planar2packed = libyuv::I420ToRGB565       },
+    { kPixelFormat420YpCbCrSemiPlanar,  kPixelFormatRGB16,              .hnd.semiplanar2packed = libyuv::NV12ToRGB565   },
+    { kPixelFormat420YpCrCbSemiPlanar,  kPixelFormatRGB16,              .hnd.semiplanar2packed = libyuv::NV12ToRGB565   },
+    // END OF LIST
+    { kPixelFormatUnknown }
+};
+
+static hnd_t get_convert_hnd(const convert_t list[], const ePixelFormat& source, const ePixelFormat& target) {
+    for (size_t i = 0; list[i].source != kPixelFormatUnknown; ++i) {
+        if (list[i].source == source && list[i].target == target) {
+            return list[i].hnd;
+        }
+    }
+    hnd_t hnd = { .planar2planar = NULL };
+    return hnd;
+}
+
 struct ColorConvertorContext : public SharedObject {
-    MediaFormat             iFormat;
-    MediaFormat             oFormat;
-    const PixelDescriptor * iPixelDesc;
-    const PixelDescriptor * oPixelDesc;
-    union {
-        Planar2Planar_t         planar2planar;
-        Planar2SemiPlanar_t     planar2semiplanar;
-        Planar2Packed_t         planar2packed;
-        SemiPlanar2Planar_t     semiplanar2planar;
-        SemiPlanar2SemiPlanar_t semiplanar2semiplanar;
-        SemiPlanar2Packed_t     semiplanar2packed;
-        Packed2Planar_t         packed2planar;
-        Packed2SemiPlanar_t     packed2semiplanar;
-        Packed2Packed_t         packed2packed;
-        ByteSwap_t              byteswap;
-    };
+    MediaFormat             ipf;
+    MediaFormat             opf;
+    const PixelDescriptor * ipd;
+    const PixelDescriptor * opd;
+    hnd_t                   hnd;
 };
 
 static MediaUnitContext colorconvertor_alloc() {
-    sp<ColorConvertorContext> context = new ColorConvertorContext;
-    return context->RetainObject();
+    sp<ColorConvertorContext> ccc = new ColorConvertorContext;
+    return ccc->RetainObject();
 }
 
 static void colorconvertor_dealloc(MediaUnitContext ref) {
-    sp<ColorConvertorContext> context = ref;
-    context->ReleaseObject();
+    sp<ColorConvertorContext> ccc = ref;
+    ccc->ReleaseObject();
 }
 
-static MediaError colorconvertor_init_common(sp<ColorConvertorContext>& context, const MediaFormat * iformat, const MediaFormat * oformat) {
+static MediaError colorconvertor_init_common(sp<ColorConvertorContext>& ccc, const MediaFormat * iformat, const MediaFormat * oformat) {
     // input & output are the same pixel format
     if (iformat->format == oformat->format) {
+        ERROR("same pixel format");
         return kMediaErrorBadParameters;
     }
     // input & output SHOULD have the same width & height
     if (iformat->video.width == 0 || iformat->video.height == 0 ||
             iformat->video.width != oformat->video.width ||
             iformat->video.height != iformat->video.height) {
+        ERROR("bad pixel dimention");
         return kMediaErrorBadParameters;
     }
 
-    context->iFormat    = *iformat;
-    context->oFormat    = *oformat;
-    context->iPixelDesc = GetPixelFormatDescriptor(iformat->format);
-    context->oPixelDesc = GetPixelFormatDescriptor(oformat->format);
+    ccc->ipf    = *iformat;
+    ccc->opf    = *oformat;
+    ccc->ipd    = GetPixelFormatDescriptor(iformat->format);
+    ccc->opd    = GetPixelFormatDescriptor(oformat->format);
     return kMediaNoError;
 }
 
-static MediaError colorconvertor_init(MediaUnitContext ref, const MediaFormat * iformat, const MediaFormat * oformat) {
-    sp<ColorConvertorContext> context = ref;
-    if (colorconvertor_init_common(context, iformat, oformat) != kMediaNoError) {
+static MediaError colorconvertor_init_420p(MediaUnitContext ref, const MediaFormat * iformat, const MediaFormat * oformat) {
+    DEBUG("cc init %s => %s", GetImageFormatString(iformat->video).c_str(), GetImageFormatString(oformat->video).c_str());
+    sp<ColorConvertorContext> ccc = ref;
+    if (colorconvertor_init_common(ccc, iformat, oformat) != kMediaNoError) {
         return kMediaErrorBadParameters;
     }
+    
+    ccc->hnd = get_convert_hnd(kTo420YpCbCrPlanar, iformat->format, oformat->format);
+    return kMediaNoError;
+}
 
-    const ePixelFormat iPixel = iformat->format;
-    const ePixelFormat oPixel = oformat->format;
-    switch (context->iPixelDesc->planes) {
-        case 3:
-            switch (context->oPixelDesc->planes) {
-                case 3:     context->planar2planar          = hnd_323(iPixel, oPixel);  break;
-                case 2:     context->planar2semiplanar      = hnd_322(iPixel, oPixel);  break;
-                case 1:     context->planar2packed          = hnd_321(iPixel, oPixel);  break;
-                default:    break;
-            } break;
-        case 2:
-            switch (context->oPixelDesc->planes) {
-                case 3:     context->semiplanar2planar      = hnd_223(iPixel, oPixel);  break;
-                case 2:     context->semiplanar2semiplanar  = hnd_222(iPixel, oPixel);  break;
-                case 1:     context->semiplanar2packed      = hnd_221(iPixel, oPixel);  break;
-                default:    break;
-            } break;
-        case 1:
-            switch (context->oPixelDesc->planes) {
-                case 3:     context->packed2planar          = hnd_123(iPixel, oPixel);  break;
-                case 2:     context->packed2semiplanar      = hnd_122(iPixel, oPixel);  break;
-                case 1:     context->packed2packed          = hnd_121(iPixel, oPixel);  break;
-                default:    break;
-            } break;
-        default:    break;
+static MediaError colorconvertor_init_rgb32(MediaUnitContext ref, const MediaFormat * iformat, const MediaFormat * oformat) {
+    DEBUG("cc init %s => %s", GetImageFormatString(iformat->video).c_str(), GetImageFormatString(oformat->video).c_str());
+    sp<ColorConvertorContext> ccc = ref;
+    if (colorconvertor_init_common(ccc, iformat, oformat) != kMediaNoError) {
+        return kMediaErrorBadParameters;
     }
+    
+    ccc->hnd = get_convert_hnd(kToRGB32, iformat->format, oformat->format);
+    return kMediaNoError;
+}
 
-    if (context->planar2planar == NULL) {
-        return kMediaErrorNotSupported;
+static MediaError colorconvertor_init_rgb24(MediaUnitContext ref, const MediaFormat * iformat, const MediaFormat * oformat) {
+    DEBUG("cc init %s => %s", GetImageFormatString(iformat->video).c_str(), GetImageFormatString(oformat->video).c_str());
+    sp<ColorConvertorContext> ccc = ref;
+    if (colorconvertor_init_common(ccc, iformat, oformat) != kMediaNoError) {
+        return kMediaErrorBadParameters;
     }
+    
+    ccc->hnd = get_convert_hnd(kToRGB24, iformat->format, oformat->format);
+    return kMediaNoError;
+}
+
+static MediaError colorconvertor_init_rgb16(MediaUnitContext ref, const MediaFormat * iformat, const MediaFormat * oformat) {
+    DEBUG("cc init %s => %s", GetImageFormatString(iformat->video).c_str(), GetImageFormatString(oformat->video).c_str());
+    sp<ColorConvertorContext> ccc = ref;
+    if (colorconvertor_init_common(ccc, iformat, oformat) != kMediaNoError) {
+        return kMediaErrorBadParameters;
+    }
+    
+    ccc->hnd = get_convert_hnd(kToRGB16, iformat->format, oformat->format);
     return kMediaNoError;
 }
 
 MediaError colorconvertor_process(MediaUnitContext ref, const MediaBufferList * input, MediaBufferList * output) {
-    sp<ColorConvertorContext> context = ref;
-    const PixelDescriptor * iPixelDesc = context->iPixelDesc; 
-    const PixelDescriptor * oPixelDesc = context->oPixelDesc;
-    const MediaFormat& iFormat = context->iFormat;
-
-    if (input->count != iPixelDesc->planes || output->count != oPixelDesc->planes) {
+    DEBUG("process: %s", GetMediaBufferListString(*input).c_str());
+    sp<ColorConvertorContext> ccc = ref;
+    const PixelDescriptor * ipd = ccc->ipd;
+    const PixelDescriptor * opd = ccc->opd;
+    const MediaFormat& ipf      = ccc->ipf;
+    
+    if (input->count != ipd->nb_planes || output->count != opd->nb_planes) {
         return kMediaErrorBadParameters;
     }
     
-    const uint32_t width = iFormat.video.width;
-    const uint32_t height = iFormat.video.height;
+    const uint32_t width    = ipf.video.width;
+    const uint32_t height   = ipf.video.height;
     // check input size
-    for (size_t i = 0; i < iPixelDesc->planes; ++i) {
-        const size_t size = (width * height * iPixelDesc->plane[i].bpp) / (8 * iPixelDesc->plane[i].hss * iPixelDesc->plane[i].vss);
+    for (size_t i = 0; i < ipd->nb_planes; ++i) {
+        const size_t size = (width * height * ipd->planes[i].bpp) / (8 * ipd->planes[i].hss * ipd->planes[i].vss);
         if (input->buffers[i].size < size) {
             ERROR("bad input buffer, size mismatch.");
             return kMediaErrorBadParameters;
@@ -913,283 +743,200 @@ MediaError colorconvertor_process(MediaUnitContext ref, const MediaBufferList * 
     }
     
     // check output capacity
-    for (size_t i = 0; i < oPixelDesc->planes; ++i) {
-        const size_t size = (width * height * oPixelDesc->plane[i].bpp) / (8 * oPixelDesc->plane[i].hss * oPixelDesc->plane[i].vss);
+    for (size_t i = 0; i < opd->nb_planes; ++i) {
+        const size_t size = (width * height * opd->planes[i].bpp) / (8 * opd->planes[i].hss * opd->planes[i].vss);
         if (output->buffers[i].capacity < size) {
             ERROR("bad output buffer, capacity mismatch");
             return kMediaErrorBadParameters;
         }
         output->buffers[i].size = size; // set output size
     }
-
-    switch (iPixelDesc->planes) {
+    
+    switch (ipd->nb_planes) {
         case 3:
-            switch (oPixelDesc->planes) {
+            switch (opd->nb_planes) {
                 case 3:
-                    context->planar2planar(input->buffers[0].data, (width * iPixelDesc->plane[0].bpp) / (8 * iPixelDesc->plane[0].hss),
-                                           input->buffers[1].data, (width * iPixelDesc->plane[1].bpp) / (8 * iPixelDesc->plane[1].hss),
-                                           input->buffers[2].data, (width * iPixelDesc->plane[2].bpp) / (8 * iPixelDesc->plane[2].hss),
-                                           output->buffers[0].data, (width * oPixelDesc->plane[0].bpp) / (8 * oPixelDesc->plane[0].hss),
-                                           output->buffers[1].data, (width * oPixelDesc->plane[1].bpp) / (8 * oPixelDesc->plane[1].hss),
-                                           output->buffers[2].data, (width * oPixelDesc->plane[2].bpp) / (8 * oPixelDesc->plane[2].hss),
+                    ccc->hnd.planar2planar(input->buffers[0].data, (width * ipd->planes[0].bpp) / (8 * ipd->planes[0].hss),
+                                           input->buffers[1].data, (width * ipd->planes[1].bpp) / (8 * ipd->planes[1].hss),
+                                           input->buffers[2].data, (width * ipd->planes[2].bpp) / (8 * ipd->planes[2].hss),
+                                           output->buffers[0].data, (width * opd->planes[0].bpp) / (8 * opd->planes[0].hss),
+                                           output->buffers[1].data, (width * opd->planes[1].bpp) / (8 * opd->planes[1].hss),
+                                           output->buffers[2].data, (width * opd->planes[2].bpp) / (8 * opd->planes[2].hss),
                                            width, height);
                     break;
                 case 2:
-                    context->planar2semiplanar(input->buffers[0].data, (width * iPixelDesc->plane[0].bpp) / (8 * iPixelDesc->plane[0].hss),
-                                               input->buffers[1].data, (width * iPixelDesc->plane[1].bpp) / (8 * iPixelDesc->plane[1].hss),
-                                               input->buffers[2].data, (width * iPixelDesc->plane[2].bpp) / (8 * iPixelDesc->plane[2].hss),
-                                               output->buffers[0].data, (width * oPixelDesc->plane[0].bpp) / (8 * oPixelDesc->plane[0].hss),
-                                               output->buffers[1].data, (width * oPixelDesc->plane[1].bpp) / (8 * oPixelDesc->plane[1].hss),
+                    ccc->hnd.planar2semiplanar(input->buffers[0].data, (width * ipd->planes[0].bpp) / (8 * ipd->planes[0].hss),
+                                               input->buffers[1].data, (width * ipd->planes[1].bpp) / (8 * ipd->planes[1].hss),
+                                               input->buffers[2].data, (width * ipd->planes[2].bpp) / (8 * ipd->planes[2].hss),
+                                               output->buffers[0].data, (width * opd->planes[0].bpp) / (8 * opd->planes[0].hss),
+                                               output->buffers[1].data, (width * opd->planes[1].bpp) / (8 * opd->planes[1].hss),
                                                width, height);
                     break;
                 case 1:
-                    context->planar2packed(input->buffers[0].data, (width * iPixelDesc->plane[0].bpp) / (8 * iPixelDesc->plane[0].hss),
-                                           input->buffers[1].data, (width * iPixelDesc->plane[1].bpp) / (8 * iPixelDesc->plane[1].hss),
-                                           input->buffers[2].data, (width * iPixelDesc->plane[2].bpp) / (8 * iPixelDesc->plane[2].hss),
-                                           output->buffers[0].data, (width * oPixelDesc->bpp) / 8,
+                    ccc->hnd.planar2packed(input->buffers[0].data, (width * ipd->planes[0].bpp) / (8 * ipd->planes[0].hss),
+                                           input->buffers[1].data, (width * ipd->planes[1].bpp) / (8 * ipd->planes[1].hss),
+                                           input->buffers[2].data, (width * ipd->planes[2].bpp) / (8 * ipd->planes[2].hss),
+                                           output->buffers[0].data, (width * opd->bpp) / 8,
                                            width, height);
                     break;
-                default:    break;
+                default:
+                    break;
             } break;
         case 2:
-            switch (oPixelDesc->planes) {
+            switch (opd->nb_planes) {
                 case 3:
-                    context->semiplanar2planar(input->buffers[0].data, (width * iPixelDesc->plane[0].bpp) / (8 * iPixelDesc->plane[0].hss),
-                                               input->buffers[1].data, (width * iPixelDesc->plane[1].bpp) / (8 * iPixelDesc->plane[1].hss),
-                                               output->buffers[0].data, (width * oPixelDesc->plane[0].bpp) / (8 * oPixelDesc->plane[0].hss),
-                                               output->buffers[1].data, (width * oPixelDesc->plane[1].bpp) / (8 * oPixelDesc->plane[1].hss),
-                                               output->buffers[2].data, (width * oPixelDesc->plane[2].bpp) / (8 * oPixelDesc->plane[2].hss),
+                    ccc->hnd.semiplanar2planar(input->buffers[0].data, (width * ipd->planes[0].bpp) / (8 * ipd->planes[0].hss),
+                                               input->buffers[1].data, (width * ipd->planes[1].bpp) / (8 * ipd->planes[1].hss),
+                                               output->buffers[0].data, (width * opd->planes[0].bpp) / (8 * opd->planes[0].hss),
+                                               output->buffers[1].data, (width * opd->planes[1].bpp) / (8 * opd->planes[1].hss),
+                                               output->buffers[2].data, (width * opd->planes[2].bpp) / (8 * opd->planes[2].hss),
                                                width, height);
                     break;
                 case 2:
-                    context->semiplanar2semiplanar(input->buffers[0].data, (width * iPixelDesc->plane[0].bpp) / (8 * iPixelDesc->plane[0].hss),
-                                                   input->buffers[1].data, (width * iPixelDesc->plane[1].bpp) / (8 * iPixelDesc->plane[1].hss),
-                                                   output->buffers[0].data, (width * oPixelDesc->plane[0].bpp) / (8 * oPixelDesc->plane[0].hss),
-                                                   output->buffers[1].data, (width * oPixelDesc->plane[1].bpp) / (8 * oPixelDesc->plane[1].hss),
+                    ccc->hnd.semiplanar2semiplanar(input->buffers[0].data, (width * ipd->planes[0].bpp) / (8 * ipd->planes[0].hss),
+                                                   input->buffers[1].data, (width * ipd->planes[1].bpp) / (8 * ipd->planes[1].hss),
+                                                   output->buffers[0].data, (width * opd->planes[0].bpp) / (8 * opd->planes[0].hss),
+                                                   output->buffers[1].data, (width * opd->planes[1].bpp) / (8 * opd->planes[1].hss),
                                                    width, height);
                     break;
                 case 1:
-                    context->semiplanar2packed(input->buffers[0].data, (width * iPixelDesc->plane[0].bpp) / (8 * iPixelDesc->plane[0].hss),
-                                               input->buffers[1].data, (width * iPixelDesc->plane[1].bpp) / (8 * iPixelDesc->plane[1].hss),
-                                               output->buffers[0].data, (width * oPixelDesc->bpp) / 8,
+                    ccc->hnd.semiplanar2packed(input->buffers[0].data, (width * ipd->planes[0].bpp) / (8 * ipd->planes[0].hss),
+                                               input->buffers[1].data, (width * ipd->planes[1].bpp) / (8 * ipd->planes[1].hss),
+                                               output->buffers[0].data, (width * opd->bpp) / 8,
                                                width, height);
                     break;
-                default:    break;
+                default:
+                    break;
             } break;
         case 1:
-            switch (oPixelDesc->planes) {
+            switch (opd->nb_planes) {
                 case 3:
-                    context->packed2planar(input->buffers[0].data, (width * iPixelDesc->bpp) / 8,
-                                           output->buffers[0].data, (width * oPixelDesc->plane[0].bpp) / (8 * oPixelDesc->plane[0].hss),
-                                           output->buffers[1].data, (width * oPixelDesc->plane[1].bpp) / (8 * oPixelDesc->plane[1].hss),
-                                           output->buffers[2].data, (width * oPixelDesc->plane[2].bpp) / (8 * oPixelDesc->plane[2].hss),
+                    ccc->hnd.packed2planar(input->buffers[0].data, (width * ipd->bpp) / 8,
+                                           output->buffers[0].data, (width * opd->planes[0].bpp) / (8 * opd->planes[0].hss),
+                                           output->buffers[1].data, (width * opd->planes[1].bpp) / (8 * opd->planes[1].hss),
+                                           output->buffers[2].data, (width * opd->planes[2].bpp) / (8 * opd->planes[2].hss),
                                            width, height);
                     break;
                 case 2:
-                    context->packed2semiplanar(input->buffers[0].data, (width * iPixelDesc->bpp) / 8,
-                                               output->buffers[0].data, (width * oPixelDesc->plane[0].bpp) / (8 * oPixelDesc->plane[0].hss),
-                                               output->buffers[1].data, (width * oPixelDesc->plane[1].bpp) / (8 * oPixelDesc->plane[1].hss),
+                    ccc->hnd.packed2semiplanar(input->buffers[0].data, (width * ipd->bpp) / 8,
+                                               output->buffers[0].data, (width * opd->planes[0].bpp) / (8 * opd->planes[0].hss),
+                                               output->buffers[1].data, (width * opd->planes[1].bpp) / (8 * opd->planes[1].hss),
                                                width, height);
                     break;
                 case 1:
-                    context->packed2packed(input->buffers[0].data, (width * iPixelDesc->bpp) / 8,
-                                           output->buffers[0].data, (width * oPixelDesc->bpp) / 8,
+                    ccc->hnd.packed2packed(input->buffers[0].data, (width * ipd->bpp) / 8,
+                                           output->buffers[0].data, (width * opd->bpp) / 8,
                                            width, height);
                     break;
-                default:    break;
+                default:
+                    break;
             } break;
         default:    break;
     }
-
+    
+    DEBUG("process: => %s", GetMediaBufferListString(*output).c_str());
     return kMediaNoError;
 }
 
-static const MediaUnit sPlanar2Planar = {
-    .name       = "Planar2Planar",
-    .flags      = 0,
-    .iformats   = sPlanarYUV,
-    .oformats   = sPlanarYUV,
-    .alloc      = colorconvertor_alloc,
-    .dealloc    = colorconvertor_dealloc,
-    .init       = colorconvertor_init,
-    .process    = colorconvertor_process,
-    .reset      = NULL,
+#define COLORCONVERTER420P(TYPE)                                                                \
+static const MediaUnit kConvert##TYPE##To420p = {                                               \
+    .name       = #TYPE">420p",                                                                 \
+    .flags      = 0,                                                                            \
+    .iformats   = (const ePixelFormat[]){ kPixelFormat##TYPE, kPixelFormatUnknown },            \
+    .oformats   = (const ePixelFormat[]){ kPixelFormat420YpCbCrPlanar, kPixelFormatUnknown },   \
+    .alloc      = colorconvertor_alloc,                                                         \
+    .dealloc    = colorconvertor_dealloc,                                                       \
+    .init       = colorconvertor_init_420p,                                                     \
+    .process    = colorconvertor_process,                                                       \
+    .reset      = NULL,                                                                         \
 };
+COLORCONVERTER420P(422YpCbCrPlanar)
+COLORCONVERTER420P(444YpCbCrPlanar)
+COLORCONVERTER420P(420YpCbCrSemiPlanar)
+COLORCONVERTER420P(420YpCrCbSemiPlanar)
+COLORCONVERTER420P(422YpCbCr)
+COLORCONVERTER420P(BGRA)
+COLORCONVERTER420P(ARGB)
+COLORCONVERTER420P(RGBA)
+COLORCONVERTER420P(ABGR)
+COLORCONVERTER420P(BGR)
+COLORCONVERTER420P(BGR565)
 
-static const MediaUnit sPlanar2SemiPlanar = {
-    .name       = "Planar2SemiPlanar",
-    .flags      = 0,
-    .iformats   = sPlanarYUV,
-    .oformats   = sSemiPlanarYUV,
-    .alloc      = colorconvertor_alloc,
-    .dealloc    = colorconvertor_dealloc,
-    .init       = colorconvertor_init,
-    .process    = colorconvertor_process,
-    .reset      = NULL,
+#define COLORCONVERTERRGB32(TYPE)                                                               \
+static const MediaUnit kConvert##TYPE##ToRGB32 = {                                              \
+    .name       = #TYPE">RGB32",                                                                \
+    .flags      = 0,                                                                            \
+    .iformats   = (const ePixelFormat[]){ kPixelFormat##TYPE, kPixelFormatUnknown },            \
+    .oformats   = (const ePixelFormat[]){ kPixelFormatRGB32, kPixelFormatUnknown },             \
+    .alloc      = colorconvertor_alloc,                                                         \
+    .dealloc    = colorconvertor_dealloc,                                                       \
+    .init       = colorconvertor_init_rgb32,                                                    \
+    .process    = colorconvertor_process,                                                       \
+    .reset      = NULL,                                                                         \
 };
+COLORCONVERTERRGB32(420YpCbCrPlanar)
+COLORCONVERTERRGB32(422YpCbCrPlanar)
+COLORCONVERTERRGB32(444YpCbCrPlanar)
+COLORCONVERTERRGB32(420YpCbCrSemiPlanar)
+COLORCONVERTERRGB32(420YpCrCbSemiPlanar)
+COLORCONVERTERRGB32(422YpCbCr)
+COLORCONVERTERRGB32(ARGB)
+COLORCONVERTERRGB32(RGBA)
+COLORCONVERTERRGB32(ABGR)
+COLORCONVERTERRGB32(BGR)
+COLORCONVERTERRGB32(BGR565)
 
-static const MediaUnit sPlanar2PackedYUV = {
-    .name       = "Planar2Packed",
-    .flags      = 0,
-    .iformats   = sPlanarYUV,
-    .oformats   = sPackedYUV,
-    .alloc      = colorconvertor_alloc,
-    .dealloc    = colorconvertor_dealloc,
-    .init       = colorconvertor_init,
-    .process    = colorconvertor_process,
-    .reset      = NULL,
+#define COLORCONVERTERRGB24(TYPE)                                                               \
+static const MediaUnit kConvert##TYPE##ToRGB24 = {                                              \
+    .name       = #TYPE">RGB24",                                                                \
+    .flags      = 0,                                                                            \
+    .iformats   = (const ePixelFormat[]){ kPixelFormat##TYPE, kPixelFormatUnknown },            \
+    .oformats   = (const ePixelFormat[]){ kPixelFormatRGB24, kPixelFormatUnknown },             \
+    .alloc      = colorconvertor_alloc,                                                         \
+    .dealloc    = colorconvertor_dealloc,                                                       \
+    .init       = colorconvertor_init_rgb24,                                                    \
+    .process    = colorconvertor_process,                                                       \
+    .reset      = NULL,                                                                         \
 };
+COLORCONVERTERRGB24(420YpCbCrPlanar)
+COLORCONVERTERRGB24(420YpCbCrSemiPlanar)
+COLORCONVERTERRGB24(420YpCrCbSemiPlanar)
 
-static const MediaUnit sPlanar2PackedRGB = {
-    .name       = "Planar2Packed",
-    .flags      = 0,
-    .iformats   = sPlanarYUV,
-    .oformats   = sRGB,
-    .alloc      = colorconvertor_alloc,
-    .dealloc    = colorconvertor_dealloc,
-    .init       = colorconvertor_init,
-    .process    = colorconvertor_process,
-    .reset      = NULL,
+#define COLORCONVERTERRGB16(TYPE)                                                               \
+static const MediaUnit kConvert##TYPE##ToRGB16 = {                                              \
+    .name       = #TYPE">RGB16",                                                                \
+    .flags      = 0,                                                                            \
+    .iformats   = (const ePixelFormat[]){ kPixelFormat##TYPE, kPixelFormatUnknown },            \
+    .oformats   = (const ePixelFormat[]){ kPixelFormatRGB16, kPixelFormatUnknown },             \
+    .alloc      = colorconvertor_alloc,                                                         \
+    .dealloc    = colorconvertor_dealloc,                                                       \
+    .init       = colorconvertor_init_rgb16,                                                    \
+    .process    = colorconvertor_process,                                                       \
+    .reset      = NULL,                                                                         \
 };
-
-static const MediaUnit sSemiPlanar2Planar = {
-    .name       = "SemiPlanar2Planar",
-    .flags      = 0,
-    .iformats   = sSemiPlanarYUV,
-    .oformats   = sPlanarYUV,
-    .alloc      = colorconvertor_alloc,
-    .dealloc    = colorconvertor_dealloc,
-    .init       = colorconvertor_init,
-    .process    = colorconvertor_process,
-    .reset      = NULL,
-};
-
-static const MediaUnit sSemiPlanar2SemiPlanar = {
-    .name       = "SemiPlanar2SemiPlanar",
-    .flags      = 0,
-    .iformats   = sSemiPlanarYUV,
-    .oformats   = sSemiPlanarYUV,
-    .alloc      = colorconvertor_alloc,
-    .dealloc    = colorconvertor_dealloc,
-    .init       = colorconvertor_init,
-    .process    = colorconvertor_process,
-    .reset      = NULL,
-};
-
-static const MediaUnit sSemiPlanar2PackedYUV = {
-    .name       = "SemiPlanar2PackedYUV",
-    .flags      = 0,
-    .iformats   = sSemiPlanarYUV,
-    .oformats   = sPackedYUV,
-    .alloc      = colorconvertor_alloc,
-    .dealloc    = colorconvertor_dealloc,
-    .init       = colorconvertor_init,
-    .process    = colorconvertor_process,
-    .reset      = NULL,
-};
-
-static const MediaUnit sSemiPlanar2PackedRGB = {
-    .name       = "SemiPlanar2PackedRGB",
-    .flags      = 0,
-    .iformats   = sSemiPlanarYUV,
-    .oformats   = sRGB,
-    .alloc      = colorconvertor_alloc,
-    .dealloc    = colorconvertor_dealloc,
-    .init       = colorconvertor_init,
-    .process    = colorconvertor_process,
-    .reset      = NULL,
-};
-
-static const MediaUnit sPacked2Planar = {
-    .name       = "Packed2Planar",
-    .flags      = 0,
-    .iformats   = sPackedYUV,
-    .oformats   = sPlanarYUV,
-    .alloc      = colorconvertor_alloc,
-    .dealloc    = colorconvertor_dealloc,
-    .init       = colorconvertor_init,
-    .process    = colorconvertor_process,
-    .reset      = NULL,
-};
-
-static const MediaUnit sPacked2SemiPlanar = {
-    .name       = "Packed2SemiPlanar",
-    .flags      = 0,
-    .iformats   = sPackedYUV,
-    .oformats   = sSemiPlanarYUV,
-    .alloc      = colorconvertor_alloc,
-    .dealloc    = colorconvertor_dealloc,
-    .init       = colorconvertor_init,
-    .process    = colorconvertor_process,
-    .reset      = NULL,
-};
-
-static const MediaUnit sPackedYUV2PackedYUV = {
-    .name       = "PackedYUV2PackedYUV",
-    .flags      = 0,
-    .iformats   = sPackedYUV,
-    .oformats   = sPackedYUV,
-    .alloc      = colorconvertor_alloc,
-    .dealloc    = colorconvertor_dealloc,
-    .init       = colorconvertor_init,
-    .process    = colorconvertor_process,
-    .reset      = NULL,
-};
-
-static const MediaUnit sRGB2RGB = {
-    .name       = "RGB2RGB",
-    .flags      = 0,
-    .iformats   = sRGB,
-    .oformats   = sRGB,
-    .alloc      = colorconvertor_alloc,
-    .dealloc    = colorconvertor_dealloc,
-    .init       = colorconvertor_init,
-    .process    = colorconvertor_process,
-    .reset      = NULL,
-};
-
-static const MediaUnit sPackedYUV2RGB = {
-    .name       = "PackedYUV2RGB",
-    .flags      = 0,
-    .iformats   = sPackedYUV,
-    .oformats   = sRGB,
-    .alloc      = colorconvertor_alloc,
-    .dealloc    = colorconvertor_dealloc,
-    .init       = colorconvertor_init,
-    .process    = colorconvertor_process,
-    .reset      = NULL,
-};
-
-static const MediaUnit sRGB2PackedYUV = {
-    .name       = "RGB2PackedYUV",
-    .flags      = 0,
-    .iformats   = sRGB,
-    .oformats   = sPackedYUV,
-    .alloc      = colorconvertor_alloc,
-    .dealloc    = colorconvertor_dealloc,
-    .init       = colorconvertor_init,
-    .process    = colorconvertor_process,
-    .reset      = NULL,
-};
+COLORCONVERTERRGB16(420YpCbCrPlanar)
+COLORCONVERTERRGB16(420YpCbCrSemiPlanar)
+COLORCONVERTERRGB16(420YpCrCbSemiPlanar)
 
 static MediaError planeswap_init(MediaUnitContext ref, const MediaFormat * iformat, const MediaFormat * oformat) {
-    sp<ColorConvertorContext> context = ref;
-    if (colorconvertor_init_common(context, iformat, oformat) != kMediaNoError) {
+    sp<ColorConvertorContext> ccc = ref;
+    if (colorconvertor_init_common(ccc, iformat, oformat) != kMediaNoError) {
         return kMediaErrorBadParameters;
     }
     if (!IsPlanarYUV(iformat->format)) {
+        ERROR("try plane swap on non-planar yuv");
         return kMediaErrorBadParameters;
     }
-    // input & output SHOULD have the same plane count
-    if (context->iPixelDesc->planes < 3 ||
-            context->iPixelDesc->planes != context->oPixelDesc->planes) {
+    // input & output SHOULD have the same planes count
+    if (ccc->ipd->nb_planes < 3 || ccc->ipd->nb_planes != ccc->opd->nb_planes) {
+        ERROR("bad pixel plane");
         return kMediaErrorBadParameters;
     }
     return kMediaNoError;
 }
 
 static MediaError planeswap_process(MediaUnitContext ref, const MediaBufferList * input, MediaBufferList * output) {
-    sp<ColorConvertorContext> context = ref;
+    sp<ColorConvertorContext> ccc = ref;
     if (input->count != 3 || input->count != output->count) {
         return kMediaErrorBadParameters;
     }
@@ -1198,6 +945,7 @@ static MediaError planeswap_process(MediaUnitContext ref, const MediaBufferList 
             return kMediaErrorBadParameters;
     }
     // support inplace process
+    // swap u/v
     MediaBuffer a       = input->buffers[1];
     MediaBuffer b       = input->buffers[2];
     output->buffers[1]  = b;
@@ -1205,210 +953,388 @@ static MediaError planeswap_process(MediaUnitContext ref, const MediaBufferList 
     return kMediaNoError;
 }
 
-static const MediaUnit sPlaneSwap = {
-    .name       = "PlaneSwap",
-    .flags      = kMediaUnitProcessInplace,
-    .iformats   = sPlanarYUV,
-    .oformats   = sPlanarYUV,
-    .alloc      = colorconvertor_alloc,
-    .dealloc    = colorconvertor_dealloc,
-    .init       = planeswap_init,
-    .process    = planeswap_process,
-    .reset      = NULL,
+#define PLANESWAP(FROM, TO)                                                         \
+static const MediaUnit kPlaneSwap##FROM##To##TO = {                                 \
+    .name       = "PlaneSwap "#FROM">"#TO,                                          \
+    .flags      = kMediaUnitProcessInplace,                                         \
+    .iformats   = (const ePixelFormat[]){ kPixelFormat##FROM, kPixelFormatUnknown },\
+    .oformats   = (const ePixelFormat[]){ kPixelFormat##TO, kPixelFormatUnknown },  \
+    .alloc      = colorconvertor_alloc,                                             \
+    .dealloc    = colorconvertor_dealloc,                                           \
+    .init       = planeswap_init,                                                   \
+    .process    = planeswap_process,                                                \
+    .reset      = NULL,                                                             \
 };
+PLANESWAP(420YpCbCrPlanar, 420YpCrCbPlanar)
+PLANESWAP(420YpCrCbPlanar, 420YpCbCrPlanar)
+PLANESWAP(422YpCbCrPlanar, 422YpCrCbPlanar)
+PLANESWAP(422YpCrCbPlanar, 422YpCbCrPlanar)
+
+static const struct {
+    const ePixelFormat  source;
+    const ePixelFormat  target;
+    const ByteSwap_t    hnd;
+} kByteSwapMap[] = {
+    { kPixelFormat420YpCbCrSemiPlanar,  kPixelFormat420YpCrCbSemiPlanar,    swap16      },
+    { kPixelFormat420YpCrCbSemiPlanar,  kPixelFormat420YpCbCrSemiPlanar,    swap16      },
+    { kPixelFormat422YpCbCr,            kPixelFormat422YpCrCb,              swap32l     },
+    { kPixelFormat422YpCrCb,            kPixelFormat422YpCbCr,              swap32l     },
+    { kPixelFormatRGB565,               kPixelFormatBGR565,                 swap16_565  },
+    { kPixelFormatBGR565,               kPixelFormatRGB565,                 swap16_565  },
+    { kPixelFormatRGB,                  kPixelFormatBGR,                    swap24      },
+    { kPixelFormatBGR,                  kPixelFormatRGB,                    swap24      },
+    { kPixelFormatRGBA,                 kPixelFormatABGR,                   swap32      },
+    { kPixelFormatABGR,                 kPixelFormatRGBA,                   swap32      },
+    { kPixelFormatARGB,                 kPixelFormatBGRA,                   swap32      },
+    { kPixelFormatBGRA,                 kPixelFormatARGB,                   swap32      },
+    // END OF LIST
+    { kPixelFormatUnknown }
+};
+static ByteSwap_t hnd_byteswap(ePixelFormat source, ePixelFormat target) {
+    for (size_t i = 0; kByteSwapMap[i].source != kPixelFormatUnknown; ++i) {
+        if (kByteSwapMap[i].source == source && kByteSwapMap[i].target == target) {
+            return kByteSwapMap[i].hnd;
+        }
+    }
+    return NULL;
+}
 
 static MediaError byteswap_init(MediaUnitContext ref, const MediaFormat * iformat, const MediaFormat * oformat) {
-    sp<ColorConvertorContext> context = ref;
-    if (colorconvertor_init_common(context, iformat, oformat) != kMediaNoError) {
+    sp<ColorConvertorContext> ccc = ref;
+    if (colorconvertor_init_common(ccc, iformat, oformat) != kMediaNoError) {
         return kMediaErrorBadParameters;
     }
-    // input & output SHOULD have the same plane count
-    if (context->iPixelDesc->planes != context->oPixelDesc->planes) {
+    // input & output SHOULD have the same planes count
+    if (ccc->ipd->nb_planes != ccc->opd->nb_planes) {
         return kMediaErrorBadParameters;
     }
-    switch (iformat->format) {
-        case kPixelFormat420YpCbCrSemiPlanar:
-        case kPixelFormat420YpCrCbSemiPlanar:
-            context->byteswap = swap16;
-            break;
-        case kPixelFormat422YpCbCr:
-        case kPixelFormat422YpCrCb:
-            // swap u & v bytes
-            context->byteswap = swap32l;
-            break;
-        case kPixelFormatRGB:
-        case kPixelFormatBGR:
-        case kPixelFormat444YpCbCr:
-            context->byteswap = swap24;
-            break;
-        case kPixelFormatRGBA:
-        case kPixelFormatABGR:
-        case kPixelFormatARGB:
-        case kPixelFormatBGRA:
-            context->byteswap = swap32;
-            break;
-        default:
-            return kMediaErrorBadParameters;
+    ccc->hnd.byteswap = hnd_byteswap(iformat->format, oformat->format);
+    if (ccc->hnd.byteswap == NULL) {
+        return kMediaErrorNotSupported;
     }
     return kMediaNoError;
 }
 
 static MediaError byteswap_process(MediaUnitContext ref, const MediaBufferList * input, MediaBufferList * output) {
-    sp<ColorConvertorContext> context = ref;
-    if (input->count != 1 ||
-            input->count != output->count) {
+    sp<ColorConvertorContext> ccc = ref;
+    if (input->count != output->count) {
+        ERROR("bad %s => %s", GetMediaBufferListString(*input).c_str(), GetMediaBufferListString(*output).c_str());
         return kMediaErrorBadParameters;
     }
     if (input->buffers[0].size > output->buffers[0].capacity) {
+        ERROR("bad %s => %s", GetMediaBufferListString(*input).c_str(), GetMediaBufferListString(*output).c_str());
         return kMediaErrorBadParameters;
     }
-    if (IsSemiPlanarYUV(context->iFormat.format)) {
+    if (IsSemiPlanarYUV(ccc->ipf.format)) {
+        // swap u&v bytes in semi-planar yuv
         if (output->buffers[0].data != input->buffers[0].data) {
             libyuv::CopyPlane(input->buffers[0].data,
-                    (context->iFormat.video.width * context->iPixelDesc->plane[0].bpp) / (8 * context->iPixelDesc->plane[0].hss),
+                    (ccc->ipf.video.width * ccc->ipd->planes[0].bpp) / (8 * ccc->ipd->planes[0].hss),
                     output->buffers[0].data,
-                    (context->iFormat.video.width * context->oPixelDesc->plane[0].bpp) / (8 * context->oPixelDesc->plane[0].hss),
-                    context->iFormat.video.width,
-                    context->iFormat.video.height);
+                    (ccc->ipf.video.width * ccc->opd->planes[0].bpp) / (8 * ccc->opd->planes[0].hss),
+                    ccc->ipf.video.width,
+                    ccc->ipf.video.height);
             output->buffers[0].size = input->buffers[0].size;
         } else { // in-place processing
             output->buffers[0] = input->buffers[0];
         }
-        context->byteswap(input->buffers[1].data, input->buffers[1].size,
+        ccc->hnd.byteswap(input->buffers[1].data, input->buffers[1].size,
                 output->buffers[1].data, output->buffers[1].capacity);
         output->buffers[1].size = input->buffers[1].size;
     } else {
-        context->byteswap(input->buffers[0].data, input->buffers[0].size,
+        ccc->hnd.byteswap(input->buffers[0].data, input->buffers[0].size,
                 output->buffers[0].data, output->buffers[0].capacity);
         output->buffers[0].size = input->buffers[0].size;
     }
     return kMediaNoError;
 }
 
-static const MediaUnit sByteSwapYUV = {
-    .name       = "ByteSwapYUV",
-    .flags      = 0,
-    .iformats   = sPackedYUV,
-    .oformats   = sPackedYUV,
-    .alloc      = colorconvertor_alloc,
-    .dealloc    = colorconvertor_dealloc,
-    .init       = byteswap_init,
-    .process    = byteswap_process,
-    .reset      = NULL,
+#define BYTESWAP(FROM, TO)                                                          \
+static const MediaUnit kByteSwap##FROM##To##TO = {                                  \
+    .name       = "ByteSwap "#FROM">"#TO,                                           \
+    .flags      = kMediaUnitProcessInplace,                                         \
+    .iformats   = (const ePixelFormat[]){ kPixelFormat##FROM, kPixelFormatUnknown}, \
+    .oformats   = (const ePixelFormat[]){ kPixelFormat##TO, kPixelFormatUnknown},   \
+    .alloc      = colorconvertor_alloc,                                             \
+    .dealloc    = colorconvertor_dealloc,                                           \
+    .init       = byteswap_init,                                                    \
+    .process    = byteswap_process,                                                 \
+    .reset      = NULL,                                                             \
 };
+BYTESWAP(420YpCbCrSemiPlanar, 420YpCrCbSemiPlanar)  // nv12 -> nv21
+BYTESWAP(420YpCrCbSemiPlanar, 420YpCbCrSemiPlanar)  // nv21 -> nv12
+BYTESWAP(422YpCbCr, 422YpCrCb)
+BYTESWAP(422YpCrCb, 422YpCbCr)
+BYTESWAP(RGB565, BGR565)
+BYTESWAP(BGR565, RGB565)
+BYTESWAP(RGB, BGR)
+BYTESWAP(BGR, RGB)
+BYTESWAP(RGBA, ABGR)
+BYTESWAP(ABGR, RGBA)
+BYTESWAP(ARGB, BGRA)
+BYTESWAP(BGRA, ARGB)
 
-static const MediaUnit sByteSwapRGB = {
-    .name       = "ByteSwapRGB",
-    .flags      = 0,
-    .iformats   = sRGB,
-    .oformats   = sRGB,
-    .alloc      = colorconvertor_alloc,
-    .dealloc    = colorconvertor_dealloc,
-    .init       = byteswap_init,
-    .process    = byteswap_process,
-    .reset      = NULL,
-};
-
-static const MediaUnit * sMediaUnits[] = {
-    &sPlanar2Planar,
-    &sPlanar2SemiPlanar,
-    &sPlanar2PackedYUV,
-    &sPlanar2PackedRGB,
-    &sSemiPlanar2Planar,
-    &sSemiPlanar2SemiPlanar,
-    &sSemiPlanar2PackedYUV,
-    &sSemiPlanar2PackedRGB,
-    &sPacked2Planar,
-    &sPacked2SemiPlanar,
-    &sPackedYUV2PackedYUV,
-    &sPackedYUV2RGB,
-    &sRGB2RGB,
-    &sRGB2PackedYUV,
-    &sPlaneSwap,
-    &sByteSwapYUV,
-    &sByteSwapRGB,
+static const MediaUnit * kColorUnitList[] = {
+    // direct convert; these units MUST place at HEAD
+    &kConvert422YpCbCrTo420p,
+    &kConvert444YpCbCrPlanarTo420p,
+    &kConvert420YpCbCrSemiPlanarTo420p,
+    &kConvert420YpCrCbSemiPlanarTo420p,
+    &kConvert422YpCbCrTo420p,
+    &kConvertBGRATo420p,
+    &kConvertARGBTo420p,
+    &kConvertRGBATo420p,
+    &kConvertABGRTo420p,
+    &kConvertBGRTo420p,
+    &kConvertBGR565To420p,
+    &kConvert420YpCbCrPlanarToRGB32,
+    &kConvert422YpCbCrPlanarToRGB32,
+    &kConvert444YpCbCrPlanarToRGB32,
+    &kConvert420YpCbCrSemiPlanarToRGB32,
+    &kConvert420YpCrCbSemiPlanarToRGB32,
+    &kConvert422YpCbCrToRGB32,
+    &kConvertARGBToRGB32,
+    &kConvertRGBAToRGB32,
+    &kConvertABGRToRGB32,
+    &kConvertBGRToRGB32,
+    &kConvertBGR565ToRGB32,
+    &kConvert420YpCbCrPlanarToRGB24,
+    &kConvert420YpCbCrSemiPlanarToRGB24,
+    &kConvert420YpCrCbSemiPlanarToRGB24,
+    &kConvert420YpCbCrPlanarToRGB16,
+    &kConvert420YpCbCrSemiPlanarToRGB16,
+    &kConvert420YpCrCbSemiPlanarToRGB16,
+    // plane swap
+    &kPlaneSwap420YpCbCrPlanarTo420YpCrCbPlanar,
+    &kPlaneSwap420YpCrCbPlanarTo420YpCbCrPlanar,
+    &kPlaneSwap422YpCbCrPlanarTo422YpCrCbPlanar,
+    &kPlaneSwap422YpCrCbPlanarTo422YpCbCrPlanar,
+    // byte swap
+    &kByteSwap420YpCbCrSemiPlanarTo420YpCrCbSemiPlanar,
+    &kByteSwap420YpCrCbSemiPlanarTo420YpCbCrSemiPlanar,
+    &kByteSwap422YpCbCrTo422YpCrCb,
+    &kByteSwap422YpCrCbTo422YpCbCr,
+    &kByteSwapRGB565ToBGR565,
+    &kByteSwapBGR565ToRGB565,
+    &kByteSwapRGBToBGR,
+    &kByteSwapBGRToRGB,
+    &kByteSwapRGBAToABGR,
+    &kByteSwapABGRToRGBA,
+    &kByteSwapARGBToBGRA,
+    &kByteSwapBGRAToARGB,
     // END OF LIST
     NULL
 };
 
-struct DefaultColorConverter : public ColorConverter {
-    Vector<const MediaUnit *>   mUnits;
-    Vector<MediaUnitContext>    mInstances;
-
-    DefaultColorConverter() : ColorConverter() { }
-    
-    virtual ~DefaultColorConverter() { }
-
-    virtual sp<MediaFrame> convert(const sp<MediaFrame>&);
-};
-
-static FORCE_INLINE MediaUnitContext MediaUnitInstance(const MediaUnit * unit, const MediaFormat& iformat, const MediaFormat& oformat) {
-    MediaUnitContext instance = unit->alloc();
-    if (unit->init(instance, &iformat, &oformat) != kMediaNoError) {
-        ERROR("init MediaUnit failed: %.4s [%dx%d] -> %.4s [%dx%d]",
-                (const char *)&iformat.format, iformat.video.width, iformat.video.height,
-                (const char *)&oformat.format, oformat.video.width, oformat.video.height);
-        return NULL;
+static FORCE_INLINE bool PixelFormatContains(const ePixelFormat * list, const ePixelFormat& pixel) {
+    for (size_t i = 0; list[i] != kPixelFormatUnknown; ++i) {
+        if (list[i] == pixel) {
+            return true;
+        }
     }
-    return instance;
+    return false;
 }
 
-sp<ColorConverter> ColorConverter::create(const ImageFormat& iformat, const ImageFormat& oformat) {
-    if (iformat.width != oformat.width ||
-            iformat.height != oformat.width) {
-        ERROR("bad parameters: %.4s [%dx%d] -> %.4s [%dx%d]",
-                (const char *)&iformat.format, iformat.width, iformat.height,
-                (const char *)&oformat.format, oformat.width, oformat.height);
-        return NULL;
-    }
-
-    MediaFormat iFormat, oFormat;
-    iFormat.video   = iformat;
-    oFormat.video   = oformat;
-
-    List<const MediaUnit *> possible;
-    // direct convert: using only one MediaUnit
-    const MediaUnit * current = ColorUnitFindNext(NULL, iFormat.video.format);
-    do {
-        for (size_t i = 0; current->oformats[i].format != kPixelFormatUnknown; ++i) {
-            if (current->oformats[i].format == oformat.format) {
-                sp<DefaultColorConverter> cc = new DefaultColorConverter;
-                cc->mUnits.push(current);
-                MediaUnitContext instance = MediaUnitInstance(current, iFormat, oFormat);
-                cc->mInstances.push(instance);
-                return cc;
-            }
-            possible.push(current);
+static const MediaUnit * ColorUnitFind(const MediaUnit * list[],
+                                       const ePixelFormat& iformat,
+                                       const ePixelFormat& oformat) {
+    for (size_t i = 0; list[i] != NULL; ++i) {
+        if (PixelFormatContains(list[i]->iformats, iformat) &&
+            PixelFormatContains(list[i]->oformats, oformat)) {
+            return list[i];
         }
-        current = ColorUnitFindNext(current, iFormat.video.format);
-    } while(1);
-
-    // TODO
-
+    }
+    ERROR("no unit for %.4s => %.4s", (const char *)&iformat, (const char *)&oformat);
     return NULL;
 }
 
-sp<MediaFrame> DefaultColorConverter::convert(const sp<MediaFrame>& input) {
-    // TODO
+static const MediaUnit * ColorUnitNew(const MediaUnit * list[],
+                                      const ImageFormat& iformat,
+                                      const ImageFormat& oformat,
+                                      MediaUnitContext * p) {
+    CHECK_NULL(p);
+    const MediaUnit * unit = ColorUnitFind(list, iformat.format, oformat.format);
+    if (!unit) return NULL;
+    
+    DEBUG("found unit %s", unit->name);
+    MediaUnitContext instance = unit->alloc();
+    MediaError st = unit->init(instance, (const MediaFormat*)&iformat, (const MediaFormat*)&oformat);
+ 
+    if (st != kMediaNoError) {
+        unit->dealloc(instance);
+        ERROR("unit init failed for %s => %s",
+              GetImageFormatString(iformat).c_str(), GetImageFormatString(oformat).c_str());
+        return NULL;
+    }
+    *p = instance;
+    return unit;
+}
+
+// predefined color unit graph
+static const ePixelFormat * kColorUnitGraphList[] = {
+    (const ePixelFormat[]){
+        kPixelFormat420YpCrCbPlanar,
+        kPixelFormat420YpCbCrPlanar,
+        kPixelFormatBGRA,
+        kPixelFormatUnknown
+    },
+    (const ePixelFormat[]){
+        kPixelFormat422YpCrCbPlanar,    // -> plane swap
+        kPixelFormat422YpCbCrPlanar,
+        kPixelFormat420YpCbCrPlanar,
+        kPixelFormatUnknown     // END
+    },
+};
+
+static const ePixelFormat * ColorUnitGraphFind(const ePixelFormat& iformat, const ePixelFormat& oformat) {
+    for (size_t i = 0; kColorUnitGraphList[i] != NULL; ++i) {
+        if (kColorUnitGraphList[i][0] == iformat) {
+            // possible graph
+            size_t j = 0;
+            while (kColorUnitGraphList[i][j+1] != kPixelFormatUnknown) ++j;
+            if (kColorUnitGraphList[i][j] == oformat) {
+                return kColorUnitGraphList[i];
+            }
+        }
+    }
+    return NULL;
+}
+
+struct ColorConverter : public MediaDevice {
+    ImageFormat                 mInput;
+    ImageFormat                 mOutput;
+    
+    struct Node {
+        const MediaUnit *       unit;
+        MediaUnitContext        instance;
+        ePixelFormat            input;
+        ePixelFormat            output;
+    };
+    Vector<Node>                mUnits;
+    sp<MediaFrame>              mFrame;
+
+    ColorConverter() : MediaDevice() { }
+    
+    virtual ~ColorConverter() {
+        for (size_t i = 0; i < mUnits.size(); ++i) {
+            mUnits[i].unit->dealloc(mUnits[i].instance);
+        }
+        mUnits.clear();
+    }
+    
+    MediaError init(const ImageFormat& iformat, const ImageFormat& oformat, const sp<Message>&) {
+        DEBUG("init ColorConverter: %s => %s", GetImageFormatString(iformat).c_str(), GetImageFormatString(oformat).c_str());
+        mInput      = iformat;
+        mOutput     = oformat;
+        
+        // direct convert
+        MediaUnitContext instance;
+        const MediaUnit * unit = ColorUnitNew(kColorUnitList, iformat, oformat, &instance);
+        if (unit) {
+            DEBUG("new unit %.4s => %.4s", (const char *)&iformat.format, (const char *)&oformat.format);
+            Node node = { unit, instance, iformat.format, oformat.format };
+            mUnits.push(node);
+            return kMediaNoError;
+        }
+        
+        // complex color unit graph
+        const ePixelFormat * graph = ColorUnitGraphFind(iformat.format, oformat.format);
+        if (!graph) {
+            return kMediaErrorBadParameters;
+        }
+        ImageFormat format0 = iformat;
+        for (size_t i = 1; graph[i] != kPixelFormatUnknown; ++i) {
+            ImageFormat format1 = format0;
+            format1.format      = graph[i];
+            DEBUG("init unit %.4s => %.4s", (const char *)&format0.format, (const char *)&format1.format);
+            
+            MediaUnitContext instance;
+            const MediaUnit * unit = ColorUnitNew(kColorUnitList,
+                                                  format0,
+                                                  format1,
+                                                  &instance);
+            if (!unit) {
+                ERROR("init color unit graph failed");
+                return kMediaErrorUnknown;
+            }
+            
+            Node node = { unit, instance, format0.format, format1.format };
+            mUnits.push(node);
+            format0 = format1;
+        }
+        
+        ERROR("init ColorConverter failed");
+        return kMediaErrorBadParameters;
+    }
+    
+    virtual sp<Message> formats() const {
+        sp<Message> format = new Message;
+        format->setInt32(kKeyFormat, mOutput.format);
+        format->setInt32(kKeyWidth, mOutput.width);
+        format->setInt32(kKeyHeight, mOutput.width);
+        return format;
+    }
+    
+    virtual MediaError configure(const sp<Message>& options) {
+        return kMediaErrorNotSupported;
+    }
+    
+    virtual MediaError push(const sp<MediaFrame>& input) {
+        if (input.isNIL()) return kMediaNoError;
+        
+        if (mFrame != NULL) return kMediaErrorResourceBusy;
+        
+        // copy input properties
+        ImageFormat image       = mOutput;
+        image.width             = input->video.width;
+        image.height            = input->video.height;
+        image.rect              = input->video.rect;
+        
+        sp<MediaFrame> output   = MediaFrame::Create(image);
+        
+        MediaError st = mUnits[0].unit->process(mUnits[0].instance,
+                                                &input->planes,
+                                                &output->planes);
+        
+        if (st != kMediaNoError) {
+            ERROR("push %s failed", input->string().c_str());
+            return kMediaErrorUnknown;
+        }
+        
+        output->id          = input->id;
+        output->flags       = input->flags;
+        output->timecode    = input->timecode;
+        output->duration    = input->duration;
+        mFrame              = output;
+        return kMediaNoError;
+    }
+    
+    virtual sp<MediaFrame> pull() {
+        sp<MediaFrame> frame = mFrame;
+        mFrame.clear();
+        return frame;
+    }
+    
+    virtual MediaError reset() {
+        for (size_t i = 0; i < mUnits.size(); ++i) {
+            if (mUnits[i].unit->reset) {
+                mUnits[i].unit->reset(mUnits[i].instance);
+            }
+        }
+        return kMediaNoError;
+    }
+};
+
+sp<MediaDevice> CreateColorConverter(const ImageFormat& iformat, const ImageFormat& oformat, const sp<Message>& options) {
+    sp<ColorConverter> cc = new ColorConverter;
+    if (cc->init(iformat, oformat, options) != kMediaNoError) {
+        return NULL;
+    }
+    return cc;
 }
 
 __END_NAMESPACE_MPX
 
 __BEGIN_DECLS
-
-const MediaUnit * ColorUnitFindNext(const MediaUnit * current, const ePixelFormat pixel) {
-    if (current == NULL) current = mpx::sMediaUnits[0];
-    else ++current;
-
-    while (current != NULL) {
-        for (size_t j = 0; current->iformats[j].format != kPixelFormatUnknown; ++j) {
-            if (current->iformats[j].format == pixel) {
-                return current;
-            }
-        }
-        ++current;
-    }
-    return NULL;
-}
 
 __END_DECLS

@@ -37,8 +37,8 @@
 #ifndef _MEDIA_MODULES_IMAGE_CONVERTER_H
 #define _MEDIA_MODULES_IMAGE_CONVERTER_H
 #include <MediaFramework/MediaTypes.h>
-#include <MediaFramework/MediaFrame.h>
 #include <MediaFramework/MediaUnit.h>
+#include <MediaFramework/MediaDevice.h>
 
 __BEGIN_DECLS
 
@@ -51,18 +51,7 @@ __END_DECLS
 #ifdef __cplusplus
 __BEGIN_NAMESPACE_MPX
 
-class API_EXPORT ColorConverter : public SharedObject {
-    public:
-        static sp<ColorConverter> create(const ImageFormat&, const ImageFormat&);
-
-        virtual sp<MediaFrame> convert(const sp<MediaFrame>&) = 0;
-
-    protected:
-        ColorConverter() { }
-        virtual ~ColorConverter() { }
-    
-        DISALLOW_EVILS(ColorConverter);
-};
+sp<MediaDevice>     CreateColorConverter(const ImageFormat&, const ImageFormat&, const sp<Message>&);
 
 __END_NAMESPACE_MPX
 #endif // __cplusplus

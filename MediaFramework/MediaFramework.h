@@ -38,7 +38,9 @@
 // MediaFramework
 #include <MediaFramework/MediaTypes.h>
 #include <MediaFramework/MediaFrame.h>
+#include <MediaFramework/MediaUnit.h>
 #include <MediaFramework/MediaDevice.h>
+#include <MediaFramework/ColorConverter.h>
 #include <MediaFramework/MediaClock.h>
 #include <MediaFramework/MediaSession.h>
 #include <MediaFramework/MediaPlayer.h>
@@ -49,24 +51,23 @@ __BEGIN_DECLS
 
 // ImageFile
 typedef SharedObjectRef         ImageFileRef;
-API_EXPORT ImageFileRef         ImageFileOpen(ContentObjectRef);
+API_EXPORT ImageFileRef         ImageFileOpen(BufferObjectRef);
 
 // MediaFrame
 typedef SharedObjectRef         MediaFrameRef;
 
-API_EXPORT MediaFrameRef        AudioFrameCreate(const AudioFormat *);
-API_EXPORT MediaFrameRef        ImageFrameCreate(const ImageFormat *);
-#define MediaFrameRelease(x)    SharedObjectRelease((SharedObjectRef)x)
+API_EXPORT MediaFrameRef        MediaFrameCreate(size_t);
+API_EXPORT MediaFrameRef        MediaFrameCreateWithBuffer(BufferObjectRef);
+API_EXPORT MediaFrameRef        MediaFrameCreateWithAudioFormat(const AudioFormat *);
+API_EXPORT MediaFrameRef        MediaFrameCreateWithImageFormat(const ImageFormat *);
+API_EXPORT MediaFrameRef        MediaFrameCreateWithImageBuffer(const ImageFormat *, BufferObjectRef);
 
-API_EXPORT MediaFrameRef        ImageFrameGenerate(const ImageFormat *, BufferObjectRef);
-
+API_EXPORT size_t               MediaFrameGetPlaneCount(const MediaFrameRef);
+API_EXPORT size_t               MediaFrameGetPlaneSize(const MediaFrameRef, size_t);
 API_EXPORT uint8_t *            MediaFrameGetPlaneData(MediaFrameRef, size_t);
-API_EXPORT size_t               MediaFrameGetPlaneSize(MediaFrameRef, size_t);
 
 API_EXPORT AudioFormat *        MediaFrameGetAudioFormat(MediaFrameRef);
 API_EXPORT ImageFormat *        MediaFrameGetImageFormat(MediaFrameRef);
-
-API_EXPORT void *               MediaFrameGetOpaque(MediaFrameRef);
 
 // Clock, get a clock from MediaPlayerRef, used to update ui
 typedef SharedObjectRef         MediaClockRef;
@@ -104,15 +105,21 @@ API_EXPORT PlayerInfoEventRef   PlayerInfoEventCreate(LooperObjectRef, PlayerInf
 // MediaDevice
 typedef SharedObjectRef         MediaDeviceRef;
 
-API_EXPORT MediaDeviceRef       MediaDeviceCreate(MessageObjectRef, MessageObjectRef);
-//API_EXPORT MediaOutRef          MediaOutCreateForImage(const ImageFormat *, MessageObjectRef);
-#define MediaDeviceRelease(x)   SharedObjectRelease((SharedObjectRef)x)
+API_EXPORT MediaDeviceRef       MediaDeviceCreate(const MessageObjectRef, const MessageObjectRef);
+API_EXPORT MessageObjectRef     MediaDeviceFormats(const MediaDeviceRef);
+API_EXPORT MediaError           MediaDeviceConfigure(const MediaDeviceRef, const MessageObjectRef);
+API_EXPORT MediaError           MediaDevicePush(MediaDeviceRef, const MediaFrameRef);
+API_EXPORT MediaFrameRef        MediaDevicePull(MediaDeviceRef);
+API_EXPORT MediaError           MediaDeviceReset(MediaDeviceRef);
 
 API_EXPORT MessageObjectRef     MediaDeviceFormats(MediaDeviceRef);
 API_EXPORT MediaError           MediaDeviceConfigure(MediaDeviceRef, MessageObjectRef);
 API_EXPORT MediaError           MediaDevicePush(MediaDeviceRef, MediaFrameRef);
 API_EXPORT MediaFrameRef        MediaDevicePull(MediaDeviceRef);
 API_EXPORT MediaError           MediaDeviceReset(MediaDeviceRef);
+
+// Special MediaDevice
+API_EXPORT MediaDeviceRef       ColorConverterCreate(const ImageFormat *, const ImageFormat *, MessageObjectRef);
 
 __END_DECLS
 //#endif // __cplusplus

@@ -184,6 +184,7 @@ static void deinitOpenAL(sp<OpenALContext>& openAL) {
 }
 
 static MediaError playFrame(const sp<OpenALContext>& openAL, const sp<MediaFrame>& frame) {
+    DEBUG("play %s", frame->string().c_str());
     const int64_t now = SystemTimeUs();
     ALint state;
     alGetSourcei(openAL->mSource, AL_SOURCE_STATE, &state);

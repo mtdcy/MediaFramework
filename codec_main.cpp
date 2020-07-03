@@ -44,9 +44,12 @@ int main(int argc, char **argv) {
     size_t count = 3;
     if (argc > 2) count = String(argv[2]).toInt32();
     
-    sp<Content> pipe = Content::Create(url);
+    INFO("%s %zu", url.c_str(), count);
     
-    sp<MediaFile> file = MediaFile::Create(pipe);
+    sp<ABuffer> content = Content::Create(url);
+    sp<Message> format = new Message;
+    format->setObject(kKeyContent, content);
+    sp<MediaDevice> file = MediaDevice::create(format, NULL);
     
     if (file.isNIL()) {
         ERROR("create MediaFile for %s failed", url.c_str());
@@ -57,14 +60,14 @@ int main(int argc, char **argv) {
     
     size_t numTracks = formats->findInt32(kKeyCount);
     
-    Vector<sp<Content> > contents;
-    Vector<sp<MediaDecoder> > codecs;
+    Vector<sp<ABuffer> > contents;
+    Vector<sp<MediaDevice> > codecs;
     for (size_t i = 0; i < numTracks; ++i) {
         sp<Message> trackFormat = formats->findObject(kKeyTrack + i);
         
         sp<Message> options = new Message;
-        options->setInt32(kKeyMode, kModeTypeDefault);
-        sp<MediaDecoder> codec = MediaDecoder::Create(trackFormat, options);
+        options->setInt32(kKeyMode, kModeTypeSoftware);
+        sp<MediaDevice> codec = MediaDevice::create(trackFormat, options);
         
         if (codec.isNIL()) {
             ERROR("create codec failed for %s", trackFormat->string().c_str());
@@ -77,25 +80,23 @@ int main(int argc, char **argv) {
     }
     
     for (size_t i = 0; i < count; ++i) {
-        sp<MediaPacket> packet = file->read();
+        sp<MediaFrame> packet = file->pull();
         if (packet.isNIL()) {
             INFO("eos or error, exit.");
             return 1;
         }
         
-        if (codecs[packet->index]->write(packet) != kMediaNoError) {
-            ERROR("track-%zu write failed", packet->index);
+        if (codecs[packet->id]->push(packet) != kMediaNoError) {
+            ERROR("track-%u write failed", packet->id);
             return 1;
         }
         
-        sp<MediaFrame> frame = codecs[packet->index]->read();
+        sp<MediaFrame> frame = codecs[packet->id]->pull();
         if (frame.isNIL()) continue;
         
-        for (size_t i = 0; i < MEDIA_FRAME_NB_PLANES; ++i) {
-            sp<ABuffer> plane = frame->readPlane(i);
-            if (plane.isNIL()) break;
-
-            contents[packet->index]->writeBytes(plane);
+        for (size_t i = 0; i < frame->planes.count; ++i) {
+            contents[packet->id]->writeBytes((const char *)frame->planes.buffers[i].data,
+                                             frame->planes.buffers[i].size);
         }
     }
 
