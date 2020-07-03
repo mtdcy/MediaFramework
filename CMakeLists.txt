@@ -5,8 +5,8 @@ option (WITH_SDL        "Build with SDL"        ON)
 
 # put sub directories before our project 
 # avoid pollution by our project
-add_subdirectory(ABE)
-add_subdirectory(FFmpegStatic)
+add_subdirectory(external/ABE)
+add_subdirectory(external/FFmpegStatic)
 add_subdirectory(external/libyuv    EXCLUDE_FROM_ALL)
 
 project (MediaFramework)
