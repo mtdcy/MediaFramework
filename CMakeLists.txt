@@ -205,6 +205,9 @@ target_link_libraries(codec ${PROJECT_NAME}_shared)
 add_executable(matroska EXCLUDE_FROM_ALL matroska_main.cpp)
 target_link_libraries(matroska ${PROJECT_NAME}_shared)
 
+add_executable(cc EXCLUDE_FROM_ALL cc_main.cpp)
+target_link_libraries(cc ${PROJECT_NAME}_shared)
+
 #------------------------------------------------------------------------------#
 # unit test 
 # note: unittest won't work until libraries installed

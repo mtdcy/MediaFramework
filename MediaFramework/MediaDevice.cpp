@@ -277,9 +277,14 @@ return CreateLavcDecoder(formats, options);
         case kPixelFormat420YpCbCrPlanar:
         case kPixelFormat420YpCbCrSemiPlanar:
         case kPixelFormat420YpCrCbSemiPlanar:
-        case kPixelFormatRGB32:
-        case kPixelFormatRGB24:
-        case kPixelFormatRGB16:
+        case kPixelFormatARGB:
+        case kPixelFormatRGBA:
+        case kPixelFormatBGRA:
+        case kPixelFormatABGR:
+        case kPixelFormatRGB:
+        case kPixelFormatBGR:
+        case kPixelFormatRGB565:
+        case kPixelFormatBGR565:
         case kPixelFormatVideoToolbox:
             return CreateOpenGLOut(formats, options);
         default:

@@ -225,6 +225,7 @@ typedef uint32_t eSampleFormat;
  * @note yuv pixels usually in represent in byte-order
  * https://en.wikipedia.org/wiki/RGBA_color_space
  * https://en.wikipedia.org/wiki/YCbCr
+ * https://www.fourcc.org/yuv.php
  */
 enum {
     kPixelFormatUnknown                 = kFormatUnknown,
@@ -241,9 +242,12 @@ enum {
     kPixelFormat422YpCrCbPlanar         = FOURCC('YV16'),   ///< Planar Y'CbCr 8-bit 4:2:2, 16bpp, 3 planes: Y'/Cr/Cb, aka yv16
     kPixelFormat422YpCbCr               = FOURCC('YUY2'),   ///< Packed Y'CbCr 8-bit 4:2:2, 16bpp, Y'0 Cb Y'1 Cr
     kPixelFormat422YpCrCb               = FOURCC('YVYU'),   ///< Packed Y'CbCr 8-bit 4:2:2, 16bpp, Y'0 Cr Y'1 Cb
+    kPixelFormat422YpCbCrWO             = FOURCC('VYUY'),   ///< Packed Y'CbCr 8-bit 4:2:2, 16bpp, Cr Y'0 Cb Y'1 (Y'0 Cb Y'1 Cr in word-order)
+    kPixelFormat422YpCrCbWO             = FOURCC('UYVY'),   ///< Packed Y'CbCr 8-bit 4:2:2, 16bpp, Cb Y'0 Cr Y'1 (Y'0 Cr Y'1 Cb in word-order)
 
-    /** Y'CbCr 444 family **/
+    /** Y'CbCr 444 family, few codecs or platform support these formats **/
     kPixelFormat444YpCbCrPlanar         = FOURCC('I444'),   ///< Planar Y'CbCr 8-bit 4:4:4, 24bpp, 3 planes: Y'/Cb/Cr
+    kPixelFormat444YpCrCbPlanar         = FOURCC('YV24'),   ///< Planar Y'CbCr 8-bit 4:4:4, 24bpp, 3 planes: Y'/Cr/Cb
     kPixelFormat444YpCbCr               = FOURCC('P444'),   ///< Packed Y'CbCr 8-bit 4:4:4, 24bpp, Y'CbCr(interleaved)
 
     /** Y'CbCr others **/
@@ -252,8 +256,8 @@ enum {
     kPixelFormat420YpCbCr10Planar       = FOURCC('v210'),  ///< Planar Y'CbCr 10-bit 4:2:0, 15bpp, 3 planes: Y'/Cb/Cr
 
     /** RGB color space section **/
-    kPixelFormatRGB565                  = FOURCC('RGB '),   ///< packed RGB 5:6:5, 16 bpp, RGB565 in byte-order
-    kPixelFormatBGR565                  = FOURCC('BGR '),   ///< packed BGR 5:6:5, 16 bpp, RGB565 in word-order
+    kPixelFormatRGB565                  = FOURCC('16RG'),   ///< packed RGB 5:6:5, 16 bpp, RGB565 in byte-order
+    kPixelFormatBGR565                  = FOURCC('16BG'),   ///< packed BGR 5:6:5, 16 bpp, RGB565 in word-order
     kPixelFormatRGB                     = FOURCC('24RG'),   ///< packed RGB 8:8:8, 24 bpp, RGB byte-order
     kPixelFormatBGR                     = FOURCC('24BG'),   ///< packed BGR 8:8:8, 24 bpp, RGB in word-order
     kPixelFormatARGB                    = FOURCC('ARGB'),   ///< packed ARGB, 32 bpp, AARRGGBB, ARGB in byte-order
@@ -261,13 +265,16 @@ enum {
     kPixelFormatRGBA                    = FOURCC('RGBA'),   ///< packed RGBA, 32 bpp, RRGGBBAA, RGBA in byte-order
     kPixelFormatABGR                    = FOURCC('ABGR'),   ///< packed ABGR, 32 bpp, AABBGGRR, RGBA in word-order
 
-    /** alias section. TODO: set alias to platform preferred **/
-    kPixelFormatRGB16                   = kPixelFormatBGR565,
-    kPixelFormatRGB24                   = kPixelFormatBGR,
-    kPixelFormatRGB32                   = kPixelFormatBGRA, ///< ARGB in word-order, application usally using this
+    /** alias section. set alias to platform preferred **/
+    kPixelFormatRGB16                   = kPixelFormatBGR565,   ///< RGB565 in word-order
+    kPixelFormatRGB24                   = kPixelFormatBGR,      ///< RGB in word-order
+    kPixelFormatRGB32                   = kPixelFormatBGRA,     ///< ARGB in word-order, application usally using this
 
     /** hardware pixel format section **/
     kPixelFormatVideoToolbox            = FOURCC('vtbx'),   ///< hardware frame from video toolbox
+    
+    /** custom pixel format, need custom PixelDescriptor */
+    kPixelFormatCustom                  = FOURCC('?pix'),
     
     kPixelFormatMax                     = MEDIA_ENUM_MAX
 };
@@ -343,6 +350,7 @@ typedef struct PixelDescriptor {
 
 // get information about pixel format
 API_EXPORT const PixelDescriptor *  GetPixelFormatDescriptor(ePixelFormat);
+API_EXPORT const PixelDescriptor *  GetPixelFormatDescriptorByName(const char *);
 API_EXPORT bool                     IsPlanarPixelFormat(ePixelFormat);
 API_EXPORT bool                     IsSemiPlanarPixelFormat(ePixelFormat);
 

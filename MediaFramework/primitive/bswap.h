@@ -62,7 +62,7 @@ static FORCE_INLINE uint32_t bswap32(uint32_t x) {
 // only swap low bytes of uint32_t 
 // aabbccdd -> aaddccbb
 static FORCE_INLINE uint32_t bswap32l(uint32_t x) {
-    return ((x >> 24) & 0xff) | ((x >> 8) & 0xff00) | ((x << 8) & 0xff0000) | ((x << 24) & 0xff000000);
+    return (x & 0xff000000) | (x & 0xff00) | ((x >> 16) & 0xff) | ((x << 16) & 0xff0000);
 }
 
 static FORCE_INLINE uint64_t bswap64(uint64_t x) {

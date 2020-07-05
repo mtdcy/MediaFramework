@@ -51,7 +51,7 @@ __END_DECLS
 #ifdef __cplusplus
 __BEGIN_NAMESPACE_MPX
 
-sp<MediaDevice>     CreateColorConverter(const ImageFormat&, const ImageFormat&, const sp<Message>&);
+API_EXPORT sp<MediaDevice> CreateColorConverter(const ImageFormat&, const ImageFormat&, const sp<Message>&);
 
 __END_NAMESPACE_MPX
 #endif // __cplusplus
