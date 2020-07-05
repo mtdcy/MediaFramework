@@ -805,9 +805,13 @@ struct OpenGLOut : public MediaDevice {
         mFormat.width       = width;
         mFormat.height      = height;
         
-        void * openGL       = options->findPointer(kKeyOpenGLContext);
+        if (options->contains(kKeyOpenGLContext)) {
+            void * openGL = options->findPointer(kKeyOpenGLContext);
 #ifdef __APPLE__
-        if (openGL) CGLSetCurrentContext((CGLContextObj)openGL);
+            if (openGL) CGLSetCurrentContext((CGLContextObj)openGL);
+#endif
+        }
+#ifdef __APPLE__
         CHECK_NULL(CGLGetCurrentContext());
 #endif
         
