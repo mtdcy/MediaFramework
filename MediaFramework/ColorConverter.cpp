@@ -775,7 +775,7 @@ static MediaError colorconvertor_init_common(sp<ColorConvertorContext>& ccc, con
     ccc->ipf    = iformat->image;
     ccc->opf    = oformat->image;
     ccc->ipd    = GetPixelFormatDescriptor(ccc->ipf.format);
-    ccc->opd    = GetPixelFormatDescriptor(ccc->ipf.format);
+    ccc->opd    = GetPixelFormatDescriptor(ccc->opf.format);
     return kMediaNoError;
 }
 
