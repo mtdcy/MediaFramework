@@ -290,17 +290,47 @@ enum {
 typedef uint32_t eColorSpace;
 /*
  * about full range & video range
+ * reference:
+ *  1. https://en.wikipedia.org/wiki/YCbCr
+ * @note about YUV & Y'CbCr
+ *   Y : luminance component, physical linear-space brightness
+ *   UV: chrominance (color) components
+ *   Y': luma component, (nonlinear) perceptual brightness., prime(') denote gamma correction
+ *   Cb: blue-difference chroma components.
+ *   Cr: red-difference chroma components.
  * @note Y'CbCr full range luma=[0, 255], chroma=[1, 255], JFIF
- * @note Y'CbCr video range luma=[16, 235], chroma=[16,240], ITU-R BT.601
+ *   JPEG YUV to RGB reference
+ *     R = Y                - V * -1.40200
+ *     G = Y - U *  0.34414 - V *  0.71414
+ *     B = Y - U * -1.77200
+ * @note Y'CbCr video range luma=[16, 235], chroma=[16,240], ITU-R BT.601, SDTV
+ *   BT.601 YUV to RGB reference
+ *     R = (Y - 16) * 1.164              - V * -1.596
+ *     G = (Y - 16) * 1.164 - U *  0.391 - V *  0.813
+ *     B = (Y - 16) * 1.164 - U * -2.018
+ * @note Y'CbCr video range luma=[16, 235], chroma=[16,240], ITU-R BT.709, HDTV
+ *   BT.709 YUV to RGB reference
+ *     R = (Y - 16) * 1.164              - V * -1.793
+ *     G = (Y - 16) * 1.164 - U *  0.213 - V *  0.533
+ *     B = (Y - 16) * 1.164 - U * -2.112
+ *     See also http://www.equasys.de/colorconversion.html
+ * @note Y'CbCr video range luma=[16, 235], chroma=[16,240], ITU-R BT.2020, UHDTV
+ *   BT.2020 YUV to RGB reference
+ *     R = (Y - 16) * 1.164384                - V * -1.67867
+ *     G = (Y - 16) * 1.164384 - U * 0.187326 - V *  0.65042
+ *     B = (Y - 16) * 1.164384 - U * -2.14177
+ * @note Y' = Y, Cb = 128 + U, Cr = 128 + V
  * @note don't put range infomation into pixel format
  */
 enum {
-    kYpCbCrFullRange    = FOURCC('CRfu'),
-    kYpCbCrVideoRange   = FOURCC('CRvi'),
+    kColorMatrixJPEG     = FOURCC('cJPG'),
+    kColorMatrixBT601    = FOURCC('c601'),
+    kColorMatrixBT709    = FOURCC('c709'),
+    kColorMatrixBT2020   = FOURCC('c020'),
     
-    kYpCbCrRangeMax     = MEDIA_ENUM_MAX
+    kColorMatrixMax     = MEDIA_ENUM_MAX
 };
-typedef uint32_t eYpCbCrRange;
+typedef uint32_t eColorMatrix;
 
 enum {
     kRotate0            = FOURCC('R000'),
