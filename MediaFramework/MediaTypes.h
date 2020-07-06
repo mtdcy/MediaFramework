@@ -323,10 +323,11 @@ typedef uint32_t eColorSpace;
  * @note don't put range infomation into pixel format
  */
 enum {
-    kColorMatrixJPEG     = FOURCC('cJPG'),
-    kColorMatrixBT601    = FOURCC('c601'),
-    kColorMatrixBT709    = FOURCC('c709'),
-    kColorMatrixBT2020   = FOURCC('c020'),
+    kColorMatrixNull    = 0,
+    kColorMatrixJPEG    = FOURCC('cJPG'),
+    kColorMatrixBT601   = FOURCC('c601'),
+    kColorMatrixBT709   = FOURCC('c709'),
+    kColorMatrixBT2020  = FOURCC('c020'),
     
     kColorMatrixMax     = MEDIA_ENUM_MAX
 };
@@ -386,6 +387,7 @@ API_EXPORT bool                     IsSemiPlanarPixelFormat(ePixelFormat);
 
 typedef struct ImageFormat {
     ePixelFormat        format;         ///< image pixel format
+    eColorMatrix        matrix;         ///< color matrix for yuv
     int32_t             width;          ///< plane width
     int32_t             height;         ///< plane height
     struct {                            ///< display rectangle

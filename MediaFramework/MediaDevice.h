@@ -145,6 +145,7 @@ enum {
     kKeyError           = FOURCC('!err'),       ///< int32_t, MediaError
     kKeyOpenGLContext   = FOURCC('oglt'),       ///< void *
     kKeyPause           = FOURCC('paus'),       ///< int32_t, bool
+    kKeyColorMatrix     = FOURCC('cmat'),       ///< uint32_t, @see eColorMatrix
     kKeyESDS            = FOURCC('esds'),       ///< sp<Buffer>
     kKeyavcC            = FOURCC('avcC'),       ///< sp<Buffer>
     kKeyhvcC            = FOURCC('hvcC'),       ///< sp<Buffer>

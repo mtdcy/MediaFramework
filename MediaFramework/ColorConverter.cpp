@@ -496,6 +496,13 @@ typedef int (*Planar2Packed_t)( const uint8_t *src_y, int src_stride_y,
         uint8_t *dst, int dst_stride,
         int width, int height);
 
+typedef int (*Planar2PackedMatrix_t)(const uint8_t* src_y, int src_stride_y,
+        const uint8_t* src_u, int src_stride_u,
+        const uint8_t* src_v, int src_stride_v,
+        uint8_t* dst_argb, int dst_stride_argb,
+        const struct libyuv::YuvConstants* yuvconstants,
+        int width, int height);
+
 typedef int (*SemiPlanar2Planar_t)(const uint8_t* src_y, int src_stride_y,
         const uint8_t* src_uv, int src_stride_uv,
         uint8_t* dst_y, int dst_stride_y,
@@ -514,6 +521,12 @@ typedef int (*SemiPlanar2Packed_t)(const uint8_t *src_y, int src_stride_y,
         uint8_t *dst, int dst_stride,
         int width, int height);
 
+typedef int (*SemiPlanar2PackedMatrix_t)(const uint8_t* src_y, int src_stride_y,
+        const uint8_t* src_uv, int src_stride_uv,
+        uint8_t* dst_argb, int dst_stride_argb,
+        const struct libyuv::YuvConstants* yuvconstants,
+        int width, int height);
+
 typedef int (*Packed2Packed_t)(const uint8_t *src, int src_stride,
         uint8_t *dst, int dst_stride,
         int width, int height);
@@ -530,15 +543,17 @@ typedef int (*Packed2SemiPlanar_t)(const uint8_t* src_argb, int src_stride_argb,
         int width, int height);
 
 union hnd_t {
-    Planar2Planar_t         planar2planar;
-    Planar2SemiPlanar_t     planar2semiplanar;
-    Planar2Packed_t         planar2packed;
-    SemiPlanar2Planar_t     semiplanar2planar;
-    SemiPlanar2SemiPlanar_t semiplanar2semiplanar;
-    SemiPlanar2Packed_t     semiplanar2packed;
-    Packed2Planar_t         packed2planar;
-    Packed2SemiPlanar_t     packed2semiplanar;
-    Packed2Packed_t         packed2packed;
+    Planar2Planar_t             planar2planar;
+    Planar2SemiPlanar_t         planar2semiplanar;
+    Planar2Packed_t             planar2packed;
+    Planar2PackedMatrix_t       planar2packedMAT;
+    SemiPlanar2Planar_t         semiplanar2planar;
+    SemiPlanar2SemiPlanar_t     semiplanar2semiplanar;
+    SemiPlanar2Packed_t         semiplanar2packed;
+    SemiPlanar2PackedMatrix_t   semiplanar2packedMAT;
+    Packed2Planar_t             packed2planar;
+    Packed2SemiPlanar_t         packed2semiplanar;
+    Packed2Packed_t             packed2packed;
 };
 
 // aabb -> bbaa
@@ -614,6 +629,9 @@ enum {
     BSWAP_OUTPUT    = (1<<2),   // do byte swap on output, @see swap16/swap24/swap32
     BSWAP_32L       = (1<<3),   // do byte swap on low byte, @see swap32l
     BSWAP_32H       = (1<<4),   // do byte swap on high byte, @see swap32h
+    
+    //
+    COLOR_MATRIX    = (1<<8),   // handle support color matrix
 };
 
 typedef struct convert_t {
@@ -651,14 +669,14 @@ static const convert_t kTo420YpCbCrPlanar[] = {
 // ? -> ARGB in word-order
 // this one SHOULD have full capability
 static const convert_t kToBGRA[] = {
-    { kPixelFormat420YpCbCrPlanar,      .hnd.planar2packed = libyuv::I420ToARGB                         },
-    { kPixelFormat420YpCrCbPlanar,      .hnd.planar2packed = libyuv::I420ToARGB,    .flags = SWAP_UV    },
-    { kPixelFormat422YpCbCrPlanar,      .hnd.planar2packed = libyuv::I422ToARGB                         },
-    { kPixelFormat422YpCrCbPlanar,      .hnd.planar2packed = libyuv::I422ToARGB,    .flags = SWAP_UV    },
-    { kPixelFormat444YpCbCrPlanar,      .hnd.planar2packed = libyuv::I444ToARGB                         },
-    { kPixelFormat444YpCrCbPlanar,      .hnd.planar2packed = libyuv::I444ToARGB,    .flags = SWAP_UV    },
-    { kPixelFormat420YpCbCrSemiPlanar,  .hnd.semiplanar2packed = libyuv::NV12ToARGB                     },
-    { kPixelFormat420YpCrCbSemiPlanar,  .hnd.semiplanar2packed = libyuv::NV21ToARGB                     },
+    { kPixelFormat420YpCbCrPlanar,      .hnd.planar2packedMAT = libyuv::I420ToARGBMatrix,   .flags = COLOR_MATRIX           },
+    { kPixelFormat420YpCrCbPlanar,      .hnd.planar2packedMAT = libyuv::I420ToARGBMatrix,   .flags = COLOR_MATRIX|SWAP_UV   },
+    { kPixelFormat422YpCbCrPlanar,      .hnd.planar2packedMAT = libyuv::I422ToARGBMatrix,   .flags = COLOR_MATRIX           },
+    { kPixelFormat422YpCrCbPlanar,      .hnd.planar2packedMAT = libyuv::I422ToARGBMatrix,   .flags = COLOR_MATRIX|SWAP_UV   },
+    { kPixelFormat444YpCbCrPlanar,      .hnd.planar2packedMAT = libyuv::I444ToARGBMatrix,   .flags = COLOR_MATRIX           },
+    { kPixelFormat444YpCrCbPlanar,      .hnd.planar2packedMAT = libyuv::I444ToARGBMatrix,   .flags = COLOR_MATRIX|SWAP_UV   },
+    { kPixelFormat420YpCbCrSemiPlanar,  .hnd.semiplanar2packedMAT = libyuv::NV12ToARGBMatrix,   .flags = COLOR_MATRIX       },
+    { kPixelFormat420YpCrCbSemiPlanar,  .hnd.semiplanar2packedMAT = libyuv::NV21ToARGBMatrix,   .flags = COLOR_MATRIX       },
     { kPixelFormat422YpCbCr,            .hnd.packed2packed = libyuv::YUY2ToARGB                         },
     { kPixelFormat422YpCrCb,            .hnd.packed2packed = libyuv::YUY2ToARGB,    .flags = BSWAP_32L  },
     { kPixelFormat422YpCrCbWO,          .hnd.packed2packed = libyuv::UYVYToARGB                         },
@@ -737,6 +755,17 @@ static hnd_t get_convert_hnd(const convert_t list[], const ePixelFormat& source,
     return hnd;
 }
 
+static const libyuv::YuvConstants * GetLibyuvMatrix(eColorMatrix matrix) {
+    switch (matrix) {
+        case kColorMatrixJPEG:      return &libyuv::kYuvJPEGConstants;
+        case kColorMatrixBT601:     return &libyuv::kYuvI601Constants;
+        case kColorMatrixBT709:     return &libyuv::kYuvH709Constants;
+        case kColorMatrixBT2020:    return &libyuv::kYuv2020Constants;
+        default: break;
+    }
+    return NULL;
+}
+
 struct ColorConvertorContext : public SharedObject {
     ImageFormat             ipf;
     ImageFormat             opf;
@@ -806,6 +835,18 @@ static MediaError colorconvertor_init_bgra(MediaUnitContext ref, const MediaForm
     }
     
     ccc->hnd = get_convert_hnd(kToBGRA, ccc->ipf.format, &ccc->flags);
+    if (ccc->hnd.planar2packed == NULL) {
+        return kMediaErrorNotSupported;
+    }
+    if (ccc->ipf.matrix && !(ccc->flags & COLOR_MATRIX)) {
+        ERROR("color matrix is not supported");
+        return kMediaErrorNotSupported;
+    }
+    
+    // set default color matrix
+    if (ccc->ipf.matrix == kColorMatrixNull && (ccc->flags & COLOR_MATRIX)) {
+        ccc->ipf.matrix = kColorMatrixBT601;
+    }
     return ccc->hnd.planar2packed != NULL ? kMediaNoError : kMediaErrorNotSupported;
 }
 
@@ -941,16 +982,30 @@ MediaError colorconvertor_process(MediaUnitContext ref, const MediaBufferList * 
                                            opf.height);
                 break;
             case 1:
-                ccc->hnd.planar2packed(ibf[0].data + offset[0],
-                                       (ipf.width * ipd->planes[0].bpp) / (8 * ipd->planes[0].hss),
-                                       ibf[1].data + offset[1],
-                                       (ipf.width * ipd->planes[1].bpp) / (8 * ipd->planes[1].hss),
-                                       ibf[2].data + offset[2],
-                                       (ipf.width * ipd->planes[2].bpp) / (8 * ipd->planes[2].hss),
-                                       obf[0].data,
-                                       (opf.width * opd->bpp) / 8,
-                                       opf.width,
-                                       opf.height);
+                if (ipf.matrix) {
+                    ccc->hnd.planar2packedMAT(ibf[0].data + offset[0],
+                                              (ipf.width * ipd->planes[0].bpp) / (8 * ipd->planes[0].hss),
+                                              ibf[1].data + offset[1],
+                                              (ipf.width * ipd->planes[1].bpp) / (8 * ipd->planes[1].hss),
+                                              ibf[2].data + offset[2],
+                                              (ipf.width * ipd->planes[2].bpp) / (8 * ipd->planes[2].hss),
+                                              obf[0].data,
+                                              (opf.width * opd->bpp) / 8,
+                                              GetLibyuvMatrix(ipf.matrix),
+                                              opf.width,
+                                              opf.height);
+                } else {
+                    ccc->hnd.planar2packed(ibf[0].data + offset[0],
+                                           (ipf.width * ipd->planes[0].bpp) / (8 * ipd->planes[0].hss),
+                                           ibf[1].data + offset[1],
+                                           (ipf.width * ipd->planes[1].bpp) / (8 * ipd->planes[1].hss),
+                                           ibf[2].data + offset[2],
+                                           (ipf.width * ipd->planes[2].bpp) / (8 * ipd->planes[2].hss),
+                                           obf[0].data,
+                                           (opf.width * opd->bpp) / 8,
+                                           opf.width,
+                                           opf.height);
+                }
                 break;
             default:
                 break;
@@ -983,14 +1038,26 @@ MediaError colorconvertor_process(MediaUnitContext ref, const MediaBufferList * 
                                                opf.height);
                 break;
             case 1:
-                ccc->hnd.semiplanar2packed(ibf[0].data + offset[0],
-                                           (ipf.width * ipd->planes[0].bpp) / (8 * ipd->planes[0].hss),
-                                           ibf[1].data + offset[1],
-                                           (ipf.width * ipd->planes[1].bpp) / (8 * ipd->planes[1].hss),
-                                           obf[0].data,
-                                           (opf.width * opd->bpp) / 8,
-                                           opf.width,
-                                           opf.height);
+                if (ipf.matrix) {
+                    ccc->hnd.semiplanar2packedMAT(ibf[0].data + offset[0],
+                                                  (ipf.width * ipd->planes[0].bpp) / (8 * ipd->planes[0].hss),
+                                                  ibf[1].data + offset[1],
+                                                  (ipf.width * ipd->planes[1].bpp) / (8 * ipd->planes[1].hss),
+                                                  obf[0].data,
+                                                  (opf.width * opd->bpp) / 8,
+                                                  GetLibyuvMatrix(ipf.matrix),
+                                                  opf.width,
+                                                  opf.height);
+                } else {
+                    ccc->hnd.semiplanar2packed(ibf[0].data + offset[0],
+                                               (ipf.width * ipd->planes[0].bpp) / (8 * ipd->planes[0].hss),
+                                               ibf[1].data + offset[1],
+                                               (ipf.width * ipd->planes[1].bpp) / (8 * ipd->planes[1].hss),
+                                               obf[0].data,
+                                               (opf.width * opd->bpp) / 8,
+                                               opf.width,
+                                               opf.height);
+                }
                 break;
             default:
                 break;
