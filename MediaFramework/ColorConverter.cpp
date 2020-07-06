@@ -531,6 +531,11 @@ typedef int (*Packed2Packed_t)(const uint8_t *src, int src_stride,
         uint8_t *dst, int dst_stride,
         int width, int height);
 
+typedef int (*Packed2PackedMatrix_t)(const uint8_t *src, int src_stride,
+        uint8_t *dst, int dst_stride,
+        const struct libyuv::YuvConstants* yuvconstants,
+        int width, int height);
+
 typedef int (*Packed2Planar_t)(const uint8_t* src, int src_stride,
         uint8_t* dst_y, int dst_stride_y,
         uint8_t* dst_u, int dst_stride_u,
@@ -554,6 +559,7 @@ union hnd_t {
     Packed2Planar_t             packed2planar;
     Packed2SemiPlanar_t         packed2semiplanar;
     Packed2Packed_t             packed2packed;
+    Packed2PackedMatrix_t       packed2packedMAT;
 };
 
 // aabb -> bbaa
@@ -677,10 +683,10 @@ static const convert_t kToBGRA[] = {
     { kPixelFormat444YpCrCbPlanar,      .hnd.planar2packedMAT = libyuv::I444ToARGBMatrix,   .flags = COLOR_MATRIX|SWAP_UV   },
     { kPixelFormat420YpCbCrSemiPlanar,  .hnd.semiplanar2packedMAT = libyuv::NV12ToARGBMatrix,   .flags = COLOR_MATRIX       },
     { kPixelFormat420YpCrCbSemiPlanar,  .hnd.semiplanar2packedMAT = libyuv::NV21ToARGBMatrix,   .flags = COLOR_MATRIX       },
-    { kPixelFormat422YpCbCr,            .hnd.packed2packed = libyuv::YUY2ToARGB                         },
-    { kPixelFormat422YpCrCb,            .hnd.packed2packed = libyuv::YUY2ToARGB,    .flags = BSWAP_32L  },
-    { kPixelFormat422YpCrCbWO,          .hnd.packed2packed = libyuv::UYVYToARGB                         },
-    { kPixelFormat422YpCbCrWO,          .hnd.packed2packed = libyuv::UYVYToARGB,    .flags = BSWAP_32L  },
+    { kPixelFormat422YpCbCr,            .hnd.packed2packedMAT = libyuv::YUY2ToARGBMatrix,   .flags = COLOR_MATRIX           },
+    { kPixelFormat422YpCrCb,            .hnd.packed2packedMAT = libyuv::YUY2ToARGBMatrix,   .flags = COLOR_MATRIX|BSWAP_32L },
+    { kPixelFormat422YpCrCbWO,          .hnd.packed2packedMAT = libyuv::UYVYToARGBMatrix,   .flags = COLOR_MATRIX           },
+    { kPixelFormat422YpCbCrWO,          .hnd.packed2packedMAT = libyuv::UYVYToARGBMatrix,   .flags = COLOR_MATRIX|BSWAP_32L },
     { kPixelFormat444YpCbCr,            .hnd.packed2packed = NULL                                       },  // does this format real exist?
     { kPixelFormatBGRA,                 .hnd.packed2packed = libyuv::ARGBCopy                           },
     { kPixelFormatARGB,                 .hnd.packed2packed = libyuv::BGRAToARGB                         },
@@ -824,7 +830,7 @@ static MediaError colorconvertor_init_420p(MediaUnitContext ref, const MediaForm
 }
 
 static MediaError colorconvertor_init_bgra(MediaUnitContext ref, const MediaFormat * iformat, const MediaFormat * oformat) {
-    DEBUG("cc init %s => %s", GetImageFormatString(iformat->video).c_str(), GetImageFormatString(oformat->video).c_str());
+    DEBUG("cc init %s => %s", GetImageFormatString(iformat->image).c_str(), GetImageFormatString(oformat->image).c_str());
     sp<ColorConvertorContext> ccc = ref;
     if (colorconvertor_init_common(ccc, iformat, oformat) != kMediaNoError) {
         return kMediaErrorBadParameters;
@@ -838,7 +844,7 @@ static MediaError colorconvertor_init_bgra(MediaUnitContext ref, const MediaForm
     if (ccc->hnd.planar2packed == NULL) {
         return kMediaErrorNotSupported;
     }
-    if (ccc->ipf.matrix && !(ccc->flags & COLOR_MATRIX)) {
+    if ((ccc->ipf.matrix && ccc->ipf.matrix != kColorMatrixBT601) && !(ccc->flags & COLOR_MATRIX)) {
         ERROR("color matrix is not supported");
         return kMediaErrorNotSupported;
     }
@@ -1086,12 +1092,20 @@ MediaError colorconvertor_process(MediaUnitContext ref, const MediaBufferList * 
                                            opf.height);
                 break;
             case 1:
-                ccc->hnd.packed2packed(ibf[0].data + offset[0],
-                                       (ipf.width * ipd->bpp) / 8,
-                                       obf[0].data,
-                                       (opf.width * opd->bpp) / 8,
-                                       opf.width,
-                                       opf.height);
+                if (ipf.matrix) {
+                    ccc->hnd.packed2packedMAT(ibf[0].data + offset[0],
+                                              (ipf.width * ipd->bpp) / 8,
+                                              obf[0].data,
+                                              (opf.width * opd->bpp) / 8,
+                                              GetLibyuvMatrix(ipf.matrix),
+                                              opf.width, opf.height);
+                } else {
+                    ccc->hnd.packed2packed(ibf[0].data + offset[0],
+                                           (ipf.width * ipd->bpp) / 8,
+                                           obf[0].data,
+                                           (opf.width * opd->bpp) / 8,
+                                           opf.width, opf.height);
+                }
                 break;
             default:
                 break;

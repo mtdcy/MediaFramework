@@ -181,9 +181,10 @@ String GetPixelFormatString(const ePixelFormat& pixel) {
 
 String GetImageFormatString(const ImageFormat& image) {
     String line = GetPixelFormatString(image.format);
-    line += String::format(" [%d x %d] [%d, %d, %d, %d]",
+    line += String::format(" [%d x %d] [%d, %d, %d, %d] [%.4s]",
                            image.width, image.height,
-                           image.rect.x, image.rect.y, image.rect.w, image.rect.h);
+                           image.rect.x, image.rect.y, image.rect.w, image.rect.h,
+                           (const char *)&image.matrix);
     return line;
 }
 
