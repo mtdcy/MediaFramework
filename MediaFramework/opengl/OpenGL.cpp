@@ -72,24 +72,34 @@ __BEGIN_NAMESPACE_MPX
     }                                   \
 } while(0)
 
-static GLfloat VEC4_FullRangeBias[4] = {
-    0,      0.5,    0.5,    0
-};
-
 // https://en.wikipedia.org/wiki/YCbCr#ITU-R_BT.601_conversion
 /**
- * ITU-R BT.601 for video range YpCbCr -> RGB
+ * ITU-R BT.601 for video range YpCbCr -> RGB @see eColorMatrix
  * @note default matrix
  * @note these are row matrix
  */
-static GLfloat VEC4_BT601_VideoRangeBias[4] = {
-    0.062745,   0.5,    0.5,    0
+static GLfloat VEC4_VideoRangeBias[4] = {
+    0.063,   0.5,    0.5,    0
 };
 static const GLfloat MAT4_BT601_VideoRange[16] = {    // SDTV
     // y, u, v, a
-    1.164384,   0,          1.596027,   0,      // r
-    1.164384,   -0.391762,  -0.812968,  0,      // g
-    1.164384,   2.017232,   0,          0,      // b
+    1.164,      0,          1.596,      0,      // r
+    1.164,      -0.391,     -0.813,     0,      // g
+    1.164,      2.018,      0,          0,      // b
+    0,          0,          0,          1.0     // a
+};
+static const GLfloat MAT4_BT709_VideoRange[16] = {    // HDTV
+    // y, u, v, a
+    1.164,      0,          1.793,      0,      // r
+    1.164,      -2.213,     -0.533,     0,      // g
+    1.164,      2.112,      0,          0,      // b
+    0,          0,          0,          1.0     // a
+};
+static const GLfloat MAT4_BT2020_VideoRange[16] = {    // UHDTV
+    // y, u, v, a
+    1.164384,   0,          1.67867,    0,      // r
+    1.164384,   -0.187326,  -0.65042,   0,      // g
+    1.164384,   2.14177,    0,          0,      // b
     0,          0,          0,          1.0     // a
 };
 
@@ -98,6 +108,9 @@ static const GLfloat MAT4_BT601_VideoRange[16] = {    // SDTV
  * @note JFIF JPEG: using full range
  * @note these are row matrix
  */
+static GLfloat VEC4_FullRangeBias[4] = {
+ 0,      0.5,    0.5,    0
+};
 static const GLfloat MAT4_BT601_FullRange[16] = {
     // y, u, v, a
     1,      0,          1.402,      0,      // r
@@ -158,6 +171,14 @@ static const char * vsh = SL(
         }
     );
 
+static const char * fsh_rgb = SL(
+        varying vec2 v_texcoord;
+        uniform sampler2D u_planes[1];
+        void main(void)
+        {
+            gl_FragColor = texture2D(u_planes[0], v_texcoord);
+        }
+    );
 
 static const char * fsh_yuv1 = SL(
         varying vec2 v_texcoord;
@@ -236,7 +257,7 @@ static const OpenGLConfig YpCrCbSemiPlanar = {  // TODO: implement uv swap
 
 static const OpenGLConfig YpCbCr = {        // packed
     .s_vsh      = vsh,
-    .s_fsh      = fsh_yuv1,
+    .s_fsh      = fsh_rgb,
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 1,
     .a_format   = {
@@ -246,7 +267,7 @@ static const OpenGLConfig YpCbCr = {        // packed
 
 static const OpenGLConfig RGB565 = {
     .s_vsh      = vsh,
-    .s_fsh      = fsh_yuv1,
+    .s_fsh      = fsh_rgb,
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 1,
     .a_format   = {
@@ -256,7 +277,7 @@ static const OpenGLConfig RGB565 = {
 
 static const OpenGLConfig BGR565 = {
     .s_vsh      = vsh,
-    .s_fsh      = fsh_yuv1,
+    .s_fsh      = fsh_rgb,
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 1,
     .a_format   = {
@@ -266,7 +287,7 @@ static const OpenGLConfig BGR565 = {
 
 static const OpenGLConfig RGB = {
     .s_vsh      = vsh,
-    .s_fsh      = fsh_yuv1,
+    .s_fsh      = fsh_rgb,
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 1,
     .a_format   = {
@@ -276,7 +297,7 @@ static const OpenGLConfig RGB = {
 
 static const OpenGLConfig BGR = {   // read as bytes -> GL_BGR
     .s_vsh      = vsh,
-    .s_fsh      = fsh_yuv1,
+    .s_fsh      = fsh_rgb,
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 1,
     .a_format   = {
@@ -286,7 +307,7 @@ static const OpenGLConfig BGR = {   // read as bytes -> GL_BGR
 
 static const OpenGLConfig RGBA = {  // read as bytes -> GL_RGBA
     .s_vsh      = vsh,
-    .s_fsh      = fsh_yuv1,
+    .s_fsh      = fsh_rgb,
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 1,
     .a_format   = {
@@ -296,7 +317,7 @@ static const OpenGLConfig RGBA = {  // read as bytes -> GL_RGBA
 
 static const OpenGLConfig ABGR = {  // RGBA in word-order, so read as int
     .s_vsh      = vsh,
-    .s_fsh      = fsh_yuv1,
+    .s_fsh      = fsh_rgb,
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 1,
     .a_format   = {
@@ -306,7 +327,7 @@ static const OpenGLConfig ABGR = {  // RGBA in word-order, so read as int
 
 static const OpenGLConfig ARGB = {  // read as int -> GL_BGRA
     .s_vsh      = vsh,
-    .s_fsh      = fsh_yuv1,
+    .s_fsh      = fsh_rgb,
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 1,
     .a_format   = {
@@ -316,7 +337,7 @@ static const OpenGLConfig ARGB = {  // read as int -> GL_BGRA
 
 static const OpenGLConfig BGRA = {  // read as byte -> GL_BGRA
     .s_vsh      = vsh,
-    .s_fsh      = fsh_yuv1,
+    .s_fsh      = fsh_rgb,
     .e_target   = GL_TEXTURE_2D,
     .n_textures = 1,
     .a_format   = {
@@ -391,7 +412,6 @@ static const OpenGLConfig * getOpenGLConfig(const ePixelFormat& pixel) {
         { kPixelFormat420YpCbCrPlanar,      &YpCbCrPlanar       },
         { kPixelFormat422YpCbCrPlanar,      &YpCbCrPlanar       },
         { kPixelFormat444YpCbCrPlanar,      &YpCbCrPlanar       },
-        { kPixelFormat422YpCbCrPlanar,      NULL                },  // not available now
         { kPixelFormat444YpCbCr,            &YpCbCr             },
         { kPixelFormatRGB565,               &RGB565             },
         { kPixelFormatBGR565,               &BGR565             },
@@ -437,6 +457,8 @@ struct OpenGLContext : public SharedObject {
     // opengl uniform
     GLint           mMVPMatrix;         // mat4
     GLint           mTextureLocation;   // sampler2D array
+    
+    // opengl uniforms for yuv -> rgb
     GLint           mColorBias;         // vec4
     GLint           mColorMatrix;       // mat4
     
@@ -578,10 +600,10 @@ static sp<OpenGLContext> initOpenGLContext(const ImageFormat& image, const OpenG
     // uniform of fragment shader
     glc->mTextureLocation = glGetUniformLocation(glc->mProgram, "u_planes");
     CHECK_GE(glc->mTextureLocation, 0);
+    
+    // mandatory for yuv
     glc->mColorBias  = glGetUniformLocation(glc->mProgram, "u_color_bias");
-    CHECK_GE(glc->mColorBias, 0);
     glc->mColorMatrix = glGetUniformLocation(glc->mProgram, "u_color_matrix");
-    CHECK_GE(glc->mColorMatrix, 0);
     
     // optional
     glc->mResolution = glGetUniformLocation(glc->mProgram, "u_resolution");
@@ -599,10 +621,10 @@ static sp<OpenGLContext> initOpenGLContext(const ImageFormat& image, const OpenG
     CHECK_GL_ERROR();
     
     if (glc->mPixelDescriptor->color == kColorYpCbCr) {
-        glUniform4fv(glc->mColorBias, 1, VEC4_BT601_VideoRangeBias);
+        CHECK_GT(glc->mColorBias, 0);
+        CHECK_GT(glc->mColorMatrix, 0);
+        glUniform4fv(glc->mColorBias, 1, VEC4_VideoRangeBias);
         glUniformMatrix4fv(glc->mColorMatrix, 1, GL_FALSE, MAT4_BT601_VideoRange);
-    } else {
-        glUniformMatrix4fv(glc->mColorMatrix, 1, GL_FALSE, MAT4_Identity);
     }
     CHECK_GL_ERROR();
     
