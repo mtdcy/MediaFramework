@@ -1,12 +1,12 @@
 cmake_minimum_required (VERSION 2.8)
 
 option (WITH_FFMPEG     "Build with ffmpeg"     ON)
-option (WITH_SDL        "Build with SDL"        ON)
+option (WITH_SDL        "Build with SDL"        OFF)
 
 # put sub directories before our project 
 # avoid pollution by our project
 add_subdirectory(external/ABE)
-add_subdirectory(external/FFmpegStatic)
+add_subdirectory(external/FFmpegStatic EXCLUDE_FROM_ALL)
 add_subdirectory(external/libyuv    EXCLUDE_FROM_ALL)
 
 project (MediaFramework)
@@ -135,20 +135,26 @@ set_target_properties (${PROJECT_NAME}_shared PROPERTIES OUTPUT_NAME ${PROJECT_N
 set_target_properties (${PROJECT_NAME}_static PROPERTIES OUTPUT_NAME ${PROJECT_NAME})
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/ABE)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/FFmpegStatic/out/static/include)
-include_directories(${CMAKE_CURRENT_BINARY_DIR}/external/FFmpegStatic)    # FFmpeg.h
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/MediaFramework)
 
-list (APPEND LIBS ABE_shared FFmpegStatic z)
+list (APPEND LIBS z ABE_shared)
+
+if (WITH_FFMPEG)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/FFmpegStatic/out/static/include)
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/external/FFmpegStatic)    # FFmpeg.h
+list (APPEND LIBS FFmpegStatic)
+endif()
 
 # link shared
-if (WITH_SDL)
-find_package (SDL2 REQUIRED)
-message(${SDL2_INCLUDE_DIR})
-message(${SDL2_LIBRARY})
-include_directories(${SDL2_INCLUDE_DIR})
-list (APPEND LIBS ${SDL2_LIBRARY})
+find_package (SDL2)
+if (SDL2_FOUND) 
+    message(${SDL2_INCLUDE_DIR})
+    message(${SDL2_LIBRARY})
+    include_directories(${SDL2_INCLUDE_DIR})
+    if (WITH_SDL)
+        list (APPEND LIBS ${SDL2_LIBRARY})
+    endif()
 endif()
 
 if (APPLE)
@@ -193,8 +199,15 @@ endif()
 
 #------------------------------------------------------------------------------#
 # example/test code, NO build or install by default
-add_executable(mpx EXCLUDE_FROM_ALL mpx_main.cpp)
-target_link_libraries(mpx ${PROJECT_NAME}_shared)
+if (SDL2_FOUND)
+    add_executable(mpx EXCLUDE_FROM_ALL mpx_main.cpp)
+    target_link_libraries(mpx ${PROJECT_NAME}_shared)
+    target_link_libraries(mpx ${SDL2_LIBRARY})
+
+    add_executable(color EXCLUDE_FROM_ALL cc_main.cpp)
+    target_link_libraries(color ${PROJECT_NAME}_shared)
+    target_link_libraries(color ${SDL2_LIBRARY})
+endif()
 
 add_executable(files EXCLUDE_FROM_ALL file_main.cpp)
 target_link_libraries(files ${PROJECT_NAME}_shared)
@@ -204,9 +217,6 @@ target_link_libraries(codec ${PROJECT_NAME}_shared)
 
 add_executable(matroska EXCLUDE_FROM_ALL matroska_main.cpp)
 target_link_libraries(matroska ${PROJECT_NAME}_shared)
-
-add_executable(cc EXCLUDE_FROM_ALL cc_main.cpp)
-target_link_libraries(cc ${PROJECT_NAME}_shared)
 
 #------------------------------------------------------------------------------#
 # unit test 

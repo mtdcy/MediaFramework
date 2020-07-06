@@ -138,7 +138,6 @@ static eFileFormat GetFormat(const sp<ABuffer>& data) {
 sp<MediaDevice> CreateMp3File(const sp<ABuffer>&);
 sp<MediaDevice> CreateMp4File(const sp<ABuffer>&);
 sp<MediaDevice> CreateMatroskaFile(const sp<ABuffer>&);
-sp<MediaDevice> CreateLibavformat(const sp<ABuffer>&);
 sp<MediaDevice> CreateWaveFile(const sp<ABuffer>&);
 
 #ifdef __APPLE__
@@ -147,6 +146,7 @@ sp<MediaDevice> CreateAudioToolbox(const sp<Message>& formats, const sp<Message>
 bool IsVideoToolboxSupported(eVideoCodec format);
 #endif
 #ifdef WITH_FFMPEG
+sp<MediaDevice> CreateLibavformat(const sp<ABuffer>&);
 sp<MediaDevice> CreateLavcDecoder(const sp<Message>& formats, const sp<Message>& options);
 #endif
 
@@ -177,6 +177,9 @@ sp<MediaDevice> MediaDevice::create(const sp<Message>& formats, const sp<Message
         }
         
         format = GetFormat(head);
+#ifdef WITH_FFMPEG
+        return CreateLibavformat(buffer);
+#endif
     }
     
     if (format == 0) {
@@ -197,22 +200,25 @@ sp<MediaDevice> MediaDevice::create(const sp<Message>& formats, const sp<Message
     
     switch (format) {
         case kFileFormatWave:
-            return FORCE_AVFORMAT ? CreateLibavformat(buffer) : CreateWaveFile(buffer);
+            return CreateWaveFile(buffer);
         case kFileFormatMp3:
-            return FORCE_AVFORMAT ? CreateLibavformat(buffer) : CreateMp3File(buffer);
+            return CreateMp3File(buffer);
         case kFileFormatMp4:
-            return FORCE_AVFORMAT ? CreateLibavformat(buffer) : CreateMp4File(buffer);
+            return CreateMp4File(buffer);
         case kFileFormatMkv:
-            return FORCE_AVFORMAT ? CreateLibavformat(buffer) : CreateMatroskaFile(buffer);
+            return CreateMatroskaFile(buffer);
         case kFileFormatApe:
         case kFileFormatFlac:
         case kFileFormatAvi:
         case kFileFormatLAVF:
+#ifdef WITH_FFMPEG
             return CreateLibavformat(buffer);
+#else
+            return NULL;
+#endif
         case kAudioCodecAAC:
         case kAudioCodecAC3:
 #ifdef __APPLE__
-return CreateLavcDecoder(formats, options);
             return CreateAudioToolbox(formats, options);
 #elif defined(WITH_FFMPEG)
             return CreateLavcDecoder(formats, options);
