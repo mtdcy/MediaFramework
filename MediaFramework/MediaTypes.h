@@ -354,16 +354,18 @@ API_EXPORT const PixelDescriptor *  GetPixelFormatDescriptorByName(const char *)
 API_EXPORT bool                     IsPlanarPixelFormat(ePixelFormat);
 API_EXPORT bool                     IsSemiPlanarPixelFormat(ePixelFormat);
 
+typedef struct ImageRect {
+    int32_t             x;
+    int32_t             y;
+    int32_t             w;
+    int32_t             h;
+} ImageRect;
+
 typedef struct ImageFormat {
     ePixelFormat        format;         ///< image pixel format
     int32_t             width;          ///< plane width
     int32_t             height;         ///< plane height
-    struct {                            ///< display rectangle
-        int32_t             x;          ///< left start position
-        int32_t             y;          ///< top start position
-        int32_t             w;          ///< display width
-        int32_t             h;          ///< display height
-    } rect;
+    ImageRect           rect;           ///< display rectangle
 } ImageFormat;
 
 typedef struct SampleDescriptor {
