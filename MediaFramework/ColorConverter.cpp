@@ -664,6 +664,7 @@ static const convert_t kToBGRA[] = {
     { kPixelFormat422YpCrCbWO,          .hnd.packed2packed = libyuv::UYVYToARGB                         },
     { kPixelFormat422YpCbCrWO,          .hnd.packed2packed = libyuv::UYVYToARGB,    .flags = BSWAP_32L  },
     { kPixelFormat444YpCbCr,            .hnd.packed2packed = NULL                                       },  // does this format real exist?
+    { kPixelFormatBGRA,                 .hnd.packed2packed = libyuv::ARGBCopy                           },
     { kPixelFormatARGB,                 .hnd.packed2packed = libyuv::BGRAToARGB                         },
     { kPixelFormatRGBA,                 .hnd.packed2packed = libyuv::ABGRToARGB                         },
     { kPixelFormatABGR,                 .hnd.packed2packed = libyuv::RGBAToARGB                         },
@@ -737,8 +738,8 @@ static hnd_t get_convert_hnd(const convert_t list[], const ePixelFormat& source,
 }
 
 struct ColorConvertorContext : public SharedObject {
-    MediaFormat             ipf;
-    MediaFormat             opf;
+    ImageFormat             ipf;
+    ImageFormat             opf;
     const PixelDescriptor * ipd;
     const PixelDescriptor * opd;
     hnd_t                   hnd;
@@ -758,21 +759,23 @@ static void colorconvertor_dealloc(MediaUnitContext ref) {
 static MediaError colorconvertor_init_common(sp<ColorConvertorContext>& ccc, const MediaFormat * iformat, const MediaFormat * oformat) {
     // input & output are the same pixel format
     if (iformat->format == oformat->format) {
-        ERROR("same pixel format");
-        return kMediaErrorBadParameters;
+        INFO("same pixel format");
+        // support pixel copy & cropping
+        //return kMediaErrorBadParameters;
     }
     // input & output SHOULD have the same width & height
-    if (iformat->video.width == 0 || iformat->video.height == 0 ||
-            iformat->video.width != oformat->video.width ||
-            iformat->video.height != iformat->video.height) {
+    // IGNORE output rectangle, set after process
+    if (iformat->image.width == 0 || iformat->image.height == 0 ||
+        iformat->image.rect.w < oformat->image.width ||
+        iformat->image.rect.h < oformat->image.height) {
         ERROR("bad pixel dimention");
         return kMediaErrorBadParameters;
     }
 
-    ccc->ipf    = *iformat;
-    ccc->opf    = *oformat;
-    ccc->ipd    = GetPixelFormatDescriptor(iformat->format);
-    ccc->opd    = GetPixelFormatDescriptor(oformat->format);
+    ccc->ipf    = iformat->image;
+    ccc->opf    = oformat->image;
+    ccc->ipd    = GetPixelFormatDescriptor(ccc->ipf.format);
+    ccc->opd    = GetPixelFormatDescriptor(ccc->ipf.format);
     return kMediaNoError;
 }
 
@@ -782,12 +785,12 @@ static MediaError colorconvertor_init_420p(MediaUnitContext ref, const MediaForm
     if (colorconvertor_init_common(ccc, iformat, oformat) != kMediaNoError) {
         return kMediaErrorBadParameters;
     }
-    if (oformat->format != kPixelFormat420YpCbCrPlanar) {
-        ERROR("bad output format %s", GetImageFormatString(oformat->image).c_str());
+    if (ccc->opf.format != kPixelFormat420YpCbCrPlanar) {
+        ERROR("bad output format %s", GetImageFormatString(ccc->opf).c_str());
         return kMediaErrorBadParameters;
     }
     
-    ccc->hnd = get_convert_hnd(kTo420YpCbCrPlanar, iformat->format, &ccc->flags);
+    ccc->hnd = get_convert_hnd(kTo420YpCbCrPlanar, ccc->ipf.format, &ccc->flags);
     return ccc->hnd.planar2packed != NULL ? kMediaNoError : kMediaErrorNotSupported;
 }
 
@@ -797,12 +800,12 @@ static MediaError colorconvertor_init_bgra(MediaUnitContext ref, const MediaForm
     if (colorconvertor_init_common(ccc, iformat, oformat) != kMediaNoError) {
         return kMediaErrorBadParameters;
     }
-    if (oformat->format != kPixelFormatBGRA) {
-        ERROR("bad output format %s", GetImageFormatString(oformat->image).c_str());
+    if (ccc->opf.format != kPixelFormatBGRA) {
+        ERROR("bad output format %s", GetImageFormatString(ccc->opf).c_str());
         return kMediaErrorBadParameters;
     }
     
-    ccc->hnd = get_convert_hnd(kToBGRA, iformat->format, &ccc->flags);
+    ccc->hnd = get_convert_hnd(kToBGRA, ccc->ipf.format, &ccc->flags);
     return ccc->hnd.planar2packed != NULL ? kMediaNoError : kMediaErrorNotSupported;
 }
 
@@ -812,12 +815,12 @@ static MediaError colorconvertor_init_rgba(MediaUnitContext ref, const MediaForm
     if (colorconvertor_init_common(ccc, iformat, oformat) != kMediaNoError) {
         return kMediaErrorBadParameters;
     }
-    if (oformat->format != kPixelFormatRGBA) {
-        ERROR("bad output format %s", GetImageFormatString(oformat->image).c_str());
+    if (ccc->opf.format != kPixelFormatRGBA) {
+        ERROR("bad output format %s", GetImageFormatString(ccc->opf).c_str());
         return kMediaErrorBadParameters;
     }
     
-    ccc->hnd = get_convert_hnd(kToRGBA, iformat->format, &ccc->flags);
+    ccc->hnd = get_convert_hnd(kToRGBA, ccc->ipf.format, &ccc->flags);
     return ccc->hnd.planar2packed != NULL ? kMediaNoError : kMediaErrorNotSupported;
 }
 
@@ -827,12 +830,12 @@ static MediaError colorconvertor_init_rgb24(MediaUnitContext ref, const MediaFor
     if (colorconvertor_init_common(ccc, iformat, oformat) != kMediaNoError) {
         return kMediaErrorBadParameters;
     }
-    if (oformat->format != kPixelFormatBGR) {
-        ERROR("bad output format %s", GetImageFormatString(oformat->image).c_str());
+    if (ccc->opf.format != kPixelFormatBGR) {
+        ERROR("bad output format %s", GetImageFormatString(ccc->opf).c_str());
         return kMediaErrorBadParameters;
     }
     
-    ccc->hnd = get_convert_hnd(kToBGR, iformat->format, &ccc->flags);
+    ccc->hnd = get_convert_hnd(kToBGR, ccc->ipf.format, &ccc->flags);
     return ccc->hnd.planar2packed != NULL ? kMediaNoError : kMediaErrorNotSupported;
 }
 
@@ -842,12 +845,12 @@ static MediaError colorconvertor_init_rgb16(MediaUnitContext ref, const MediaFor
     if (colorconvertor_init_common(ccc, iformat, oformat) != kMediaNoError) {
         return kMediaErrorBadParameters;
     }
-    if (oformat->format != kPixelFormatRGB16) {
-        ERROR("bad output format %s", GetImageFormatString(oformat->image).c_str());
+    if (ccc->opf.format != kPixelFormatRGB16) {
+        ERROR("bad output format %s", GetImageFormatString(ccc->opf).c_str());
         return kMediaErrorBadParameters;
     }
     
-    ccc->hnd = get_convert_hnd(kToRGB16, iformat->format, &ccc->flags);
+    ccc->hnd = get_convert_hnd(kToRGB16, ccc->ipf.format, &ccc->flags);
     return ccc->hnd.planar2packed != NULL ? kMediaNoError : kMediaErrorNotSupported;
 }
 
@@ -856,17 +859,16 @@ MediaError colorconvertor_process(MediaUnitContext ref, const MediaBufferList * 
     sp<ColorConvertorContext> ccc = ref;
     const PixelDescriptor * ipd = ccc->ipd;
     const PixelDescriptor * opd = ccc->opd;
-    const MediaFormat& ipf      = ccc->ipf;
+    const ImageFormat& ipf      = ccc->ipf;
+    const ImageFormat& opf      = ccc->opf;
     
     if (input->count != ipd->nb_planes || output->count != opd->nb_planes) {
         return kMediaErrorBadParameters;
     }
     
-    const uint32_t width    = ipf.video.width;
-    const uint32_t height   = ipf.video.height;
     // check input size
     for (size_t i = 0; i < ipd->nb_planes; ++i) {
-        const size_t size = (width * height * ipd->planes[i].bpp) / (8 * ipd->planes[i].hss * ipd->planes[i].vss);
+        const size_t size = (ipf.width * ipf.height * ipd->planes[i].bpp) / (8 * ipd->planes[i].hss * ipd->planes[i].vss);
         if (input->buffers[i].size < size) {
             ERROR("bad input buffer, size mismatch.");
             return kMediaErrorBadParameters;
@@ -875,7 +877,7 @@ MediaError colorconvertor_process(MediaUnitContext ref, const MediaBufferList * 
     
     // check output capacity
     for (size_t i = 0; i < opd->nb_planes; ++i) {
-        const size_t size = (width * height * opd->planes[i].bpp) / (8 * opd->planes[i].hss * opd->planes[i].vss);
+        const size_t size = (opf.width * opf.height * opd->planes[i].bpp) / (8 * opd->planes[i].hss * opd->planes[i].vss);
         if (output->buffers[i].capacity < size) {
             ERROR("bad output buffer, capacity mismatch");
             return kMediaErrorBadParameters;
@@ -884,94 +886,145 @@ MediaError colorconvertor_process(MediaUnitContext ref, const MediaBufferList * 
     }
     
     // create shadows of input&output buffers for uv swap
-    MediaBuffer ibuffers[input->count];
-    MediaBuffer obuffers[output->count];
-    for (size_t i = 0; i < input->count; ++i)   ibuffers[i] = input->buffers[i];
-    for (size_t i = 0; i < output->count; ++i)  obuffers[i] = output->buffers[i];
+    MediaBuffer ibf[input->count];
+    MediaBuffer obf[output->count];
+    for (size_t i = 0; i < input->count; ++i)   ibf[i] = input->buffers[i];
+    for (size_t i = 0; i < output->count; ++i)  obf[i] = output->buffers[i];
     if (ccc->flags & SWAP_UV) {
         DEBUG("swap uv");
         if (IsPlanarYUV(ccc->ipf.format)) {    // prefer swap uv on input
-            ibuffers[1] = input->buffers[2];
-            ibuffers[2] = input->buffers[1];
+            ibf[1] = input->buffers[2];
+            ibf[2] = input->buffers[1];
         } else {
             CHECK_TRUE(IsPlanarYUV(ccc->opf.format));
-            obuffers[1] = output->buffers[2];
-            obuffers[2] = output->buffers[1];
+            obf[1] = output->buffers[2];
+            obf[2] = output->buffers[1];
         }
     }
     
+    size_t offset[ipd->nb_planes];
+    for (size_t i = 0; i < ipd->nb_planes; ++i) {
+        const size_t y = ipf.rect.y / ipd->planes[i].vss;
+        offset[i] = ((ipf.width * y + ipf.rect.x) * ipd->planes[i].bpp) / (8 * ipd->planes[i].hss);
+        //DEBUG("offset[%zu]: %zu", i, offset[i]);
+    }
     switch (ipd->nb_planes) {
         case 3: switch (opd->nb_planes) {
             case 3:
-                ccc->hnd.planar2planar(ibuffers[0].data, (width * ipd->planes[0].bpp) / (8 * ipd->planes[0].hss),
-                                       ibuffers[1].data, (width * ipd->planes[1].bpp) / (8 * ipd->planes[1].hss),
-                                       ibuffers[2].data, (width * ipd->planes[2].bpp) / (8 * ipd->planes[2].hss),
-                                       obuffers[0].data, (width * opd->planes[0].bpp) / (8 * opd->planes[0].hss),
-                                       obuffers[1].data, (width * opd->planes[1].bpp) / (8 * opd->planes[1].hss),
-                                       obuffers[2].data, (width * opd->planes[2].bpp) / (8 * opd->planes[2].hss),
-                                       width, height);
+                ccc->hnd.planar2planar(ibf[0].data + offset[0],
+                                       (ipf.width * ipd->planes[0].bpp) / (8 * ipd->planes[0].hss),
+                                       ibf[1].data + offset[1],
+                                       (ipf.width * ipd->planes[1].bpp) / (8 * ipd->planes[1].hss),
+                                       ibf[2].data + offset[2],
+                                       (ipf.width * ipd->planes[2].bpp) / (8 * ipd->planes[2].hss),
+                                       obf[0].data,
+                                       (opf.width * opd->planes[0].bpp) / (8 * opd->planes[0].hss),
+                                       obf[1].data,
+                                       (opf.width * opd->planes[1].bpp) / (8 * opd->planes[1].hss),
+                                       obf[2].data,
+                                       (opf.width * opd->planes[2].bpp) / (8 * opd->planes[2].hss),
+                                       opf.width,
+                                       opf.height);
                 break;
             case 2:
-                ccc->hnd.planar2semiplanar(ibuffers[0].data, (width * ipd->planes[0].bpp) / (8 * ipd->planes[0].hss),
-                                           ibuffers[1].data, (width * ipd->planes[1].bpp) / (8 * ipd->planes[1].hss),
-                                           ibuffers[2].data, (width * ipd->planes[2].bpp) / (8 * ipd->planes[2].hss),
-                                           obuffers[0].data, (width * opd->planes[0].bpp) / (8 * opd->planes[0].hss),
-                                           obuffers[1].data, (width * opd->planes[1].bpp) / (8 * opd->planes[1].hss),
-                                           width, height);
+                ccc->hnd.planar2semiplanar(ibf[0].data + offset[0],
+                                           (ipf.width * ipd->planes[0].bpp) / (8 * ipd->planes[0].hss),
+                                           ibf[1].data + offset[1],
+                                           (ipf.width * ipd->planes[1].bpp) / (8 * ipd->planes[1].hss),
+                                           ibf[2].data + offset[2],
+                                           (ipf.width * ipd->planes[2].bpp) / (8 * ipd->planes[2].hss),
+                                           obf[0].data,
+                                           (opf.width * opd->planes[0].bpp) / (8 * opd->planes[0].hss),
+                                           obf[1].data,
+                                           (opf.width * opd->planes[1].bpp) / (8 * opd->planes[1].hss),
+                                           opf.width,
+                                           opf.height);
                 break;
             case 1:
-                ccc->hnd.planar2packed(ibuffers[0].data, (width * ipd->planes[0].bpp) / (8 * ipd->planes[0].hss),
-                                       ibuffers[1].data, (width * ipd->planes[1].bpp) / (8 * ipd->planes[1].hss),
-                                       ibuffers[2].data, (width * ipd->planes[2].bpp) / (8 * ipd->planes[2].hss),
-                                       obuffers[0].data, (width * opd->bpp) / 8,
-                                       width, height);
+                ccc->hnd.planar2packed(ibf[0].data + offset[0],
+                                       (ipf.width * ipd->planes[0].bpp) / (8 * ipd->planes[0].hss),
+                                       ibf[1].data + offset[1],
+                                       (ipf.width * ipd->planes[1].bpp) / (8 * ipd->planes[1].hss),
+                                       ibf[2].data + offset[2],
+                                       (ipf.width * ipd->planes[2].bpp) / (8 * ipd->planes[2].hss),
+                                       obf[0].data,
+                                       (opf.width * opd->bpp) / 8,
+                                       opf.width,
+                                       opf.height);
                 break;
             default:
                 break;
         } break;
         case 2: switch (opd->nb_planes) {
             case 3:
-                ccc->hnd.semiplanar2planar(ibuffers[0].data, (width * ipd->planes[0].bpp) / (8 * ipd->planes[0].hss),
-                                           ibuffers[1].data, (width * ipd->planes[1].bpp) / (8 * ipd->planes[1].hss),
-                                           obuffers[0].data, (width * opd->planes[0].bpp) / (8 * opd->planes[0].hss),
-                                           obuffers[1].data, (width * opd->planes[1].bpp) / (8 * opd->planes[1].hss),
-                                           obuffers[2].data, (width * opd->planes[2].bpp) / (8 * opd->planes[2].hss),
-                                           width, height);
+                ccc->hnd.semiplanar2planar(ibf[0].data + offset[0],
+                                           (ipf.width * ipd->planes[0].bpp) / (8 * ipd->planes[0].hss),
+                                           ibf[1].data + offset[1],
+                                           (ipf.width * ipd->planes[1].bpp) / (8 * ipd->planes[1].hss),
+                                           obf[0].data,
+                                           (opf.width * opd->planes[0].bpp) / (8 * opd->planes[0].hss),
+                                           obf[1].data,
+                                           (opf.width * opd->planes[1].bpp) / (8 * opd->planes[1].hss),
+                                           obf[2].data,
+                                           (opf.width * opd->planes[2].bpp) / (8 * opd->planes[2].hss),
+                                           opf.width,
+                                           opf.height);
                 break;
             case 2:
-                ccc->hnd.semiplanar2semiplanar(ibuffers[0].data, (width * ipd->planes[0].bpp) / (8 * ipd->planes[0].hss),
-                                               ibuffers[1].data, (width * ipd->planes[1].bpp) / (8 * ipd->planes[1].hss),
-                                               obuffers[0].data, (width * opd->planes[0].bpp) / (8 * opd->planes[0].hss),
-                                               obuffers[1].data, (width * opd->planes[1].bpp) / (8 * opd->planes[1].hss),
-                                               width, height);
+                ccc->hnd.semiplanar2semiplanar(ibf[0].data + offset[0],
+                                               (ipf.width * ipd->planes[0].bpp) / (8 * ipd->planes[0].hss),
+                                               ibf[1].data + offset[1],
+                                               (ipf.width * ipd->planes[1].bpp) / (8 * ipd->planes[1].hss),
+                                               obf[0].data,
+                                               (opf.width * opd->planes[0].bpp) / (8 * opd->planes[0].hss),
+                                               obf[1].data,
+                                               (opf.width * opd->planes[1].bpp) / (8 * opd->planes[1].hss),
+                                               opf.width,
+                                               opf.height);
                 break;
             case 1:
-                ccc->hnd.semiplanar2packed(ibuffers[0].data, (width * ipd->planes[0].bpp) / (8 * ipd->planes[0].hss),
-                                           ibuffers[1].data, (width * ipd->planes[1].bpp) / (8 * ipd->planes[1].hss),
-                                           obuffers[0].data, (width * opd->bpp) / 8,
-                                           width, height);
+                ccc->hnd.semiplanar2packed(ibf[0].data + offset[0],
+                                           (ipf.width * ipd->planes[0].bpp) / (8 * ipd->planes[0].hss),
+                                           ibf[1].data + offset[1],
+                                           (ipf.width * ipd->planes[1].bpp) / (8 * ipd->planes[1].hss),
+                                           obf[0].data,
+                                           (opf.width * opd->bpp) / 8,
+                                           opf.width,
+                                           opf.height);
                 break;
             default:
                 break;
         } break;
         case 1: switch (opd->nb_planes) {
             case 3:
-                ccc->hnd.packed2planar(ibuffers[0].data, (width * ipd->bpp) / 8,
-                                       obuffers[0].data, (width * opd->planes[0].bpp) / (8 * opd->planes[0].hss),
-                                       obuffers[1].data, (width * opd->planes[1].bpp) / (8 * opd->planes[1].hss),
-                                       obuffers[2].data, (width * opd->planes[2].bpp) / (8 * opd->planes[2].hss),
-                                       width, height);
+                ccc->hnd.packed2planar(ibf[0].data + offset[0],
+                                       (ipf.width * ipd->bpp) / 8,
+                                       obf[0].data,
+                                       (opf.width * opd->planes[0].bpp) / (8 * opd->planes[0].hss),
+                                       obf[1].data,
+                                       (opf.width * opd->planes[1].bpp) / (8 * opd->planes[1].hss),
+                                       obf[2].data,
+                                       (opf.width * opd->planes[2].bpp) / (8 * opd->planes[2].hss),
+                                       opf.width,
+                                       opf.height);
                 break;
             case 2:
-                ccc->hnd.packed2semiplanar(ibuffers[0].data, (width * ipd->bpp) / 8,
-                                           obuffers[0].data, (width * opd->planes[0].bpp) / (8 * opd->planes[0].hss),
-                                           obuffers[1].data, (width * opd->planes[1].bpp) / (8 * opd->planes[1].hss),
-                                           width, height);
+                ccc->hnd.packed2semiplanar(ibf[0].data + offset[0],
+                                           (ipf.width * ipd->bpp) / 8,
+                                           obf[0].data,
+                                           (opf.width * opd->planes[0].bpp) / (8 * opd->planes[0].hss),
+                                           obf[1].data,
+                                           (opf.width * opd->planes[1].bpp) / (8 * opd->planes[1].hss),
+                                           opf.width,
+                                           opf.height);
                 break;
             case 1:
-                ccc->hnd.packed2packed(ibuffers[0].data, (width * ipd->bpp) / 8,
-                                       obuffers[0].data, (width * opd->bpp) / 8,
-                                       width, height);
+                ccc->hnd.packed2packed(ibf[0].data + offset[0],
+                                       (ipf.width * ipd->bpp) / 8,
+                                       obf[0].data,
+                                       (opf.width * opd->bpp) / 8,
+                                       opf.width,
+                                       opf.height);
                 break;
             default:
                 break;
@@ -981,8 +1034,8 @@ MediaError colorconvertor_process(MediaUnitContext ref, const MediaBufferList * 
     
     if (ccc->flags & BSWAP_32L) {
         DEBUG("swap32l");
-        swap32l(obuffers[0].data, obuffers[0].size,
-                obuffers[0].data, obuffers[0].size);
+        swap32l(obf[0].data, obf[0].size,
+                obf[0].data, obf[0].size);
     }
     
     DEBUG("process: => %s", GetMediaBufferListString(*output).c_str());
@@ -1171,13 +1224,7 @@ struct ColorConverter : public MediaDevice {
         
         if (mFrame != NULL) return kMediaErrorResourceBusy;
         
-        // copy input properties
-        ImageFormat image       = mOutput;
-        image.width             = input->video.width;
-        image.height            = input->video.height;
-        image.rect              = input->video.rect;
-        
-        sp<MediaFrame> output   = MediaFrame::Create(image);
+        sp<MediaFrame> output   = MediaFrame::Create(mOutput);
         
         MediaError st = mUnit->process(mInstance,
                                        &input->planes,
@@ -1188,6 +1235,7 @@ struct ColorConverter : public MediaDevice {
             return kMediaErrorUnknown;
         }
         
+        // copy input properties
         output->id          = input->id;
         output->flags       = input->flags;
         output->timecode    = input->timecode;
