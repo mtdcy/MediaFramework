@@ -89,11 +89,11 @@ namespace MPEG4 {
     //
     // NALU = HEADER + RBSP(Raw Byte Sequence Payload)
     struct NALU {
-        uint8_t         nal_ref_idc;    // 0: non-referenced picture
+        UInt8         nal_ref_idc;    // 0: non-referenced picture
         eNALUnitType    nal_unit_type;
         union {
             struct {
-                uint32_t    first_mb_in_slice;
+                UInt32    first_mb_in_slice;
                 eSliceType  slice_type;
                 // ...
             } slice_header;  // SLICE | DPA | IDR
@@ -133,11 +133,11 @@ namespace MPEG4 {
         AVCDecoderConfigurationRecord() {}
         MediaError parse(const sp<ABuffer>&);
         MediaError compose(sp<ABuffer>&) const;
-        size_t size() const;
+        UInt32 size() const;
 
-        uint8_t     AVCProfileIndication;
-        uint8_t     AVCLevelIndication;
-        uint8_t     lengthSizeMinusOne;
+        UInt8     AVCProfileIndication;
+        UInt8     AVCLevelIndication;
+        UInt8     lengthSizeMinusOne;
         List<sp<Buffer> >   SPSs;
         List<sp<Buffer> >   PPSs;
     };

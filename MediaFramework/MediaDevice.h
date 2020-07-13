@@ -43,33 +43,33 @@
  *  audio track formats:
  *   kKeyFormat:        eAudioCodec     [*] audio codec
  *   kKeyType:          eCodecType      [ ] codec type, default:kCodecTypeAudio
- *   kKeyChannels:      uint32_t        [*] audio channels
- *   kKeySampleRate:    uint32_t        [*] audio sample rate
- *   kKeyChannelMap:    uint32_t        [ ] audio channel map
+ *   kKeyChannels:      UInt32        [*] audio channels
+ *   kKeySampleRate:    UInt32        [*] audio sample rate
+ *   kKeyChannelMap:    UInt32        [ ] audio channel map
  *   kKeyESDS:          sp<Buffer>      [ ] audio magic data
  *
  *  audio sample formats:
  *   kKeyFormat:        eSampleFormat   [*] sample format
  *   kKeyType:          eCodecType      [ ] codec type, default:kCodecTypeAudio
- *   kKeyChannels:      uint32_t        [*] audio channels
- *   kKeySampleRate:    uint32_t        [*] audio sample rate
+ *   kKeyChannels:      UInt32        [*] audio channels
+ *   kKeySampleRate:    UInt32        [*] audio sample rate
  *
  *  video track formats:
  *   kKeyFormat:        eVideoCodec     [*] video codec
  *   kKeyType:          eCodecType      [*] codec type, default:kCodecTypeVideo
- *   kKeyWidth:         uint32_t        [*] video width
- *   kKeyHeight:        uint32_t        [*] video height
+ *   kKeyWidth:         UInt32        [*] video width
+ *   kKeyHeight:        UInt32        [*] video height
  *   kKeyavcC:          sp<Buffer>      [ ] h264 avcC data
  *   kKeyhvcC:          sp<Buffer>      [ ] hevc hvcC data
  *
  *  video pixel formats:
  *   kKeyFormat:        ePixelFormat    [*] pixel format
  *   kKeyType:          eCodecType      [*] codec type, default:kCodecTypeVideo   
- *   kKeyWidth:         uint32_t        [*] video width
- *   kKeyHeight:        uint32_t        [*] video height
+ *   kKeyWidth:         UInt32        [*] video width
+ *   kKeyHeight:        UInt32        [*] video height
  *
  *  common track formats:
- *   kKeyBitrate:       uint32_t        [ ] bit rate
+ *   kKeyBitrate:       UInt32        [ ] bit rate
  */
 
 /**
@@ -81,24 +81,24 @@
  *
  *  output formats:
  *   kKeyFormat:        eFileFormat     [*] file format
- *   kKeyDuration:      int64_t         [ ] file duration in us
- *   kKeyBitrate:       uint32_t        [ ] bit rate
+ *   kKeyDuration:      Int64         [ ] file duration in us
+ *   kKeyBitrate:       UInt32        [ ] bit rate
  *   kKeyMetaData:      sp<Message>     [ ] file meta data
- *   kKeyCount:         uint32_t        [ ] track count, default:1
+ *   kKeyCount:         UInt32        [ ] track count, default:1
  *   kKeyTrack + i:     sp<Message>     [*] audio/video/subtitle track format
  *
  *  configure options:
- *   kKeySeek:          int64_t         [ ] perform seek
- *   kKeyTracks:        uint32_t        [ ] perform track select based on track mask
+ *   kKeySeek:          Int64         [ ] perform seek
+ *   kKeyTracks:        UInt32        [ ] perform track select based on track mask
  *
  * Codec Device:
  *  input formats:
  *   ... audio/video track formats
- *   kKeyRequestFormat: uint32_t        [ ] track request format
+ *   kKeyRequestFormat: UInt32        [ ] track request format
  *
  *  input options:
  *   kKeyMode:          eModeType       [ ] codec mode
- *   kKeyPause:         bool            [ ] pause/unpause codec, some codec may need this
+ *   kKeyPause:         Bool            [ ] pause/unpause codec, some codec may need this
  *
  *  output formats:
  *   ... sample formats/pixel formats
@@ -111,11 +111,11 @@
  *
  *  output formats:
  *   ... sample formats/pixel formats
- *   kKeyLatency:       int64_t         [ ] device push latency in us
+ *   kKeyLatency:       Int64         [ ] device push latency in us
  *   kKeyMode:          eBlockModeType  [ ] device push mode, default:kModeBlock
  *
  *  configure options:
- *   kKeyPause:         bool            [ ] pause/unpause device
+ *   kKeyPause:         Bool            [ ] pause/unpause device
  */
 
 __BEGIN_DECLS
@@ -125,35 +125,35 @@ __BEGIN_DECLS
 enum {
     // common keys
     kKeyContent         = FOURCC('cont'),       ///< sp<ABuffer>
-    kKeyFormat          = FOURCC(' fmt'),       ///< uint32_t, @see eFileFormat/eAudioCodec/eVideoCodec/eSampleFormat/ePixelFormat
-    kKeyRequestFormat   = FOURCC('!fmt'),       ///< uint32_t
-    kKeyType            = FOURCC('type'),       ///< uint32_t, @see eCodecType
-    kKeyMode            = FOURCC('mode'),       ///< uint32_t,
-    kKeySeek            = FOURCC('seek'),       ///< int64_t, us
-    kKeyDuration        = FOURCC('dura'),       ///< int64_t, us
-    kKeyLatency         = FOURCC('late'),       ///< int64_t, us
-    kKeyChannels        = FOURCC('chan'),       ///< uint32_t
-    kKeySampleRate      = FOURCC('srat'),       ///< uint32_t
-    kKeyChannelMap      = FOURCC('cmap'),       ///< uint32_t
-    kKeyWidth           = FOURCC('widt'),       ///< uint32_t
-    kKeyHeight          = FOURCC('heig'),       ///< uint32_t
-    kKeyRotate          = FOURCC('?rot'),       ///< uint32_t, eRotate
-    kKeyCount           = FOURCC('#cnt'),       ///< uint32_t
-    kKeyBitrate         = FOURCC('btrt'),       ///< uint32_t
-    kKeyTracks          = FOURCC('trak'),       ///< int32_t, bit mask
+    kKeyFormat          = FOURCC(' fmt'),       ///< UInt32, @see eFileFormat/eAudioCodec/eVideoCodec/eSampleFormat/ePixelFormat
+    kKeyRequestFormat   = FOURCC('!fmt'),       ///< UInt32
+    kKeyType            = FOURCC('type'),       ///< UInt32, @see eCodecType
+    kKeyMode            = FOURCC('mode'),       ///< UInt32,
+    kKeySeek            = FOURCC('seek'),       ///< Int64, us
+    kKeyDuration        = FOURCC('dura'),       ///< Int64, us
+    kKeyLatency         = FOURCC('late'),       ///< Int64, us
+    kKeyChannels        = FOURCC('chan'),       ///< UInt32
+    kKeySampleRate      = FOURCC('srat'),       ///< UInt32
+    kKeyChannelMap      = FOURCC('cmap'),       ///< UInt32
+    kKeyWidth           = FOURCC('widt'),       ///< UInt32
+    kKeyHeight          = FOURCC('heig'),       ///< UInt32
+    kKeyRotate          = FOURCC('?rot'),       ///< UInt32, eRotate
+    kKeyCount           = FOURCC('#cnt'),       ///< UInt32
+    kKeyBitrate         = FOURCC('btrt'),       ///< UInt32
+    kKeyTracks          = FOURCC('trak'),       ///< Int32, bit mask
     kKeyTrack           = FOURCC('0trk'),       ///< sp<Message>
-    kKeyError           = FOURCC('!err'),       ///< int32_t, MediaError
+    kKeyError           = FOURCC('!err'),       ///< Int32, MediaError
     kKeyOpenGLContext   = FOURCC('oglt'),       ///< void *
-    kKeyPause           = FOURCC('paus'),       ///< int32_t, bool
-    kKeyColorMatrix     = FOURCC('cmat'),       ///< uint32_t, @see eColorMatrix
-    kKeyDeviceName      = FOURCC('dnam'),       ///< uint32_t
+    kKeyPause           = FOURCC('paus'),       ///< Int32, Bool
+    kKeyColorMatrix     = FOURCC('cmat'),       ///< UInt32, @see eColorMatrix
+    kKeyDeviceName      = FOURCC('dnam'),       ///< UInt32
     kKeyESDS            = FOURCC('esds'),       ///< sp<Buffer>
     kKeyavcC            = FOURCC('avcC'),       ///< sp<Buffer>
     kKeyhvcC            = FOURCC('hvcC'),       ///< sp<Buffer>
     kKeyCodecSpecData   = FOURCC('#csd'),       ///< sp<Buffer>
     kKeyMetaData        = FOURCC('meta'),       ///< sp<Message>
-    kKeyEncoderDelay    = FOURCC('edly'),       ///< int32_t
-    kKeyEncoderPadding  = FOURCC('epad'),       ///< int32_t
+    kKeyEncoderDelay    = FOURCC('edly'),       ///< Int32
+    kKeyEncoderPadding  = FOURCC('epad'),       ///< Int32
     
     // Microsoft codec manager data
     kKeyMicrosoftVCM    = FOURCC('MVCM'),       ///< sp<Buffer>, Microsoft VCM, exists in matroska, @see BITMAPINFOHEADER
@@ -161,7 +161,7 @@ enum {
     
     kKeyMax             = MEDIA_ENUM_MAX
 };
-typedef uint32_t eKeyType;
+typedef UInt32 eKeyType;
 
 #pragma mark Meta Data Keys
 // meta data keys, default value type is string
@@ -203,14 +203,14 @@ enum {
     kModeTypePreview,
     kModeTypeDefault    = kModeTypeNormal
 };
-typedef uint32_t eModeType;
+typedef UInt32 eModeType;
 
 // key - kKeyMode
 enum {
     kModeBlock      = FOURCC('!blk'),
     kModeNonBlock   = FOURCC('~blk'),
 };
-typedef uint32_t eBlockModeType;
+typedef UInt32 eBlockModeType;
 
 enum {
     kDeviceOpenGL       = FOURCC('opgl'),
@@ -220,7 +220,7 @@ enum {
     kDeviceLibavformat  = FOURCC('lavf'),
     kDeviceLibavcodec   = FOURCC('lavc'),
 };
-typedef uint32_t eDeviceName;
+typedef UInt32 eDeviceName;
 
 __END_DECLS
 
@@ -231,7 +231,7 @@ class API_EXPORT MediaDevice : public SharedObject {
     public:
         /**
          * create a media device with given formats and options
-         * @return return reference to media device on success, or NULL on failure
+         * @return return reference to media device on success, or Nil on failure
          */
         static sp<MediaDevice>  create(const sp<Message>&, const sp<Message>&);
         /**
@@ -256,15 +256,15 @@ class API_EXPORT MediaDevice : public SharedObject {
          *         return kMediaErrorResourceBusy if device is busy, pull and push again.
          *         return kMediaErrorInvalidOperation if push is not available
          *         return MediaError code when push after pull failed.
-         * @note push a NULL MediaFrame to notify end of stream.
+         * @note push a Nil MediaFrame to notify end of stream.
          * @note push maybe in block or non-block way, block by default
          */
         virtual MediaError      push(const sp<MediaFrame>&) = 0;
         /**
          * pull a MediaFrame from this media device
-         * @return return MediaFrame reference on success or NULL
-         * @note some devices has delays on output and will return NULL on first few pull.
-         * @note pull return NULL on failure too, but next push will return MediaError code.
+         * @return return MediaFrame reference on success or Nil
+         * @note some devices has delays on output and will return Nil on first few pull.
+         * @note pull return Nil on failure too, but next push will return MediaError code.
          */
         virtual sp<MediaFrame>  pull()                      = 0;
         /**

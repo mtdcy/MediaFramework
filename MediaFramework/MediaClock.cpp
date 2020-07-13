@@ -42,7 +42,7 @@ __BEGIN_NAMESPACE_MPX
 
 SharedClock::ClockInt::ClockInt() :
     mMediaTime(0LL), mSystemTime(0LL),
-    mStarted(false), mTicking(false), mSpeed(1.0f)
+    mStarted(False), mTicking(False), mSpeed(1.0f)
 {
 }
 
@@ -63,20 +63,20 @@ void SharedClock::start() {
     if (mMasterClock.load()) {
         // wait master clock to update
     } else {
-        mClockInt.mSystemTime   = SystemTimeUs();
-        mClockInt.mTicking      = true;
+        mClockInt.mSystemTime   = Time::Now();
+        mClockInt.mTicking      = True;
     }
-    mClockInt.mStarted  = true;
+    mClockInt.mStarted  = True;
     ++mGeneration;
     notifyListeners_l(kClockStateTicking);
 }
 
-void SharedClock::set(int64_t us) {
+void SharedClock::set(Time t) {
     AutoLock _l(mLock);
     
     // set clock time without alter its state
-    mClockInt.mMediaTime  = us;
-    mClockInt.mSystemTime = SystemTimeUs();
+    mClockInt.mMediaTime  = t;
+    mClockInt.mSystemTime = Time::Now();
     ++mGeneration;
     notifyListeners_l(kClockStateTimeChanged);
 }
@@ -88,19 +88,18 @@ void SharedClock::update(const ClockInt& c) {
 }
 
 // get clock time with speed
-int64_t SharedClock::get() const {
+Time SharedClock::get() const {
     AutoLock _l(mLock);
     return get_l() * mClockInt.mSpeed;
 }
 
 // get clock time without speed
-int64_t SharedClock::get_l() const {
+Time SharedClock::get_l() const {
     if (!mClockInt.mStarted || !mClockInt.mTicking) {
         return mClockInt.mMediaTime;
     }
 
-    int64_t now = SystemTimeUs();
-    return mClockInt.mMediaTime + (now - mClockInt.mSystemTime);
+    return mClockInt.mMediaTime + (Time::Now() - mClockInt.mSystemTime);
 }
 
 void SharedClock::pause() {
@@ -117,26 +116,26 @@ void SharedClock::pause() {
         // wait master clock to update
     } else {
         mClockInt.mMediaTime    = get_l();
-        mClockInt.mSystemTime   = SystemTimeUs();
-        mClockInt.mTicking      = false;
+        mClockInt.mSystemTime   = Time::Now();
+        mClockInt.mTicking      = False;
     }
-    mClockInt.mStarted  = false;
+    mClockInt.mStarted  = False;
     ++mGeneration;
     notifyListeners_l(kClockStatePaused);
 }
 
-bool SharedClock::isPaused() const {
+Bool SharedClock::isPaused() const {
     AutoLock _l(mLock);
     return !mClockInt.mStarted;
 }
 
-void SharedClock::setSpeed(double s) {
+void SharedClock::setSpeed(Float64 s) {
     AutoLock _l(mLock);
     mClockInt.mSpeed = s;
     ++mGeneration;
 }
 
-double SharedClock::speed() const {
+Float64 SharedClock::speed() const {
     AutoLock _l(mLock);
     return mClockInt.mSpeed;
 }
@@ -178,7 +177,7 @@ Clock::~Clock() {
 
 void Clock::reload() const {
     // compare generation without lock
-    int gen = mClock->mGeneration.load();
+    Int gen = mClock->mGeneration.load();
     CHECK_GE(gen, mGeneration);
     if (gen == mGeneration) return;
 
@@ -188,7 +187,7 @@ void Clock::reload() const {
 }
 
 void Clock::setListener(const sp<ClockEvent> &ce) {
-    if (ce == NULL) {
+    if (ce == Nil) {
         mClock->_unregListener(this);
     } else {
         mClock->_regListener(this, ce);
@@ -199,9 +198,9 @@ void Clock::start() {
     if (mRole != kClockRoleMaster) return;
     reload();
     
-    mClockInt.mSystemTime   = SystemTimeUs();
-    mClockInt.mTicking      = true;
-    mClockInt.mStarted      = true;
+    mClockInt.mSystemTime   = Time::Now();
+    mClockInt.mTicking      = True;
+    mClockInt.mStarted      = True;
     mClock->update(mClockInt);
 }
 
@@ -210,18 +209,18 @@ void Clock::pause() {
     reload();
     
     mClockInt.mMediaTime    = getInt();
-    mClockInt.mSystemTime   = SystemTimeUs();
-    mClockInt.mTicking      = false;
-    mClockInt.mStarted      = false;
+    mClockInt.mSystemTime   = Time::Now();
+    mClockInt.mTicking      = False;
+    mClockInt.mStarted      = False;
     mClock->update(mClockInt);
 }
 
-void Clock::update(int64_t us) {
-    CHECK_EQ(mRole, (uint32_t)kClockRoleMaster, "only master clock can update");
+void Clock::update(Time t) {
+    CHECK_EQ(mRole, (UInt32)kClockRoleMaster, "only master clock can update");
     reload();
     CHECK_TRUE(mClockInt.mTicking);
     
-    int64_t delta = us - getInt();
+    Time delta = t - getInt();
     // sanity check: clock can only increase
     if (delta < 0)          delta = 0;
     // TODO: apply linear regression
@@ -230,36 +229,35 @@ void Clock::update(int64_t us) {
     mClock->update(mClockInt);
 }
 
-bool Clock::isPaused() const {
+Bool Clock::isPaused() const {
     reload();
     return !mClockInt.mStarted;
 }
 
 #if 0
-bool Clock::isTicking() const {
+Bool Clock::isTicking() const {
     reload();
     return mClockInt.mTicking;
 }
 #endif
 
-double Clock::speed() const {
+Float64 Clock::speed() const {
     reload();
     return mClockInt.mSpeed;
 }
 
 // get clock media time without speed
-int64_t Clock::getInt() const {
+Time Clock::getInt() const {
     reload();
     // only check mTicking here, @see start()/pause()
     if (!mClockInt.mTicking) {
         return mClockInt.mMediaTime;
     }
 
-    int64_t now = SystemTimeUs();
-    return mClockInt.mMediaTime + (now - mClockInt.mSystemTime);
+    return mClockInt.mMediaTime + (Time::Now() - mClockInt.mSystemTime);
 }
 
-int64_t Clock::get() const {
+Time Clock::get() const {
     return getInt() * mClockInt.mSpeed;
 }
 

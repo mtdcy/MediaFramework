@@ -74,9 +74,9 @@ class API_EXPORT SharedClock : public SharedObject {
 
         /**
          * set clock time, without alter clock state
-         * @param   us      media time
+         * @param t     media time.
          */
-        void        set(int64_t us);
+        void        set(Time t);
         /**
          * start this clock.
          * @note only alter clock state, media time won't update yet.
@@ -89,25 +89,25 @@ class API_EXPORT SharedClock : public SharedObject {
         void        pause();
         /**
          * get this clock's state.
-         * @return return true if paused.
+         * @return return True if paused.
          */
-        bool        isPaused() const;
+        Bool        isPaused() const;
         /**
          * set this clock's speed.
-         * @param   s   speed of clock in double.
+         * @param   s   speed of clock in Float64.
          */
-        void        setSpeed(double s);
+        void        setSpeed(Float64 s);
         /**
          * get this clock's speed.
-         * @return clock speed in double.
+         * @return clock speed in Float64.
          */
-        double      speed() const;
+        Float64     speed() const;
 
         /**
          * get clock media time
          * @return  media time, always valid.
          */
-        int64_t     get() const;
+        Time        get() const;
 
     private:
         void        _regListener(const void * who, const sp<ClockEvent>& ce);
@@ -116,18 +116,18 @@ class API_EXPORT SharedClock : public SharedObject {
         void        notifyListeners_l(eClockState state);
 
     private:
-        // atomic int
-        Atomic<int>     mGeneration;
-        Atomic<int>     mMasterClock;
+        // atomic Int
+        Atomic<Int>     mGeneration;
+        Atomic<Int>     mMasterClock;
         // clock internal context
         mutable Mutex   mLock;          ///< lock for ClockInt
         struct ClockInt {
             ClockInt();
-            int64_t     mMediaTime;
-            int64_t     mSystemTime;
-            bool        mStarted;       ///< clock state, only start() & pause() can alter it
-            bool        mTicking;
-            double      mSpeed;
+            Time        mMediaTime;
+            Time        mSystemTime;
+            Bool        mStarted;       ///< clock state, only start() & pause() can alter it
+            Bool        mTicking;
+            Float64     mSpeed;
         };
         ClockInt        mClockInt;
 
@@ -136,7 +136,7 @@ class API_EXPORT SharedClock : public SharedObject {
         void            update(const ClockInt&);
         HashTable<const void *, sp<ClockEvent> > mListeners;
 
-        int64_t         get_l() const;
+        Time            get_l() const;
 
         DISALLOW_EVILS(SharedClock);
 };
@@ -164,20 +164,20 @@ class API_EXPORT Clock : public SharedObject {
 
         /**
          * set event to this clock
-         * @param ce    reference of ClockEvent. if ce = NULL,
+         * @param ce    reference of ClockEvent. if ce = Nil,
          *              clear the listener
          */
         void        setListener(const sp<ClockEvent>& ce);
 
         /** @see SharedClock::get() */
-        int64_t     get() const;
+        Time        get() const;
 
         /** @see SharedClock::isPaused() */
-        bool        isPaused() const;
-        //bool        isTicking() const;
+        Bool        isPaused() const;
+        //Bool        isTicking() const;
 
         /** @see SharedClock::speed() */
-        double      speed() const;
+        Float64     speed() const;
     
         /**
          * update clock start media time
@@ -193,10 +193,10 @@ class API_EXPORT Clock : public SharedObject {
     
         /**
          * update clock media time
-         * @param us media time
+         * @param t media time
          * @note update method is only for master clock
          */
-        void        update(int64_t us);
+        void        update(Time t);
 
     private:
         /**
@@ -204,7 +204,7 @@ class API_EXPORT Clock : public SharedObject {
          * otherwise do NOTHING.
          */
         void        reload() const;
-        int64_t     getInt() const;
+        Time        getInt() const;
 
     private:
         // NO lock here
@@ -213,7 +213,7 @@ class API_EXPORT Clock : public SharedObject {
         /**
          * shadow of SharedClock::mGeneration
          */
-        mutable int                     mGeneration;
+        mutable Int                     mGeneration;
         /**
          * shadow of SharedClock internal context
          * @see SharedClock::ClockInt

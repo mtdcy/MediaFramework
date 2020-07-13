@@ -43,13 +43,13 @@ __BEGIN_NAMESPACE_MPX
 __BEGIN_NAMESPACE(MPEG4)
 
 // samplingFrequencyIndex
-const uint32_t kM4ASamplingRate[16] = {
+const UInt32 kM4ASamplingRate[16] = {
     96000,  88200,  64000,  48000,
     44100,  32000,  24000,  22050,
     16000,  12000,  11025,  8000,
     7350,   0,      0,      0/*escape value*/
 };
-const uint8_t kM4AChannels[8] = {
+const UInt8 kM4AChannels[8] = {
     0,      1,      2,      3,
     4,      5,      5+1,    7+1
 };
@@ -64,15 +64,15 @@ static FORCE_INLINE eAudioObjectType objectType(const sp<ABuffer>& buffer) {
     return aot;
 }
 
-static FORCE_INLINE uint8_t samplingFrequencyIndex(uint32_t freq) {
-    for (size_t i = 0; i < 16; ++i) {
+static FORCE_INLINE UInt8 samplingFrequencyIndex(UInt32 freq) {
+    for (UInt32 i = 0; i < 16; ++i) {
         if (kM4ASamplingRate[i] == freq) return i;
     }
     return 15;  // ext value
 }
 
-static FORCE_INLINE uint8_t channelIndex(uint8_t channels) {
-    for (size_t i = 0; i < 8; ++i) {
+static FORCE_INLINE UInt8 channelIndex(UInt8 channels) {
+    for (UInt32 i = 0; i < 8; ++i) {
         if (kM4AChannels[i] == channels) return i;
     }
     return 0;   // invalid value
@@ -85,28 +85,28 @@ GASpecificConfig::GASpecificConfig() {
 }
 
 static void program_config_element(const sp<ABuffer>& buffer) {
-    uint8_t element_instance_tag    = buffer->read(4);
-    uint8_t object_type             = buffer->read(2);
-    uint8_t sampling_frequency_index = buffer->read(4);
-    uint8_t num_front_channel_elements = buffer->read(4);
-    uint8_t num_side_channel_elements = buffer->read(4);
-    uint8_t num_back_channel_elements = buffer->read(4);
-    uint8_t num_lfe_channel_elements = buffer->read(2);
-    uint8_t num_assoc_data_elements = buffer->read(3);
-    uint8_t num_valid_cc_elements = buffer->read(4);
+    UInt8 element_instance_tag    = buffer->read(4);
+    UInt8 object_type             = buffer->read(2);
+    UInt8 sampling_frequency_index = buffer->read(4);
+    UInt8 num_front_channel_elements = buffer->read(4);
+    UInt8 num_side_channel_elements = buffer->read(4);
+    UInt8 num_back_channel_elements = buffer->read(4);
+    UInt8 num_lfe_channel_elements = buffer->read(2);
+    UInt8 num_assoc_data_elements = buffer->read(3);
+    UInt8 num_valid_cc_elements = buffer->read(4);
     
-    uint8_t mono_mixdown_present = buffer->read(1);
+    UInt8 mono_mixdown_present = buffer->read(1);
     if (mono_mixdown_present) {
-        uint8_t mono_mixdown_element_number = buffer->read(4);
+        UInt8 mono_mixdown_element_number = buffer->read(4);
     }
-    uint8_t stereo_mixdown_present = buffer->read(1);
+    UInt8 stereo_mixdown_present = buffer->read(1);
     if (stereo_mixdown_present) {
-        uint8_t stereo_mixdown_element_number = buffer->read(4);
+        UInt8 stereo_mixdown_element_number = buffer->read(4);
     }
-    uint8_t matrix_mixdown_idx_present = buffer->read(1);
+    UInt8 matrix_mixdown_idx_present = buffer->read(1);
     if (matrix_mixdown_idx_present) {
-        uint8_t matrix_mixdown_idx = buffer->read(2);
-        uint8_t pseudo_surround_enable = buffer->read(1);
+        UInt8 matrix_mixdown_idx = buffer->read(2);
+        UInt8 pseudo_surround_enable = buffer->read(1);
     }
     
     if (num_front_channel_elements > 0) buffer->skip(num_front_channel_elements * 5);
@@ -116,20 +116,20 @@ static void program_config_element(const sp<ABuffer>& buffer) {
     if (num_assoc_data_elements > 0) buffer->skip(num_assoc_data_elements * 4);
     if (num_valid_cc_elements > 0) buffer->skip(num_valid_cc_elements * 5);
     buffer->skip();
-    uint8_t comment_field_bytes = buffer->read(8);
+    UInt8 comment_field_bytes = buffer->read(8);
     if (comment_field_bytes > 0) buffer->skip(comment_field_bytes * 8);
 }
 
 static GASpecificConfig GASpecificConfigRead(const sp<ABuffer>& buffer, eAudioObjectType audioObjectType,
-                                 uint8_t samplingFrequencyIndex,
-                                 uint8_t channelConfiguration) {
+                                 UInt8 samplingFrequencyIndex,
+                                 UInt8 channelConfiguration) {
     GASpecificConfig ga;
     ga.frameLength          = buffer->read(1) ? 960 : 1024;
     ga.coreCoderDelay       = buffer->read(1) ? buffer->read(14) : 0;
     if (!channelConfiguration) {
         program_config_element(buffer);
     }
-    uint8_t extensionFlag   = buffer->read(1);
+    UInt8 extensionFlag   = buffer->read(1);
     if (audioObjectType == 6 || audioObjectType == 20) {
         ga.layerNr = buffer->read(3);
     }
@@ -143,7 +143,7 @@ static GASpecificConfig GASpecificConfigRead(const sp<ABuffer>& buffer, eAudioOb
             ga.aacScalefactorDataResilienceFlag = buffer->read(1);
             ga.aacSpectralDataResilienceFlag    = buffer->read(1);
         }
-        uint8_t extensionFlag3  = buffer->read(1);   // version 3;
+        UInt8 extensionFlag3  = buffer->read(1);   // version 3;
         if (extensionFlag3) {
             FATAL("GASpecificConfig version3");
         }
@@ -151,14 +151,14 @@ static GASpecificConfig GASpecificConfigRead(const sp<ABuffer>& buffer, eAudioOb
     return ga;
 }
 
-AudioSpecificConfig::AudioSpecificConfig(eAudioObjectType aot, uint32_t freq, uint8_t chn) {
+AudioSpecificConfig::AudioSpecificConfig(eAudioObjectType aot, UInt32 freq, UInt8 chn) {
     audioObjectType     = aot;
     samplingFrequency   = freq;
     channels            = chn;
-    sbr                 = false;
+    sbr                 = False;
     extAudioObjectType  = AOT_NULL;
     extSamplingFrquency = 0;
-    valid               = true;
+    valid               = True;
 }
 
 // AAC has two kind header format, StreamMuxConfig & AudioSpecificConfig
@@ -175,36 +175,36 @@ AudioSpecificConfig::AudioSpecificConfig(const sp<ABuffer>& buffer) {
     CHECK_GE(buffer->size(), 2); // 2 bytes at least
     audioObjectType         = objectType(buffer);
     
-    uint8_t samplingFrequencyIndex = buffer->read(4);
+    UInt8 samplingFrequencyIndex = buffer->read(4);
     if (samplingFrequencyIndex == 0xf)
         samplingFrequency   = buffer->rb24();
     else
         samplingFrequency   = kM4ASamplingRate[samplingFrequencyIndex];
     
-    uint8_t channelConfiguration = buffer->read(4);
+    UInt8 channelConfiguration = buffer->read(4);
     channels                = kM4AChannels[channelConfiguration];
     INFO("AOT %" PRIu8 ", samplingFrequency %" PRIu32 ", channels %" PRIu8,
          audioObjectType, samplingFrequency, channels);
     
     // AOT Specific Config
     // AOT_SBR
-    bool psPresentFlag = false;
+    Bool psPresentFlag = False;
     if (audioObjectType == AOT_SBR || audioObjectType == 29) {
-        sbr                 = true;
+        sbr                 = True;
         extAudioObjectType  = AOT_SBR;
         psPresentFlag       = audioObjectType == 29;
         
-        uint8_t extSamplingFrequencyIndex = buffer->read(4);
+        UInt8 extSamplingFrequencyIndex = buffer->read(4);
         if (extSamplingFrequencyIndex == 0xf)
             extSamplingFrquency = buffer->rb24();
         else
             extSamplingFrquency = kM4ASamplingRate[extSamplingFrequencyIndex];
         audioObjectType     = objectType(buffer);
         if (audioObjectType == 22) {
-            uint8_t extChannelConfiguration = buffer->read(4);
+            UInt8 extChannelConfiguration = buffer->read(4);
         }
     } else {
-        sbr                 = false;
+        sbr                 = False;
         extAudioObjectType  = AOT_NULL;
     }
     
@@ -236,14 +236,14 @@ AudioSpecificConfig::AudioSpecificConfig(const sp<ABuffer>& buffer) {
         if (extAudioObjectType == AOT_SBR) {
             sbr                 = buffer.read(1);
             
-            uint8_t extSamplingFrequencyIndex = br.read(4);
+            UInt8 extSamplingFrequencyIndex = br.read(4);
             if (extSamplingFrequencyIndex == 0xf)
                 extSamplingFrquency = br.rb24();
             else
                 extSamplingFrquency = kM4ASamplingRate[extSamplingFrequencyIndex];
 
             if (extSamplingFrquency == samplingFrequency) {
-                sbr             = false;
+                sbr             = False;
             }
             DEBUG("sbr %d, extAudioObjectType %" PRIu16 ", extSamplingFrquency %" PRIu32,
                   sbr, extAudioObjectType, extSamplingFrquency);
@@ -253,7 +253,7 @@ AudioSpecificConfig::AudioSpecificConfig(const sp<ABuffer>& buffer) {
         //}
     }
 #endif
-    valid = true;
+    valid = True;
 }
 
 // AAC has two kind header format, StreamMuxConfig & AudioSpecificConfig
@@ -275,12 +275,12 @@ static sp<Buffer> MakeCSD(const AudioSpecificConfig& asc) {
     } else {
         csd->write(asc.audioObjectType, 5);
     }
-    uint8_t samplingIndex = samplingFrequencyIndex(asc.samplingFrequency);
+    UInt8 samplingIndex = samplingFrequencyIndex(asc.samplingFrequency);
     csd->write(samplingIndex, 4);
     if (samplingIndex == 15) {
         csd->wb24(asc.samplingFrequency);
     }
-    uint8_t channelConfig = channelIndex(asc.channels);
+    UInt8 channelConfig = channelIndex(asc.channels);
     CHECK_NE(channelConfig, 0);
     csd->write(channelConfig, 4);
     
@@ -316,7 +316,7 @@ sp<Buffer> MakeAudioESDS(const sp<ABuffer>& csd) {
         return MPEG4::MakeESDS(esd);
     } else {
         ERROR("bad AudioSpecificConfig");
-        return NIL;
+        return Nil;
     }
 }
 

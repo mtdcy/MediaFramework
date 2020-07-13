@@ -39,7 +39,7 @@
 __BEGIN_NAMESPACE_MPX
 __BEGIN_NAMESPACE(EXIF)
 
-const char * ExifTagName(TIFF::eTag tag) {
+const Char * ExifTagName(TIFF::eTag tag) {
     switch (tag) {
         case kExifExposureTime:     return "ExifExposureTime";
         case kExifFNumber:          return "ExifFNumber";
@@ -120,7 +120,7 @@ const char * ExifTagName(TIFF::eTag tag) {
     return TIFF::TagName(tag);
 }
 
-const char * GPSTagName(TIFF::eTag tag) {
+const Char * GPSTagName(TIFF::eTag tag) {
     switch (tag) {
         case kGPSVersionID:         return "gps.VersionID";
         case kGPSLatitudeRef:       return "gps.LatitudeRef";
@@ -154,34 +154,34 @@ const char * GPSTagName(TIFF::eTag tag) {
         case kGPSDateStamp:         return "gps.DateStamp";
         case kGPSDifferential:      return "gps.Differential";
         case kGPSHPositioningError: return "gps.HPositioningError";
-        default:                    return NULL;
+        default:                    return Nil;
     }
 }
 
 // http://www.exif.org/Exif2-2.PDF
-sp<AttributeInformation> readAttributeInformation(const sp<ABuffer>& buffer, size_t length) {
+sp<AttributeInformation> readAttributeInformation(const sp<ABuffer>& buffer, UInt32 length) {
     sp<AttributeInformation> attr = new AttributeInformation;
     
     // Exif
     if (buffer->rs(6) != "Exif") {
         ERROR("bad Exif Attribute Information");
-        return NIL;
+        return Nil;
     }
     
     // TIFF Header
-    const size_t start  = buffer->offset();
+    const UInt32 start  = buffer->offset();
     String id           = buffer->rs(2);  // 'II' - intel byte order, 'MM' - motorola byte order
     if (id == "II")     buffer->setByteOrder(ABuffer::Little);
     else                buffer->setByteOrder(ABuffer::Big);
 
-    uint16_t version    = buffer->r16();     //
-    uint32_t offset     = buffer->r32();     // offset of first image directory
+    UInt16 version    = buffer->r16();     //
+    UInt32 offset     = buffer->r32();     // offset of first image directory
     DEBUG("id %s, version %#x, offset %u", id.c_str(), version, offset);
     
     buffer->skipBytes(offset);
     
     // 0th IFD
-    size_t next = 0;
+    UInt32 next = 0;
     attr->IFD0 = TIFF::readImageFileDirectory(buffer, &next);
     
     // 0th IFD value
@@ -213,8 +213,8 @@ sp<AttributeInformation> readAttributeInformation(const sp<ABuffer>& buffer, siz
         attr->IFD1 = TIFF::readImageFileDirectory(buffer);
         
         // 1th IFD value
-        uint32_t jif = 0;
-        uint32_t jifLength = 0;
+        UInt32 jif = 0;
+        UInt32 jifLength = 0;
         List<TIFF::Entry *>::iterator it = attr->IFD1->mEntries.begin();
         for (; it != attr->IFD1->mEntries.end(); ++it) {
             TIFF::Entry * e = *it;
@@ -251,19 +251,19 @@ sp<AttributeInformation> readAttributeInformation(const sp<ABuffer>& buffer, siz
 void printAttributeInformation(const sp<AttributeInformation>& attr) {
     INFO("IFD0 For Primary Image Data:");
     TIFF::printImageFileDirectory(attr->IFD0, ExifTagName);
-    if (attr->Exif != NIL) {
+    if (attr->Exif != Nil) {
         INFO("Exif IFD:");
         TIFF::printImageFileDirectory(attr->Exif, ExifTagName);
     }
-    if (attr->GPS != NIL) {
+    if (attr->GPS != Nil) {
         INFO("GPS IFD:");
         TIFF::printImageFileDirectory(attr->GPS, GPSTagName);
     }
-    if (attr->IFD1 != NIL) {
+    if (attr->IFD1 != Nil) {
         INFO("IFD1 For Thumbnail Data:");
         TIFF::printImageFileDirectory(attr->IFD1);
     }
-    if (attr->Thumb != NIL) {
+    if (attr->Thumb != Nil) {
         INFO("Exif Thumbnail:");
         JPEG::printJIFObject(attr->Thumb);
     }

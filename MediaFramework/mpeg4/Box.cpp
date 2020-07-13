@@ -47,8 +47,8 @@
 __BEGIN_NAMESPACE_MPX
 __BEGIN_NAMESPACE(MPEG4)
 
-static FORCE_INLINE const char * BOXNAME(uint32_t x) {
-    static char tmp[5];
+static FORCE_INLINE const Char * BOXNAME(UInt32 x) {
+    static Char tmp[5];
     tmp[0]  = (x >> 24) & 0xff;
     tmp[1]  = (x >> 16) & 0xff;
     tmp[2]  = (x >> 8) & 0xff;
@@ -57,7 +57,7 @@ static FORCE_INLINE const char * BOXNAME(uint32_t x) {
     return &tmp[0];
 }
 
-const char * BoxName(uint32_t x) {
+const Char * BoxName(UInt32 x) {
     return BOXNAME(x);
 }
 
@@ -68,14 +68,14 @@ MediaError FileTypeBox::parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&)
     INFO("major: %s, minor: 0x%" PRIx32, BOXNAME(major_brand), minor_version);
 
     while (buffer->size() >= 4) {
-        uint32_t brand = buffer->rb32();
+        UInt32 brand = buffer->rb32();
         INFO("compatible brand: %s", BOXNAME(brand));
         compatibles.push(brand);
     }
     return kMediaNoError;
 }
 
-Box::Box(uint32_t type, uint8_t cls) : Name(BOXNAME(type)), Type(type), Class(cls),
+Box::Box(UInt32 type, UInt8 cls) : Name(BOXNAME(type)), Type(type), Class(cls),
 Version(0), Flags(0) {
     
 }
@@ -100,7 +100,7 @@ MediaError ContainerBox::parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&
 MediaError ContainerBox::_parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>& ftyp) {
     if (counted) {
         // FIXME: count is not used
-        uint32_t count = buffer->rb32();
+        UInt32 count = buffer->rb32();
     }
 
     while (buffer->size()) {
@@ -109,14 +109,14 @@ MediaError ContainerBox::_parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>
             break;
         }
         // 8 bytes
-        uint32_t boxSize    = buffer->rb32();
-        uint32_t boxType    = buffer->rb32();
+        UInt32 boxSize    = buffer->rb32();
+        UInt32 boxType    = buffer->rb32();
         DEBUG("box %s:  + %s %" PRIu32, Name.c_str(), BOXNAME(boxType), boxSize);
 
         // mov terminator box
         if (boxType == kBoxTerminator && boxSize == 8) {
             DEBUG("box %s:  + terminator box [%s], remain %zu bytes",
-                    Name.c_str(), BOXNAME(boxType), (size_t)buffer->size());
+                    Name.c_str(), BOXNAME(boxType), (UInt32)buffer->size());
             // XXX: terminator is not terminator
             break;
             //continue;
@@ -143,7 +143,7 @@ MediaError ContainerBox::_parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>
 
         sp<ABuffer> boxData = buffer->readBytes(boxSize);
         sp<Box> box = MakeBoxByType(boxType);
-        if (box == NULL) {
+        if (box == Nil) {
             ERROR("box %s:  + skip unknown box %s %" PRIu32, Name.c_str(), BOXNAME(boxType), boxSize);
         } else if (box->parse(boxData, ftyp) == kMediaNoError) {
             child.push(box);
@@ -164,36 +164,36 @@ MediaError ContainerBox::_parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>
 void ContainerBox::compose(sp<ABuffer>&, const sp<FileTypeBox>&) { }
 
 typedef sp<Box> (*create_t)();
-static HashTable<uint32_t, create_t> sRegister;
+static HashTable<UInt32, create_t> sRegister;
 struct RegisterHelper {
-    RegisterHelper(uint32_t TYPE, create_t callback) {
+    RegisterHelper(UInt32 TYPE, create_t callback) {
         sRegister.insert(TYPE, callback);
     }
 };
 
-sp<Box> MakeBoxByType(uint32_t type) {
+sp<Box> MakeBoxByType(UInt32 type) {
     if (sRegister.find(type)) {
         return sRegister[type]();
     }
     ERROR("can NOT find register for %s ..............", BOXNAME(type));
-    return NULL;
+    return Nil;
 }
 
 // isom and quicktime using different semantics for MetaBox
-static const bool isQuickTime(const sp<FileTypeBox>& ftyp) {
+static const Bool isQuickTime(const sp<FileTypeBox>& ftyp) {
     if (ftyp->major_brand == kBrandTypeQuickTime) {
-        return true;
+        return True;
     }
-    for (size_t i = 0; i < ftyp->compatibles.size(); ++i) {
+    for (UInt32 i = 0; i < ftyp->compatibles.size(); ++i) {
         if (ftyp->compatibles[i] == kBrandTypeQuickTime)
-            return true;
+            return True;
     }
-    return false;
+    return False;
 }
 
 MediaError MetaBox::parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>& ftyp) {
     Box::parse(buffer, ftyp);
-    size_t next = Box::size();
+    UInt32 next = Box::size();
     if (!isQuickTime(ftyp)) {
         Version     = buffer->r8();
         Flags       = buffer->rb24();
@@ -280,9 +280,9 @@ void TrackHeaderBox::compose(sp<ABuffer>& buffer, const sp<FileTypeBox>& ftyp) {
 
 MediaError TrackReferenceTypeBox::parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>& ftyp) {
     Box::parse(buffer, ftyp);
-    size_t count = buffer->size() / 4;
+    UInt32 count = buffer->size() / 4;
     while (count--) {
-        uint32_t id = buffer->rb32();
+        UInt32 id = buffer->rb32();
         DEBUGV("box %s: %" PRIu32, Name.c_str(), id);
         track_IDs.push(id);
     }
@@ -293,9 +293,9 @@ void TrackReferenceTypeBox::compose(sp<ABuffer>& buffer, const sp<FileTypeBox>& 
 // ISO-639-2/T language code
 static inline String languageCode(const sp<ABuffer>& buffer) {
     buffer->skip(1);
-    char lang[3];
+    Char lang[3];
     // Each character is packed as the difference between its ASCII value and 0x60
-    for (size_t i = 0; i < 3; i++) lang[i] = buffer->read(5) + 0x60;
+    for (UInt32 i = 0; i < 3; i++) lang[i] = buffer->read(5) + 0x60;
     return String(&lang[0], 3);
 }
 
@@ -345,8 +345,8 @@ MediaError VideoMediaHeaderBox::parse(const sp<ABuffer>& buffer, const sp<FileTy
     graphicsmode        = buffer->rb16();
     DEBUGV("box %s: graphicsmode %" PRIu16, 
             Name.c_str(), graphicsmode);
-    for (size_t i = 0; i < 3; i++) {
-        uint16_t color = buffer->rb16();
+    for (UInt32 i = 0; i < 3; i++) {
+        UInt16 color = buffer->rb16();
         DEBUGV("box %s: color %" PRIu16, Name.c_str(), color);
         opcolor.push(color);
     }
@@ -391,8 +391,8 @@ void DataEntryUrlBox::compose(sp<ABuffer>& buffer, const sp<FileTypeBox>& ftyp) 
 
 MediaError DataEntryUrnBox::parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>& ftyp) {
     Box::parse(buffer, ftyp);
-    char c;
-    while ((c = (char)buffer->r8()) != '\0') urntype.append(String(c));
+    Char c;
+    while ((c = (Char)buffer->r8()) != '\0') urntype.append(String(c));
     location        = buffer->rs(buffer->size());
 
     DEBUGV("box %s: name %s location %s", 
@@ -403,8 +403,8 @@ void DataEntryUrnBox::compose(sp<ABuffer>& buffer, const sp<FileTypeBox>& ftyp) 
 
 MediaError TimeToSampleBox::parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>& ftyp) {
     Box::parse(buffer, ftyp);
-    uint32_t count  = buffer->rb32();
-    for (uint32_t i = 0; i < count; i++) {
+    UInt32 count  = buffer->rb32();
+    for (UInt32 i = 0; i < count; i++) {
         Entry e = { buffer->rb32(), buffer->rb32() };
         DEBUGV("box %s: entry %" PRIu32 " %" PRIu32, 
                 Name.c_str(), e.sample_count, e.sample_delta);
@@ -417,14 +417,14 @@ void TimeToSampleBox::compose(sp<ABuffer>& buffer, const sp<FileTypeBox>& ftyp) 
 
 MediaError CompositionOffsetBox::parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>& ftyp) {
     Box::parse(buffer, ftyp);
-    uint32_t count          = buffer->rb32();
-    for (uint32_t i = 0; i < count; i++) {
-        // Version 0, sample_offset is uint32_t
-        // Version 1, sample_offset is int32_t
-        // some writer ignore this rule, always write in int32_t
+    UInt32 count          = buffer->rb32();
+    for (UInt32 i = 0; i < count; i++) {
+        // Version 0, sample_offset is UInt32
+        // Version 1, sample_offset is Int32
+        // some writer ignore this rule, always write in Int32
         // and sample_offset will no be very big,
-        // so it is ok to always read sample_offset as int32_t
-        Entry e = { buffer->rb32(), (int32_t)buffer->rb32() };
+        // so it is ok to always read sample_offset as Int32
+        Entry e = { buffer->rb32(), (Int32)buffer->rb32() };
         DEBUGV("box %s: entry %" PRIu32 " %" PRIu32,
                 Name.c_str(), e.sample_count, e.sample_offset);
         entries.push(e);
@@ -463,7 +463,7 @@ void SampleDependencyTypeBox::compose(sp<ABuffer>& buffer, const sp<FileTypeBox>
 
 // AudioSampleEntry is different for isom and mov
 MediaError SampleEntry::parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>& ftyp) {
-    const size_t offset = buffer->offset();
+    const UInt32 offset = buffer->offset();
     Box::parse(buffer, ftyp);
     _parse(buffer, ftyp);
     ContainerBox::_parse(buffer, ftyp);
@@ -521,7 +521,7 @@ MediaError SampleEntry::_parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&
             // qtff.pdf Section "Sound Sample Description (Version 1)"
             // Page 120
             // 16 bytes
-            sound.mov           = true;
+            sound.mov           = True;
             if (sound.version == 1) {
                 sound.samplesPerPacket  = buffer->rb32();
                 sound.bytesPerPacket    = buffer->rb32();
@@ -541,7 +541,7 @@ MediaError SampleEntry::_parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&
                 CHECK_EQ(Version, 0);
             }
         } else {
-            sound.mov           = false;
+            sound.mov           = False;
         }
     } else if (media_type == kMediaTypeHint) {
         // NOTHING
@@ -564,12 +564,12 @@ MediaError SampleGroupDescriptionBox::parse(const sp<ABuffer>& buffer, const sp<
         default_length      = buffer->rb32();
     else if (Version >= 2)
         default_sample_description_index = buffer->rb32();
-    uint32_t entry_count    = buffer->rb32();
+    UInt32 entry_count    = buffer->rb32();
     INFO("grouping_type %4s, entry_count %" PRIu32,
-            (const char *)&grouping_type, entry_count);
-    for (uint32_t i = 0; i < entry_count; ++i) {
+            (const Char *)&grouping_type, entry_count);
+    for (UInt32 i = 0; i < entry_count; ++i) {
         if (Version == 1 && default_length == 0) {
-            uint32_t description_length = buffer->rb32();
+            UInt32 description_length = buffer->rb32();
             // TODO
         }
         sp<SampleGroupEntry> entry;
@@ -581,8 +581,8 @@ MediaError SampleGroupDescriptionBox::parse(const sp<ABuffer>& buffer, const sp<
             default:
                 break;
         }
-        if (entry.isNIL()) {
-            ERROR("unknown entry %4s", (const char *)&grouping_type);
+        if (entry.isNil()) {
+            ERROR("unknown entry %4s", (const Char *)&grouping_type);
             break;
         }
         if (entry->parse(buffer, ftyp) != kMediaNoError) {
@@ -596,11 +596,11 @@ MediaError SampleGroupDescriptionBox::parse(const sp<ABuffer>& buffer, const sp<
 void SampleGroupDescriptionBox::compose(sp<ABuffer>& buffer, const sp<FileTypeBox>& ftyp) { }
 
 MediaError ALACAudioSampleEntry::parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>& ftyp) {
-    const size_t offset = buffer->offset();
+    const UInt32 offset = buffer->offset();
     Box::parse(buffer, ftyp);
     SampleEntry::_parse(buffer, ftyp);
     extra = buffer->readBytes(buffer->size());
-    DEBUG("box %s: %s", Name.c_str(), extra->string(true).c_str());
+    DEBUG("box %s: %s", Name.c_str(), extra->string(True).c_str());
     return kMediaNoError;
 }
 void ALACAudioSampleEntry::compose(sp<ABuffer>& buffer, const sp<FileTypeBox>& ftyp) { }
@@ -615,7 +615,7 @@ void SamplingRateBox::compose(sp<ABuffer>& buffer, const sp<FileTypeBox>& ftyp) 
 MediaError CommonBox::parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>& ftyp) {
     Box::parse(buffer, ftyp);
     data = buffer->readBytes(buffer->size());
-    DEBUG("box %s: %s", Name.c_str(), data->string(true).c_str());
+    DEBUG("box %s: %s", Name.c_str(), data->string(True).c_str());
     return kMediaNoError;
 }
 void CommonBox::compose(sp<ABuffer>& buffer, const sp<FileTypeBox>& ftyp) { }
@@ -633,17 +633,17 @@ MediaError SampleSizeBox::parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>
     Box::parse(buffer, ftyp);
     if (Type == kBoxTypeSTZ2) {
         buffer->skip(24);            //reserved
-        uint8_t field_size      = buffer->r8();
+        UInt8 field_size      = buffer->r8();
         sample_size             = 0; // always 0
-        size_t sample_count     = buffer->rb32();
-        for (size_t i = 0; i < sample_count; i++) {
+        UInt32 sample_count     = buffer->rb32();
+        for (UInt32 i = 0; i < sample_count; i++) {
             entries.push(buffer->read(field_size));
         }
     } else {
         sample_size             = buffer->rb32();
-        size_t sample_count     = buffer->rb32();
+        UInt32 sample_count     = buffer->rb32();
         if (sample_size == 0) {
-            for (size_t i = 0; i < sample_count; i++) {
+            for (UInt32 i = 0; i < sample_count; i++) {
                 entries.push(buffer->rb32());
             }
         } else {
@@ -653,7 +653,7 @@ MediaError SampleSizeBox::parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>
     }
 
 #if 1
-    for (size_t i = 0; i < entries.size(); ++i) {
+    for (UInt32 i = 0; i < entries.size(); ++i) {
         DEBUGV("box %s: %" PRIu64, Name.c_str(), entries[i]);
     }
 #endif 
@@ -663,8 +663,8 @@ void SampleSizeBox::compose(sp<ABuffer>& buffer, const sp<FileTypeBox>& ftyp) { 
 
 MediaError SampleToChunkBox::parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>& ftyp) {
     Box::parse(buffer, ftyp);
-    uint32_t count          = buffer->rb32();
-    for (uint32_t i = 0; i < count; i++) {
+    UInt32 count          = buffer->rb32();
+    for (UInt32 i = 0; i < count; i++) {
         Entry e;
         e.first_chunk       = buffer->rb32();
         e.samples_per_chunk = buffer->rb32();
@@ -681,16 +681,16 @@ void SampleToChunkBox::compose(sp<ABuffer>& buffer, const sp<FileTypeBox>& ftyp)
 
 MediaError ChunkOffsetBox::parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>& ftyp) {
     Box::parse(buffer, ftyp);
-    uint32_t count          = buffer->rb32();
+    UInt32 count          = buffer->rb32();
     if (Type == kBoxTypeCO64) { // offset64
-        for (uint32_t i = 0; i < count; ++i) {
-            uint64_t e          = buffer->rb64();
+        for (UInt32 i = 0; i < count; ++i) {
+            UInt64 e          = buffer->rb64();
             DEBUGV("box %s: %" PRIu64, Name.c_str(), e);
             entries.push(e);
         }
     } else {
-        for (uint32_t i = 0; i < count; ++i) {
-            uint32_t e          = buffer->rb32();
+        for (UInt32 i = 0; i < count; ++i) {
+            UInt32 e          = buffer->rb32();
             DEBUGV("box %s: %" PRIu32, Name.c_str(), e);
             entries.push(e);
         }
@@ -701,9 +701,9 @@ void ChunkOffsetBox::compose(sp<ABuffer>& buffer, const sp<FileTypeBox>& ftyp) {
 
 MediaError SyncSampleBox::parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>& ftyp) {
     Box::parse(buffer, ftyp);
-    uint32_t count      = buffer->rb32();
-    for (uint32_t i = 0; i < count; i++) {
-        uint32_t e      = buffer->rb32();
+    UInt32 count      = buffer->rb32();
+    for (UInt32 i = 0; i < count; i++) {
+        UInt32 e      = buffer->rb32();
         DEBUGV("box %s: %" PRIu32, Name.c_str(), e);
         entries.push(e);
     }
@@ -713,8 +713,8 @@ void SyncSampleBox::compose(sp<ABuffer>& buffer, const sp<FileTypeBox>& ftyp) { 
 
 MediaError ShadowSyncSampleBox::parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>& ftyp) {
     Box::parse(buffer, ftyp);
-    uint32_t count              = buffer->rb32();
-    for (uint32_t i = 0; i < count; ++i) {
+    UInt32 count              = buffer->rb32();
+    for (UInt32 i = 0; i < count; ++i) {
         Entry e;
         e.shadowed_sample_number    = buffer->rb32();
         e.sync_sample_number        = buffer->rb32();
@@ -729,7 +729,7 @@ void ShadowSyncSampleBox::compose(sp<ABuffer>& buffer, const sp<FileTypeBox>& ft
 
 MediaError DegradationPriorityBox::parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>& ftyp) {
     Box::parse(buffer, ftyp);
-    size_t count = buffer->size() / 2;
+    UInt32 count = buffer->size() / 2;
     while (count--) { entries.push(buffer->rb16()); }
     return kMediaNoError;
 }
@@ -737,8 +737,8 @@ void DegradationPriorityBox::compose(sp<ABuffer>& buffer, const sp<FileTypeBox>&
 
 MediaError PaddingBitsBox::parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>& ftyp) {
     Box::parse(buffer, ftyp);
-    uint32_t count  = buffer->rb32();
-    for (uint32_t i = 0; i < (count + 1) / 2; i++) {
+    UInt32 count  = buffer->rb32();
+    for (UInt32 i = 0; i < (count + 1) / 2; i++) {
         Entry e;
         buffer->skip(1);
         e.pad1  = buffer->read(3);
@@ -758,8 +758,8 @@ void FreeSpaceBox::compose(sp<ABuffer>& buffer, const sp<FileTypeBox>& ftyp) { }
 
 MediaError EditListBox::parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>& ftyp) {
     Box::parse(buffer, ftyp);
-    uint32_t count = buffer->rb32();
-    for (uint32_t i = 0; i < count; i++) {
+    UInt32 count = buffer->rb32();
+    for (UInt32 i = 0; i < count; i++) {
         Entry e;
         if (Version == 1) {
             e.segment_duration    = buffer->rb64();
@@ -890,11 +890,11 @@ void iTunesHeaderBox::compose(sp<ABuffer>& buffer, const sp<FileTypeBox>& ftyp) 
 
 MediaError CountryListBox::parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>& ftyp) {
     Box::parse(buffer, ftyp);
-    uint32_t Entry_count    = buffer->rb32();
-    uint16_t Country_count  = buffer->rb16();
-    for (size_t i = 0; i < Country_count; ++i) {
+    UInt32 Entry_count    = buffer->rb32();
+    UInt16 Country_count  = buffer->rb16();
+    for (UInt32 i = 0; i < Country_count; ++i) {
         Entry e;
-        for (size_t j = 0; j < Entry_count; ++j) {
+        for (UInt32 j = 0; j < Entry_count; ++j) {
             e.Countries.push(buffer->rb16());
         }
         entries.push(e);
@@ -905,11 +905,11 @@ void CountryListBox::compose(sp<ABuffer>& buffer, const sp<FileTypeBox>& ftyp) {
 
 MediaError LanguageListBox::parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>& ftyp) {
     Box::parse(buffer, ftyp);
-    uint32_t Entry_count    = buffer->rb32();
-    uint16_t Language_count = buffer->rb16();
-    for (size_t i = 0; i < Language_count; ++i) {
+    UInt32 Entry_count    = buffer->rb32();
+    UInt16 Language_count = buffer->rb16();
+    for (UInt32 i = 0; i < Language_count; ++i) {
         Entry e;
-        for (size_t j = 0; j < Entry_count; ++j) {
+        for (UInt32 j = 0; j < Entry_count; ++j) {
             e.Languages.push(buffer->rb16());
         }
         entries.push(e);
@@ -1149,30 +1149,30 @@ IgnoreBox('uuid', UUIDBox);
 RegisterBox(kBoxTypeMDAT, MediaDataBox);
 
 sp<Box> ReadBox(const sp<ABuffer>& buffer, const sp<FileTypeBox>& ftyp) {
-    size_t boxHeadLength = 8;
+    UInt32 boxHeadLength = 8;
     if (buffer->size() < boxHeadLength) {
         ERROR("ABuffer is too small");
-        return NULL;
+        return Nil;
     }
     
-    uint32_t boxSize    = buffer->rb32();
-    uint32_t boxType    = buffer->rb32();
+    UInt32 boxSize    = buffer->rb32();
+    UInt32 boxType    = buffer->rb32();
     
     if (boxSize == 1) {
         if (buffer->size() < boxHeadLength) {
             ERROR("ABuffer is too small");
-            return NULL;
+            return Nil;
         }
         boxSize         = buffer->rb64();
         boxHeadLength   = 16;
     }
     
-    DEBUG("found box %s %zu bytes", BOXNAME(boxType), (size_t)boxSize);
+    DEBUG("found box %s %zu bytes", BOXNAME(boxType), (UInt32)boxSize);
     sp<Box> box = MakeBoxByType(boxType);
-    if (box.isNIL()) {
+    if (box.isNil()) {
         ERROR("unknown box %s", BOXNAME(boxType));
         buffer->skipBytes(boxSize - boxHeadLength);
-        return NULL;
+        return Nil;
     }
     
     if (boxType == kBoxTypeMDAT) {
@@ -1191,7 +1191,7 @@ sp<Box> ReadBox(const sp<ABuffer>& buffer, const sp<FileTypeBox>& ftyp) {
         
     if (box->parse(boxData, ftyp) != kMediaNoError) {
         ERROR("box %s: parse failed.", box->Name.c_str());
-        return NULL;
+        return Nil;
     }
     return box;
 }
@@ -1215,77 +1215,77 @@ sp<Box> ReadBox(const sp<ABuffer>& buffer, const sp<FileTypeBox>& ftyp) {
 //  |   |   |   |   |- stz2
 //  |   |   |   |   |- ctts
 //  |   |   |   |   |- stss
-bool CheckTrackBox(const sp<TrackBox>& trak) {
-    if (!(trak->Class & kBoxContainer)) return false;
+Bool CheckTrackBox(const sp<TrackBox>& trak) {
+    if (!(trak->Class & kBoxContainer)) return False;
 
     sp<TrackHeaderBox> tkhd = FindBox(trak, kBoxTypeTKHD);
-    if (tkhd == NULL) return false;
+    if (tkhd == Nil) return False;
 
     sp<MediaBox> mdia = FindBox(trak, kBoxTypeMDIA);
-    if (mdia == NULL) return false;
+    if (mdia == Nil) return False;
 
     sp<MediaHeaderBox> mdhd = FindBox(mdia, kBoxTypeMDHD);
-    if (mdhd == NULL) return false;
+    if (mdhd == Nil) return False;
 
     sp<MediaInformationBox> minf = FindBox(mdia, kBoxTypeMINF);
-    if (minf == NULL) return false;
+    if (minf == Nil) return False;
 
     sp<DataInformationBox> dinf = FindBox(minf, kBoxTypeDINF);
-    if (dinf == NULL) return false;
+    if (dinf == Nil) return False;
 
     sp<DataReferenceBox> dref = FindBox(dinf, kBoxTypeDREF);
-    if (dref == NULL) return false;
+    if (dref == Nil) return False;
 
     sp<SampleTableBox> stbl = FindBox(minf, kBoxTypeSTBL);
-    if (stbl == NULL) return false;
+    if (stbl == Nil) return False;
 
     sp<SampleDescriptionBox> stsd = FindBox(stbl, kBoxTypeSTSD);
-    if (stsd == NULL) return false;
+    if (stsd == Nil) return False;
 
     sp<TimeToSampleBox> stts    = FindBox(stbl, kBoxTypeSTTS);
     sp<SampleToChunkBox> stsc   = FindBox(stbl, kBoxTypeSTSC);
     sp<ChunkOffsetBox> stco     = FindBox2(stbl, kBoxTypeSTCO, kBoxTypeCO64);
     sp<SampleSizeBox> stsz      = FindBox2(stbl, kBoxTypeSTSZ, kBoxTypeSTZ2);
 
-    if (stts == NULL || stsc == NULL || stco == NULL || stsz == NULL) {
-        return false;
+    if (stts == Nil || stsc == Nil || stco == Nil || stsz == Nil) {
+        return False;
     }
 
-    return true;
+    return True;
 }
 
 // find box in current container only
-sp<Box> FindBox(const sp<ContainerBox>& root, uint32_t boxType, size_t index) {
-    for (size_t i = 0; i < root->child.size(); i++) {
+sp<Box> FindBox(const sp<ContainerBox>& root, UInt32 boxType, UInt32 index) {
+    for (UInt32 i = 0; i < root->child.size(); i++) {
         sp<Box> box = root->child[i];
         if (box->Type == boxType) {
             if (index == 0) return box;
             else --index;
         }
     }
-    return NULL;
+    return Nil;
 }
 
-sp<Box> FindBox2(const sp<ContainerBox>& root, uint32_t first, uint32_t second) {
-    for (size_t i = 0; i < root->child.size(); i++) {
+sp<Box> FindBox2(const sp<ContainerBox>& root, UInt32 first, UInt32 second) {
+    for (UInt32 i = 0; i < root->child.size(); i++) {
         sp<Box> box = root->child[i];
         if (box->Type == first || box->Type == second) {
             return box;
         }
     }
-    return NULL;
+    return Nil;
 }
 
-sp<Box> FindBoxInside(const sp<ContainerBox>& root, uint32_t sub, uint32_t target) {
+sp<Box> FindBoxInside(const sp<ContainerBox>& root, UInt32 sub, UInt32 target) {
     sp<Box> box = FindBox(root, sub);
-    if (box == 0) return NULL;
+    if (box == 0) return Nil;
     return FindBox(box, target);
 }
 
-static void PrintBox(const sp<Box>& box, size_t n) {
+static void PrintBox(const sp<Box>& box, UInt32 n) {
     String line;
     if (n) {
-        for (size_t i = 0; i < n - 2; ++i) line.append(" ");
+        for (UInt32 i = 0; i < n - 2; ++i) line.append(" ");
         line.append("|- ");
     }
     line.append(box->Name.c_str());
@@ -1293,7 +1293,7 @@ static void PrintBox(const sp<Box>& box, size_t n) {
     n += 2;
     if (box->Class & kBoxContainer) {
         sp<ContainerBox> c = box;
-        for (size_t i = 0; i < c->child.size(); ++i) {
+        for (UInt32 i = 0; i < c->child.size(); ++i) {
             PrintBox(c->child[i], n);
         }
     }

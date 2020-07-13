@@ -50,39 +50,39 @@
 
 __BEGIN_NAMESPACE_MPX
 
-const static size_t kCommonHeadLength = 32;
-const static size_t kScanLength = 32 * 1024ll;
+const static UInt32 kCommonHeadLength = 32;
+const static UInt32 kScanLength = 32 * 1024ll;
 
 // return score
-int IsMp4File(const sp<ABuffer>&);
-int IsWaveFile(const sp<ABuffer>&);
-int IsMp3File(const sp<ABuffer>&);
+Int IsMp4File(const sp<ABuffer>&);
+Int IsWaveFile(const sp<ABuffer>&);
+Int IsMp3File(const sp<ABuffer>&);
 static eFileFormat GetFormat(const sp<ABuffer>& data) {
-    int score = 0;
+    Int score = 0;
 
-    const int64_t startPos = data->offset();
+    const Int64 startPos = data->offset();
     DEBUG("startPos = %" PRId64, startPos);
 
     // formats with 100 score by check fourcc
     {
         static struct {
-            const char *        head;
-            const size_t        skip;
-            const char *        ext;        // extra text
+            const Char *        head;
+            const UInt32        skip;
+            const Char *        ext;        // extra text
             eFileFormat         format;
         } kFourccMap[] = {
-            {"fLaC",    0,  NULL,       kFileFormatFlac     },
+            {"fLaC",    0,  Nil,       kFileFormatFlac     },
             {"RIFF",    4,  "WAVE",     kFileFormatWave     },
             {"RIFF",    4,  "AVI ",     kFileFormatAvi      },
             {"RIFF",    4,  "AVIX",     kFileFormatAvi      },
             {"RIFF",    4,  "AVI\x19",  kFileFormatAvi      },
             {"RIFF",    4,  "AMV ",     kFileFormatAvi      },
             // END OF LIST
-            {NULL,      0,  NULL,       kFileFormatUnknown  },
+            {Nil,      0,  Nil,       kFileFormatUnknown  },
         };
         
         eFileFormat format = kFileFormatUnknown;
-        for (size_t i = 0; kFourccMap[i].head; i++) {
+        for (UInt32 i = 0; kFourccMap[i].head; i++) {
             const String head = data->rs(strlen(kFourccMap[i].head));
             if (kFourccMap[i].ext) {
                 if (kFourccMap[i].skip) data->skipBytes(kFourccMap[i].skip);
@@ -108,22 +108,22 @@ static eFileFormat GetFormat(const sp<ABuffer>& data) {
 
     // formats with lower score by scanning header
     struct {
-        int (*scanner)(const sp<ABuffer>&);
+        Int (*scanner)(const sp<ABuffer>&);
         eFileFormat format;
     } kScanners[] = {
         { IsWaveFile,           kFileFormatWave     },
         { IsMp4File,            kFileFormatMp4      },
         { EBML::IsMatroskaFile, kFileFormatMkv      },
         { IsMp3File,            kFileFormatMp3      },  // this one should locate at end
-        { NULL,                 kFileFormatUnknown  }
+        { Nil,                 kFileFormatUnknown  }
     };
 
     eFileFormat format = kFileFormatUnknown;
-    for (size_t i = 0; kScanners[i].scanner; i++) {
+    for (UInt32 i = 0; kScanners[i].scanner; i++) {
         // reset buffer to its begin
         data->resetBytes();
-        int c = kScanners[i].scanner(data);
-        DEBUG("%4s, score = %d", (const char *)&kScanners[i].format, c);
+        Int c = kScanners[i].scanner(data);
+        DEBUG("%4s, score = %d", (const Char *)&kScanners[i].format, c);
         if (c > score) {
             score = c;
             format = kScanners[i].format;
@@ -143,7 +143,7 @@ sp<MediaDevice> CreateWaveFile(const sp<ABuffer>&);
 #ifdef __APPLE__
 sp<MediaDevice> CreateVideoToolboxDecoder(const sp<Message>& formats, const sp<Message>& options);
 sp<MediaDevice> CreateAudioToolbox(const sp<Message>& formats, const sp<Message>& options);
-bool IsVideoToolboxSupported(eVideoCodec format);
+Bool IsVideoToolboxSupported(eVideoCodec format);
 #endif
 #ifdef WITH_FFMPEG
 sp<MediaDevice> CreateLibavformat(const sp<ABuffer>&);
@@ -162,12 +162,12 @@ sp<MediaDevice> MediaDevice::create(const sp<Message>& formats, const sp<Message
     // ENV
     String env0 = GetEnvironmentValue("FORCE_AVFORMAT");
     String env1 = GetEnvironmentValue("FORCE_AVCODEC");
-    bool FORCE_AVFORMAT = env0.equals("1") || env0.lower().equals("yes");
-    bool FORCE_AVCODEC = env1.equals("1") || env1.lower().equals("yes");
+    Bool FORCE_AVFORMAT = env0.equals("1") || env0.lower().equals("yes");
+    Bool FORCE_AVCODEC = env1.equals("1") || env1.lower().equals("yes");
     
-    uint32_t format = formats->findInt32(kKeyFormat, 0);
+    UInt32 format = formats->findInt32(kKeyFormat, kFormatUnknown);
     sp<ABuffer> buffer = formats->findObject(kKeyContent);
-    if (format == 0 && !buffer.isNIL()) {
+    if (format == kFormatUnknown && !buffer.isNil()) {
         sp<ABuffer> head = buffer->readBytes(kScanLength);
         buffer->skipBytes(-head->size());   // reset our buffer read pointer
         
@@ -177,24 +177,21 @@ sp<MediaDevice> MediaDevice::create(const sp<Message>& formats, const sp<Message
         }
         
         format = GetFormat(head);
-#ifdef WITH_FFMPEG
-        return CreateLibavformat(buffer);
-#endif
     }
     
     if (format == 0) {
         ERROR("create device failed, unknown format");
-        return NULL;
+        return Nil;
     }
     
-    uint32_t mode = kModeTypeDefault;
-    if (!options.isNIL()) {
+    UInt32 mode = kModeTypeDefault;
+    if (!options.isNil()) {
         mode = options->findInt32(kKeyMode, kModeTypeDefault);
     }
     
 #ifdef WITH_FFMPEG
     if (mode == kModeTypeSoftware) {
-        FORCE_AVCODEC = true;
+        FORCE_AVCODEC = True;
     }
 #endif
     
@@ -214,7 +211,7 @@ sp<MediaDevice> MediaDevice::create(const sp<Message>& formats, const sp<Message
 #ifdef WITH_FFMPEG
             return CreateLibavformat(buffer);
 #else
-            return NULL;
+            return Nil;
 #endif
         case kAudioCodecAAC:
         case kAudioCodecAC3:
@@ -297,8 +294,8 @@ sp<MediaDevice> MediaDevice::create(const sp<Message>& formats, const sp<Message
             break;
     }
     
-    ERROR("no media device for [%.4s]", (const char *)&format);
-    return NULL;
+    ERROR("no media device for [%.4s]", (const Char *)&format);
+    return Nil;
 }
 
 __END_NAMESPACE_MPX

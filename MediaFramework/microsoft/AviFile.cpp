@@ -71,15 +71,15 @@ enum {
 };
 
 struct JUNKChunk : RIFF::SKIPChunk {
-    JUNKChunk(uint32_t size) : RIFF::SKIPChunk(ID_JUNK, size) { }
+    JUNKChunk(UInt32 size) : RIFF::SKIPChunk(ID_JUNK, size) { }
 };
 
 struct ListChunk : RIFF::MasterChunk {
-    uint32_t                ckListType;     // FOURCC
+    UInt32                ckListType;     // FOURCC
     
     // RIFF is a bad structure, different ckListType for different structure
-    ListChunk(uint32_t size, uint32_t type) : RIFF::MasterChunk(ID_LIST, size), ckListType(type) { }
-    virtual String string() const { return MasterChunk::Chunk::string() + String::format(", ckListType = %.4s", (const char *)&ckListType); }
+    ListChunk(UInt32 size, UInt32 type) : RIFF::MasterChunk(ID_LIST, size), ckListType(type) { }
+    virtual String string() const { return MasterChunk::Chunk::string() + String::format(", ckListType = %.4s", (const Char *)&ckListType); }
 };
 
 enum {
@@ -91,56 +91,56 @@ enum {
 // https://docs.microsoft.com/en-us/previous-versions//ms779632(v=vs.85)
 // ckListType == 'hdrl', fcc = 'avih'
 struct MainHeaderListChunk : public ListChunk {
-    uint32_t    fcc;
-    uint32_t    cb;
-    uint32_t    dwMicroSecPerFrame;
-    uint32_t    dwMaxBytesPerSec;
-    uint32_t    dwPaddingGranularity;
-    uint32_t    dwFlags;
-    uint32_t    dwTotalFrames;
-    uint32_t    dwInitialFrames;
-    uint32_t    dwStreams;
-    uint32_t    dwSuggestedBufferSize;
-    uint32_t    dwWidth;
-    uint32_t    dwHeight;
-    uint32_t    dwReserved[4];
+    UInt32    fcc;
+    UInt32    cb;
+    UInt32    dwMicroSecPerFrame;
+    UInt32    dwMaxBytesPerSec;
+    UInt32    dwPaddingGranularity;
+    UInt32    dwFlags;
+    UInt32    dwTotalFrames;
+    UInt32    dwInitialFrames;
+    UInt32    dwStreams;
+    UInt32    dwSuggestedBufferSize;
+    UInt32    dwWidth;
+    UInt32    dwHeight;
+    UInt32    dwReserved[4];
     // 16 * 4 = 64 bytes
     
-    MainHeaderListChunk(uint32_t size) : ListChunk(size, ID_AVIH) { }
+    MainHeaderListChunk(UInt32 size) : ListChunk(size, ID_AVIH) { }
     
     virtual MediaError parse(const sp<ABuffer>& buffer) {
         // TODO
         return kMediaNoError;
     }
-    virtual size_t size() const { return 64; }
+    virtual UInt32 size() const { return 64; }
     virtual String string() const { return ListChunk::string() + String::format(", ..."); }
 };
 
 // https://docs.microsoft.com/en-us/previous-versions//ms779638(v=vs.85)
 struct StreamHeaderChunk : RIFF::Chunk {
-    uint32_t fcc;
-    uint32_t  cb;
-    uint32_t fccType;
-    uint32_t fccHandler;
-    uint32_t  dwFlags;
-    uint16_t   wPriority;
-    uint16_t   wLanguage;
-    uint32_t  dwInitialFrames;
-    uint32_t  dwScale;
-    uint32_t  dwRate;
-    uint32_t  dwStart;
-    uint32_t  dwLength;
-    uint32_t  dwSuggestedBufferSize;
-    uint32_t  dwQuality;
-    uint32_t  dwSampleSize;
+    UInt32 fcc;
+    UInt32  cb;
+    UInt32 fccType;
+    UInt32 fccHandler;
+    UInt32  dwFlags;
+    UInt16   wPriority;
+    UInt16   wLanguage;
+    UInt32  dwInitialFrames;
+    UInt32  dwScale;
+    UInt32  dwRate;
+    UInt32  dwStart;
+    UInt32  dwLength;
+    UInt32  dwSuggestedBufferSize;
+    UInt32  dwQuality;
+    UInt32  dwSampleSize;
     struct {
-        short int left;
-        short int top;
-        short int right;
-        short int bottom;
+        short Int left;
+        short Int top;
+        short Int right;
+        short Int bottom;
     }  rcFrame;
     
-    StreamHeaderChunk(uint32_t size) : RIFF::Chunk(ID_STRH, size) { }
+    StreamHeaderChunk(UInt32 size) : RIFF::Chunk(ID_STRH, size) { }
     
     virtual MediaError parse(const sp<ABuffer>& buffer) {
         return kMediaNoError;
@@ -151,7 +151,7 @@ struct StreamFormatChunk : RIFF::Chunk {
     // WAVEFORMATEX or BITMAPINFOHEADER
     sp<Buffer>  Format;
     
-    StreamFormatChunk(uint32_t size) : RIFF::Chunk(ID_STRF, size) { }
+    StreamFormatChunk(UInt32 size) : RIFF::Chunk(ID_STRF, size) { }
     
     virtual MediaError parse(const sp<ABuffer>& buffer) {
         return kMediaNoError;
@@ -161,7 +161,7 @@ struct StreamFormatChunk : RIFF::Chunk {
 struct StreamDataChunk : RIFF::Chunk {
     sp<Buffer>  Data;
     
-    StreamDataChunk(uint32_t size) : RIFF::Chunk(ID_STRD, size) { }
+    StreamDataChunk(UInt32 size) : RIFF::Chunk(ID_STRD, size) { }
     
     virtual MediaError parse(const sp<ABuffer>& buffer) {
         return kMediaNoError;
@@ -171,7 +171,7 @@ struct StreamDataChunk : RIFF::Chunk {
 // optional
 struct StreamNameChunk : RIFF::Chunk {
     String  Name;
-    StreamNameChunk(uint32_t size) : RIFF::Chunk(ID_STRN, size) { }
+    StreamNameChunk(UInt32 size) : RIFF::Chunk(ID_STRN, size) { }
     
     virtual MediaError parse(const sp<ABuffer>& buffer) {
         return kMediaNoError;
@@ -180,28 +180,28 @@ struct StreamNameChunk : RIFF::Chunk {
 
 // OpenDML ...
 struct VideoPropHeader : public RIFF::Chunk {
-    uint32_t VideoFormatToken;
-     uint32_t VideoStandard;
-     uint32_t dwVerticalRefreshRate;
-     uint32_t dwHTotalInT;
-     uint32_t dwVTotalInLines;
-     uint32_t dwFrameAspectRatio;
-     uint32_t dwFrameWidthInPixels;
-     uint32_t dwFrameHeightInLines;
-     // uint32_t nbFieldPerFrame;
+    UInt32 VideoFormatToken;
+     UInt32 VideoStandard;
+     UInt32 dwVerticalRefreshRate;
+     UInt32 dwHTotalInT;
+     UInt32 dwVTotalInLines;
+     UInt32 dwFrameAspectRatio;
+     UInt32 dwFrameWidthInPixels;
+     UInt32 dwFrameHeightInLines;
+     // UInt32 nbFieldPerFrame;
      struct VIDEO_FIELD_DESC {
-     uint32_t CompressedBMHeight;
-     uint32_t CompressedBMWidth;
-     uint32_t ValidBMHeight;
-     uint32_t ValidBMWidth;
-     uint32_t ValidBMXOffset;
-     uint32_t ValidBMYOffset;
-     uint32_t VideoXOffsetInT;
-     uint32_t VideoYValidStartLine;
+     UInt32 CompressedBMHeight;
+     UInt32 CompressedBMWidth;
+     UInt32 ValidBMHeight;
+     UInt32 ValidBMWidth;
+     UInt32 ValidBMXOffset;
+     UInt32 ValidBMYOffset;
+     UInt32 VideoXOffsetInT;
+     UInt32 VideoYValidStartLine;
     };
     Vector<VIDEO_FIELD_DESC>    FieldInfo;  // size() == nbFieldPerFrame
     
-    VideoPropHeader(uint32_t size) : RIFF::Chunk(ID_VPRP, size) { }
+    VideoPropHeader(UInt32 size) : RIFF::Chunk(ID_VPRP, size) { }
     virtual MediaError parse(const sp<ABuffer>& buffer) {
         return kMediaNoError;
     }
@@ -209,7 +209,7 @@ struct VideoPropHeader : public RIFF::Chunk {
 
 struct InfoSoftware : public RIFF::Chunk {
     String      Name;
-    InfoSoftware(uint32_t size) : RIFF::Chunk(ID_ISFT, size) { }
+    InfoSoftware(UInt32 size) : RIFF::Chunk(ID_ISFT, size) { }
     virtual MediaError parse(const sp<ABuffer>& buffer) {
         Name = buffer->rs(buffer->size());
         return kMediaNoError;
@@ -219,12 +219,12 @@ struct InfoSoftware : public RIFF::Chunk {
     }
 };
 
-typedef sp<RIFF::Chunk> (*create_ck_t)(uint32_t);
-static HashTable<uint32_t, create_ck_t> ckRegister;
+typedef sp<RIFF::Chunk> (*create_ck_t)(UInt32);
+static HashTable<UInt32, create_ck_t> ckRegister;
 struct ChunkRegister {
     
     template <typename TYPE>
-    static sp<RIFF::Chunk> Create(uint32_t size) { return new TYPE(size); }
+    static sp<RIFF::Chunk> Create(UInt32 size) { return new TYPE(size); }
     
     ChunkRegister() {
         ckRegister.insert(ID_RIFF,  Create<RIFF::RIFFChunk>         );
@@ -240,20 +240,20 @@ struct ChunkRegister {
         ckRegister.insert(ID_ISFT,  Create<InfoSoftware>            );
     }
     
-    sp<RIFF::Chunk> alloc(uint32_t id, uint32_t size) {
+    sp<RIFF::Chunk> alloc(UInt32 id, UInt32 size) {
         if (ckRegister.find(id)) {
             sp<RIFF::Chunk> ck = ckRegister[id](size);
             return ck;
         }
-        ERROR("unknown chunk %.4s[%d]", (const char *)&id, size);
-        return NULL;
+        ERROR("unknown chunk %.4s[%d]", (const Char *)&id, size);
+        return Nil;
     }
 };
 
 struct Entry {
     sp<RIFF::MasterChunk>   ckMaster;
-    uint32_t                ckSize;
-    Entry(sp<RIFF::MasterChunk>& master, uint32_t size) :
+    UInt32                ckSize;
+    Entry(sp<RIFF::MasterChunk>& master, UInt32 size) :
     ckMaster(master), ckSize(size) { }
 };
 
@@ -261,17 +261,17 @@ static sp<RIFF::Chunk> EnumChunks(const sp<ABuffer>& buffer) {
     static ChunkRegister    cks;
     List<Entry>             ckParents;
     sp<RIFF::MasterChunk>   ckMaster;
-    uint32_t                ckMasterLength;
+    UInt32                ckMasterLength;
     
-    uint32_t ckID           = buffer->rl32();
-    uint32_t ckSize         = buffer->rl32();
+    UInt32 ckID           = buffer->rl32();
+    UInt32 ckSize         = buffer->rl32();
     
     sp<RIFF::RIFFChunk> RIFF = new RIFF::RIFFChunk(ckSize);
     RIFF->parse(buffer);
     
     if (RIFF->ckID != ID_RIFF || RIFF->ckFileType != ID_AVI) {
         ERROR("missing RIFF/AVI header");
-        return NULL;
+        return Nil;
     }
     
     DEBUG("[%zu] %s", ckParents.size(), RIFF->string().c_str());
@@ -280,8 +280,8 @@ static sp<RIFF::Chunk> EnumChunks(const sp<ABuffer>& buffer) {
     ckMasterLength  = ckSize;
     
     for (;;) {
-        uint32_t ckID   = buffer->rl32();
-        uint32_t ckSize = buffer->rl32();
+        UInt32 ckID   = buffer->rl32();
+        UInt32 ckSize = buffer->rl32();
         
         // workaound for RIFF LIST
         // LIST is a very bad structure, it may contains other LIST
@@ -291,7 +291,7 @@ static sp<RIFF::Chunk> EnumChunks(const sp<ABuffer>& buffer) {
         }
         
         sp<RIFF::Chunk> ck = cks.alloc(ckID, ckSize);
-        if (ck.isNIL()) {
+        if (ck.isNil()) {
 #if LOG_NDEBUG == 1
             break;
 #else
@@ -305,7 +305,7 @@ static sp<RIFF::Chunk> EnumChunks(const sp<ABuffer>& buffer) {
               ckParents.size() + 1, ck->string().c_str(), ckMasterLength);
         
         if (ck->parse(buffer) != kMediaNoError) {
-            ERROR("ck %.4s parse failed", (const char *)&ckID);
+            ERROR("ck %.4s parse failed", (const Char *)&ckID);
             break;
         }
                 
@@ -318,7 +318,7 @@ static sp<RIFF::Chunk> EnumChunks(const sp<ABuffer>& buffer) {
             continue;
         }
         
-        CHECK_FALSE(ckMaster.isNIL());
+        CHECK_FALSE(ckMaster.isNil());
         
         // ckSize SHOULD excluding ckID & ckSize & padding,
         // but someone may set it wrong
@@ -343,7 +343,7 @@ struct AviFile : public MediaFile {
     }
     
     virtual sp<Message> formats() const {
-        return NULL;
+        return Nil;
     }
     
     virtual MediaError configure(const sp<Message>& options) {
@@ -351,23 +351,23 @@ struct AviFile : public MediaFile {
     }
     
     virtual sp<MediaFrame> read(const eReadMode& mode, const MediaTime& ts) {
-        return NULL;
+        return Nil;
     }
 };
 
 sp<MediaFile> OpenAviFile(const sp<ABuffer>& buffer) {
     sp<AviFile> file = new AviFile;
     if (file->init(buffer) == kMediaNoError) return file;
-    return NULL;
+    return Nil;
 }
 
-int IsAviFile(const sp<ABuffer>& buffer) {
+Int IsAviFile(const sp<ABuffer>& buffer) {
     if (buffer->size() < RIFF_CHUNK_LENGTH) return 0;
         
     // RIFF CHUNK
-    uint32_t name   = buffer->rl32();
-    uint32_t length = buffer->rl32();
-    uint32_t wave   = buffer->rl32();
+    UInt32 name   = buffer->rl32();
+    UInt32 length = buffer->rl32();
+    UInt32 wave   = buffer->rl32();
     if (name != FOURCC('RIFF') || wave != FOURCC('AVI '))
         return 0;
     

@@ -65,10 +65,10 @@ USING_NAMESPACE_ABE
 __BEGIN_DECLS
 
 #undef FOURCC // FOURCC may be defined by others
-#define FOURCC(x) ((((uint32_t)(x) >> 24) & 0xff)       \
-                | (((uint32_t)(x) >> 8) & 0xff00)       \
-                | (((uint32_t)(x) << 8) & 0xff0000)     \
-                | (((uint32_t)(x) << 24) & 0xff000000))
+#define FOURCC(x) ((((UInt32)(x) >> 24) & 0xff)       \
+                | (((UInt32)(x) >> 8) & 0xff00)       \
+                | (((UInt32)(x) << 8) & 0xff0000)     \
+                | (((UInt32)(x) << 24) & 0xff000000))
 
 #define MEDIA_ENUM_MAX              (0xFFFFFFFF)
 enum {
@@ -87,7 +87,7 @@ enum {
     
     kMediaErrorMax                  = MEDIA_ENUM_MAX
 };
-typedef uint32_t MediaError;
+typedef UInt32 MediaError;
 
 enum {
     kFormatUnknown      = FOURCC('----'),       ///< unknown format
@@ -115,7 +115,7 @@ enum {
     
     kFileFormatMax      = MEDIA_ENUM_MAX
 };
-typedef uint32_t eFileFormat;
+typedef UInt32 eFileFormat;
 
 // compressed audio codec format
 enum {
@@ -132,7 +132,7 @@ enum {
     
     kAudioCodecMax      = MEDIA_ENUM_MAX
 };
-typedef uint32_t eAudioCodec;
+typedef UInt32 eAudioCodec;
 
 // compressed video codec format
 enum {
@@ -153,13 +153,13 @@ enum {
     
     kVideoCodecMax      = MEDIA_ENUM_MAX
 };
-typedef uint32_t eVideoCodec;
+typedef UInt32 eVideoCodec;
 
 #if 0
 enum {
     // TODO
 };
-typedef uint32_t eTextFormat;
+typedef UInt32 eTextFormat;
 #endif
 
 // image codec format
@@ -172,7 +172,7 @@ enum {
     
     kImageCodecMax      = MEDIA_ENUM_MAX
 };
-typedef uint32_t eImageCodec;
+typedef UInt32 eImageCodec;
 
 // codec type
 enum {
@@ -184,7 +184,7 @@ enum {
     
     kCodecTypeMax           = MEDIA_ENUM_MAX
 };
-typedef uint32_t eCodecType;
+typedef UInt32 eCodecType;
 
 /**
  * uncompressed audio format
@@ -198,8 +198,8 @@ enum {
     kSampleFormatU8         = FOURCC(' u8p'),
     kSampleFormatS16        = FOURCC('s16p'),
     kSampleFormatS32        = FOURCC('s32p'),
-    kSampleFormatFLT        = FOURCC('fltp'),
-    kSampleFormatDBL        = FOURCC('dblp'),
+    kSampleFormatF32        = FOURCC('f32p'),
+    kSampleFormatF64        = FOURCC('f64p'),
     // packed/interleaved sample formats.
     // samples for each channel are interleaved
     // for audio input/output device only
@@ -207,12 +207,12 @@ enum {
     kSampleFormatU8Packed   = FOURCC(' u8i'),
     kSampleFormatS16Packed  = FOURCC('s16i'),
     kSampleFormatS32Packed  = FOURCC('s32i'),
-    kSampleFormatFLTPacked  = FOURCC('flti'),
-    kSampleFormatDBLPacked  = FOURCC('dbli'),
+    kSampleFormatF32Packed  = FOURCC('f32i'),
+    kSampleFormatF64Packed  = FOURCC('f64i'),
     
     kSampleFormatMax        = MEDIA_ENUM_MAX
 };
-typedef uint32_t eSampleFormat;
+typedef UInt32 eSampleFormat;
 
 /**
  * uncompressed pixel format
@@ -278,7 +278,7 @@ enum {
     
     kPixelFormatMax                     = MEDIA_ENUM_MAX
 };
-typedef uint32_t ePixelFormat;
+typedef UInt32 ePixelFormat;
 
 enum {
     kColorUnknown       = kFormatUnknown,
@@ -287,7 +287,7 @@ enum {
     
     kColorMax           = MEDIA_ENUM_MAX
 };
-typedef uint32_t eColorSpace;
+typedef UInt32 eColorSpace;
 /*
  * about full range & video range
  * reference:
@@ -331,7 +331,7 @@ enum {
     
     kColorMatrixMax     = MEDIA_ENUM_MAX
 };
-typedef uint32_t eColorMatrix;
+typedef UInt32 eColorMatrix;
 
 enum {
     kRotate0            = FOURCC('R000'),
@@ -341,7 +341,7 @@ enum {
     
     kRotateMax          = MEDIA_ENUM_MAX
 };
-typedef uint32_t eRotate;
+typedef UInt32 eRotate;
 
 /**
  * kFrameTypeSync: sync frame, depends on nobody.
@@ -360,82 +360,86 @@ enum {
     
     kFrameTypeMax           = MEDIA_ENUM_MAX
 };
-typedef uint32_t    eFrameType;
+typedef UInt32    eFrameType;
 
 #pragma mark Basic Types
 
 enum { kPlanar = 0, kPacked = 0, kUVSwap, kWordOrder, kSimilarMax };
 typedef struct PixelDescriptor {
-    const char * const  name;                   ///< pixel format name
+    const Char * const  name;                   ///< pixel format name
     const ePixelFormat  format;                 ///< pixel format value
     const ePixelFormat  similar[kSimilarMax];   ///< similar format
     const eColorSpace   color;                  ///< color space
-    const size_t        bpp;                    ///< avg pixel bpp => image size
-    const size_t        nb_planes;              ///< number planes => image size
+    const UInt32        bpp;                    ///< avg pixel bpp => image size
+    const UInt32        nb_planes;              ///< number planes => image size
     struct {
-        const size_t    bpp;                    ///< plane pixel bpp
-        const size_t    hss;                    ///< horizontal subsampling
-        const size_t    vss;                    ///< vertical subsampling
+        const UInt32    bpp;                    ///< plane pixel bpp
+        const UInt32    hss;                    ///< horizontal subsampling
+        const UInt32    vss;                    ///< vertical subsampling
     } const planes[4];
 } PixelDescriptor;
 
 // get information about pixel format
 API_EXPORT const PixelDescriptor *  GetPixelFormatDescriptor(ePixelFormat);
-API_EXPORT const PixelDescriptor *  GetPixelFormatDescriptorByName(const char *);
-API_EXPORT bool                     IsPlanarPixelFormat(ePixelFormat);
-API_EXPORT bool                     IsSemiPlanarPixelFormat(ePixelFormat);
+API_EXPORT const PixelDescriptor *  GetPixelFormatDescriptorByName(const Char *);
+API_EXPORT Bool                     IsPlanarPixelFormat(ePixelFormat);
+API_EXPORT Bool                     IsSemiPlanarPixelFormat(ePixelFormat);
 
 typedef struct ImageFormat {
     ePixelFormat        format;         ///< image pixel format
     eColorMatrix        matrix;         ///< color matrix for yuv
-    int32_t             width;          ///< plane width
-    int32_t             height;         ///< plane height
+    Int32             width;          ///< plane width
+    Int32             height;         ///< plane height
     struct {                            ///< display rectangle
-        int32_t             x;          ///< left start position
-        int32_t             y;          ///< top start position
-        int32_t             w;          ///< display width
-        int32_t             h;          ///< display height
+        Int32             x;          ///< left start position
+        Int32             y;          ///< top start position
+        Int32             w;          ///< display width
+        Int32             h;          ///< display height
     } rect;
 } ImageFormat;
 
 typedef struct SampleDescriptor {
-    const char * const  name;           ///< sample format name
+    const Char * const  name;           ///< sample format name
     const eSampleFormat format;         ///< sample format
     const eSampleFormat similar;        ///< corresponding planar/interleaved format
-    const bool          planar;         ///< is planar
-    const size_t        bytes;          ///< sample bytes
+    const Bool          planar;         ///< is planar
+    const UInt32        bytes;          ///< sample bytes
 } SampleDescriptor;
 
 API_EXPORT const SampleDescriptor * GetSampleFormatDescriptor(eSampleFormat);
 API_EXPORT eSampleFormat            GetSimilarSampleFormat(eSampleFormat);      ///< plannar <-> packed/interleaved
-API_EXPORT size_t                   GetSampleFormatBytes(eSampleFormat);
-API_EXPORT bool                     IsPlanarSampleFormat(eSampleFormat);
+API_EXPORT UInt32                   GetSampleFormatBytes(eSampleFormat);
+API_EXPORT Bool                     IsPlanarSampleFormat(eSampleFormat);
 
 typedef struct AudioFormat {
     eSampleFormat       format;         ///< audio sample format @see eSampleFormat
-    int32_t             freq;           ///< audio sample rate
-    size_t              channels;       ///< audio channels
-    size_t              samples;        ///< samples per channel
+    Int32             freq;           ///< audio sample rate
+    UInt32              channels;       ///< audio channels
+    UInt32              samples;        ///< samples per channel
 } AudioFormat;
 
 /**
  * time struct for represent decoding and presentation time
- * @note we prefer int64_t(us) for our framework, but files and decoders prefer
- * time value & scale, so we using MediaTime for MediaFrame, but int64_t
+ * @note we prefer Int64(us) for our framework, but files and decoders prefer
+ * time value & scale, so we using MediaTime for MediaFrame, but Int64
  * for rest of the framework.
- * @note MediaTime should only be used inside, no export, using int64_t(us) export
+ * @note MediaTime should only be used inside, no export, using Int64(us) export
  * time related properties. so MediaTime will not derive from SharedObject
  */
 typedef struct MediaTime {
-    int64_t     value;                  ///< numerator
-    int64_t     scale;                  ///< denominator
+    Int64     value;                  ///< numerator
+    Int64     scale;                  ///< denominator
 #ifdef __cplusplus
-    MediaTime() : value(0), scale(0) { }    ///< invalid media time
-    MediaTime(int64_t us) : value(us), scale(1000000LL) { }
-    MediaTime(int64_t num, int64_t den) : value(num), scale(den) { }
-    double seconds() const          { return (double)value / scale;                 }
-    int64_t useconds() const        { return (1000000LL * value) / scale;           }
-    MediaTime& rescale(int64_t den) { value = (value * den) / scale; return *this;  }
+    FORCE_INLINE MediaTime() : value(0), scale(0) { }    ///< invalid media time
+    FORCE_INLINE MediaTime(Int64 us) : value(us), scale(1000000LL) { }
+    FORCE_INLINE MediaTime(Int64 num, Int64 den) : value(num), scale(den) { }
+    FORCE_INLINE MediaTime(const Time& t) : value(t.nseconds()), scale(1000000000LL) { }
+    FORCE_INLINE MediaTime& rescale(Int64 den) { value = (value * den) / scale; return *this; }
+    
+    FORCE_INLINE Float64 seconds() const     { return (Float64)value / scale;       }
+    FORCE_INLINE UInt64  useconds() const    { return (1000000LL * value) / scale;  }
+    
+    FORCE_INLINE Time    time() const        { return Time::Seconds(seconds());     }
 #endif
 } MediaTime;
 
@@ -453,24 +457,24 @@ API_EXPORT String   GetPixelFormatString(const ePixelFormat&);
 API_EXPORT String   GetImageFormatString(const ImageFormat&);
 
 // AudioFormat
-static FORCE_INLINE bool operator==(const AudioFormat& lhs, const AudioFormat& rhs) {
+static FORCE_INLINE Bool operator==(const AudioFormat& lhs, const AudioFormat& rhs) {
     return lhs.format == rhs.format && lhs.channels == rhs.channels && lhs.freq == rhs.freq;
 }
 
-static FORCE_INLINE bool operator!=(const AudioFormat& lhs, const AudioFormat& rhs) { return !operator==(lhs, rhs); }
+static FORCE_INLINE Bool operator!=(const AudioFormat& lhs, const AudioFormat& rhs) { return !operator==(lhs, rhs); }
 
 // ImageFormat
-static FORCE_INLINE bool operator==(const ImageFormat& lhs, const ImageFormat& rhs) {
+static FORCE_INLINE Bool operator==(const ImageFormat& lhs, const ImageFormat& rhs) {
     return lhs.format == rhs.format && lhs.width == rhs.width && lhs.height == rhs.height;
 }
 
-static FORCE_INLINE bool operator!=(const ImageFormat& lhs, const ImageFormat& rhs) { return !operator==(lhs, rhs); }
+static FORCE_INLINE Bool operator!=(const ImageFormat& lhs, const ImageFormat& rhs) { return !operator==(lhs, rhs); }
 
 // MediaTime
 // valid MediaTime always has scale != 0, so we make scale == 0
 API_EXPORT static const MediaTime kMediaTimeInvalid = MediaTime(-1, 0);
 
-#define _MT_COMPARE(op) FORCE_INLINE bool operator op(const MediaTime& lhs, const MediaTime& rhs) \
+#define _MT_COMPARE(op) FORCE_INLINE Bool operator op(const MediaTime& lhs, const MediaTime& rhs) \
 { return lhs.value * rhs.scale op rhs.value * lhs.scale; }
 
 _MT_COMPARE(<);
@@ -483,10 +487,10 @@ _MT_COMPARE(!=);
 #undef _MT_COMPARE
 
 // the least common multiple
-static FORCE_INLINE int64_t LCM(int64_t a, int64_t b) {
+static FORCE_INLINE Int64 LCM(Int64 a, Int64 b) {
     if (a % b == 0) return a;
     if (b % a == 0) return b;
-    int64_t c, gcd;
+    Int64 c, gcd;
     // FIXME: if a or b is very big, LCM will take a lot time.
     for (c = 1; c <= a && c <= b; ++c) {
         if (a % c == 0 && b % c == 0) gcd = c;
@@ -495,24 +499,24 @@ static FORCE_INLINE int64_t LCM(int64_t a, int64_t b) {
 }
 
 FORCE_INLINE MediaTime operator+(const MediaTime& lhs, const MediaTime& rhs) {
-    const int64_t lcd = LCM(lhs.scale, rhs.scale);
+    const Int64 lcd = LCM(lhs.scale, rhs.scale);
     return MediaTime(lhs.value * (lcd / lhs.scale) + rhs.value * (lcd / rhs.scale), lcd);
 }
 
 FORCE_INLINE MediaTime operator-(const MediaTime& lhs, const MediaTime& rhs) {
-    const int64_t lcd = LCM(lhs.scale, rhs.scale);
+    const Int64 lcd = LCM(lhs.scale, rhs.scale);
     return MediaTime(lhs.value * (lcd / lhs.scale) - rhs.value * (lcd / rhs.scale), lcd);
 }
 
 FORCE_INLINE MediaTime& operator+=(MediaTime& lhs, const MediaTime& rhs) {
-    const int64_t lcd = LCM(lhs.scale, rhs.scale);
+    const Int64 lcd = LCM(lhs.scale, rhs.scale);
     lhs.value = lhs.value * (lcd / lhs.scale) + rhs.value * (lcd / rhs.scale);
     lhs.scale = lcd;
     return lhs;
 }
 
 FORCE_INLINE MediaTime& operator-=(MediaTime& lhs, const MediaTime& rhs) {
-    const int64_t lcd = LCM(lhs.scale, rhs.scale);
+    const Int64 lcd = LCM(lhs.scale, rhs.scale);
     lhs.value = lhs.value * (lcd / lhs.scale) - rhs.value * (lcd / rhs.scale);
     lhs.scale = lcd;
     return lhs;
@@ -526,10 +530,9 @@ class ABE_EXPORT MediaEvent : public Job {
         MediaEvent(const sp<DispatchQueue>& disp) : Job(disp) { }
         virtual ~MediaEvent() { }
 
-        virtual size_t fire(const T& value) {
+        virtual void fire(const T& value) {
             mValues.push(value);
-            size_t id = Job::run();
-            return id;
+            Job::dispatch();
         }
 
     protected:
@@ -551,11 +554,10 @@ class ABE_EXPORT MediaEvent2 : public Job {
         MediaEvent2(const sp<DispatchQueue>& disp) : Job(disp) { }
         virtual ~MediaEvent2() { }
 
-        virtual size_t fire(const T& a, const U& b) {
+        virtual void fire(const T& a, const U& b) {
             Pair p; p.a = a; p.b = b;
             mValues.push(p);
-            size_t id = Job::run();
-            return id;
+            Job::dispatch();
         }
 
     protected:

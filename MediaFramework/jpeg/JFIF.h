@@ -52,26 +52,26 @@ __BEGIN_NAMESPACE(JFIF)
  * length >= 16
  */
 struct AppHeader : public SharedObject {
-    // APP0 : uint16_t
-    // length : uint16_t
-    uint16_t    version;
-    uint8_t     units;      // 0: no units; 1: dots per inch; 2: dots per cm
-    uint16_t    x;          // horizontal pixel density
-    uint16_t    y;          // vertical pixel density
-    uint8_t     width0;     // thumbnail horizontal pixel count [optional]
-    uint8_t     height0;    // thumbnail vertical pixel count [optional]
+    // APP0 : UInt16
+    // length : UInt16
+    UInt16    version;
+    UInt8     units;      // 0: no units; 1: dots per inch; 2: dots per cm
+    UInt16    x;          // horizontal pixel density
+    UInt16    y;          // vertical pixel density
+    UInt8     width0;     // thumbnail horizontal pixel count [optional]
+    UInt8     height0;    // thumbnail vertical pixel count [optional]
     sp<Buffer>  thunmbnail; // packed RGB thumbnail [optional]
     
     // "JFXX\0": thumbnail coded using JPEG
-    uint8_t     extension;  // extension code: 0x10 - JPEG, 0x11 - 1 byte/pixel, 0x13 - 3 bytes/pixel
+    UInt8     extension;  // extension code: 0x10 - JPEG, 0x11 - 1 byte/pixel, 0x13 - 3 bytes/pixel
     sp<JPEG::JIFObject> jif;// JPEG thumbnail
 };
 
 /**
  * BitReader: without marker & length
  */
-sp<AppHeader>   readAppHeader(const sp<ABuffer>&, size_t);
-MediaError      extendAppHeader(sp<AppHeader>&, const sp<ABuffer>&, size_t);
+sp<AppHeader>   readAppHeader(const sp<ABuffer>&, UInt32);
+MediaError      extendAppHeader(sp<AppHeader>&, const sp<ABuffer>&, UInt32);
 void            printAppHeader(const sp<AppHeader>&);
 
 __END_NAMESPACE(JFIF)
@@ -82,7 +82,7 @@ __END_NAMESPACE(JFIF)
  * so we prefer JFIFObject instead of ExifObject
  */
 struct JFIFObject : public JPEG::JIFObject {
-    JFIFObject() : JPEG::JIFObject(true) { }
+    JFIFObject() : JPEG::JIFObject(True) { }
     
     sp<JFIF::AppHeader>                 mAppHeader;             ///< JFIF APP0, exist only for JFIF
     sp<EXIF::AttributeInformation>      mAttributeInformation;  ///< Exif APP1, may exists in both JFIF & Exif

@@ -6,61 +6,19 @@ option (WITH_SDL        "Build with SDL"        OFF)
 # put sub directories before our project 
 # avoid pollution by our project
 add_subdirectory(external/ABE)
-add_subdirectory(external/FFmpegStatic EXCLUDE_FROM_ALL)
+if (WITH_FFMPEG)
+add_subdirectory(external/FFmpegStatic)
+endif()
 add_subdirectory(external/libyuv    EXCLUDE_FROM_ALL)
 
 project (MediaFramework)
-
-# https://gcc.gnu.org/onlinedocs/gcc/Warning-Options.html#Warning-Options
-add_definitions(-Wall)
-add_definitions(-Wno-unused-function)
-add_definitions(-Wno-unused-variable)
-add_definitions(-Werror=non-virtual-dtor)
-add_definitions(-Werror=delete-non-virtual-dtor)
-#add_definitions(-Wextra)
-#add_definitions (-Wno-multichar)
-#add_definitions (-Wno-switch)
-add_definitions(-D_POSIX_C_SOURCE=200809L)
-add_definitions(-D_ISOC99_SOURCE)
-add_definitions(-D_FORTIFY_SOURCE=2)    # https://access.redhat.com/blogs/766093/posts/1976213
-add_definitions(-DHAVE_CONFIG_H)
-add_definitions(-fvisibility=hidden)
-set (CMAKE_C_STANDARD   99)     # c98
-set (CMAKE_C_EXTENSIONS OFF)    # no gnu extensions
-set (CMAKE_CXX_STANDARD 98)     # c++98
-set (CMAKE_CXX_EXTENSIONS OFF)  # no gnu extensions
-
-if (CMAKE_COMPILER_IS_GNUCC)
-    add_definitions(-Wno-attributes)
-    add_definitions(-Wno-multichar)
-    add_definitions(-Wno-unknown-pragmas)
-    add_definitions(-fPIC)
-endif()
-
-# gnucc definitions
-if (CMAKE_COMPILER_IS_GNUCC)
-    add_definitions(-Wno-attributes)
-    add_definitions(-fPIC)
-endif()
+include (external/ABE/libcxx.cmake)
 
 if (WITH_FFMPEG)
     add_definitions(-DWITH_FFMPEG)
 endif()
 if (WITH_SDL)
     add_definitions(-DWITH_SDL)
-endif()
-
-if (APPLE)
-    set (CMAKE_MACOSX_RPATH TRUE)
-elseif(WIN32)
-    add_definitions(-DBUILD_DLL)
-endif()
-
-if (XCODE)
-    #set (CMAKE_MACOSX_BUNDLE TRUE)
-    set (CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
-    set (CMAKE_INSTALL_RPATH_USE_LINK_PATH FALSE)
-    set (CMAKE_OSX_DEPLOYMENT_TARGET 10.14)
 endif()
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)

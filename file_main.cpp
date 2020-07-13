@@ -44,11 +44,13 @@ int main(int argc, char **argv) {
     size_t count = 3;
     if (argc > 2) count = String(argv[2]).toInt32();
     
-    sp<Content> pipe = Content::Create(url);
+    sp<ABuffer> source = Content::Create(url);
+    sp<Message> media = new Message;
+    media->setObject(kKeyContent, source);
     
-    sp<MediaFile> file = MediaFile::Create(pipe);
+    sp<MediaDevice> file = MediaDevice::create(media, Nil);
     
-    if (file.isNIL()) {
+    if (file.isNil()) {
         ERROR("create MediaFile for %s failed", url.c_str());
         return 1;
     }
@@ -61,20 +63,21 @@ int main(int argc, char **argv) {
     }
     
     for (size_t i = 0; i < count; ++i) {
-        sp<MediaPacket> packet = file->read();
-        if (packet.isNIL()) {
+        sp<MediaFrame> packet = file->pull();
+        if (packet.isNil()) {
             INFO("eos or error, exit.");
             return 1;
         }
         
-        String pathname = String::format("%zu_%07" PRId64 "_%07" PRId64 "@%zu",
-                                         packet->index,
-                                         packet->dts.useconds(),
-                                         packet->pts.useconds(),
-                                         packet->size);
+        String pathname = String::format("%zu_%07" PRId64 "_%07" PRId64 "@%u",
+                                         packet->id,
+                                         packet->timecode.useconds(),
+                                         packet->planes.buffers[0].size);
         
-        sp<Content> out = Content::Create(pathname, Content::Write);
-        CHECK_EQ(out->writeBytes((const char *)packet->data, packet->size), packet->size);
+        sp<ABuffer> out = Content::Create(pathname, Protocol::Write);
+        CHECK_EQ(out->writeBytes((const char *)packet->planes.buffers[0].data,
+                                 packet->planes.buffers[0].size),
+                 packet->planes.buffers[0].size);
     }
 
     return 0;

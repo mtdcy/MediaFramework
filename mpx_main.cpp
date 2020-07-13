@@ -147,7 +147,7 @@ struct OnFrameUpdate : public MediaFrameEvent {
             format->setInt32(kKeyType, kCodecTypeVideo);
             
             g_out = MediaDevice::create(format, options);
-            CHECK_FALSE(g_out.isNIL());
+            CHECK_FALSE(g_out.isNil());
         }
         
         g_frame = frame;
@@ -188,13 +188,13 @@ struct SDLJob : public Job {
                         case SDLK_ESCAPE:
                             break;
                         case SDLK_LEFT: {
-                            int64_t pos = g_clock->get() - 5000000LL;
+                            Time pos = g_clock->get() - Time::Seconds(5);
                             if (pos < 0) pos = 0;
-                            mp->prepare(pos);
+                            mp->prepare(pos.useconds());
                         } break;
                         case SDLK_RIGHT: {
-                            int64_t pos = g_clock->get() + 5000000LL;
-                            mp->prepare(pos);
+                            Time pos = g_clock->get() + Time::Seconds(5);
+                            mp->prepare(pos.useconds());
                         } break;
                         case SDLK_s:
                             dumpCurrentFrameIntoFile();
@@ -217,7 +217,7 @@ struct SDLJob : public Job {
             }
         }
         
-        Looper::Main()->post(new SDLJob, 200 * 1000LL);
+        Looper::Main()->dispatch(new SDLJob, Time::MilliSeconds(200));
     }
 };
 
@@ -252,7 +252,7 @@ int main (int argc, char **argv)
     INFO("url: %s", url.c_str());
     
     INFO("Toolkit version %#x", ABE_VERSION);
-    malloc_prepare(); {
+    MemoryAnalyzerPrepare(); {
         sp<Looper> mainLooper = Looper::Main();
         
         // init window
@@ -295,8 +295,7 @@ int main (int argc, char **argv)
         g_clock = mp->clock();
                 
         // loop
-        mainLooper->profile();
-        mainLooper->post(new SDLJob);
+        mainLooper->dispatch(new SDLJob);
         mainLooper->loop();
         
         // clearup
@@ -313,6 +312,6 @@ int main (int argc, char **argv)
         
         // quit sdl
         SDL_Quit();
-    } malloc_finalize();
+    } MemoryAnalyzerFinalize();
     return 0;
 }

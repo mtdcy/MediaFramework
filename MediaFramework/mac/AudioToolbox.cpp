@@ -33,7 +33,7 @@
 //
 
 #define LOG_TAG "mac.AT"
-//#define LOG_NDEBUG 0
+#define LOG_NDEBUG 0
 #include <ABE/ABE.h>
 
 #include "MediaTypes.h"
@@ -54,7 +54,7 @@ struct {
 };
 
 static eAudioCodec GetAudioCodec(AudioFormatID id) {
-    for (size_t i = 0; kFormatMap[i].codec != kAudioCodecUnknown; ++i) {
+    for (UInt32 i = 0; kFormatMap[i].codec != kAudioCodecUnknown; ++i) {
         if (kFormatMap[i].id == id)
             return kFormatMap[i].codec;
     }
@@ -62,11 +62,11 @@ static eAudioCodec GetAudioCodec(AudioFormatID id) {
 }
 
 static AudioFormatID GetAudioFormatID(eAudioCodec codec) {
-    for (size_t i = 0; kFormatMap[i].codec != kAudioCodecUnknown; ++i) {
+    for (UInt32 i = 0; kFormatMap[i].codec != kAudioCodecUnknown; ++i) {
         if (kFormatMap[i].codec == codec)
             return kFormatMap[i].id;
     }
-    FATAL("FIXME: add entry for %#x[%.4s]", codec, (const char *)&codec);
+    FATAL("FIXME: add entry for %#x[%.4s]", codec, (const Char *)&codec);
     return 0;
 }
 
@@ -86,11 +86,11 @@ struct ATAC : public SharedObject {
     // uncompressed frame
     sp<MediaFrame>              frame;
     
-    ATAC() : atac(NULL) { }
+    ATAC() : atac(Nil) { }
 };
 
 static eSampleFormat GetSampleFormat(const AudioStreamBasicDescription& format) {
-    const bool plannar = format.mFormatFlags & kAudioFormatFlagIsNonInterleaved;
+    const Bool plannar = format.mFormatFlags & kAudioFormatFlagIsNonInterleaved;
     switch (format.mBitsPerChannel) {
         case 16:
             return plannar ? kSampleFormatS16 : kSampleFormatS16Packed;
@@ -119,11 +119,11 @@ static void printErrorCode(OSStatus errcode) {
         case kAudioConverterErr_HardwareInUse:          ERROR("hardware in use"); break;
         case kAudioConverterErr_NoHardwarePermission:   ERROR("no hardware permission"); break;
 #endif
-        default:    ERROR("error %#x[%.4s]", errcode, (const char *)&errcode); break;
+        default:    ERROR("error %#x[%.4s]", errcode, (const Char *)&errcode); break;
     }
 }
 
-static bool refineInputFormat(AudioStreamBasicDescription& desc) {
+static Bool refineInputFormat(AudioStreamBasicDescription& desc) {
     desc.mFormatFlags       = 0;
     desc.mFramesPerPacket   = 1024;
     desc.mBitsPerChannel    = 16;
@@ -132,10 +132,10 @@ static bool refineInputFormat(AudioStreamBasicDescription& desc) {
     desc.mBytesPerPacket    = desc.mFramesPerPacket * desc.mBytesPerFrame;
     desc.mReserved          = 0;
     
-    return true;
+    return True;
 }
 
-static bool refineOutputFormat(AudioStreamBasicDescription& desc) {
+static Bool refineOutputFormat(AudioStreamBasicDescription& desc) {
     desc.mFramesPerPacket   = 1;
     if (desc.mFormatFlags & kAudioFormatFlagIsNonInterleaved)
         desc.mBytesPerFrame = desc.mBitsPerChannel / 8;
@@ -143,7 +143,7 @@ static bool refineOutputFormat(AudioStreamBasicDescription& desc) {
         desc.mBytesPerFrame = desc.mChannelsPerFrame * desc.mBitsPerChannel / 8;
     desc.mBytesPerPacket    = desc.mFramesPerPacket * desc.mBytesPerFrame;
     desc.mReserved          = 0;
-    return true;
+    return True;
 }
 
 static sp<ATAC> openATAC(const sp<Message>& formats) {
@@ -159,11 +159,11 @@ static sp<ATAC> openATAC(const sp<Message>& formats) {
     atac->inFormat.mChannelsPerFrame    = formats->findInt32(kKeyChannels);
     if (!refineInputFormat(atac->inFormat)) {
         ERROR("no matching input format");
-        return NULL;
+        return Nil;
     }
     
     sp<Buffer> esds = formats->findObject(kKeyESDS);
-    if (!esds.isNIL()) {
+    if (!esds.isNil()) {
         UInt32 propertyDataSize = sizeof(atac->inFormat);
         OSStatus st = AudioFormatGetProperty(kAudioFormatProperty_FormatInfo,
                                (UInt32)esds->size(),
@@ -171,7 +171,7 @@ static sp<ATAC> openATAC(const sp<Message>& formats) {
                                &propertyDataSize,
                                &atac->inFormat);
         if (st != 0) {
-            ERROR("AudioFormatGetProperty return error %#x[%.4s]", st, (const char *)&st);
+            ERROR("AudioFormatGetProperty return error %#x[%.4s]", st, (const Char *)&st);
         }
     }
 
@@ -181,7 +181,7 @@ static sp<ATAC> openATAC(const sp<Message>& formats) {
     atac->outFormat.mBitsPerChannel     = 16;   // force s16le
     if (!refineOutputFormat(atac->outFormat)) {
         ERROR("no matching output format");
-        return NULL;
+        return Nil;
     }
     
     OSStatus st = AudioConverterNew(&atac->inFormat,
@@ -191,10 +191,10 @@ static sp<ATAC> openATAC(const sp<Message>& formats) {
     if (st != 0) {
         printErrorCode(st);
         ERROR("init audio codec failed");
-        return NULL;
+        return Nil;
     }
     
-    if (!esds.isNIL()) {
+    if (!esds.isNil()) {
         st = AudioConverterSetProperty(atac->atac,
                                        kAudioConverterDecompressionMagicCookie,
                                        (UInt32)esds->size(),
@@ -202,7 +202,7 @@ static sp<ATAC> openATAC(const sp<Message>& formats) {
         if (st != 0) {
             printErrorCode(st);
             ERROR("set magic cookie failed");
-            return NULL;
+            return Nil;
         }
     }
     
@@ -214,7 +214,7 @@ static sp<ATAC> openATAC(const sp<Message>& formats) {
     if (st != 0) {
         printErrorCode(st);
         ERROR("update input format failed");
-        return NULL;
+        return Nil;
     }
     
     propertyDataSize = sizeof(atac->outFormat);
@@ -235,13 +235,14 @@ static OSStatus DecodeCallback(AudioConverterRef               inAudioConverter,
                                AudioBufferList *               ioData,
                                AudioStreamPacketDescription ** outDataPacketDescription,
                                void * __nullable               inUserData) {
-    sp<ATAC> atac = inUserData;
+    sp<ATAC> atac = static_cast<ATAC *>(inUserData);
     CHECK_EQ(atac->atac, inAudioConverter);
     
-    DEBUG("callback");
+    DEBUG("+callback");
     
-    if (atac->packet.isNIL()) {
+    if (atac->packet.isNil()) {
         // eos
+        DEBUG("EOS");
         *ioNumberDataPackets            = 0;
         if (outDataPacketDescription) {
             *outDataPacketDescription   = &atac->desc;
@@ -258,6 +259,7 @@ static OSStatus DecodeCallback(AudioConverterRef               inAudioConverter,
     if (outDataPacketDescription) {
         *outDataPacketDescription       = &atac->desc;
     }
+    DEBUG("-callback");
     return 0;
 }
 
@@ -268,18 +270,18 @@ struct MyAudioBufferList {
 };
 
 static MediaError decode(sp<ATAC>& atac, const sp<MediaFrame>& packet) {
-    if (packet.isNIL()) {
+    if (packet.isNil()) {
         INFO("eos...");
     } else {
-        if (!atac->frame.isNIL()) {
+        if (!atac->frame.isNil()) {
             return kMediaErrorResourceBusy;
         }
-        DEBUG("write packet %.3f(s)", packet->pts.seconds());
+        DEBUG("write packet %.3f(s)", packet->timecode.seconds());
     }
     
     atac->packet                                = packet;
     atac->desc.mStartOffset                     = 0;
-    atac->desc.mDataByteSize                    = packet.isNIL() ? 0 : packet->planes.buffers[0].size;
+    atac->desc.mDataByteSize                    = packet.isNil() ? 0 : packet->planes.buffers[0].size;
     atac->desc.mVariableFramesInPacket          = 0;
     
     
@@ -292,11 +294,11 @@ static MediaError decode(sp<ATAC>& atac, const sp<MediaFrame>& packet) {
     audio.samples                               = atac->inFormat.mFramesPerPacket;
     sp<MediaFrame> frame                        = MediaFrame::Create(audio);
     
-    const bool plannar                          = atac->outFormat.mFormatFlags & kAudioFormatFlagIsNonInterleaved;
+    const Bool plannar                          = atac->outFormat.mFormatFlags & kAudioFormatFlagIsNonInterleaved;
     MyAudioBufferList outOutputData;
     if (plannar) {
         outOutputData.mNumberBuffers            = atac->outFormat.mChannelsPerFrame;
-        for (size_t i = 0; i < outOutputData.mNumberBuffers; ++i) {
+        for (UInt32 i = 0; i < outOutputData.mNumberBuffers; ++i) {
             outOutputData.mBuffers[i].mNumberChannels   = 0;
             outOutputData.mBuffers[i].mDataByteSize     = frame->planes.buffers[i].size;
             outOutputData.mBuffers[i].mData             = frame->planes.buffers[i].data;
@@ -323,7 +325,7 @@ static MediaError decode(sp<ATAC>& atac, const sp<MediaFrame>& packet) {
         return kMediaErrorBadContent;
     }
     
-    if (packet.isNIL()) {
+    if (packet.isNil()) {
         INFO("eos...");
         return kMediaNoError;
     }
@@ -345,7 +347,7 @@ struct AudioCodec : public MediaDevice {
     
     MediaError init(const sp<Message>& formats, const sp<Message>& options) {
         mATAC = openATAC(formats);
-        return mATAC.isNIL() ? kMediaErrorBadFormat : kMediaNoError;
+        return mATAC.isNil() ? kMediaErrorBadFormat : kMediaNoError;
     }
     
     virtual sp<Message> formats() const {
@@ -370,9 +372,9 @@ struct AudioCodec : public MediaDevice {
         sp<MediaFrame> frame = mATAC->frame;
         mATAC->frame.clear();
         
-        if (frame.isNIL()) {
+        if (frame.isNil()) {
             INFO("eos...");
-            return NULL;
+            return Nil;
         }
         
         DEBUG("pull %s", frame->string().c_str());
@@ -391,7 +393,7 @@ sp<MediaDevice> CreateAudioToolbox(const sp<Message>& formats, const sp<Message>
     sp<AudioCodec> codec = new AudioCodec;
     if (codec->init(formats, options) == kMediaNoError)
         return codec;
-    return NULL;
+    return Nil;
 }
 
 __END_NAMESPACE_MPX

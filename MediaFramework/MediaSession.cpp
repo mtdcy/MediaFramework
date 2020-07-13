@@ -73,13 +73,13 @@ sp<IMediaSession> CreateMediaCodec(const sp<Looper>&);
 sp<IMediaSession> CreateMediaRenderer(const sp<Looper>&);
 sp<IMediaSession> IMediaSession::Create(const sp<Message>& format, const sp<Message>& options) {
     sp<Looper> looper = options->findObject(kKeyLooper);
-    if (looper.isNIL()) {
+    if (looper.isNil()) {
         // create a looper
         String name;
         if (format->contains(kKeyURL))    name = "source";
         else {
-            int32_t value = format->findInt32(kKeyFormat);
-            name = String::format("%.4s", (const char *)&value);
+            Int32 value = format->findInt32(kKeyFormat);
+            name = String::format("%.4s", (const Char *)&value);
         }
         looper = new Looper(name);
     }
@@ -92,7 +92,7 @@ sp<IMediaSession> IMediaSession::Create(const sp<Message>& format, const sp<Mess
     } else if (options->contains(kKeyFrameRequestEvent)) {
         session = CreateMediaRenderer(looper);
     }
-    if (session.isNIL()) {
+    if (session.isNil()) {
         ERROR("create session failed << %s << %s", format->string().c_str(), options->string().c_str());
     }
     sp<InitJob> init = new InitJob(session.get());

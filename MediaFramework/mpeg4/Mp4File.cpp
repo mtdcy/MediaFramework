@@ -54,8 +54,8 @@ __BEGIN_NAMESPACE_MPX
 using namespace MPEG4;
 
 struct {
-    const uint32_t      type;
-    const uint32_t      format;
+    const UInt32      type;
+    const UInt32      format;
 } kCodecMap[] = {
     {kBoxTypeMP4A,      kAudioCodecAAC     },
     {kBoxTypeAVC1,      kVideoCodecH264    },
@@ -65,8 +65,8 @@ struct {
     {'    ',            kAudioCodecUnknown },
 };
 
-static uint32_t get_codec_format(uint32_t type) {
-    for (size_t i = 0; kCodecMap[i].format != kAudioCodecUnknown; ++i) {
+static UInt32 get_codec_format(UInt32 type) {
+    for (UInt32 i = 0; kCodecMap[i].format != kAudioCodecUnknown; ++i) {
         if (type == kCodecMap[i].type)
             return kCodecMap[i].format;
     }
@@ -91,50 +91,50 @@ static MediaError prepareMetaData(const sp<Box>& meta, const sp<Message>& target
 }
 
 struct Sample {
-    uint64_t            offset;
-    size_t              size;   // in bytes
-    int64_t             dts;
-    int64_t             pts;
-    uint32_t            flags;
+    UInt64            offset;
+    UInt32              size;   // in bytes
+    Int64             dts;
+    Int64             pts;
+    UInt32            flags;
 };
 
 struct Mp4Track : public SharedObject {
-    Mp4Track() : enabled(true), type(kCodecTypeUnknown), codec(0), duration(kMediaTimeInvalid),
+    Mp4Track() : enabled(True), type(kCodecTypeUnknown), codec(0), duration(kMediaTimeInvalid),
     sampleIndex(0), startIndex(0), bitReate(0), samplesRead(0) { }
 
-    bool                enabled;    // enabled by default
+    Bool                enabled;    // enabled by default
     eCodecType          type;
-    uint32_t            codec;  // eAudioCodec|eVideoCodec
+    UInt32            codec;  // eAudioCodec|eVideoCodec
     MediaTime           duration;
-    size_t              sampleIndex;
-    size_t              startIndex;
+    UInt32              sampleIndex;
+    UInt32              startIndex;
     Vector<Sample>      sampleTable;
-    int32_t             bitReate;
+    Int32             bitReate;
 
     union {
         struct {
-            int32_t     width;
-            int32_t     height;
+            Int32     width;
+            Int32     height;
         } video;
         struct {
-            int32_t     sampleRate;
-            int32_t     channelCount;
+            Int32     sampleRate;
+            Int32     channelCount;
         } audio;
     };
     sp<CommonBox>       esds;
     
     union {
-        uint8_t         lengthSizeMinusOne;     // for h264, @see AVCDecoderConfigurationRecord.lengthSizeMinusOne
+        UInt8         lengthSizeMinusOne;     // for h264, @see AVCDecoderConfigurationRecord.lengthSizeMinusOne
     };
     
     // statistics
-    size_t              samplesRead;
+    UInt32              samplesRead;
 };
 
 static sp<Mp4Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderBox>& mvhd) {
-    if (CheckTrackBox(trak) == false) {
+    if (CheckTrackBox(trak) == False) {
         ERROR("bad TrackBox");
-        return NULL;
+        return Nil;
     }
 
     sp<TrackHeaderBox> tkhd             = FindBox(trak, kBoxTypeTKHD);
@@ -159,7 +159,7 @@ static sp<Mp4Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderB
     // check
     if (stsd->child.size() == 0) {
         ERROR("SampleEntry is missing from stsb.");
-        return NULL;
+        return Nil;
     }
 
     if (stsd->child.size() > 1) {
@@ -176,7 +176,7 @@ static sp<Mp4Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderB
     sp<SampleEntry> sampleEntry = stsd->child[0];
     track->codec = get_codec_format(sampleEntry->Type);
     if (track->codec == kAudioCodecUnknown) {
-        ERROR("unsupported track sample '%s'", (const char *)&sampleEntry->Type);
+        ERROR("unsupported track sample '%s'", (const Char *)&sampleEntry->Type);
         return track;
     }
 
@@ -195,7 +195,7 @@ static sp<Mp4Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderB
         track->video.height = sampleEntry->visual.height;
     }
 
-    for (size_t i = 0; i < sampleEntry->child.size(); ++i) {
+    for (UInt32 i = 0; i < sampleEntry->child.size(); ++i) {
         sp<Box> box = sampleEntry->child[i];
         if (box->Type == kBoxTypeESDS ||
             box->Type == kBoxTypeAVCC ||
@@ -209,12 +209,12 @@ static sp<Mp4Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderB
             sp<BitRateBox> btrt = box;
             track->bitReate = btrt->avgBitrate;
         } else {
-            INFO("ignore box %s", (const char *)&box->Type);
+            INFO("ignore box %s", (const Char *)&box->Type);
         }
     }
     
     if (track->codec == kVideoCodecH264) {
-        if (track->esds != NULL) {
+        if (track->esds != Nil) {
             AVCDecoderConfigurationRecord avcC;
             if (avcC.parse(track->esds->data->cloneBytes()) == kMediaNoError) {
                 track->lengthSizeMinusOne = avcC.lengthSizeMinusOne;
@@ -223,17 +223,17 @@ static sp<Mp4Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderB
     }
 
     // FIXME: no-output sample
-    const uint64_t now = SystemTimeUs();
+    const Time now = Time::Now();
     
     // init sampleTable with dts
-    uint64_t dts = 0;
-    for (size_t i = 0; i < stts->entries.size(); ++i) {
-        for (size_t j = 0; j < stts->entries[i].sample_count; ++j) {
+    UInt64 dts = 0;
+    for (UInt32 i = 0; i < stts->entries.size(); ++i) {
+        for (UInt32 j = 0; j < stts->entries[i].sample_count; ++j) {
             // ISO/IEC 14496-12:2015 Section 8.6.2.1
             //  If the sync sample box is not present, every sample is a sync sample.
             Sample s = { 0/*offset*/, 0/*size*/,
                 dts, dts/*init pts with dts*/,
-                stss != NULL ? kFrameTypeUnknown : kFrameTypeSync};
+                stss != Nil ? kFrameTypeUnknown : kFrameTypeSync};
             track->sampleTable.push(s);
             dts += stts->entries[i].sample_delta;
         }
@@ -241,35 +241,35 @@ static sp<Mp4Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderB
 
     // ctts => pts
     if (ctts != 0) {
-        size_t sampleIndex = 0;
-        for (size_t i = 0; i < ctts->entries.size(); ++i) {
-            for (size_t j = 0; j < ctts->entries[i].sample_count; ++j) {
+        UInt32 sampleIndex = 0;
+        for (UInt32 i = 0; i < ctts->entries.size(); ++i) {
+            for (UInt32 j = 0; j < ctts->entries[i].sample_count; ++j) {
                 Sample& s = track->sampleTable[sampleIndex++];
                 s.pts = s.dts + ctts->entries[i].sample_offset;
             }
         }
     }
     
-    if (hdlr->handler_type == kMediaTypeVideo && ctts == NULL) {
+    if (hdlr->handler_type == kMediaTypeVideo && ctts == Nil) {
         ERROR("ctts is not present. pts will be missing");
     }
 
     // stco + stsc + stsz => sample size & offset
-    CHECK_EQ((size_t)stsc->entries[0].first_chunk, 1);
-    size_t sampleIndex = 0;
-    size_t stscIndex = 0;
+    CHECK_EQ((UInt32)stsc->entries[0].first_chunk, 1);
+    UInt32 sampleIndex = 0;
+    UInt32 stscIndex = 0;
     // first, go through each chunk
-    for (size_t chunkIndex = 0; chunkIndex < stco->entries.size(); ++chunkIndex) {
+    for (UInt32 chunkIndex = 0; chunkIndex < stco->entries.size(); ++chunkIndex) {
         // find out how many samples in this chunk
         while (stscIndex + 1 < stsc->entries.size() &&
                 stsc->entries[stscIndex + 1].first_chunk <= chunkIndex + 1) {
             ++stscIndex;
         }
-        const size_t numSamples = stsc->entries[stscIndex].samples_per_chunk;
+        const UInt32 numSamples = stsc->entries[stscIndex].samples_per_chunk;
 
         // set each samples offset and size
-        uint64_t offset = stco->entries[chunkIndex];
-        for (size_t i = 0; i < numSamples; ++i && ++sampleIndex) {
+        UInt64 offset = stco->entries[chunkIndex];
+        for (UInt32 i = 0; i < numSamples; ++i && ++sampleIndex) {
             Sample& s = track->sampleTable[sampleIndex];
 
             s.offset = offset;
@@ -280,8 +280,8 @@ static sp<Mp4Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderB
     }
 
     // stss => key frames
-    if (stss != NULL) {
-        for (size_t i = 0; i < stss->entries.size(); ++i) {
+    if (stss != Nil) {
+        for (UInt32 i = 0; i < stss->entries.size(); ++i) {
             Sample& s = track->sampleTable[stss->entries[i] - 1];
             s.flags |= kFrameTypeSync;
             //INFO("sync frame %d", stss->entries[i]);
@@ -291,13 +291,13 @@ static sp<Mp4Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderB
     }
 
     // ISO/IEC 14496-12:2015 Section 8.6.4
-    if (sdtp != NULL) {
-        for (size_t i = 0; i < sdtp->dependency.size(); ++i) {
-            uint8_t dep = sdtp->dependency[i];
-            uint8_t is_leading = (dep & 0xc0) >> 6;
-            uint8_t sample_depends_on = (dep & 0x30) >> 4;
-            uint8_t sample_is_depended_on = (dep & 0xc) >> 2;
-            uint8_t sample_has_redundancy = (dep & 0x3);
+    if (sdtp != Nil) {
+        for (UInt32 i = 0; i < sdtp->dependency.size(); ++i) {
+            UInt8 dep = sdtp->dependency[i];
+            UInt8 is_leading = (dep & 0xc0) >> 6;
+            UInt8 sample_depends_on = (dep & 0x30) >> 4;
+            UInt8 sample_is_depended_on = (dep & 0xc) >> 2;
+            UInt8 sample_has_redundancy = (dep & 0x3);
 #if 1
             DEBUG("is leading %d, sample_depends_on %d, "
                     "sample_is_depended_on %d, sample_has_redundancy %d",
@@ -321,7 +321,7 @@ static sp<Mp4Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderB
     } else {
         // we don't have enough infomation to seperate P-frame & B-frame,
         // so mark unknown frames as being depended.
-        for (size_t i = 0; i < track->sampleTable.size(); ++i) {
+        for (UInt32 i = 0; i < track->sampleTable.size(); ++i) {
             Sample& s = track->sampleTable[i];
             if (s.flags & kFrameTypeSync) continue;
         }
@@ -334,9 +334,9 @@ static sp<Mp4Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderB
     }
 #endif
 
-    DEBUG("init sample table takes %.2f", (SystemTimeUs() - now) / 1E6);
+    DEBUG("init sample table takes %.2f", (Time::Now() - now) / 1E6);
 #if 0
-    for (size_t i = 0; i < track.mSampleTable.size(); ++i) {
+    for (UInt32 i = 0; i < track.mSampleTable.size(); ++i) {
         Sample& s   = track.mSampleTable[i];
         DEBUG("sample %zu: %" PRIu64 " %zu %" PRIu64 " %" PRIu64,
                 i, s.offset, s.size,
@@ -350,18 +350,18 @@ static sp<Mp4Track> prepareTrack(const sp<TrackBox>& trak, const sp<MovieHeaderB
     return track;
 }
 
-static MediaError seekTrack(sp<Mp4Track>& track, int64_t us) {
+static MediaError seekTrack(sp<Mp4Track>& track, Int64 us) {
     const Vector<Sample>& tbl = track->sampleTable;
     // dts&pts in tbl using duration's timescale
     us = (us * track->duration.scale) / 1000000LL;
 
-    size_t first = 0;
-    size_t second = tbl.size() - 1;
-    size_t mid = 0;
+    UInt32 first = 0;
+    UInt32 second = tbl.size() - 1;
+    UInt32 mid = 0;
 
     // using binary search to find sample index
     // closest search
-    size_t search_count = 0;
+    UInt32 search_count = 0;
     while (first < second) {
         mid = (first + second) / 2; // truncated happens
         const Sample& s0 = tbl[mid];
@@ -389,7 +389,7 @@ static MediaError seekTrack(sp<Mp4Track>& track, int64_t us) {
         ++second;
     }
 
-    const size_t result = first;
+    const UInt32 result = first;
     track->sampleIndex  = result;   // key sample index
     track->startIndex   = mid;
 
@@ -406,14 +406,14 @@ struct Mp4File : public MediaDevice {
     Vector<sp<Mp4Track > >  mTracks;
     MediaTime               mDuration;
     struct {
-        size_t              offset;
-        size_t              length;
+        UInt32              offset;
+        UInt32              length;
     } meta;
     
     // statistics
-    size_t                  mNumPacketsRead;
+    UInt32                  mNumPacketsRead;
 
-    Mp4File() : MediaDevice(), mContent(NULL),
+    Mp4File() : MediaDevice(), mContent(Nil),
     mDuration(kMediaTimeInvalid), mNumPacketsRead(0) {
     }
 
@@ -425,7 +425,7 @@ struct Mp4File : public MediaDevice {
         info->setInt64(kKeyDuration, mDuration.useconds());
         info->setInt32(kKeyCount, mTracks.size());
 
-        for (size_t i = 0; i < mTracks.size(); ++i) {
+        for (UInt32 i = 0; i < mTracks.size(); ++i) {
             const sp<Mp4Track>& trak = mTracks[i];
 
             sp<Message> trakInfo = new Message;
@@ -443,19 +443,19 @@ struct Mp4File : public MediaDevice {
                 trakInfo->setInt32(kKeyHeight, trak->video.height);
             }
 
-            if (trak->esds != NULL) {
-                DEBUG("esds: %s", trak->esds->data->string(true).c_str());
+            if (trak->esds != Nil) {
+                DEBUG("esds: %s", trak->esds->data->string(True).c_str());
                 trakInfo->setObject(FOURCC(trak->esds->Type), trak->esds->data);
             }
 
 #if 0
             // start time & encode delay/padding
-            uint64_t startTime = 0;     // FIXME: learn more about start time.
-            int64_t encodeDelay = 0;
-            int64_t encodePadding = 0;
+            UInt64 startTime = 0;     // FIXME: learn more about start time.
+            Int64 encodeDelay = 0;
+            Int64 encodePadding = 0;
             sp<EditListBox> elst = FindBoxInside(trak, kBoxTypeEDTS, kBoxTypeELST);
-            if (elst != NULL && elst->entries.size()) {
-                size_t i = 0;
+            if (elst != Nil && elst->entries.size()) {
+                UInt32 i = 0;
                 if (elst->entries[0].media_time == -1) {
                     startTime = elst->entries[0].segment_duration;
                     DEBUG("startTime = %" PRId64, startTime);
@@ -464,8 +464,8 @@ struct Mp4File : public MediaDevice {
 
                 // we only support one non-empty edit.
                 if (elst->entries.size() == i + 1) {
-                    uint64_t media_time = elst->entries[i].media_time;
-                    uint64_t segment_duration = elst->entries[i].segment_duration;
+                    UInt64 media_time = elst->entries[i].media_time;
+                    UInt64 segment_duration = elst->entries[i].segment_duration;
 
                     encodeDelay     = media_time;
                     // XXX: borrow from android, is it right???
@@ -484,7 +484,7 @@ struct Mp4File : public MediaDevice {
         // TODO: meta
         // id3v2
         sp<ID3v2Box> id32 = FindBoxInside(mMovieBox, kBoxTypeMETA, kBoxTypeID32);
-        if (id32 != NULL) {
+        if (id32 != Nil) {
             ID3::ID3v2 parser;
             if (parser.parse(*id32->ID3v2data) == kMediaNoError) {
                 info.set<Message>(Media::ID3v2, parser.values());
@@ -496,7 +496,7 @@ struct Mp4File : public MediaDevice {
     }
 
     MediaError init(const sp<ABuffer>& buffer) {
-        CHECK_TRUE(buffer != NULL);
+        CHECK_TRUE(buffer != Nil);
 
         sp<FileTypeBox> ftyp = ReadBox(buffer);
         if (ftyp->Type != kBoxTypeFTYP) {
@@ -507,13 +507,13 @@ struct Mp4File : public MediaDevice {
         sp<MovieBox> moov;
         sp<MediaDataBox> mdat;
         sp<MetaBox> meta;
-        while (moov.isNIL() || mdat.isNIL()) {
+        while (moov.isNil() || mdat.isNil()) {
             sp<Box> box = ReadBox(buffer, ftyp);
-            if (box.isNIL()) break;
+            if (box.isNil()) break;
             
             if (box->Type == kBoxTypeMDAT) {
                 mdat = box;
-                if (moov.isNIL()) {
+                if (moov.isNil()) {
                     // skip mdat and search for moov
                     buffer->skipBytes(mdat->length);
                 }
@@ -524,11 +524,11 @@ struct Mp4File : public MediaDevice {
             }
         }
         
-        if (moov.isNIL()) {
+        if (moov.isNil()) {
             ERROR("missing moov box");
             return kMediaErrorBadContent;
         }
-        if (mdat.isNIL()) {
+        if (mdat.isNil()) {
             ERROR("missing mdat box");
             return kMediaErrorBadContent;
         }
@@ -542,13 +542,13 @@ struct Mp4File : public MediaDevice {
         }
         mDuration = MediaTime(mvhd->duration, mvhd->timescale);
 
-        for (size_t i = 0; ; ++i) {
+        for (UInt32 i = 0; ; ++i) {
             sp<TrackBox> trak = FindBox(moov, kBoxTypeTRAK, i);
             if (trak == 0) break;
 
             sp<Mp4Track> track = prepareTrack(trak, mvhd);
 
-            if (track == NULL) continue;
+            if (track == Nil) continue;
 
             mTracks.push(track);
         }
@@ -572,9 +572,9 @@ struct Mp4File : public MediaDevice {
         INFO("configure << %s", options->string().c_str());
         MediaError status = kMediaErrorNotSupported;
         if (options->contains(kKeyTracks)) {
-            Bits<uint32_t> mask = options->findInt32(kKeyTracks);
+            Bits<UInt32> mask = options->findInt32(kKeyTracks);
             CHECK_FALSE(mask.empty());
-            for (size_t i = 0; i < mTracks.size(); ++i) {
+            for (UInt32 i = 0; i < mTracks.size(); ++i) {
                 sp<Mp4Track>& track = mTracks[i];
                 track->enabled = mask.test(i);
             }
@@ -588,8 +588,8 @@ struct Mp4File : public MediaDevice {
         return status;
     }
     
-    void seek(int64_t us) {
-        for (size_t i = 0; i < mTracks.size(); ++i) {
+    void seek(Int64 us) {
+        for (UInt32 i = 0; i < mTracks.size(); ++i) {
             sp<Mp4Track>& track = mTracks[i];
             // find new sample index
             seekTrack(track, us);
@@ -603,15 +603,15 @@ struct Mp4File : public MediaDevice {
     virtual sp<MediaFrame> pull() {
         for (;;) {
             // find the lowest pos
-            size_t trackIndex = mTracks.size();
-            int64_t los = mContent->capacity();
+            UInt32 trackIndex = mTracks.size();
+            Int64 los = mContent->capacity();
 
-            for (size_t i = 0; i < mTracks.size(); ++i) {
+            for (UInt32 i = 0; i < mTracks.size(); ++i) {
                 sp<Mp4Track>& track = mTracks[i];
                 if (!track->enabled) continue;
                 if (track->sampleIndex >= track->sampleTable.size()) continue;
 
-                int64_t pos = track->sampleTable[track->sampleIndex].offset;
+                Int64 pos = track->sampleTable[track->sampleIndex].offset;
                 if (pos <= los) {
                     los = pos;
                     trackIndex = i;
@@ -621,12 +621,12 @@ struct Mp4File : public MediaDevice {
             if (trackIndex >= mTracks.size()) {
                 //CHECK_TRUE(mContent->size() == 0, "FIXME: report eos with data exists");
                 INFO("eos @ %" PRId64 "[%" PRId64 "]", mContent->offset(), mContent->size());
-                return NULL;
+                return Nil;
             }
 
             sp<Mp4Track>& track = mTracks[trackIndex];
             Vector<Sample>& tbl = track->sampleTable;
-            size_t sampleIndex = track->sampleIndex++;
+            UInt32 sampleIndex = track->sampleIndex++;
 
             // read sample data
             Sample& s = tbl[sampleIndex];
@@ -638,7 +638,7 @@ struct Mp4File : public MediaDevice {
             if (sample == 0 || sample->size() < s.size) {
                 ERROR("read return error or corrupt file?.");
                 ERROR("report eos...");
-                return NULL;
+                return Nil;
             }
 
             DEBUG("[%zu] read sample @%" PRId64 "(%" PRId64 "), %zu bytes, dts %" PRId64 ", pts %" PRId64,
@@ -649,7 +649,7 @@ struct Mp4File : public MediaDevice {
             ++track->samplesRead;
 
             // setup flags
-            uint32_t flags  = s.flags;
+            UInt32 flags  = s.flags;
 
             if (track->codec == kVideoCodecH264) {
                 if (sampleIndex < track->startIndex) {
@@ -698,7 +698,7 @@ struct Mp4File : public MediaDevice {
             return packet;
         }
 
-        return NULL;
+        return Nil;
     }
     
     virtual MediaError reset() {
@@ -709,17 +709,17 @@ struct Mp4File : public MediaDevice {
 sp<MediaDevice> CreateMp4File(const sp<ABuffer>& buffer) {
     sp<Mp4File> file = new Mp4File;
     if (file->init(buffer) == kMediaNoError) return file;
-    return NIL;
+    return Nil;
 }
 
-int IsMp4File(const sp<ABuffer>& buffer) {
-    int score = 0;
+Int IsMp4File(const sp<ABuffer>& buffer) {
+    Int score = 0;
     while (buffer->size() > 8 && score < 100) {
-        size_t boxHeadLength    = 8;
+        UInt32 boxHeadLength    = 8;
         // if size is 1 then the actual size is in the field largesize;
         // if size is 0, then this box is the last one in the file
-        uint64_t boxSize    = buffer->rb32();
-        uint32_t boxType    = buffer->rb32();
+        UInt64 boxSize    = buffer->rb32();
+        UInt32 boxType    = buffer->rb32();
 
         if (boxSize == 1) {
             if (buffer->size() < 8) break;

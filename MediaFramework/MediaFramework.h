@@ -56,15 +56,15 @@ API_EXPORT ImageFileRef         ImageFileOpen(BufferObjectRef);
 // MediaFrame
 typedef SharedObjectRef         MediaFrameRef;
 
-API_EXPORT MediaFrameRef        MediaFrameCreate(size_t);
+API_EXPORT MediaFrameRef        MediaFrameCreate(UInt32);
 API_EXPORT MediaFrameRef        MediaFrameCreateWithBuffer(BufferObjectRef);
 API_EXPORT MediaFrameRef        MediaFrameCreateWithAudioFormat(const AudioFormat *);
 API_EXPORT MediaFrameRef        MediaFrameCreateWithImageFormat(const ImageFormat *);
 API_EXPORT MediaFrameRef        MediaFrameCreateWithImageBuffer(const ImageFormat *, BufferObjectRef);
 
-API_EXPORT size_t               MediaFrameGetPlaneCount(const MediaFrameRef);
-API_EXPORT size_t               MediaFrameGetPlaneSize(const MediaFrameRef, size_t);
-API_EXPORT uint8_t *            MediaFrameGetPlaneData(MediaFrameRef, size_t);
+API_EXPORT UInt32               MediaFrameGetPlaneCount(const MediaFrameRef);
+API_EXPORT UInt32               MediaFrameGetPlaneSize(const MediaFrameRef, UInt32);
+API_EXPORT UInt8 *              MediaFrameGetPlaneData(MediaFrameRef, UInt32);
 
 API_EXPORT AudioFormat *        MediaFrameGetAudioFormat(MediaFrameRef);
 API_EXPORT ImageFormat *        MediaFrameGetImageFormat(MediaFrameRef);
@@ -73,7 +73,7 @@ API_EXPORT ImageFormat *        MediaFrameGetImageFormat(MediaFrameRef);
 typedef SharedObjectRef         MediaClockRef;
 #define MediaClockRelease(x)    SharedObjectRelease((SharedObjectRef)x)
 
-API_EXPORT int64_t              MediaClockGetTime(MediaClockRef);
+API_EXPORT Int64                MediaClockGetTime(MediaClockRef);
 
 // MediaPlayer
 typedef SharedObjectRef         MediaPlayerRef;
@@ -85,7 +85,7 @@ API_EXPORT MediaPlayerRef       MediaPlayerCreate(MessageObjectRef, MessageObjec
  */
 API_EXPORT MediaClockRef        MediaPlayerGetClock(const MediaPlayerRef);
 
-API_EXPORT void                 MediaPlayerPrepare(MediaPlayerRef, int64_t);
+API_EXPORT void                 MediaPlayerPrepare(MediaPlayerRef, Int64);
 API_EXPORT void                 MediaPlayerStart(MediaPlayerRef);
 API_EXPORT void                 MediaPlayerPause(MediaPlayerRef);
 

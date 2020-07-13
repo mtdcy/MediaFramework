@@ -97,8 +97,8 @@ typedef MediaEvent2<ePlayerInfoType, sp<Message> > PlayerInfoEvent;
  *  "url"                   - [String]                  - mandatory, url of the media
  *  "VideoFrameEvent"       - [sp<MediaFrameEvent>]     - optional
  *  "AudioFrameEvent"       - [sp<MediaFrameEvent>]     - optional
- *  "StartTime"             - [double|seconds]          - optional
- *  "EndTime"               - [double|seconds]          - optional
+ *  "StartTime"             - [Float64|seconds]          - optional
+ *  "EndTime"               - [Float64|seconds]          - optional
  * about options (global):
  *  "StatusEvent"           - [sp<StatusEvent>]         - optional
  *  "PlayerInfoEvent"       - [sp<PlayerInfoEvent>]     - optional

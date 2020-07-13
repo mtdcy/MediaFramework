@@ -41,27 +41,27 @@
 
 __BEGIN_NAMESPACE_MPX
 
-static bool IsRawFormat(uint32_t format) {
+static Bool IsRawFormat(UInt32 format) {
     switch (format) {
         case kSampleFormatU8:
         case kSampleFormatS16:
         case kSampleFormatS32:
-        case kSampleFormatFLT:
-        case kSampleFormatDBL:
+        case kSampleFormatF32:
+        case kSampleFormatF64:
         case kSampleFormatU8Packed:
         case kSampleFormatS16Packed:
         case kSampleFormatS32Packed:
-        case kSampleFormatFLTPacked:
-        case kSampleFormatDBLPacked:
-            return true;
+        case kSampleFormatF32Packed:
+        case kSampleFormatF64Packed:
+            return True;
         default:
-            return false;
+            return False;
     }
 }
 
 struct TrackContext : public SharedObject {
     eCodecType          mType;
-    size_t              mTrackIndex;
+    UInt32              mTrackIndex;
     sp<IMediaSession>   mMediaSource;
     sp<IMediaSession>   mDecodeSession;
     sp<IMediaSession>   mRenderSession;
@@ -96,27 +96,27 @@ struct Tiger : public IMediaPlayer {
     // mutable context
     sp<IMediaSession>       mMediaSource;
     sp<Message>             mFileFormats;
-    size_t                  mTrackID;
-    HashTable<size_t, sp<TrackContext> > mTracks;
-    bool                    mHasAudio;
-    Bits<uint32_t>          mReadyMask;     // set when not ready
-    Bits<uint32_t>          mEndMask;       // set when not eos
+    UInt32                  mTrackID;
+    HashTable<UInt32, sp<TrackContext> > mTracks;
+    Bool                    mHasAudio;
+    Bits<UInt32>          mReadyMask;     // set when not ready
+    Bits<UInt32>          mEndMask;       // set when not eos
     enum eState { kInit, kReady, kEnd };
     eState                  mState;
 
     Tiger() : IMediaPlayer(new Looper("tiger")),
         // external static context
-        mInfoEvent(NULL), mOpenGLContext(NULL),
+        mInfoEvent(Nil), mOpenGLContext(Nil),
         // internal static context
         mDeferStart(new DeferStart(this)),
         // mutable context
-        mMediaSource(NULL), mTrackID(0),
-        mHasAudio(false), mState(kInit) {
+        mMediaSource(Nil), mTrackID(0),
+        mHasAudio(False), mState(kInit) {
             
         }
 
-    void notify(ePlayerInfoType info, const sp<Message>& payload = NULL) {
-        if (mInfoEvent != NULL) {
+    void notify(ePlayerInfoType info, const sp<Message>& payload = Nil) {
+        if (mInfoEvent != Nil) {
             mInfoEvent->fire(info, payload);
         }
     }
@@ -126,7 +126,7 @@ struct Tiger : public IMediaPlayer {
         INFO("media => %s", media->string().c_str());
         INFO("options => %s", options->string().c_str());
         
-        if (!options.isNIL()) {
+        if (!options.isNil()) {
             if (options->contains(kKeyPlayerInfoEvent)) {
                 mInfoEvent = options->findObject(kKeyPlayerInfoEvent);
             }
@@ -174,21 +174,21 @@ struct Tiger : public IMediaPlayer {
     
     void onInitDecoders(const sp<Message>& formats) {
         DEBUG("onInitDecoders %s", formats->string().c_str());
-        size_t numTracks = formats->findInt32(kKeyCount, 1);
+        UInt32 numTracks = formats->findInt32(kKeyCount, 1);
         
         CHECK_TRUE(formats->contains(kKeyTrackSelectEvent));
         sp<TrackSelectEvent> selector = formats->findObject(kKeyTrackSelectEvent);
         
         // there is no need to use HashTable, but it help keep code clean
-        HashTable<uint32_t, bool> selectedTracks;
-        for (size_t i = 0; i < numTracks; ++i) {
+        HashTable<UInt32, Bool> selectedTracks;
+        for (UInt32 i = 0; i < numTracks; ++i) {
             sp<Message> trackFormat = formats->findObject(kKeyTrack + i);
 
             DEBUG("track %zu: %s", i, trackFormat->string().c_str());
 
             CHECK_TRUE(trackFormat->contains(kKeyType));
             eCodecType type = (eCodecType)trackFormat->findInt32(kKeyType);
-            int32_t codec = trackFormat->findInt32(kKeyFormat);
+            Int32 codec = trackFormat->findInt32(kKeyFormat);
             
             CHECK_TRUE(trackFormat->findObject(kKeyPacketRequestEvent));
             sp<PacketRequestEvent> pre = trackFormat->findObject(kKeyPacketRequestEvent);
@@ -215,7 +215,7 @@ struct Tiger : public IMediaPlayer {
                 options->setObject(kKeySessionInfoEvent, infoEvent);
 
                 sp<IMediaSession> session = IMediaSession::Create(trackFormat, options);
-                if (session == NULL) {
+                if (session == Nil) {
                     ERROR("create session failed", i);
                     continue;
                 }
@@ -223,7 +223,7 @@ struct Tiger : public IMediaPlayer {
             }
             
             mReadyMask.set(mTrackID);
-            selectedTracks.insert(type, true);
+            selectedTracks.insert(type, True);
             mTracks.insert(mTrackID++, track);
         }
         
@@ -231,14 +231,14 @@ struct Tiger : public IMediaPlayer {
             notify(kInfoPlayerError);
         }
         
-        selector->fire((size_t)mReadyMask.value());
+        selector->fire((UInt32)mReadyMask.value());
         mFileFormats = formats;
     }
     
     struct OnDecoderInfo : public SessionInfoEvent {
         Tiger *thiz;
-        const size_t id;
-        OnDecoderInfo(Tiger *p, const size_t n) :
+        const UInt32 id;
+        OnDecoderInfo(Tiger *p, const UInt32 n) :
         SessionInfoEvent(p->mDispatch),
         thiz(p), id(n) { }
 
@@ -247,8 +247,8 @@ struct Tiger : public IMediaPlayer {
         }
     };
     
-    void onDecoderInfo(const size_t id, const eSessionInfoType& info, const sp<Message>& payload) {
-        DEBUG("onDecoderInfo [%zu] %.4s", id, (const char *)&info);
+    void onDecoderInfo(const UInt32 id, const eSessionInfoType& info, const sp<Message>& payload) {
+        DEBUG("onDecoderInfo [%zu] %.4s", id, (const Char *)&info);
         switch (info) {
             case kSessionInfoError:
                 onTrackError(id);
@@ -261,7 +261,7 @@ struct Tiger : public IMediaPlayer {
         }
     }
     
-    void onTrackError(const size_t& id) {
+    void onTrackError(const UInt32& id) {
         ERROR("onTrackError [%zu]", id);
         // on decoder error, release current track
         sp<TrackContext>& track = mTracks[id];
@@ -270,7 +270,7 @@ struct Tiger : public IMediaPlayer {
         if (mTracks.empty()) notify(kInfoPlayerError);
     }
     
-    void onInitRenderer(const size_t& id, const sp<Message>& format) {
+    void onInitRenderer(const UInt32& id, const sp<Message>& format) {
         DEBUG("onInitRenderer [%zu] %s", id, format->string().c_str());
         sp<TrackContext>& track = mTracks[id];
         
@@ -284,7 +284,7 @@ struct Tiger : public IMediaPlayer {
                 INFO("ignore this audio");
                 return;
             } else {
-                mHasAudio = true;
+                mHasAudio = True;
             }
         } else if (track->mType == kCodecTypeVideo) {
             if (format->findInt32(kKeyWidth) == 0 ||
@@ -298,14 +298,14 @@ struct Tiger : public IMediaPlayer {
         sp<Message> options = new Message;
         options->setInt32(kKeyMode, mMode);
         if (track->mType == kCodecTypeVideo) {
-            if (!mVideoFrameEvent.isNIL()) {
+            if (!mVideoFrameEvent.isNil()) {
                 options->setObject(kKeyFrameReadyEvent, mVideoFrameEvent);
-            } else if (mOpenGLContext != NULL) {
+            } else if (mOpenGLContext != Nil) {
                 options->setPointer(kKeyOpenGLContext, mOpenGLContext);
             }
             options->setInt32(kKeyRequestFormat, kPixelFormat420YpCbCrSemiPlanar);
         } else if (track->mType == kCodecTypeAudio) {
-            if (!mAudioFrameEvent.isNIL()) {
+            if (!mAudioFrameEvent.isNil()) {
                 options->setObject(kKeyFrameReadyEvent, mAudioFrameEvent);
             }
         }
@@ -319,7 +319,7 @@ struct Tiger : public IMediaPlayer {
         }
 
         sp<IMediaSession> session = IMediaSession::Create(format, options);
-        if (session == NULL) {
+        if (session == Nil) {
             ERROR("create track %zu failed", id);
             return;
         }
@@ -330,9 +330,9 @@ struct Tiger : public IMediaPlayer {
 
     struct OnRendererInfo : public SessionInfoEvent {
         Tiger *thiz;
-        size_t id;
+        UInt32 id;
 
-        OnRendererInfo(Tiger *p, size_t n) : SessionInfoEvent(p->mDispatch),
+        OnRendererInfo(Tiger *p, UInt32 n) : SessionInfoEvent(p->mDispatch),
         thiz(p), id(n) { }
 
         virtual void onEvent(const eSessionInfoType& info, const sp<Message>& payload) {
@@ -340,8 +340,8 @@ struct Tiger : public IMediaPlayer {
         }
     };
 
-    void onRendererInfo(const size_t& id, const eSessionInfoType& info, const sp<Message>& payload) {
-        DEBUG("onRendererInfo [%zu] %.4s", id, (const char *)&info);
+    void onRendererInfo(const UInt32& id, const eSessionInfoType& info, const sp<Message>& payload) {
+        DEBUG("onRendererInfo [%zu] %.4s", id, (const Char *)&info);
         switch (info) {
             case kSessionInfoReady:
                 onRendererReady(id, payload);
@@ -357,21 +357,21 @@ struct Tiger : public IMediaPlayer {
         }
     }
     
-    void onRendererReady(const size_t& id, const sp<Message>& payload) {
-        DEBUG("onRendererReady [%zu] %s", id, payload.isNIL() ? "" : payload->string().c_str());
+    void onRendererReady(const UInt32& id, const sp<Message>& payload) {
+        DEBUG("onRendererReady [%zu] %s", id, payload.isNil() ? "" : payload->string().c_str());
         const sp<TrackContext>& track = mTracks[id];
         mReadyMask.clear(id);
         if (mReadyMask.empty()) {
             INFO("all tracks are ready");
             if (mState == kInit) {  // notify client only once
-                CHECK_FALSE(mFileFormats.isNIL());
+                CHECK_FALSE(mFileFormats.isNil());
                 notify(kInfoPlayerReady, mFileFormats);
             }
             mState = kReady;
         }
     }
     
-    void onRendererEnd(const size_t& id) {
+    void onRendererEnd(const UInt32& id) {
         DEBUG("onRendererEnd [%zu]", id);
         mEndMask.clear(id);
         if (mEndMask.empty()) {
@@ -388,7 +388,7 @@ struct Tiger : public IMediaPlayer {
         mMediaSource.clear();
     }
     
-#define kDeferTimeUs     500000LL    // 500ms
+#define kDeferTime     0.5    // 500ms
     struct DeferStart : public Job {
         Tiger *thiz;
 
@@ -403,30 +403,30 @@ struct Tiger : public IMediaPlayer {
 #define MIN_SEEK_TIME   200000LL        // 200ms
     virtual void onPrepare(const MediaTime& pos) {
         INFO("onPrepare @ %.3f", pos.seconds());
-        int64_t delta = ABS(pos.useconds() - mClock->get());
+        Int64 delta = ABS((pos.time() - mClock->get()).useconds());
         if (delta < MIN_SEEK_TIME) {
             INFO("ignore seek, request @ %.3f, current %.3f",
-                 pos.seconds(), mClock->get() / 1E6);
+                 pos.seconds(), mClock->get().seconds());
             return;
         }
         
         mDispatch->remove(mDeferStart);
 
         // -> ready by prepare
-        bool paused = mClock->isPaused();
+        Bool paused = mClock->isPaused();
         if (!paused) {
             // pause clock before seek
             mClock->pause();
         }
 
         // set clock time
-        mClock->set(pos.useconds());
+        mClock->set(pos.time());
 
         if (!paused) {
-            mDispatch->dispatch(mDeferStart, kDeferTimeUs);
+            mDispatch->dispatch(mDeferStart, Time::Seconds(kDeferTime));
         }
         
-        HashTable<size_t, sp<TrackContext> >::const_iterator it = mTracks.cbegin();
+        HashTable<UInt32, sp<TrackContext> >::const_iterator it = mTracks.cbegin();
         for (; it != mTracks.cend(); ++it) {
             mEndMask.set(it.key());
         }
@@ -435,7 +435,7 @@ struct Tiger : public IMediaPlayer {
     }
 
     virtual void onStart() {
-        INFO("onStart @ %.3f", mClock->get() / 1E6);
+        INFO("onStart @ %.3f", mClock->get().seconds());
         if (!mClock->isPaused()) {
             INFO("already started");
             return;
@@ -447,13 +447,13 @@ struct Tiger : public IMediaPlayer {
            // NOTHING
         } else {
             DEBUG("defer start...");
-            mDispatch->dispatch(mDeferStart, kDeferTimeUs);
+            mDispatch->dispatch(mDeferStart, Time::Seconds(kDeferTime));
         }
         notify(kInfoPlayerPlaying);
     }
     
     virtual void onPause() {
-        INFO("onPause @ %.3f", mClock->get() / 1E6);
+        INFO("onPause @ %.3f", mClock->get().seconds());
         if (mClock->isPaused()) {
             INFO("already paused");
             return;
@@ -461,7 +461,7 @@ struct Tiger : public IMediaPlayer {
         mDispatch->remove(mDeferStart);
         mClock->pause();
         notify(kInfoPlayerPaused);
-        HashTable<size_t, sp<TrackContext> >::const_iterator it = mTracks.cbegin();
+        HashTable<UInt32, sp<TrackContext> >::const_iterator it = mTracks.cbegin();
         for (; it != mTracks.cend(); ++it) {
             mReadyMask.set(it.key());
         }

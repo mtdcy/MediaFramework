@@ -53,7 +53,7 @@
 __BEGIN_NAMESPACE_MPX
 
 struct {
-    uint32_t        a;
+    UInt32        a;
     AVCodecID       b;
 } kCodecMap[] = {
     // audio
@@ -78,8 +78,8 @@ struct {
     {kAudioCodecUnknown,        AV_CODEC_ID_NONE        }
 };
 
-static uint32_t get_codec_format(AVCodecID b) {
-    for (size_t i = 0; kCodecMap[i].b != AV_CODEC_ID_NONE; ++i) {
+static UInt32 get_codec_format(AVCodecID b) {
+    for (UInt32 i = 0; kCodecMap[i].b != AV_CODEC_ID_NONE; ++i) {
         if (kCodecMap[i].b == b)
             return kCodecMap[i].a;
     }
@@ -87,8 +87,8 @@ static uint32_t get_codec_format(AVCodecID b) {
     return kAudioCodecUnknown;
 }
 
-static AVCodecID get_av_codec_id(uint32_t a) {
-    for (size_t i = 0; kCodecMap[i].b != AV_CODEC_ID_NONE; ++i) {
+static AVCodecID get_av_codec_id(UInt32 a) {
+    for (UInt32 i = 0; kCodecMap[i].b != AV_CODEC_ID_NONE; ++i) {
         if (kCodecMap[i].a == a)
             return kCodecMap[i].b;
     }
@@ -119,7 +119,7 @@ struct {
 };
 
 static ePixelFormat get_pix_format(AVPixelFormat b) {
-    for (size_t i = 0; kPixelMap[i].b != AV_PIX_FMT_NONE; ++i) {
+    for (UInt32 i = 0; kPixelMap[i].b != AV_PIX_FMT_NONE; ++i) {
         if (kPixelMap[i].b == b)
             return kPixelMap[i].a;
     }
@@ -128,7 +128,7 @@ static ePixelFormat get_pix_format(AVPixelFormat b) {
 }
 
 static AVPixelFormat get_av_pix_format(ePixelFormat a) {
-    for (size_t i = 0; kPixelMap[i].a != kPixelFormatUnknown; ++i) {
+    for (UInt32 i = 0; kPixelMap[i].a != kPixelFormatUnknown; ++i) {
         if (kPixelMap[i].a == a)
             return kPixelMap[i].b;
     }
@@ -143,19 +143,19 @@ struct {
     // plannar goes first as we prefer plannar
     {kSampleFormatS16,          AV_SAMPLE_FMT_S16P},
     {kSampleFormatS32,          AV_SAMPLE_FMT_S32P},
-    {kSampleFormatFLT,          AV_SAMPLE_FMT_FLTP},
-    {kSampleFormatDBL,          AV_SAMPLE_FMT_DBLP},
+    {kSampleFormatF32,          AV_SAMPLE_FMT_FLTP},
+    {kSampleFormatF64,          AV_SAMPLE_FMT_DBLP},
     // packed
     {kSampleFormatS16,          AV_SAMPLE_FMT_S16},
     {kSampleFormatS32,          AV_SAMPLE_FMT_S32},
-    {kSampleFormatFLT,          AV_SAMPLE_FMT_FLT},
-    {kSampleFormatDBL,          AV_SAMPLE_FMT_DBL},
+    {kSampleFormatF32,          AV_SAMPLE_FMT_FLT},
+    {kSampleFormatF64,          AV_SAMPLE_FMT_DBL},
     // END OF LIST
     {kSampleFormatUnknown,      AV_SAMPLE_FMT_NONE},
 };
 
 static eSampleFormat get_sample_format(AVSampleFormat b) {
-    for (size_t i = 0; kSampleMap[i].b != AV_SAMPLE_FMT_NONE; ++i) {
+    for (UInt32 i = 0; kSampleMap[i].b != AV_SAMPLE_FMT_NONE; ++i) {
         if (kSampleMap[i].b == b) return kSampleMap[i].a;
     }
     //FATAL("fix the map");
@@ -164,7 +164,7 @@ static eSampleFormat get_sample_format(AVSampleFormat b) {
 }
 
 static AVSampleFormat get_av_sample_format(eSampleFormat a) {
-    for (size_t i = 0; kSampleMap[i].a != kSampleFormatUnknown; ++i) {
+    for (UInt32 i = 0; kSampleMap[i].a != kSampleFormatUnknown; ++i) {
         if (kSampleMap[i].a == a) return kSampleMap[i].b;
     }
     FATAL("fix the map");
@@ -172,10 +172,10 @@ static AVSampleFormat get_av_sample_format(eSampleFormat a) {
 }
 
 template <typename TYPE>
-static FORCE_INLINE size_t unpack(AVFrame *frame, sp<MediaFrame>& out) {
+static FORCE_INLINE UInt32 unpack(AVFrame *frame, sp<MediaFrame>& out) {
     const TYPE * in = (const TYPE *)frame->data[0];
-    for (size_t i = 0; i < frame->nb_samples; ++i) {
-        for (size_t ch = 0; ch < frame->channels; ++ch) {
+    for (UInt32 i = 0; i < frame->nb_samples; ++i) {
+        for (UInt32 ch = 0; ch < frame->channels; ++ch) {
             ((TYPE *)out->planes.buffers[ch].data)[i]   = *in++;
         }
     }
@@ -192,27 +192,27 @@ static FORCE_INLINE sp<MediaFrame> unpack(AVFrame * frame, AVCodecContext* avcc)
         case AV_SAMPLE_FMT_U8:
             format.format = kSampleFormatU8;
             out = MediaFrame::Create(format);
-            out->audio.samples = unpack<uint8_t>(frame, out);
+            out->audio.samples = unpack<UInt8>(frame, out);
             break;
         case AV_SAMPLE_FMT_S16:
             format.format = kSampleFormatS16;
             out = MediaFrame::Create(format);
-            out->audio.samples = unpack<int16_t>(frame, out);
+            out->audio.samples = unpack<Int16>(frame, out);
             break;
         case AV_SAMPLE_FMT_S32:
             format.format = kSampleFormatS32;
             out = MediaFrame::Create(format);
-            out->audio.samples = unpack<int32_t>(frame, out);
+            out->audio.samples = unpack<Int32>(frame, out);
             break;
         case AV_SAMPLE_FMT_FLT:
-            format.format = kSampleFormatFLT;
+            format.format = kSampleFormatF32;
             out = MediaFrame::Create(format);
-            out->audio.samples = unpack<float>(frame, out);
+            out->audio.samples = unpack<Float32>(frame, out);
             break;
         case AV_SAMPLE_FMT_DBL:
-            format.format = kSampleFormatDBL;
+            format.format = kSampleFormatF64;
             out = MediaFrame::Create(format);
-            out->audio.samples = unpack<double>(frame, out);
+            out->audio.samples = unpack<Float64>(frame, out);
             break;
         default:
             FATAL("FIXME");
@@ -237,7 +237,7 @@ struct AVMediaFrame : public MediaFrame {
             audio.freq          = frame->sample_rate;
             audio.samples       = frame->nb_samples;
             if (av_sample_fmt_is_planar((AVSampleFormat)frame->format)) {
-                for (size_t i = 0; i < frame->channels; ++i) {
+                for (UInt32 i = 0; i < frame->channels; ++i) {
                     planes.buffers[i].data  = frame->data[i];
                     // linesize may have extra bytes.
                     planes.buffers[i].size  = frame->nb_samples * av_get_bytes_per_sample((AVSampleFormat)frame->format);
@@ -256,7 +256,7 @@ struct AVMediaFrame : public MediaFrame {
             video.rect.y        = 0;
             video.rect.w        = avcc->width;
             video.rect.h        = avcc->height;
-            for (size_t i = 0; frame->data[i] != NULL; ++i) {
+            for (UInt32 i = 0; frame->data[i] != Nil; ++i) {
                 planes.buffers[i].data  = frame->data[i];
                 // frame->linesize[i] is wired, can not used to calc plane bytes
                 planes.buffers[i].capacity =
@@ -284,8 +284,8 @@ static AVPixelFormat get_format(AVCodecContext *avcc, const AVPixelFormat *pix_f
         if (!(desc->flags & AV_PIX_FMT_FLAG_HWACCEL)) continue;
 
         // find the right hwaccel config
-        const AVCodecHWConfig *hw = NULL;
-        for (size_t i = 0;; ++i) {
+        const AVCodecHWConfig *hw = Nil;
+        for (UInt32 i = 0;; ++i) {
             hw = avcodec_get_hw_config(avcc->codec, i);
             if (!hw) break;
             if (!(hw->methods & AV_CODEC_HW_CONFIG_METHOD_HW_DEVICE_CTX)) continue;
@@ -303,10 +303,10 @@ static AVPixelFormat get_format(AVCodecContext *avcc, const AVPixelFormat *pix_f
 
             // no need to alloc hwaccel_context manually
 #if 0 // def __APPLE__
-            CHECK_EQ((int)hw->device_type, (int)AV_HWDEVICE_TYPE_VIDEOTOOLBOX);
-            int rt = av_videotoolbox_default_init(avcc);
+            CHECK_EQ((Int)hw->device_type, (Int)AV_HWDEVICE_TYPE_VIDEOTOOLBOX);
+            Int rt = av_videotoolbox_default_init(avcc);
             if (rt < 0) {
-                char err_str[64];
+                Char err_str[64];
                 ERROR("init hw accel context failed. %s", av_make_error_string(err_str, 64, rt));
                 av_buffer_unref(&avcc->hw_device_ctx);
                 av_videotoolbox_default_free(avcc);
@@ -320,7 +320,7 @@ static AVPixelFormat get_format(AVCodecContext *avcc, const AVPixelFormat *pix_f
     return avcodec_default_get_format(avcc, pix_fmts);
 }
 
-static int get_buffer(AVCodecContext *avcc, AVFrame *frame, int flags) {
+static Int get_buffer(AVCodecContext *avcc, AVFrame *frame, Int flags) {
     // TODO
     return avcodec_default_get_buffer2(avcc, frame, flags);
 }
@@ -328,10 +328,10 @@ static int get_buffer(AVCodecContext *avcc, AVFrame *frame, int flags) {
 static MediaError setupHwAccelContext(AVCodecContext *avcc) {
 
     INFO("supported hwaccel: ");
-    AVBufferRef *hw_device_ctx = NULL;
-    for (int i = 0; ; ++i) {
+    AVBufferRef *hw_device_ctx = Nil;
+    for (Int i = 0; ; ++i) {
         const AVCodecHWConfig *hwc = avcodec_get_hw_config(avcc->codec, i);
-        if (hwc == NULL) break;
+        if (hwc == Nil) break;
         INFO("\tpix_fmt %s, method %#x, device type %s",
                 av_get_pix_fmt_name(hwc->pix_fmt),
                 hwc->methods,
@@ -342,11 +342,11 @@ static MediaError setupHwAccelContext(AVCodecContext *avcc) {
 #endif
 
         if (hwc->methods & AV_CODEC_HW_CONFIG_METHOD_HW_DEVICE_CTX) {
-            int rt = av_hwdevice_ctx_create(&hw_device_ctx,
+            Int rt = av_hwdevice_ctx_create(&hw_device_ctx,
                     hwc->device_type,
-                    NULL, NULL, 0);
+                    Nil, Nil, 0);
             if (rt < 0) {
-                char err_str[64];
+                Char err_str[64];
                 ERROR("create hw device failed. %s", av_make_error_string(err_str, 64, rt));
             } else {
                 INFO("\t => hw_device_ctx init successful");
@@ -369,7 +369,7 @@ static void parseAudioSpecificConfig(AVCodecContext *avcc, const sp<Buffer>& csd
     if (asc.valid) {
         avcc->extradata_size = csd->size();
         CHECK_GE(avcc->extradata_size, 2);
-        avcc->extradata = (uint8_t*)av_mallocz(avcc->extradata_size +
+        avcc->extradata = (UInt8*)av_mallocz(avcc->extradata_size +
                 AV_INPUT_BUFFER_PADDING_SIZE);
         memcpy(avcc->extradata, csd->data(),
                 avcc->extradata_size);
@@ -381,7 +381,7 @@ static void parseAudioSpecificConfig(AVCodecContext *avcc, const sp<Buffer>& csd
 // parse AudioSpecificConfig from esds, for who needs AudioSpecificConfig
 static void parseESDS(AVCodecContext *avcc, const sp<Buffer>& esds) {
     sp<MPEG4::ESDescriptor> esd = MPEG4::ReadESDS(esds);
-    if (esd.isNIL() || esd->decConfigDescr->decSpecificInfo.isNIL()) {
+    if (esd.isNil() || esd->decConfigDescr->decSpecificInfo.isNil()) {
         ERROR("bad esds");
         return;
     }
@@ -410,7 +410,7 @@ static MediaError setupExtraData(AVCodecContext *avcc, const sp<Message>& format
                 sp<Buffer> avcC = formats->findObject(kKeyavcC);
                 // h264 decoder
                 avcc->extradata_size = avcC->size();
-                avcc->extradata = (uint8_t*)av_mallocz(avcc->extradata_size +
+                avcc->extradata = (UInt8*)av_mallocz(avcc->extradata_size +
                         AV_INPUT_BUFFER_PADDING_SIZE);
                 memcpy(avcc->extradata, avcC->data(), avcc->extradata_size);
             } else {
@@ -422,7 +422,7 @@ static MediaError setupExtraData(AVCodecContext *avcc, const sp<Message>& format
             if (formats->contains(kKeyhvcC)) {
                 sp<Buffer> hvcC = formats->findObject(kKeyhvcC);
                 avcc->extradata_size = hvcC->size();
-                avcc->extradata = (uint8_t*)av_mallocz(avcc->extradata_size +
+                avcc->extradata = (UInt8*)av_mallocz(avcc->extradata_size +
                         AV_INPUT_BUFFER_PADDING_SIZE);
                 memcpy(avcc->extradata, hvcC->data(), avcc->extradata_size);
             } else {
@@ -438,7 +438,7 @@ static MediaError setupExtraData(AVCodecContext *avcc, const sp<Message>& format
     return kMediaNoError;
 }
 
-void av_log_callback(void *avcl, int level, const char *fmt, va_list vl) {
+void av_log_callback(void *avcl, Int level, const Char *fmt, va_list vl) {
 
     level &= 0xff;
 
@@ -448,13 +448,13 @@ void av_log_callback(void *avcl, int level, const char *fmt, va_list vl) {
     if (level > AV_LOG_ERROR) return;
 #endif
 
-    static int print_prefix = 1;
-    char line[1024] = { 0 };
-    AVClass* avc = avcl ? *(AVClass **) avcl : NULL;
+    static Int print_prefix = 1;
+    Char line[1024] = { 0 };
+    AVClass* avc = avcl ? *(AVClass **) avcl : Nil;
 
     if (print_prefix && avc) {
         if (avc->parent_log_context_offset) {
-            AVClass** parent = *(AVClass ***) (((uint8_t *) avcl) +
+            AVClass** parent = *(AVClass ***) (((UInt8 *) avcl) +
                     avc->parent_log_context_offset);
             if (parent && *parent) {
                 snprintf(line, sizeof(line), "[%s @ %p] ",
@@ -496,9 +496,9 @@ static FORCE_INLINE MediaError openAudio(AVCodecContext * avcc, const sp<Message
     
     // find best sample format
     if (avcc->codec->sample_fmts) {
-        bool match = false;
+        Bool match = False;
         // match planar ?
-        for (size_t i = 0; avcc->codec->sample_fmts[i] != AV_SAMPLE_FMT_NONE; ++i) {
+        for (UInt32 i = 0; avcc->codec->sample_fmts[i] != AV_SAMPLE_FMT_NONE; ++i) {
             // match the first planar format
             if (best_match == AV_SAMPLE_FMT_NONE && av_sample_fmt_is_planar(avcc->codec->sample_fmts[i])) {
                 best_match = avcc->codec->sample_fmts[i];
@@ -506,7 +506,7 @@ static FORCE_INLINE MediaError openAudio(AVCodecContext * avcc, const sp<Message
             // match the request format ?
             if (avcc->codec->sample_fmts[i] == request_sample_fmt) {
                 best_match = avcc->codec->sample_fmts[i];
-                match = true;
+                match = True;
                 break;
             }
         }
@@ -515,9 +515,9 @@ static FORCE_INLINE MediaError openAudio(AVCodecContext * avcc, const sp<Message
         if (!match) {
             // take the first format
             if (best_match == AV_SAMPLE_FMT_NONE) best_match = avcc->codec->sample_fmts[0];
-            const AVSampleFormat packed = av_get_alt_sample_fmt(request_sample_fmt, false);
+            const AVSampleFormat packed = av_get_alt_sample_fmt(request_sample_fmt, False);
             CHECK_FALSE(av_sample_fmt_is_planar(packed));
-            for (size_t i = 0; avcc->codec->sample_fmts[i] != AV_SAMPLE_FMT_NONE; ++i) {
+            for (UInt32 i = 0; avcc->codec->sample_fmts[i] != AV_SAMPLE_FMT_NONE; ++i) {
                 if (avcc->codec->sample_fmts[i] == packed) {
                     best_match = avcc->codec->sample_fmts[i];
                     break;
@@ -538,10 +538,10 @@ static FORCE_INLINE MediaError openAudio(AVCodecContext * avcc, const sp<Message
     avcc->pkt_timebase.den      = avcc->sample_rate;
     INFO("request_sample_fmt %s", av_get_sample_fmt_name(avcc->request_sample_fmt));
     
-    int ret = avcodec_open2(avcc, NULL, NULL);
+    Int ret = avcodec_open2(avcc, Nil, Nil);
     
     if (ret < 0) {
-        char err_str[64];
+        Char err_str[64];
         ERROR("%s: avcodec_open2 failed, error %s", avcodec_get_name(avcc->codec_id),
               av_make_error_string(err_str, 64, ret));
         return kMediaErrorUnknown;
@@ -560,14 +560,14 @@ static FORCE_INLINE MediaError openAudio(AVCodecContext * avcc, const sp<Message
 }
 
 MediaError openVideo(AVCodecContext * avcc, eModeType mode, const sp<Message>& formats, const sp<Message>& options) {
-    bool hwaccel = mode != kModeTypeSoftware;
+    Bool hwaccel = mode != kModeTypeSoftware;
     
     // find best pixel format
     AVPixelFormat best_match = AV_PIX_FMT_YUV420P;
     AVPixelFormat pix_fmt   = get_av_pix_format((ePixelFormat)options->findInt32(kKeyRequestFormat, kPixelFormat420YpCbCrPlanar));
     if (avcc->codec->pix_fmts) {
         best_match = avcc->codec->pix_fmts[0];
-        for (size_t i = 0; avcc->codec->pix_fmts[i] != AV_PIX_FMT_NONE; ++i) {
+        for (UInt32 i = 0; avcc->codec->pix_fmts[i] != AV_PIX_FMT_NONE; ++i) {
             if (avcc->codec->pix_fmts[i] == pix_fmt) {
                 best_match = pix_fmt;
                 break;
@@ -581,7 +581,7 @@ MediaError openVideo(AVCodecContext * avcc, eModeType mode, const sp<Message>& f
             {AV_CODEC_ID_H264,      AV_PIX_FMT_YUV420P  },
             {AV_CODEC_ID_NONE,      AV_PIX_FMT_NONE     },
         };
-        for (size_t i = 0; kMap[i].codec != AV_CODEC_ID_NONE; ++i) {
+        for (UInt32 i = 0; kMap[i].codec != AV_CODEC_ID_NONE; ++i) {
             if (kMap[i].codec == avcc->codec->id) {
                 best_match = kMap[i].pixel;
                 break;
@@ -598,10 +598,10 @@ MediaError openVideo(AVCodecContext * avcc, eModeType mode, const sp<Message>& f
     
     if (hwaccel) setupHwAccelContext(avcc);
     
-    int ret = avcodec_open2(avcc, NULL, NULL);
+    Int ret = avcodec_open2(avcc, Nil, Nil);
     
     if (ret < 0) {
-        char err_str[64];
+        Char err_str[64];
         ERROR("%s: avcodec_open2 failed, error %s", avcodec_get_name(avcc->codec_id),
               av_make_error_string(err_str, 64, ret));
         return kMediaErrorUnknown;
@@ -650,7 +650,7 @@ static AVCodecContext * initContext(eModeType mode, const sp<Message>& formats, 
     
     CHECK_TRUE(formats->contains(kKeyType));
     eCodecType type = (eCodecType)formats->findInt32(kKeyType);
-    uint32_t codec = formats->findInt32(kKeyFormat);
+    UInt32 codec = formats->findInt32(kKeyFormat);
     AVCodecID id = get_av_codec_id(codec);
     
 #if 1
@@ -671,9 +671,9 @@ static AVCodecContext * initContext(eModeType mode, const sp<Message>& formats, 
     
 #if 1 // force fixed decoder if available
     String name = avc->name;
-    AVCodec * fixed = NULL;
-    if (name.endsWith("float")) {
-        name.replace("float", "");
+    AVCodec * fixed = Nil;
+    if (name.endsWith("Float32")) {
+        name.replace("Float32", "");
         fixed = avcodec_find_decoder_by_name(name.c_str());
         if (!fixed) {
             name.append("fixed");
@@ -688,17 +688,17 @@ static AVCodecContext * initContext(eModeType mode, const sp<Message>& formats, 
         avc = fixed;
     }
 #endif
-    INFO("[%.4s] -> [%s][%s]", (const char*)&codec, avcodec_get_name(id), avc->name);
+    INFO("[%.4s] -> [%s][%s]", (const Char*)&codec, avcodec_get_name(id), avc->name);
     
     if (!avc) {
         ERROR("can't find codec for %s", avcodec_get_name(id));
-        return NULL;
+        return Nil;
     }
     
     AVCodecContext *avcc = avcodec_alloc_context3(avc);
     if (!avcc) {
         ERROR("[OOM] alloc context failed");
-        return NULL;
+        return Nil;
     }
     
     setupExtraData(avcc, formats);
@@ -735,7 +735,7 @@ static AVCodecContext * initContext(eModeType mode, const sp<Message>& formats, 
     
     if (st != kMediaNoError) {
         releaseContext(avcc);
-        return NULL;
+        return Nil;
     }
     
     return avcc;
@@ -749,17 +749,17 @@ struct LavcDecoder : public MediaDevice {
     AVCodecContext *        mContext;
 
     // statistics
-    size_t                  mInputCount;
-    size_t                  mOutputCount;
+    UInt32                  mInputCount;
+    UInt32                  mOutputCount;
 
     LavcDecoder() : MediaDevice(),
-    mContext(NULL),
+    mContext(Nil),
     mInputCount(0),
     mOutputCount(0) { }
 
     virtual ~LavcDecoder() {
         releaseContext(mContext);
-        mContext = NULL;
+        mContext = Nil;
     }
 
     virtual MediaError init(const sp<Message>& formats, const sp<Message>& options) {
@@ -781,8 +781,8 @@ struct LavcDecoder : public MediaDevice {
             // FIX sample rate of AAC SBR
             if (avcc->codec_id == AV_CODEC_ID_AAC &&
                     avcc->extradata_size >= 2) {
-                sp<Buffer> csd = new Buffer((const char *)avcc->extradata,
-                        (size_t)avcc->extradata_size);
+                sp<Buffer> csd = new Buffer((const Char *)avcc->extradata,
+                        (UInt32)avcc->extradata_size);
                 MPEG4::AudioSpecificConfig config(csd);
                 if (config.valid && config.sbr) {
                     INFO("fix sample rate %d => %d",
@@ -808,7 +808,7 @@ struct LavcDecoder : public MediaDevice {
 
     virtual MediaError push(const sp<MediaFrame>& input) {
         AVCodecContext *avcc = mContext;
-        if (input != NULL && input->planes.buffers[0].data != NULL) {
+        if (input != Nil && input->planes.buffers[0].data != Nil) {
             ++mInputCount;
 
             DEBUG("push %s", input->string().c_str());
@@ -834,7 +834,7 @@ struct LavcDecoder : public MediaDevice {
                 pkt->flags |= AV_PKT_FLAG_DISPOSABLE;
             }
 
-            int ret = avcodec_send_packet(avcc, pkt);
+            Int ret = avcodec_send_packet(avcc, pkt);
             MediaError err = kMediaNoError;
             if (ret == AVERROR(EAGAIN)) {
                 DEBUG("%s: try to read frame", avcodec_get_name(avcc->codec_id));
@@ -842,7 +842,7 @@ struct LavcDecoder : public MediaDevice {
             } else if (ret == AVERROR(EINVAL)) {
                 FATAL("%s: codec is not opened", avcodec_get_name(avcc->codec_id));
             } else if (ret < 0) {
-                char err_str[64];
+                Char err_str[64];
                 FATAL("%s: decode return error %s", avcodec_get_name(avcc->codec_id),
                         av_make_error_string(err_str, 64, ret));
                 err = kMediaErrorUnknown;
@@ -853,7 +853,7 @@ struct LavcDecoder : public MediaDevice {
         } else {
             // codec enter draining mode
             DEBUG("%s: flushing...", avcodec_get_name(avcc->codec_id));
-            avcodec_send_packet(avcc, NULL);
+            avcodec_send_packet(avcc, Nil);
             return kMediaNoError;
         }
     }
@@ -863,21 +863,21 @@ struct LavcDecoder : public MediaDevice {
         AVCodecContext *avcc = mContext;
 
         // receive frame from avcodec
-        int ret = avcodec_receive_frame(avcc, internal);
+        Int ret = avcodec_receive_frame(avcc, internal);
         if (ret == AVERROR(EAGAIN)) {
             INFO("%s: need more input %zu",
                     avcodec_get_name(avcc->codec_id), mInputCount);
-            return NULL;
+            return Nil;
         } else if (ret == AVERROR_EOF) {
             INFO("%s: eos...", avcodec_get_name(avcc->codec_id));
-            return NULL;
+            return Nil;
         } else if (ret == AVERROR(EINVAL)) {
             FATAL("%s: codec is not opened", avcodec_get_name(avcc->codec_id));
         } else if (ret < 0) {
-            char err_str[64];
+            Char err_str[64];
             ERROR("%s: decode return error %s", avcodec_get_name(avcc->codec_id),
                     av_make_error_string(err_str, 64, ret));
-            return NULL;
+            return Nil;
         }
 
         sp<MediaFrame> out;
@@ -942,6 +942,6 @@ struct LavcDecoder : public MediaDevice {
 sp<MediaDevice> CreateLavcDecoder(const sp<Message>& formats, const sp<Message>& options) {
     sp<LavcDecoder> lavc = new LavcDecoder;
     if (lavc->init(formats, options) == kMediaNoError) return lavc;
-    return NULL;
+    return Nil;
 }
 __END_NAMESPACE_MPX

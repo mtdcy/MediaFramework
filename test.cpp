@@ -58,7 +58,7 @@ void testMediaTime() {
     MediaTime time = 0;
     
     // operator+()
-    ASSERT_EQ(time + MediaTime(1, 2), MediaTime(1, 2));
+    ASSERT_EQ((time + MediaTime(1, 2)), MediaTime(1, 2));
     
     // operator+=()
     time += MediaTime(1, 2);    // 1/2
@@ -112,7 +112,7 @@ void testClock() {
     ASSERT_EQ(slave->get(), 500);
     
     master->update(1000);
-    SleepTimeUs(1);
+    Timer().sleep(Time::MicroSeconds(1));
     ASSERT_GT(clock->get(), 1000);
     ASSERT_GT(master->get(), 1000);
     ASSERT_GT(slave->get(), 1000);

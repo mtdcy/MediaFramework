@@ -72,25 +72,25 @@ struct MediaCodec : public IMediaSession {
         PrepareInt,     // prepare without notify client
     };
     eState                  mState;
-    Atomic<int>             mGeneration;
-    bool                    mInputEOS;          // end of input ?
-    bool                    mSignalCodecEOS;    // signal codec eos only one time
+    Atomic<Int>             mGeneration;
+    Bool                    mInputEOS;          // end of input ?
+    Bool                    mSignalCodecEOS;    // signal codec eos only one time
     MediaTime               mLastPacketTime;    // test packets in dts order?
     struct OnFrameRequest;
     sp<OnFrameRequest>      mFrameRequestEvent;
     List<sp<MediaFrame> >   mInputQueue;
     List<sp<FrameReadyEvent> > mRequestQueue;
     // statistics
-    size_t                  mPacketsComsumed;
-    size_t                  mFramesDecoded;
+    UInt32                  mPacketsComsumed;
+    UInt32                  mFramesDecoded;
 
     MediaCodec(const sp<Looper>& lp) : IMediaSession(lp),
     // external static context
-    mPacketRequestEvent(NULL), mInfoEvent(NULL),
+    mPacketRequestEvent(Nil), mInfoEvent(Nil),
     // internal static context
-    mCodec(NULL), mPacketReadyEvent(NULL), mType(kCodecTypeAudio),
+    mCodec(Nil), mPacketReadyEvent(Nil), mType(kCodecTypeAudio),
     // internal mutable context
-    mState(Init), mGeneration(0), mInputEOS(false), mSignalCodecEOS(false),
+    mState(Init), mGeneration(0), mInputEOS(False), mSignalCodecEOS(False),
     mLastPacketTime(kMediaTimeInvalid), mFrameRequestEvent(new OnFrameRequest(this)),
     // statistics
     mPacketsComsumed(0), mFramesDecoded(0)
@@ -98,7 +98,7 @@ struct MediaCodec : public IMediaSession {
     }
 
     void notify(eSessionInfoType info, const sp<Message>& payload) {
-        if (mInfoEvent != NULL) {
+        if (mInfoEvent != Nil) {
             mInfoEvent->fire(info, payload);
         }
     }
@@ -112,8 +112,8 @@ struct MediaCodec : public IMediaSession {
             mInfoEvent = options->findObject(kKeySessionInfoEvent);
         }
         
-        uint32_t codec = formats->findInt32(kKeyFormat);
-        mName = String::format("codec-%.4s", (char *)&codec);
+        UInt32 codec = formats->findInt32(kKeyFormat);
+        mName = String::format("codec-%.4s", (Char *)&codec);
 
         mMode = (eModeType)options->findInt32(kKeyMode, kModeTypeDefault);
         
@@ -126,14 +126,14 @@ struct MediaCodec : public IMediaSession {
         options0->setInt32(kKeyMode, mMode);
 
         mCodec = MediaDevice::create(formats, options0);
-        if (mCodec.isNIL() && mMode == kModeTypeNormal) {
+        if (mCodec.isNil() && mMode == kModeTypeNormal) {
             options0->setInt32(kKeyMode, kModeTypeSoftware);
             mCodec = MediaDevice::create(formats, options0);
         }
         
-        if (mCodec.isNIL()) {
+        if (mCodec.isNil()) {
             ERROR("%s: codec is not supported", mName.c_str());
-            notify(kSessionInfoError, NULL);
+            notify(kSessionInfoError, Nil);
             return;
         }
 
@@ -160,15 +160,15 @@ struct MediaCodec : public IMediaSession {
         if (mInputEOS) return;
         // NO max packets limit yet
         
-        CHECK_FALSE(mPacketReadyEvent.isNIL());
+        CHECK_FALSE(mPacketReadyEvent.isNil());
         mPacketRequestEvent->fire(mPacketReadyEvent, time);
     }
 
     struct OnPacketReady : public PacketReadyEvent {
         MediaCodec * thiz;
-        const int mGeneration;
+        const Int mGeneration;
 
-        OnPacketReady(MediaCodec *p, int gen) : PacketReadyEvent(p->mDispatch),
+        OnPacketReady(MediaCodec *p, Int gen) : PacketReadyEvent(p->mDispatch),
         thiz(p), mGeneration(gen) { }
 
         virtual void onEvent(const sp<MediaFrame>& packet) {
@@ -176,16 +176,16 @@ struct MediaCodec : public IMediaSession {
         }
     };
 
-    void onPacketReady(const sp<MediaFrame>& pkt, int generation) {
+    void onPacketReady(const sp<MediaFrame>& pkt, Int generation) {
         if (mGeneration.load() != generation) {
             INFO("%s: ignore outdated packets", mName.c_str());
             return;
         }
         
-        if (ABE_UNLIKELY(pkt.isNIL())) {
+        if (ABE_UNLIKELY(pkt.isNil())) {
             INFO("%s: input eos...", mName.c_str());
-            mInputEOS = true;
-            mSignalCodecEOS = false;
+            mInputEOS = True;
+            mSignalCodecEOS = False;
         } else {
             DEBUG("one packet ready %s", pkt->string().c_str());
             mInputQueue.push(pkt);
@@ -234,8 +234,8 @@ struct MediaCodec : public IMediaSession {
         // enter draining mode ?
         if (ABE_UNLIKELY(mInputQueue.empty() && mInputEOS)) {
             if (!mSignalCodecEOS) {
-                mCodec->push(NULL);
-                mSignalCodecEOS = true;
+                mCodec->push(Nil);
+                mSignalCodecEOS = True;
             }
             sp<MediaFrame> frame = drain();
             reply(frame);
@@ -248,14 +248,14 @@ struct MediaCodec : public IMediaSession {
         if (kMediaErrorResourceBusy == st) {
             DEBUG("%s: codec report busy", mName.c_str());
             sp<MediaFrame> frame = drain();
-            CHECK_FALSE(frame.isNIL());
+            CHECK_FALSE(frame.isNil());
             reply(frame);
             return;
         }
         
         if (kMediaNoError != st) {
             ERROR("%s: decoder write() return error %#x", mName.c_str(), st);
-            notify(kSessionInfoError, NULL);
+            notify(kSessionInfoError, Nil);
             return;
         }
         
@@ -265,8 +265,8 @@ struct MediaCodec : public IMediaSession {
         
         sp<MediaFrame> frame = drain();
         
-        // when codec is initializing, frame will be NULL
-        if (!frame.isNIL()) reply(frame);
+        // when codec is initializing, frame will be Nil
+        if (!frame.isNil()) reply(frame);
     }
     
     FORCE_INLINE void reply(const sp<MediaFrame>& frame) {
@@ -275,19 +275,19 @@ struct MediaCodec : public IMediaSession {
         mRequestQueue.pop();
         DEBUG("send %s", frame->string().c_str());
         request->fire(frame);
-        if (!frame.isNIL()) ++mFramesDecoded;
+        if (!frame.isNil()) ++mFramesDecoded;
     }
     
     FORCE_INLINE sp<MediaFrame> drain() {
         sp<MediaFrame> frame = mCodec->pull();
-        if (frame.isNIL()) {
+        if (frame.isNil()) {
             if (mInputEOS) {
                 INFO("%s: codec eos...", mName.c_str());
-                notify(kSessionInfoEnd, NULL);
+                notify(kSessionInfoEnd, Nil);
             } else {
                 INFO("%s: codec is initializing...", mName.c_str());
             }
-            return NULL;
+            return Nil;
         }
         
         if (mType == kCodecTypeAudio) {
@@ -306,7 +306,7 @@ struct MediaCodec : public IMediaSession {
         FrameRequestEvent(p->mDispatch), thiz(p) { }
         
         virtual void onEvent(const sp<FrameReadyEvent>& event, const MediaTime& time) {
-            if (thiz == NULL) {
+            if (thiz == Nil) {
                 INFO("request frame after invalidate");
                 return;
             }
@@ -314,13 +314,13 @@ struct MediaCodec : public IMediaSession {
         }
         
         void invalidate() {
-            thiz = NULL;
+            thiz = Nil;
         }
     };
 
     void onRequestFrame(sp<FrameReadyEvent> event, const MediaTime& time) {
         DEBUG("%s: onRequestFrame @ %.3f", mName.c_str(), time.seconds());
-        CHECK_TRUE(event != NULL);
+        CHECK_TRUE(event != Nil);
         
         if (ABE_UNLIKELY(time != kMediaTimeInvalid)) {
             INFO("%s: frame request @ %.3f(s) @ state %d",
@@ -328,7 +328,7 @@ struct MediaCodec : public IMediaSession {
             
             // clear state
             mState          = PrepareInt;
-            mInputEOS       = false;
+            mInputEOS       = False;
             mLastPacketTime = kMediaTimeInvalid;
             mInputQueue.clear();
             mRequestQueue.clear();

@@ -39,7 +39,7 @@
 __BEGIN_NAMESPACE_MPX
 __BEGIN_NAMESPACE(TIFF)
 
-const char * TagName(eTag tag) {
+const Char * TagName(eTag tag) {
     switch (tag) {
         case kNewSubfileType:   return "NewSubfileType";
         case kSubfileType:      return "SubfileType";
@@ -90,11 +90,11 @@ const char * TagName(eTag tag) {
         case kCopyright:            return "Copyright";
             
         // ...
-        default:                return NULL;
+        default:                return Nil;
     }
 }
 
-const char * TypeName(eType type) {
+const Char * TypeName(eType type) {
     switch (type) {
         case kBYTE:         return "BYTE";
         case kASCII:        return "ASCII";
@@ -106,11 +106,11 @@ const char * TypeName(eType type) {
         case kSRATIONAL:    return "SRATIONAL";
         case kFLOAT:        return "FLOAT";
         case kDOUBLE:       return "DOUBLE";
-        default:            FATAL("FIXME"); return NULL;
+        default:            FATAL("FIXME"); return Nil;
     }
 }
 
-size_t TypeLength(eType type) {
+UInt32 TypeLength(eType type) {
     switch (type) {
         case kUNDEFINED:
         case kSBYTE:
@@ -128,8 +128,8 @@ size_t TypeLength(eType type) {
     }
 }
 
-Entry * allocateEntry(eTag tag, eType type, size_t count) {
-    const size_t bytes = sizeof(Entry) + sizeof(EntryData) * count;
+Entry * allocateEntry(eTag tag, eType type, UInt32 count) {
+    const UInt32 bytes = sizeof(Entry) + sizeof(EntryData) * count;
     void * p = kAllocatorDefault->allocate(bytes);
     memset(p, 0, bytes);
     Entry * e = static_cast<Entry *>(p);
@@ -144,7 +144,7 @@ static void freeEntry(Entry * e) {
 }
 
 void fillEntry(Entry * e, const sp<ABuffer>& buffer) {
-    for (size_t i = 0; i < e->count; ++i) {
+    for (UInt32 i = 0; i < e->count; ++i) {
         switch (e->type) {
             case kSHORT:        e->value[i].u16 = buffer->r16(); break;
             case kSSHORT:       e->value[i].s16 = buffer->r16(); break;
@@ -170,20 +170,20 @@ ImageFileDirectory::~ImageFileDirectory() {
     }
 }
 
-sp<ImageFileDirectory> readImageFileDirectory(const sp<ABuffer>& buffer, size_t * next) {
+sp<ImageFileDirectory> readImageFileDirectory(const sp<ABuffer>& buffer, UInt32 * next) {
     sp<ImageFileDirectory> IFD = new ImageFileDirectory;
     
-    uint16_t fields = buffer->r16();     // number of fields
+    UInt16 fields = buffer->r16();     // number of fields
     DEBUG("%u fields", fields);
     
-    for (size_t i = 0; i < fields; ++i) {
+    for (UInt32 i = 0; i < fields; ++i) {
         const eTag tag      = (eTag)buffer->r16();
         const eType type    = (eType)buffer->r16();
-        const size_t length = buffer->r32();
+        const UInt32 length = buffer->r32();
         
         Entry * e   = allocateEntry(tag, type, length);
         
-        const size_t bytes  = length * TypeLength(type);
+        const UInt32 bytes  = length * TypeLength(type);
         if (bytes > 4) {
             e->offset   = buffer->r32();
             //DEBUG("  tag %#x, type %u, length %u, offset %u", e->tag, e->type, e->count, e->offset);
@@ -204,7 +204,7 @@ sp<ImageFileDirectory> readImageFileDirectory(const sp<ABuffer>& buffer, size_t 
     return IFD;
 }
 
-static String printEntry(const Entry * e, const char * name) {
+static String printEntry(const Entry * e, const Char * name) {
     String line;
     if (name) {
         line = String::format("entry %s: ", name);
@@ -212,7 +212,7 @@ static String printEntry(const Entry * e, const char * name) {
         line = String::format("entry %#x: ", e->tag);
     }
     line.append(String::format("type %s, %zu units [", TypeName(e->type), e->count));
-    for (size_t i = 0; i < e->count; ++i) {
+    for (UInt32 i = 0; i < e->count; ++i) {
         if (i != 0) line.append(", ");
         switch (e->type) {
             case kUNDEFINED:
@@ -243,7 +243,7 @@ void printImageFileDirectory(const sp<ImageFileDirectory>& IFD) {
     }
 }
 
-void printImageFileDirectory(const sp<ImageFileDirectory>& IFD, const char * (*GetTagName)(eTag)) {
+void printImageFileDirectory(const sp<ImageFileDirectory>& IFD, const Char * (*GetTagName)(eTag)) {
     List<Entry *>::const_iterator it = IFD->mEntries.cbegin();
     for (; it != IFD->mEntries.cend(); ++it) {
         INFO("\t%s", printEntry(*it, GetTagName((*it)->tag)).c_str());

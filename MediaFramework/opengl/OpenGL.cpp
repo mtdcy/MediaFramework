@@ -65,7 +65,7 @@
 __BEGIN_NAMESPACE_MPX
 
 #define printMAT4(x) do {               \
-    for (size_t i = 0; i < 4; ++i) {    \
+    for (UInt32 i = 0; i < 4; ++i) {    \
         INFO("{ %f, %f, %f, %f }",      \
             x[i][0], x[i][1],           \
             x[i][2], x[i][3]);          \
@@ -152,14 +152,14 @@ struct TextureFormat {
 };
 
 struct OpenGLConfig {
-    const char *            s_vsh;                      // vertex sl source
-    const char *            s_fsh;                      // fragment sl source
+    const Char *            s_vsh;                      // vertex sl source
+    const Char *            s_fsh;                      // fragment sl source
     const GLenum            e_target;                   // texture target
     const GLsizei           n_textures;                 // n texture for n planes
     const TextureFormat     a_format[4];                // texture format for each plane
 };
 
-static const char * vsh = SL(
+static const Char * vsh = SL(
         uniform mat4 u_mvp;
         attribute vec4 a_position;              // each point in a column vector
         attribute vec2 a_texcoord;              // each point in a row vector
@@ -171,7 +171,7 @@ static const char * vsh = SL(
         }
     );
 
-static const char * fsh_rgb = SL(
+static const Char * fsh_rgb = SL(
         varying vec2 v_texcoord;
         uniform sampler2D u_planes[1];
         void main(void)
@@ -180,7 +180,7 @@ static const char * fsh_rgb = SL(
         }
     );
 
-static const char * fsh_yuv1 = SL(
+static const Char * fsh_yuv1 = SL(
         varying vec2 v_texcoord;
         uniform sampler2D u_planes[1];
         uniform vec4 u_color_bias;
@@ -192,7 +192,7 @@ static const char * fsh_yuv1 = SL(
         }
     );
 
-static const char * fsh_yuv2 = SL(
+static const Char * fsh_yuv2 = SL(
         varying vec2 v_texcoord;
         uniform sampler2D u_planes[2];
         uniform vec4 u_color_bias;
@@ -206,7 +206,7 @@ static const char * fsh_yuv2 = SL(
         }
     );
 
-static const char * fsh_yuv3 = SL(
+static const Char * fsh_yuv3 = SL(
         varying vec2 v_texcoord;
         uniform sampler2D u_planes[3];
         uniform vec4 u_color_bias;
@@ -315,7 +315,7 @@ static const OpenGLConfig RGBA = {  // read as bytes -> GL_RGBA
     },
 };
 
-static const OpenGLConfig ABGR = {  // RGBA in word-order, so read as int
+static const OpenGLConfig ABGR = {  // RGBA in word-order, so read as Int
     .s_vsh      = vsh,
     .s_fsh      = fsh_rgb,
     .e_target   = GL_TEXTURE_2D,
@@ -325,7 +325,7 @@ static const OpenGLConfig ABGR = {  // RGBA in word-order, so read as int
     },
 };
 
-static const OpenGLConfig ARGB = {  // read as int -> GL_BGRA
+static const OpenGLConfig ARGB = {  // read as Int -> GL_BGRA
     .s_vsh      = vsh,
     .s_fsh      = fsh_rgb,
     .e_target   = GL_TEXTURE_2D,
@@ -352,7 +352,7 @@ static const OpenGLConfig BGRA = {  // read as byte -> GL_BGRA
 // about yuv422
 // https://www.khronos.org/registry/OpenGL/extensions/APPLE/APPLE_ycbcr_422.txt
 // xxx: WHY NO COLOR MATRIX NEED HERE?
-static const char * fsh_YpCbCr422_APPLE = SL(
+static const Char * fsh_YpCbCr422_APPLE = SL(
         varying vec2 v_texcoord;
         uniform sampler2DRect u_planes[1];
         uniform vec4 u_color_bias;
@@ -374,7 +374,7 @@ static const OpenGLConfig YpCbCr422_APPLE = {
     },
 };
 
-static const char * fsh_YpCbCrSemiPlanar_APPLE = SL(
+static const Char * fsh_YpCbCrSemiPlanar_APPLE = SL(
         varying vec2 v_texcoord;
         uniform sampler2DRect u_planes[2];
         uniform vec4 u_color_bias;
@@ -424,16 +424,16 @@ static const OpenGLConfig * getOpenGLConfig(const ePixelFormat& pixel) {
 #ifdef __APPLE__
         { kPixelFormatVideoToolbox,     &YpCbCrSemiPlanar_APPLE },
 #endif
-        { kPixelFormatUnknown,              NULL                }
+        { kPixelFormatUnknown,              Nil                }
     };
     
-    for (size_t i = 0; ; ++i) {
+    for (UInt32 i = 0; ; ++i) {
         if (kMap[i].pixel == kPixelFormatUnknown) break;
         if (kMap[i].pixel == pixel) {
             return  kMap[i].config;
         }
     }
-    return NULL;
+    return Nil;
 }
 
 struct OpenGLContext : public SharedObject {
@@ -473,7 +473,7 @@ struct OpenGLContext : public SharedObject {
     }
     
     OpenGLContext() :SharedObject(), mVertexShader(0), mFragShader(0), mProgram(0) {
-        for (size_t i = 0; i < 4; ++i) mTextures[i] = 0;
+        for (UInt32 i = 0; i < 4; ++i) mTextures[i] = 0;
     }
     
     MediaError applyMVP() {
@@ -484,7 +484,7 @@ struct OpenGLContext : public SharedObject {
     }
 };
 
-static GLuint initShader(GLenum type, const char *sl) {
+static GLuint initShader(GLenum type, const Char *sl) {
     CHECK_NULL(sl);
     GLuint sh = glCreateShader(type);
     if (sh == 0) {
@@ -492,7 +492,7 @@ static GLuint initShader(GLenum type, const char *sl) {
         return 0;
     }
     
-    glShaderSource(sh, 1, &sl, NULL);
+    glShaderSource(sh, 1, &sl, Nil);
     glCompileShader(sh);
     
     GLint ok;
@@ -501,7 +501,7 @@ static GLuint initShader(GLenum type, const char *sl) {
         GLint len;
         glGetShaderiv(sh, GL_INFO_LOG_LENGTH, &len);
         GLchar log[len];
-        glGetShaderInfoLog(sh, len, NULL, log);
+        glGetShaderInfoLog(sh, len, Nil, log);
         ERROR("compile shader failed. %s", log);
         glDeleteShader(sh);
         return 0;
@@ -529,7 +529,7 @@ static FORCE_INLINE GLuint initProgram(GLuint vsh, GLuint fsh) {
         GLint len;
         glGetProgramiv(program, GL_INFO_LOG_LENGTH, &len);
         GLchar log[len];
-        glGetProgramInfoLog(program, len, NULL, log);
+        glGetProgramInfoLog(program, len, Nil, log);
         //ERROR("program link failed. %s", log);
         
         glDeleteProgram(program);
@@ -539,9 +539,9 @@ static FORCE_INLINE GLuint initProgram(GLuint vsh, GLuint fsh) {
     return program;
 }
 
-static FORCE_INLINE size_t initTextures(size_t n, GLenum target, GLuint *textures) {
+static FORCE_INLINE UInt32 initTextures(UInt32 n, GLenum target, GLuint *textures) {
     glGenTextures(n, textures);
-    for (size_t i = 0; i < n; ++i) {
+    for (UInt32 i = 0; i < n; ++i) {
         glBindTexture(target, textures[i]);
 #if 0  //def __APPLE__
         // do we need this???
@@ -575,15 +575,15 @@ static sp<OpenGLContext> initOpenGLContext(const ImageFormat& image, const OpenG
     
     glc->mVertexShader = initShader(GL_VERTEX_SHADER, config->s_vsh);
     glc->mFragShader = initShader(GL_FRAGMENT_SHADER, config->s_fsh);
-    if (glc->mVertexShader == 0 || glc->mFragShader == 0) return NULL;
+    if (glc->mVertexShader == 0 || glc->mFragShader == 0) return Nil;
     
     glc->mProgram = initProgram(glc->mVertexShader, glc->mFragShader);
-    if (glc->mProgram == 0) return NULL;
+    if (glc->mProgram == 0) return Nil;
     
     glUseProgram(glc->mProgram);
     CHECK_GL_ERROR();
     
-    size_t n = initTextures(config->n_textures, config->e_target, glc->mTextures);
+    UInt32 n = initTextures(config->n_textures, config->e_target, glc->mTextures);
     CHECK_EQ(n, config->n_textures);
     
     // attribute of vertex shader
@@ -645,7 +645,7 @@ static void drawVideoToolboxFrame(const sp<OpenGLContext>& glc, const sp<MediaFr
     
     OSType pixtype = CVPixelBufferGetPixelFormatType(pixbuf);
     if (CVPixelBufferIsPlanar(pixbuf)) {
-        CHECK_EQ(CVPixelBufferGetPlaneCount(pixbuf), glc->mOpenGLConfig->n_textures);
+        CHECK_EQ((UInt32)CVPixelBufferGetPlaneCount(pixbuf), glc->mOpenGLConfig->n_textures);
     } else {
         CHECK_EQ(1, glc->mOpenGLConfig->n_textures);
     }
@@ -656,7 +656,7 @@ static void drawVideoToolboxFrame(const sp<OpenGLContext>& glc, const sp<MediaFr
     CHECK_NULL(CGLGetCurrentContext());
     
     GLint index[glc->mOpenGLConfig->n_textures];
-    for (size_t i = 0; i < glc->mOpenGLConfig->n_textures; ++i) {
+    for (UInt32 i = 0; i < glc->mOpenGLConfig->n_textures; ++i) {
         glActiveTexture(GL_TEXTURE0 + i);
         glBindTexture(glc->mOpenGLConfig->e_target, glc->mTextures[i]);
         CHECK_GL_ERROR();
@@ -719,7 +719,7 @@ static MediaError drawFrame(const sp<OpenGLContext>& glc, const sp<MediaFrame>& 
 #endif
     {
         GLint index[glc->mOpenGLConfig->n_textures];
-        for (size_t i = 0; i < glc->mOpenGLConfig->n_textures; ++i) {
+        for (UInt32 i = 0; i < glc->mOpenGLConfig->n_textures; ++i) {
             glActiveTexture(GL_TEXTURE0 + i);
             glBindTexture(glc->mOpenGLConfig->e_target, glc->mTextures[i]);
             CHECK_GL_ERROR();
@@ -772,31 +772,31 @@ static const GLfloat MAT4_ROTATE_270[] = {
 };
 
 #if 0
-MediaError OpenGLObject::setModelMatrix(const Matrix<float, 4>& matrix) {
+MediaError OpenGLObject::setModelMatrix(const Matrix<Float32, 4>& matrix) {
     mOpenGL->mModelMatrix = matrix;
     return mOpenGL->applyMVP();
 }
 
-MediaError OpenGLObject::setViewMatrix(const Matrix<float, 4>& matrix) {
+MediaError OpenGLObject::setViewMatrix(const Matrix<Float32, 4>& matrix) {
     mOpenGL->mViewMatrix = matrix;
     return mOpenGL->applyMVP();
 }
 
-MediaError OpenGLObject::setProjectionMatrix(const Matrix<float, 4>& matrix) {
+MediaError OpenGLObject::setProjectionMatrix(const Matrix<Float32, 4>& matrix) {
     mOpenGL->mProjectionMatrix = matrix;
     return mOpenGL->applyMVP();
 }
 
-MediaError OpenGLObject::scale(float factor) {
+MediaError OpenGLObject::scale(Float32 factor) {
     if (factor < 0) factor = 0;
     else if (factor > 1) factor = 1;
     Matrix<GLfloat, 4> matrix;
-    for (size_t i = 0; i < 4; ++i) matrix[i][i] = factor;
+    for (UInt32 i = 0; i < 4; ++i) matrix[i][i] = factor;
     mOpenGL->mModelMatrix = mOpenGL->mModelMatrix * matrix;
     return mOpenGL->applyMVP();
 }
 
-MediaError OpenGLObject::translation(float x, float y) {
+MediaError OpenGLObject::translation(Float32 x, Float32 y) {
     Matrix<GLfloat, 4> matrix;
     matrix[0][3] = x;
     matrix[1][3] = y;
@@ -810,17 +810,17 @@ struct OpenGLOut : public MediaDevice {
     ImageFormat         mFormat;
     sp<OpenGLContext>   mOpenGL;
     
-    OpenGLOut() : MediaDevice(), mOpenGL(NULL) { }
+    OpenGLOut() : MediaDevice(), mOpenGL(Nil) { }
     
     MediaError prepare(const sp<Message>& format, const sp<Message>& options) {
-        CHECK_TRUE(format != NULL);
+        CHECK_TRUE(format != Nil);
         INFO("gl video => %s", format->string().c_str());
-        if (options != NULL) {
+        if (options != Nil) {
             INFO("\t options: %s", options->string().c_str());
         }
 
-        int32_t width       = format->findInt32(kKeyWidth);
-        int32_t height      = format->findInt32(kKeyHeight);
+        Int32 width       = format->findInt32(kKeyWidth);
+        Int32 height      = format->findInt32(kKeyHeight);
         ePixelFormat pixel  = (ePixelFormat)format->findInt32(kKeyFormat);
         
         mFormat.format      = pixel;
@@ -839,7 +839,7 @@ struct OpenGLOut : public MediaDevice {
         
         const OpenGLConfig * config = getOpenGLConfig(mFormat.format);
         mOpenGL             = initOpenGLContext(mFormat, config);
-        if (mOpenGL.isNIL()) return kMediaErrorBadFormat;
+        if (mOpenGL.isNil()) return kMediaErrorBadFormat;
         return kMediaNoError;
     }
     
@@ -866,7 +866,7 @@ struct OpenGLOut : public MediaDevice {
     }
 
     virtual MediaError push(const sp<MediaFrame> &input) {
-        if (input == NULL) {
+        if (input == Nil) {
             INFO("eos...");
             return kMediaNoError;
         }
@@ -876,7 +876,7 @@ struct OpenGLOut : public MediaDevice {
     }
     
     virtual sp<MediaFrame> pull() {
-        return NULL;
+        return Nil;
     }
 
     virtual MediaError reset() {
@@ -891,6 +891,6 @@ sp<MediaDevice> CreateOpenGLOut(const sp<Message>& formats, const sp<Message>& o
     sp<OpenGLOut> gl = new OpenGLOut();
     if (gl->prepare(formats, options) == kMediaNoError)
         return gl;
-    return NULL;
+    return Nil;
 }
 __END_NAMESPACE_MPX

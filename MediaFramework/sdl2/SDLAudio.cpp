@@ -64,7 +64,7 @@ struct {
 };
 
 static FORCE_INLINE eSampleFormat get_sample_format(SDL_AudioFormat b) {
-    for (size_t i = 0; kSampleMap[i].a != kSampleFormatUnknown; ++i) {
+    for (UInt32 i = 0; kSampleMap[i].a != kSampleFormatUnknown; ++i) {
         if (kSampleMap[i].b == b) return kSampleMap[i].a;
     }
     FATAL("FIX MAP");
@@ -72,7 +72,7 @@ static FORCE_INLINE eSampleFormat get_sample_format(SDL_AudioFormat b) {
 };
 
 static FORCE_INLINE SDL_AudioFormat get_sdl_sample_format(eSampleFormat a) {
-    for (size_t i = 0; kSampleMap[i].a != kSampleFormatUnknown; ++i) {
+    for (UInt32 i = 0; kSampleMap[i].a != kSampleFormatUnknown; ++i) {
         if (kSampleMap[i].a == a) return kSampleMap[i].b;
     }
     return AUDIO_S16SYS;    // default value
@@ -80,23 +80,23 @@ static FORCE_INLINE SDL_AudioFormat get_sdl_sample_format(eSampleFormat a) {
 
 #define NB_SILENCE (2)
 struct SDLAudioContext : public SharedObject {
-    bool                    mInitByUs;
+    Bool                    mInitByUs;
     sp<Message>             mFormat;
     AudioFormat             mAudioFormat;
     
     mutable Mutex           mLock;
     Condition               mWait;
-    bool                    mInputEOS;
+    Bool                    mInputEOS;
     sp<MediaFrame>          mPendingFrame;
-    size_t                  mBytesRead;
-    bool                    mFlushing;
-    size_t                  mSilence;
+    UInt32                  mBytesRead;
+    Bool                    mFlushing;
+    UInt32                  mSilence;
 
-    SDLAudioContext() : SharedObject(), mInitByUs(false),
-    mInputEOS(false), mBytesRead(0), mFlushing(false), mSilence(NB_SILENCE) { }
+    SDLAudioContext() : SharedObject(), mInitByUs(False),
+    mInputEOS(False), mBytesRead(0), mFlushing(False), mSilence(NB_SILENCE) { }
 };
 
-static void SDLAudioCallback(void *opaque, uint8_t *stream, int len);
+static void SDLAudioCallback(void *opaque, UInt8 *stream, Int len);
 static FORCE_INLINE sp<SDLAudioContext> openDevice(const AudioFormat& format) {
     INFO("open device: %d %d %d", format.format, format.freq, format.channels);
     sp<SDLAudioContext> sdl = new SDLAudioContext;
@@ -104,7 +104,7 @@ static FORCE_INLINE sp<SDLAudioContext> openDevice(const AudioFormat& format) {
     if (SDL_WasInit(SDL_INIT_AUDIO) == SDL_INIT_AUDIO) {
         INFO("sdl audio has been initialized");
     } else {
-        sdl->mInitByUs = true;
+        sdl->mInitByUs = True;
         SDL_InitSubSystem(SDL_INIT_AUDIO);
     }
 
@@ -121,7 +121,7 @@ static FORCE_INLINE sp<SDLAudioContext> openDevice(const AudioFormat& format) {
 
     if (SDL_OpenAudio(&wanted_spec, &spec) < 0) {
         ERROR("SDL_OpenAudio failed. %s", SDL_GetError());
-        return NULL;
+        return Nil;
     }
 
     sdl->mAudioFormat.format    = get_sample_format(spec.format);
@@ -136,7 +136,7 @@ static FORCE_INLINE void closeDevice(sp<SDLAudioContext>& sdl) {
     INFO("SDL audio release.");
     {
         AutoLock _l(sdl->mLock);
-        sdl->mFlushing = true;
+        sdl->mFlushing = True;
         sdl->mWait.broadcast();
     }
     SDL_CloseAudio();
@@ -146,7 +146,7 @@ static FORCE_INLINE void closeDevice(sp<SDLAudioContext>& sdl) {
     }
 }
 
-static void SDLAudioCallback(void *opaque, uint8_t *buffer, int len) {
+static void SDLAudioCallback(void *opaque, UInt8 *buffer, Int len) {
     sp<SDLAudioContext> sdl = static_cast<SDLAudioContext*>(opaque);
 
     DEBUG("eatFrame %p %d", buffer, len);
@@ -161,7 +161,7 @@ static void SDLAudioCallback(void *opaque, uint8_t *buffer, int len) {
     }
     
     while (len && !sdl->mFlushing) {
-        if (sdl->mPendingFrame.isNIL()) {
+        if (sdl->mPendingFrame.isNil()) {
             if (sdl->mInputEOS) {
                 INFO("End Of Audio...");
                 memset(buffer, 0, len);
@@ -173,8 +173,8 @@ static void SDLAudioCallback(void *opaque, uint8_t *buffer, int len) {
             continue;
         }
         
-        size_t copy = len;
-        size_t left = sdl->mPendingFrame->planes.buffers[0].size - sdl->mBytesRead;
+        UInt32 copy = len;
+        UInt32 left = sdl->mPendingFrame->planes.buffers[0].size - sdl->mBytesRead;
         if (copy > left) copy = left;
         
         memcpy(buffer, sdl->mPendingFrame->planes.buffers[0].data + sdl->mBytesRead, copy);
@@ -192,7 +192,7 @@ static void SDLAudioCallback(void *opaque, uint8_t *buffer, int len) {
     if (sdl->mFlushing) {
         INFO("flush complete");
         memset(buffer, 0, len);
-        sdl->mFlushing  = false;
+        sdl->mFlushing  = False;
         sdl->mSilence   = NB_SILENCE;
         SDL_PauseAudio(1);
         INFO("SDL_PauseAudio 1");
@@ -203,9 +203,9 @@ static void SDLAudioCallback(void *opaque, uint8_t *buffer, int len) {
 struct SDLAudio : public MediaDevice {
     sp<SDLAudioContext>     mSDL;
 
-    FORCE_INLINE SDLAudio() : MediaDevice(), mSDL(NULL) { }
+    FORCE_INLINE SDLAudio() : MediaDevice(), mSDL(Nil) { }
     FORCE_INLINE virtual ~SDLAudio() {
-        if (mSDL != NULL) closeDevice(mSDL);
+        if (mSDL != Nil) closeDevice(mSDL);
         mSDL.clear();
     }
     
@@ -216,7 +216,7 @@ struct SDLAudio : public MediaDevice {
         a.freq      = format->findInt32(kKeySampleRate);
         a.channels  = format->findInt32(kKeyChannels);
         mSDL = openDevice(a);
-        return mSDL != NULL ? kMediaNoError : kMediaErrorBadFormat;
+        return mSDL != Nil ? kMediaNoError : kMediaErrorBadFormat;
     }
 
     virtual sp<Message> formats() const {
@@ -230,11 +230,11 @@ struct SDLAudio : public MediaDevice {
     
     virtual MediaError configure(const sp<Message>& options) {
         if (options->contains(kKeyPause)) {
-            bool pause = options->findInt32(kKeyPause);
+            Bool pause = options->findInt32(kKeyPause);
 
             AutoLock _l(mSDL->mLock);
             if (SDL_GetAudioStatus() == SDL_AUDIO_PLAYING && pause) {
-                mSDL->mFlushing = true;
+                mSDL->mFlushing = True;
                 mSDL->mWait.signal();
             }
             return kMediaNoError;
@@ -246,11 +246,11 @@ struct SDLAudio : public MediaDevice {
     virtual MediaError push(const sp<MediaFrame>& input) {
         DEBUG("write");
         AutoLock _l(mSDL->mLock);
-        if (input == NULL) {
-            mSDL->mInputEOS = true;
+        if (input == Nil) {
+            mSDL->mInputEOS = True;
             mSDL->mWait.signal();
             // wait for playback finished
-            while (!mSDL->mPendingFrame.isNIL()) {
+            while (!mSDL->mPendingFrame.isNil()) {
                 mSDL->mWait.wait(mSDL->mLock);
             }
             return kMediaNoError;
@@ -269,7 +269,7 @@ struct SDLAudio : public MediaDevice {
         mSDL->mWait.signal();
         
         // wait until pending frame finished
-        while (!mSDL->mPendingFrame.isNIL()) {
+        while (!mSDL->mPendingFrame.isNil()) {
             DEBUG("wait for callback");
             mSDL->mWait.wait(mSDL->mLock);
         }
@@ -278,19 +278,19 @@ struct SDLAudio : public MediaDevice {
     }
     
     virtual sp<MediaFrame> pull() {
-        return NULL;
+        return Nil;
     }
 
     virtual MediaError reset() {
         AutoLock _l(mSDL->mLock);
         INFO("flushing in state %d...", SDL_GetAudioStatus());
 
-        mSDL->mInputEOS = false;
+        mSDL->mInputEOS = False;
         mSDL->mPendingFrame.clear();
         
         // stop callback
         if (SDL_GetAudioStatus() == SDL_AUDIO_PLAYING) {
-            mSDL->mFlushing = true;
+            mSDL->mFlushing = True;
             mSDL->mWait.signal();
         }
         return kMediaNoError;
@@ -302,6 +302,6 @@ sp<MediaDevice> CreateSDLAudio(const sp<Message>& formats, const sp<Message>& op
     sp<SDLAudio> sdl = new SDLAudio;
     if (sdl->prepare(formats, options) == kMediaNoError)
         return sdl;
-    return NULL;
+    return Nil;
 }
 __END_NAMESPACE_MPX

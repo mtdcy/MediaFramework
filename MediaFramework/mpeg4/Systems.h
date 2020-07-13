@@ -115,7 +115,7 @@ namespace MPEG4 {
         ISO_IEC_11172_3             = 0x6b,         // MPEG1 Audio Layer II / MP2
         ISO_IEC_10918_1             = 0x6c,         // MJPEG
     };
-    uint32_t translateObjectTypeIndication(eObjectTypeIndication objectTypeIndication);
+    UInt32 translateObjectTypeIndication(eObjectTypeIndication objectTypeIndication);
 
     // streamType
     // ISO/IEC 14496-1:2010(E), Section 7.2.6.6.2, Page 51, Table 6
@@ -151,7 +151,7 @@ namespace MPEG4 {
     // no need to parse this information
     struct DecoderSpecificInfo : public BaseDescriptor {
         sp<Buffer>  csd;        // only codec care about its semantics
-        DecoderSpecificInfo(const sp<Buffer>& data = NIL) : BaseDescriptor(DecSpecificInfoTag) {
+        DecoderSpecificInfo(const sp<Buffer>& data = Nil) : BaseDescriptor(DecSpecificInfoTag) {
             csd = data;
         }
     };
@@ -159,10 +159,10 @@ namespace MPEG4 {
     struct DecoderConfigDescriptor : public BaseDescriptor {
         eObjectTypeIndication   objectTypeIndication;
         eStreamType             streamType;
-        uint8_t                 upStream;           //
-        uint32_t                bufferSizeDB;       //
-        uint32_t                maxBitrate;
-        uint32_t                avgBitrate;
+        UInt8                 upStream;           //
+        UInt32                bufferSizeDB;       //
+        UInt32                maxBitrate;
+        UInt32                avgBitrate;
         sp<DecoderSpecificInfo> decSpecificInfo;    // optional
         // profileLevelIndicationIndexDescriptor
         
@@ -174,20 +174,20 @@ namespace MPEG4 {
             bufferSizeDB            = 0;
             maxBitrate              = 0;
             avgBitrate              = 0;
-            decSpecificInfo         = NIL;
+            decSpecificInfo         = Nil;
         }
     };
 
     // ISO/IEC 14496-1:2010(E), Section 7.2.6.5, Page 47
     struct ESDescriptor : public BaseDescriptor {
-        uint16_t                ES_ID;
-        uint8_t                 streamDependenceFlag;
-        uint8_t                 URL_Flag;
-        uint8_t                 OCRstreamFlag;
-        uint8_t                 streamPriority;
-        uint16_t                dependsOn_ES_ID;
+        UInt16                ES_ID;
+        UInt8                 streamDependenceFlag;
+        UInt8                 URL_Flag;
+        UInt8                 OCRstreamFlag;
+        UInt8                 streamPriority;
+        UInt16                dependsOn_ES_ID;
         String                  URLstring;
-        uint16_t                OCR_ES_Id;
+        UInt16                OCR_ES_Id;
         sp<DecoderConfigDescriptor> decConfigDescr;     // mandatory
         
         ESDescriptor(eObjectTypeIndication objectType = InvalidObjectType) : BaseDescriptor(ESDescrTag) {
@@ -201,7 +201,7 @@ namespace MPEG4 {
             URLstring               = "";
             OCR_ES_Id               = 0;
             if (objectType == InvalidObjectType)
-                decConfigDescr      = NIL;
+                decConfigDescr      = Nil;
             else
                 decConfigDescr      = new DecoderConfigDescriptor(objectType);
         }

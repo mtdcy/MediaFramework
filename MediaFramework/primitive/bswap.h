@@ -40,7 +40,7 @@
 __BEGIN_DECLS
 
 // aabb -> bbaa
-static FORCE_INLINE uint16_t bswap16(uint16_t x) {
+static FORCE_INLINE UInt16 bswap16(UInt16 x) {
 #if defined(__x86_64__) || defined(__i386__)
     __asm__("rorw $8, %w0" : "+r"(x));
     return x;
@@ -50,7 +50,7 @@ static FORCE_INLINE uint16_t bswap16(uint16_t x) {
 }
 
 // aabbccdd -> ddccbbaa
-static FORCE_INLINE uint32_t bswap32(uint32_t x) {
+static FORCE_INLINE UInt32 bswap32(UInt32 x) {
 #if defined(__x86_64__) || defined(__i386__)
     __asm__("bswap %0" : "+r"(x));
     return x;
@@ -59,18 +59,18 @@ static FORCE_INLINE uint32_t bswap32(uint32_t x) {
 #endif
 }
 
-// only swap low bytes of uint32_t 
+// only swap low bytes of UInt32 
 // aabbccdd -> aaddccbb
-static FORCE_INLINE uint32_t bswap32l(uint32_t x) {
+static FORCE_INLINE UInt32 bswap32l(UInt32 x) {
     return (x & 0xff000000) | (x & 0xff00) | ((x >> 16) & 0xff) | ((x << 16) & 0xff0000);
 }
 
-static FORCE_INLINE uint64_t bswap64(uint64_t x) {
+static FORCE_INLINE UInt64 bswap64(UInt64 x) {
 #if defined(__x86_64__) || defined(__i386__)
     __asm__("bswap %0" : "=r"(x) : "0"(x));
     return x;
 #else
-    return (uint64_t)bswap32(x) << 32 | bswap32(x >> 32);
+    return (UInt64)bswap32(x) << 32 | bswap32(x >> 32);
 #endif
 }
 

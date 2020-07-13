@@ -41,15 +41,15 @@
 #include "mpeg4/Audio.h"
 #include "mpeg4/Video.h"
 
-static FORCE_INLINE const char * av_error_string(int err) {
-    static char s[AV_ERROR_MAX_STRING_SIZE];
+static FORCE_INLINE const Char * av_error_string(Int err) {
+    static Char s[AV_ERROR_MAX_STRING_SIZE];
     return av_make_error_string(s, AV_ERROR_MAX_STRING_SIZE, err);
 }
 
 __BEGIN_NAMESPACE_MPX
 
 struct {
-    const char *        name;
+    const Char *        name;
     eFileFormat         format;
 } kFormatMap[] = {
     { "wav",        kFileFormatWave },
@@ -62,11 +62,11 @@ struct {
     { "matroska",   kFileFormatMkv  },  // matroska & webm
     { "avi",        kFileFormatAvi  },
     // END OF LIST
-    { NULL,         kFileFormatUnknown }
+    { Nil,         kFileFormatUnknown }
 };
 
 static eFileFormat GetFormat(const String& name) {
-    for (size_t i = 0; kFormatMap[i].name; ++i) {
+    for (UInt32 i = 0; kFormatMap[i].name; ++i) {
         if (name.startsWith(kFormatMap[i].name)) {
             return kFormatMap[i].format;
         }
@@ -78,7 +78,7 @@ static eFileFormat GetFormat(const String& name) {
 
 struct {
     AVCodecID           id;
-    uint32_t            format;
+    UInt32            format;
 } kCodecMap[] = {
     // AUDIO
     { AV_CODEC_ID_FLAC,         kAudioCodecFLAC},
@@ -106,8 +106,8 @@ struct {
     { AV_CODEC_ID_NONE,         kAudioCodecUnknown}
 };
 
-static uint32_t GetCodecFormat(AVCodecID id) {
-    for (size_t i = 0; kCodecMap[i].id != AV_CODEC_ID_NONE; ++i) {
+static UInt32 GetCodecFormat(AVCodecID id) {
+    for (UInt32 i = 0; kCodecMap[i].id != AV_CODEC_ID_NONE; ++i) {
         if (kCodecMap[i].id == id) return kCodecMap[i].format;
     }
     
@@ -115,10 +115,10 @@ static uint32_t GetCodecFormat(AVCodecID id) {
     return kAudioCodecUnknown;
 }
 
-static int content_bridge_read_packet(void * opaque, uint8_t * buf, int length) {
+static Int content_bridge_read_packet(void * opaque, UInt8 * buf, Int length) {
     DEBUG("read %p -> %p %d", opaque, buf, length);
-    sp<ABuffer> buffer = opaque;
-    size_t bytesRead = buffer->readBytes((char *)buf, length);
+    sp<ABuffer> buffer = static_cast<ABuffer *>(opaque);
+    UInt32 bytesRead = buffer->readBytes((Char *)buf, length);
     if (bytesRead == 0) {
         DEBUG("read end of file");
         return AVERROR_EOF; // END OF FILE
@@ -126,9 +126,9 @@ static int content_bridge_read_packet(void * opaque, uint8_t * buf, int length) 
     return bytesRead;
 }
 
-static int64_t content_bridge_seek(void * opaque, int64_t offset, int whence) {
+static Int64 content_bridge_seek(void * opaque, Int64 offset, Int whence) {
     DEBUG("seek %p @ %" PRId64 ", whence %d", opaque, offset, whence);
-    sp<ABuffer> buffer = opaque;
+    sp<ABuffer> buffer = static_cast<ABuffer *>(opaque);
     switch (whence) {
         case SEEK_CUR:
             return buffer->skipBytes(offset);
@@ -150,7 +150,7 @@ AVIOContext * content_bridge(const sp<ABuffer>& buffer) {
                                             0,                  // write flag
                                             buffer.get(),         // opaque
                                             content_bridge_read_packet,
-                                            NULL,
+                                            Nil,
                                             content_bridge_seek);
     return avio;
 }
@@ -158,12 +158,12 @@ AVIOContext * content_bridge(const sp<ABuffer>& buffer) {
 
 struct AVStreamObject : public SharedObject {
     AVStream *      stream;
-    bool            enabled;
-    bool            calc_dts;
+    Bool            enabled;
+    Bool            calc_dts;
     MediaTime       last_dts;
     
-    AVStreamObject() : stream(NULL), enabled(true),
-    calc_dts(false), last_dts(0) { }
+    AVStreamObject() : stream(Nil), enabled(True),
+    calc_dts(False), last_dts(0) { }
 };
 
 struct AVFormatObject : public SharedObject {
@@ -172,7 +172,7 @@ struct AVFormatObject : public SharedObject {
     AVFormatContext *           context;
     Vector<sp<AVStreamObject> > streams;
     
-    AVFormatObject() : avio(NULL), context(NULL) { }
+    AVFormatObject() : avio(Nil), context(Nil) { }
     
     ~AVFormatObject() {
         if (context) {
@@ -186,11 +186,11 @@ struct AVFormatObject : public SharedObject {
 };
 
 static AVDictionary * prepareOptions(const AVInputFormat * fmt) {
-    AVDictionary * dict = NULL;
+    AVDictionary * dict = Nil;
     // common options, @see libavformat/options_table.h
     av_dict_set_int(&dict, "avioflags", AVIO_SEEKABLE_NORMAL | AVIO_FLAG_DIRECT, 0);
     
-    int fflags = AVFMT_FLAG_CUSTOM_IO | AVFMT_FLAG_AUTO_BSF;
+    Int fflags = AVFMT_FLAG_CUSTOM_IO | AVFMT_FLAG_AUTO_BSF;
     fflags |= AVFMT_FLAG_SORT_DTS;
     fflags |= AVFMT_FLAG_GENPTS;
     av_dict_set_int(&dict, "fflags", fflags, 0);
@@ -204,18 +204,18 @@ static AVDictionary * prepareOptions(const AVInputFormat * fmt) {
     return dict;
 }
 
-static sp<AVFormatObject> openInput(const sp<ABuffer>& buffer, bool find_stream_info = false) {
+static sp<AVFormatObject> openInput(const sp<ABuffer>& buffer, Bool find_stream_info = False) {
     sp<AVFormatObject> object = new AVFormatObject;
     object->pipe = buffer;    // keep a ref
     
     object->avio = content_bridge(buffer);
     CHECK_NULL(object->avio);
     
-    AVInputFormat * fmt = NULL;
-    int ret = av_probe_input_buffer(object->avio, &fmt, NULL, NULL, 0, 0);
+    AVInputFormat * fmt = Nil;
+    Int ret = av_probe_input_buffer(object->avio, &fmt, Nil, Nil, 0, 0);
     if (ret < 0) {
         ERROR("probe input failed");
-        return NIL;
+        return Nil;
     }
     DEBUG("input: %s, flags %#x", fmt->name, fmt->flags);
     String name = fmt->name;
@@ -224,35 +224,35 @@ static sp<AVFormatObject> openInput(const sp<ABuffer>& buffer, bool find_stream_
     object->context->pb = object->avio;
     
     AVDictionary * options = prepareOptions(fmt);
-    ret = avformat_open_input(&object->context, NULL, fmt, &options);
+    ret = avformat_open_input(&object->context, Nil, fmt, &options);
     if (options) av_dict_free(&options);
     
     if (ret < 0) {
         ERROR("open file failed.");
-        return NIL;
+        return Nil;
     }
-    av_dump_format(object->context, 0, NULL, 0);
+    av_dump_format(object->context, 0, Nil, 0);
     
     if (find_stream_info) {
         // avformat_find_stream_info not always necessary, it decoding extra info, like
         // image pixel format (yuv420p), SAR, DAR ...
         // audio sample format, channel map ...
-        ret = avformat_find_stream_info(object->context, NULL);
+        ret = avformat_find_stream_info(object->context, Nil);
         if (ret < 0) {
             ERROR("find stream info failed.");
-            return NIL;
+            return Nil;
         }
         
-        av_dump_format(object->context, 0, NULL, 0);
+        av_dump_format(object->context, 0, Nil, 0);
     }
     
     // workarounds
-    for (size_t i = 0; i < object->context->nb_streams; ++i) {
+    for (UInt32 i = 0; i < object->context->nb_streams; ++i) {
         sp<AVStreamObject> st = new AVStreamObject;
         st->stream = object->context->streams[i];
         
         if (name.startsWith("matroska") && st->stream->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
-            st->calc_dts = true;
+            st->calc_dts = True;
         }
         
         object->streams.push(st);
@@ -299,31 +299,31 @@ struct AVMediaFrame : public MediaFrame {
 };
 
 static sp<Buffer> prepareAVCC(const AVStream * st) {
-    sp<ABuffer> avcc = new Buffer((const char *)st->codecpar->extradata,
+    sp<ABuffer> avcc = new Buffer((const Char *)st->codecpar->extradata,
                  st->codecpar->extradata_size);
     MPEG4::AVCDecoderConfigurationRecord avcC;
     if (avcC.parse(avcc->cloneBytes()) == kMediaNoError) {
         return avcc;
     } else {
         ERROR("bad avcC");
-        return NIL;
+        return Nil;
     }
 }
 
 static sp<Buffer> prepareHVCC(const AVStream * st) {
     // TODO: validation the extradata
-    return new Buffer((const char *)st->codecpar->extradata,
+    return new Buffer((const Char *)st->codecpar->extradata,
                       st->codecpar->extradata_size);
 }
 
 struct AVFormat : public MediaDevice {
     sp<AVFormatObject>  mObject;
     
-    AVFormat() : mObject(NIL) { }
+    AVFormat() : mObject(Nil) { }
     
     MediaError open(const sp<ABuffer>& buffer) {
         mObject = openInput(buffer);
-        return mObject.isNIL() ? kMediaErrorUnknown : kMediaNoError;
+        return mObject.isNil() ? kMediaErrorUnknown : kMediaNoError;
     }
     
     virtual sp<Message> formats() const {
@@ -336,7 +336,7 @@ struct AVFormat : public MediaDevice {
         }
         
         info->setInt32(kKeyCount, mObject->context->nb_streams);
-        for (size_t i = 0; i < mObject->context->nb_streams; ++i) {
+        for (UInt32 i = 0; i < mObject->context->nb_streams; ++i) {
             sp<Message> trak = new Message;
             
             AVStream * st = mObject->context->streams[i];
@@ -363,16 +363,16 @@ struct AVFormat : public MediaDevice {
             
             info->setObject(kKeyTrack + i, trak);
             
-            if (st->codecpar->extradata == NULL) continue;
+            if (st->codecpar->extradata == Nil) continue;
             
-            sp<Buffer> csd = new Buffer((const char *)st->codecpar->extradata,
+            sp<Buffer> csd = new Buffer((const Char *)st->codecpar->extradata,
                                           st->codecpar->extradata_size);
-            DEBUG("%s", csd->string(true).c_str());
+            DEBUG("%s", csd->string(True).c_str());
             
             switch (st->codecpar->codec_id) {
                 case AV_CODEC_ID_AAC: {
                     sp<Buffer> esds = MPEG4::MakeAudioESDS(csd->cloneBytes());
-                    if (esds.isNIL()) {
+                    if (esds.isNil()) {
                         MPEG4::eAudioObjectType aot = MPEG4::AOT_AAC_MAIN;
                         switch (st->codecpar->profile) {
                             case FF_PROFILE_AAC_SSR:
@@ -417,9 +417,9 @@ struct AVFormat : public MediaDevice {
         INFO("configure << %s", options->string().c_str());
         MediaError status = kMediaErrorInvalidOperation;
         if (options->contains(kKeyTracks)) {
-            Bits<uint32_t> mask = options->findInt32(kKeyTracks);
+            Bits<UInt32> mask = options->findInt32(kKeyTracks);
             CHECK_FALSE(mask.empty());
-            for (size_t i = 0; i < mObject->streams.size(); ++i) {
+            for (UInt32 i = 0; i < mObject->streams.size(); ++i) {
                 sp<AVStreamObject> st = mObject->streams[i]; // FIXME
                 st->enabled = mask.test(i);
             }
@@ -444,14 +444,14 @@ struct AVFormat : public MediaDevice {
     
     virtual sp<MediaFrame> pull() {
         AVPacket * pkt = av_packet_alloc();
-        pkt->data = NULL; pkt->size = 0;
+        pkt->data = Nil; pkt->size = 0;
         
-        int ret = av_read_frame(mObject->context, pkt);
+        Int ret = av_read_frame(mObject->context, pkt);
         
         if (ret < 0) {
             ERROR("av_read_frame error %s", av_error_string(ret));
             av_packet_free(&pkt);
-            return NIL;
+            return Nil;
         }
         
         if (pkt->flags & AV_PKT_FLAG_CORRUPT) {
@@ -460,7 +460,7 @@ struct AVFormat : public MediaDevice {
         }
         
         sp<AVStreamObject> st = mObject->streams[pkt->stream_index];
-        if (st->enabled == false) return pull();
+        if (st->enabled == False) return pull();
         
         sp<MediaFrame> packet = new AVMediaFrame(st, pkt);
         av_packet_free(&pkt);
@@ -478,7 +478,7 @@ struct AVFormat : public MediaDevice {
 sp<MediaDevice> CreateLibavformat(const sp<ABuffer>& buffer) {
     sp<AVFormat> file = new AVFormat;
     if (file->open(buffer) == kMediaNoError) return file;
-    return NIL;
+    return Nil;
 }
 
 __END_NAMESPACE_MPX

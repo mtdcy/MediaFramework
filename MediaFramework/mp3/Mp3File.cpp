@@ -43,7 +43,7 @@
 
 __BEGIN_NAMESPACE_MPX
 
-const static int kScanLength = 32 * 1024;
+const static Int kScanLength = 32 * 1024;
 
 
 // MPEG Audio Frame Header:
@@ -65,7 +65,7 @@ const static int kScanLength = 32 * 1024;
 // N    - <2>   emphasis
 
 /*version 1 */
-static uint32_t kBitrateTablev1[4][16] = {
+static UInt32 kBitrateTablev1[4][16] = {
     {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},  /* invalid */
     {0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 0}, /* layer 3 */
     {0, 32, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 384, 0},  /*layer 2 */
@@ -73,21 +73,21 @@ static uint32_t kBitrateTablev1[4][16] = {
 };
 
 /*version 2 & 2.5 */
-static uint32_t kBitrateTablev2[4][16] = {
+static UInt32 kBitrateTablev2[4][16] = {
     {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,}, /* invalid */
     {0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160, 0}, /* layer 3 */
     {0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160, 0},  /* layer 2 */
     {0, 32, 48, 56, 64, 80, 96, 112, 128, 144, 160, 176, 192, 224, 256, 0}, /* layer 1 */
 };
 
-static int kSampleRateTable[4][4] = {
+static Int kSampleRateTable[4][4] = {
     {11050, 12000, 8000, 0}, /* version 2.5 */
     {0, 0, 0, 0},           /* invalid */
     {22050, 24000, 16000, 0}, /* version 2 */
     {44100, 48000, 32000, 0}, /* version 1 */
 };
 
-static int kSamplesPerFrameTable[4][4/*layer*/] = {
+static Int kSamplesPerFrameTable[4][4/*layer*/] = {
     {0, 576, 1152, 384}, /* version 2.5 */
     {0, 0, 0, 0},           /* invalid */
     {0, 576, 1152, 384}, /* version 2 */
@@ -96,7 +96,7 @@ static int kSamplesPerFrameTable[4][4/*layer*/] = {
 
 // parse side infomation
 // offset after frame header
-static size_t kSideInfoOffset[][2] = {
+static UInt32 kSideInfoOffset[][2] = {
     {17,    32},    /* version 1: mono, stereo */
     {9,     17}     /* version 2 & 2.5: mono, stereo */
 };
@@ -123,27 +123,27 @@ enum {
 };
 
 struct MPEGAudioFrameHeader {
-    uint32_t    Version;
-    uint32_t    Layer;
-    uint32_t    bitRate;
-    uint32_t    sampleRate;
-    uint32_t    numChannels;
-    uint32_t    samplesPerFrame;
-    size_t      frameLengthInBytes;
+    UInt32    Version;
+    UInt32    Layer;
+    UInt32    bitRate;
+    UInt32    sampleRate;
+    UInt32    numChannels;
+    UInt32    samplesPerFrame;
+    UInt32      frameLengthInBytes;
 };
 
 // same version/layer/sampleRate/channels
-const static uint32_t kHeaderMask = (0xffe00000 | (3 << 17) | (3 << 10) | (3 << 19) | (3 << 6));
+const static UInt32 kHeaderMask = (0xffe00000 | (3 << 17) | (3 << 10) | (3 << 19) | (3 << 6));
 // return frameLength in bytes
-static ssize_t decodeFrameHeader(uint32_t head, MPEGAudioFrameHeader *frameHeader) {
+static ssize_t decodeFrameHeader(UInt32 head, MPEGAudioFrameHeader *frameHeader) {
     if ((head & 0xffe00000) != 0xffe00000) return -1;
 
-    uint32_t version    = (head >> 19) & 0x3;
-    uint32_t layer      = (head >> 17) & 0x3;
-    uint32_t brIndex    = (head >> 12) & 0xf;
-    uint32_t srIndex    = (head >> 10) & 0x3;
-    uint32_t padding    = (head >> 9) & 0x1;
-    uint32_t chnIndex   = (head >> 6) & 0x3;
+    UInt32 version    = (head >> 19) & 0x3;
+    UInt32 layer      = (head >> 17) & 0x3;
+    UInt32 brIndex    = (head >> 12) & 0xf;
+    UInt32 srIndex    = (head >> 10) & 0x3;
+    UInt32 padding    = (head >> 9) & 0x1;
+    UInt32 chnIndex   = (head >> 6) & 0x3;
 
     if (version == 0x1 || layer == 0x0 || brIndex == 0xf ||
             srIndex == 0x3) {
@@ -151,13 +151,13 @@ static ssize_t decodeFrameHeader(uint32_t head, MPEGAudioFrameHeader *frameHeade
         return kMediaErrorBadValue;
     }
 
-    uint32_t samplesPerFrame    = kSamplesPerFrameTable[version][layer];
-    uint32_t bitrate            = 1000 * (version == MPEG_VERSION_1 ?
+    UInt32 samplesPerFrame    = kSamplesPerFrameTable[version][layer];
+    UInt32 bitrate            = 1000 * (version == MPEG_VERSION_1 ?
             kBitrateTablev1[layer][brIndex] :
             kBitrateTablev2[layer][brIndex]);
-    uint32_t sampleRate         = kSampleRateTable[version][srIndex];
+    UInt32 sampleRate         = kSampleRateTable[version][srIndex];
 
-    size_t  frameLengthInBytes  = (samplesPerFrame * bitrate) / (sampleRate * 8) + padding;
+    UInt32  frameLengthInBytes  = (samplesPerFrame * bitrate) / (sampleRate * 8) + padding;
 
     if (layer == MPEG_LAYER_I)  frameLengthInBytes  *= 4;
 
@@ -176,16 +176,16 @@ static ssize_t decodeFrameHeader(uint32_t head, MPEGAudioFrameHeader *frameHeade
 
 // locate the first MPEG audio frame in data, and return frame length
 // and offset in bytes. NO guarantee
-static int64_t locateFirstFrame(const sp<ABuffer>& buffer,
+static Int64 locateFirstFrame(const sp<ABuffer>& buffer,
         struct MPEGAudioFrameHeader *frameHeader,
-        size_t *possible/* possible head position */,
-        uint32_t *_head/* found head */) {
+        UInt32 *possible/* possible head position */,
+        UInt32 *_head/* found head */) {
     // locate first frame:
     //  current and next frame header is valid
-    uint32_t head = 0;
+    UInt32 head = 0;
     while (buffer->size()) {
         head = (head << 8) | buffer->r8();
-        const int64_t offset = buffer->offset() - 4;
+        const Int64 offset = buffer->offset() - 4;
 
         // test current frame
         ssize_t frameLength = decodeFrameHeader(head, frameHeader);
@@ -199,11 +199,11 @@ static int64_t locateFirstFrame(const sp<ABuffer>& buffer,
 
         // test next head.
         buffer->skipBytes(frameLength - 4);
-        uint32_t next = buffer->rb32();
+        UInt32 next = buffer->rb32();
         DEBUG("current head %#x @ %" PRId64 ", next head %#x @%" PRId64,
               head, offset, next, offset + frameLength);
         if ((next & kHeaderMask) == (head & kHeaderMask)
-                && decodeFrameHeader(next, NULL) > 4) {
+                && decodeFrameHeader(next, Nil) > 4) {
             if (_head) *_head = head;
             DEBUG("locate first frame with head %#x @ %" PRId64 ", with next head %#x @%" PRId64,
                   head, offset, next, offset + frameLength);
@@ -217,10 +217,10 @@ static int64_t locateFirstFrame(const sp<ABuffer>& buffer,
     return -1;
 }
 
-static bool locateFrame(const sp<ABuffer>& buffer, uint32_t common,
+static Bool locateFrame(const sp<ABuffer>& buffer, UInt32 common,
         struct MPEGAudioFrameHeader *frameHeader,
-        size_t *possible) {
-    uint32_t head = 0;
+        UInt32 *possible) {
+    UInt32 head = 0;
     while (buffer->size()) {
         head = (head << 8) | buffer->r8();
         if ((head & kHeaderMask) != common) continue;
@@ -232,44 +232,44 @@ static bool locateFrame(const sp<ABuffer>& buffer, uint32_t common,
             break;
         }
 
-        return true;
+        return True;
     }
     
-    return false;
+    return False;
 }
 
-bool decodeMPEGAudioFrameHeader(const sp<ABuffer>& frame, uint32_t *sampleRate, uint32_t *numChannels) {
+Bool decodeMPEGAudioFrameHeader(const sp<ABuffer>& frame, UInt32 *sampleRate, UInt32 *numChannels) {
     MPEGAudioFrameHeader mpa;
-    ssize_t offset = locateFirstFrame(frame, &mpa, NULL, NULL);
-    if (offset < 0) return false;
+    ssize_t offset = locateFirstFrame(frame, &mpa, Nil, Nil);
+    if (offset < 0) return False;
     if (sampleRate) *sampleRate = mpa.sampleRate;
     if (numChannels) *numChannels = mpa.numChannels;
-    return true;
+    return True;
 }
 
 struct XingHeader {
     String          ID;
-    uint32_t        numFrames;
-    uint32_t        numBytes;
-    List<uint8_t>   toc;
-    uint32_t        quality;
+    UInt32        numFrames;
+    UInt32        numBytes;
+    List<UInt8>   toc;
+    UInt32        quality;
     // LAME extension
     String          encoder;
-    uint8_t         lpf;
-    uint32_t        delays;
-    uint32_t        paddings;
+    UInt8         lpf;
+    UInt32        delays;
+    UInt32        paddings;
 };
 
 // http://www.codeproject.com/Articles/8295/MPEG-Audio-Frame-Header#XINGHeader
 // http://gabriel.mp3-tech.org/mp3infotag.html#versionstring
-static bool parseXingHeader(const sp<ABuffer>& firstFrame, XingHeader *head) {
+static Bool parseXingHeader(const sp<ABuffer>& firstFrame, XingHeader *head) {
     CHECK_NULL(head);
     head->ID    = firstFrame->rs(4);  // XING or Info;
     if (head->ID != "XING" && head->ID != "Info") {
-        return false;
+        return False;
     }
 
-    const uint32_t flags = firstFrame->rb32();
+    const UInt32 flags = firstFrame->rb32();
     DEBUG("XING flags: %#x", flags);
 
     if (flags & 0x0001) {
@@ -283,21 +283,21 @@ static bool parseXingHeader(const sp<ABuffer>& firstFrame, XingHeader *head) {
     // including the first frame.
     if (flags & 0x0002) {
         head->numBytes      = firstFrame->rb32();
-        DEBUG("Xing: number bytes %d", (int32_t)head->numBytes);
+        DEBUG("Xing: number bytes %d", (Int32)head->numBytes);
     } else {
         head->numBytes      = 0;
         DEBUG("Xing: no number bytes.");
     }
 
     if (flags & 0x0004) {
-        for (int i = 0; i < 100; i++) {
+        for (Int i = 0; i < 100; i++) {
             //mTOC.push((mNumBytes * pos) / 256 + mFirstFrameOffset);
             head->toc.push(firstFrame->r8());
         }
         //DEBUG("TOC: %d %d ... %d %d", head->toc[0], head->toc[1], head->toc[98], head->toc[99]);
 #if LOG_NDEBUG == 0
         String tmp;
-        List<uint8_t>::iterator it = head->toc.begin();
+        List<UInt8>::iterator it = head->toc.begin();
         for (; it != head->toc.end(); ++it) {
             tmp += String::format("%u ", *it);
         }
@@ -316,7 +316,7 @@ static bool parseXingHeader(const sp<ABuffer>& firstFrame, XingHeader *head) {
     firstFrame->skipBytes(1);                    // Info Tag revision & VBR method
 
     head->lpf           = firstFrame->r8();      // low pass filter value.
-    uint8_t lpf         = firstFrame->r8();     // low pass filter value. Hz = lpf * 100;
+    UInt8 lpf         = firstFrame->r8();     // low pass filter value. Hz = lpf * 100;
     DEBUG("lpf: %u Hz.", lpf * 100);
 
     firstFrame->skipBytes(8);               // replay gain
@@ -336,25 +336,25 @@ static bool parseXingHeader(const sp<ABuffer>& firstFrame, XingHeader *head) {
 
     // 12 bytes remains.
 
-    return true;
+    return True;
 }
 
 struct VBRIHeader {
     String          ID;
-    uint16_t        version;
-    uint16_t        delay;
-    uint16_t        quality;
-    uint32_t        numBytes;
-    uint32_t        numFrames;
-    List<uint32_t>  toc;
+    UInt16        version;
+    UInt16        delay;
+    UInt16        quality;
+    UInt32        numBytes;
+    UInt32        numFrames;
+    List<UInt32>  toc;
 };
 // https://www.codeproject.com/Articles/8295/MPEG-Audio-Frame-Header#VBRIHeader
 // https://www.crifan.com/files/doc/docbook/mpeg_vbr/release/webhelp/vbri_header.html
-static bool parseVBRIHeader(const sp<ABuffer>& firstFrame, VBRIHeader *head) {
+static Bool parseVBRIHeader(const sp<ABuffer>& firstFrame, VBRIHeader *head) {
     CHECK_NULL(head);
 
     head->ID                = firstFrame->rs(4);  // VBRI
-    if (head->ID != "VBRI") return false;
+    if (head->ID != "VBRI") return False;
 
     head->version           = firstFrame->rb16();
     head->delay             = firstFrame->rb16();
@@ -363,17 +363,17 @@ static bool parseVBRIHeader(const sp<ABuffer>& firstFrame, VBRIHeader *head) {
     head->numBytes          = firstFrame->rb32();    // total size
     head->numFrames         = firstFrame->rb32();    // total frames
 
-    uint16_t numEntries     = firstFrame->rb16();
-    uint16_t scaleFactor    = firstFrame->rb16();
-    uint16_t entrySize      = firstFrame->rb16();
-    uint16_t entryFrames    = firstFrame->rb16();
+    UInt16 numEntries     = firstFrame->rb16();
+    UInt16 scaleFactor    = firstFrame->rb16();
+    UInt16 entrySize      = firstFrame->rb16();
+    UInt16 entryFrames    = firstFrame->rb16();
 
     DEBUG("numEntries %d, entrySize %d, scaleFactor %d, entryFrames %d",
             numEntries, entrySize, scaleFactor, entryFrames);
 
     if (numEntries > 0) {
-        for (int i = 0; i < numEntries; i++) {
-            int length = 0;
+        for (Int i = 0; i < numEntries; i++) {
+            Int length = 0;
             switch (entrySize) {
                 case 1:
                     length = firstFrame->r8();
@@ -401,7 +401,7 @@ static bool parseVBRIHeader(const sp<ABuffer>& firstFrame, VBRIHeader *head) {
 #endif
 #if LOG_NDEBUG == 0
         String tmp;
-        List<uint32_t>::iterator it = head->toc.begin();
+        List<UInt32>::iterator it = head->toc.begin();
         for (; it != head->toc.end(); ++it) {
             tmp += String::format("%u ", *it);
         }
@@ -409,20 +409,20 @@ static bool parseVBRIHeader(const sp<ABuffer>& firstFrame, VBRIHeader *head) {
 #endif
     }
 
-    return true;
+    return True;
 }
 
 struct Mp3Packetizer : public MediaDevice {
     sp<Buffer>  mBuffer;
-    uint32_t    mCommonHead;
-    bool        mNeedMoreData;
-    bool        mFlushing;
+    UInt32    mCommonHead;
+    Bool        mNeedMoreData;
+    Bool        mFlushing;
     MediaTime   mNextFrameTime;
     MediaTime   mFrameTime;
     sp<Message> mProperties;
 
     Mp3Packetizer() : MediaDevice(), mBuffer(new Buffer(4096, Buffer::Ring)),
-    mCommonHead(0), mNeedMoreData(true), mFlushing(false),
+    mCommonHead(0), mNeedMoreData(True), mFlushing(False),
     mNextFrameTime(kMediaTimeInvalid), mFrameTime(kMediaTimeInvalid) { }
 
     virtual ~Mp3Packetizer() { }
@@ -437,13 +437,13 @@ struct Mp3Packetizer : public MediaDevice {
     }
     
     virtual MediaError push(const sp<MediaFrame>& in) {
-        if (in == NULL) {
+        if (in == Nil) {
             DEBUG("flushing");
-            mFlushing = true;
+            mFlushing = True;
             return kMediaNoError;
         }
 
-        if (__builtin_expect(mCommonHead == 0, false)) {
+        if (__builtin_expect(mCommonHead == 0, False)) {
             mNextFrameTime     = in->timecode;
             if (mNextFrameTime == kMediaTimeInvalid) {
                 mNextFrameTime = 0;
@@ -459,8 +459,8 @@ struct Mp3Packetizer : public MediaDevice {
             }
         }
 
-        mBuffer->writeBytes((const char *)in->planes.buffers[0].data, in->planes.buffers[0].size);
-        mNeedMoreData = false;
+        mBuffer->writeBytes((const Char *)in->planes.buffers[0].data, in->planes.buffers[0].size);
+        mNeedMoreData = False;
         return kMediaNoError;
     }
 
@@ -468,8 +468,8 @@ struct Mp3Packetizer : public MediaDevice {
         DEBUG("internal buffer ready bytes %zu", mBuffer->size());
 
         if (mBuffer->size() <= 4) {
-            if (!mFlushing) mNeedMoreData = true;
-            return NULL;
+            if (!mFlushing) mNeedMoreData = True;
+            return Nil;
         }
 
         // only at the very beginning, find the common header
@@ -477,15 +477,15 @@ struct Mp3Packetizer : public MediaDevice {
             DEBUG("find common header");
 
             MPEGAudioFrameHeader mpa;
-            size_t possible = 0;
-            uint32_t head = 0;
+            UInt32 possible = 0;
+            UInt32 head = 0;
             ssize_t offset = locateFirstFrame(mBuffer, &mpa, &possible, &head);
 
             if (offset < 0) {
-                size_t junk = possible ? possible : mBuffer->size() - 3;
+                UInt32 junk = possible ? possible : mBuffer->size() - 3;
                 DEBUG("missing head, skip %zu junk", offset);
                 mBuffer->skipBytes(junk);
-                return NULL;
+                return Nil;
             } else if (offset > 0) {
                 DEBUG("skip %zu junk", offset);
                 mBuffer->skipBytes(offset);
@@ -500,7 +500,7 @@ struct Mp3Packetizer : public MediaDevice {
         }
         
         sp<Buffer> frame;
-        uint32_t head = 0;
+        UInt32 head = 0;
         MPEGAudioFrameHeader mpa;
         while (mBuffer->size()) {
             head = (head << 8) | mBuffer->r8();
@@ -515,7 +515,7 @@ struct Mp3Packetizer : public MediaDevice {
             break;
         }
         
-        if (frame.isNIL()) return NULL;
+        if (frame.isNil()) return Nil;
         
         sp<MediaFrame> packet = MediaFrame::Create(frame);
 
@@ -533,23 +533,23 @@ struct Mp3Packetizer : public MediaDevice {
         mBuffer->clearBytes();
         mNextFrameTime = kMediaTimeInvalid;
         mCommonHead = 0;
-        mNeedMoreData = true;
+        mNeedMoreData = True;
         return kMediaNoError;
     }
 };
 
 struct Mp3File : public MediaDevice {
     sp<ABuffer>             mContent;
-    int64_t                 mFirstFrameOffset;
+    Int64                 mFirstFrameOffset;
     MPEGAudioFrameHeader    mHeader;
 
-    bool                    mVBR;
+    Bool                    mVBR;
 
-    int32_t                 mNumFrames;
-    int64_t                 mNumBytes;
+    Int32                 mNumFrames;
+    Int64                 mNumBytes;
     MediaTime               mDuration;
 
-    Vector<int64_t>         mTOC;
+    Vector<Int64>         mTOC;
 
     MediaTime               mAnchorTime;
 
@@ -560,14 +560,14 @@ struct Mp3File : public MediaDevice {
     sp<Message>             mID3v2;
 
     Mp3File() :
-        mContent(NULL),
+        mContent(Nil),
         mFirstFrameOffset(0),
-        mVBR(false),
+        mVBR(False),
         mNumFrames(0),
         mNumBytes(0),
         mDuration(kMediaTimeInvalid),
         mAnchorTime(0),
-        mRawPacket(NULL),
+        mRawPacket(Nil),
         mPacketizer(new Mp3Packetizer) { }
     
     // refer to:
@@ -582,16 +582,16 @@ struct Mp3File : public MediaDevice {
 
         mID3v2 = ID3::ReadID3v2(buffer);
 #if LOG_NDEBUG == 0
-        if (mID3v2 != NULL) DEBUG("ID3v2: %s", mID3v2->string().c_str());
+        if (mID3v2 != Nil) DEBUG("ID3v2: %s", mID3v2->string().c_str());
 #endif
-        if (!mID3v2.isNIL()) {
+        if (!mID3v2.isNil()) {
 #if 0
             // information for gapless playback
             // http://yabb.jriver.com/interact/index.php?topic=65076.msg436101#msg436101
-            const char *iTunSMPB = id3v2->findString(kKeyiTunSMPB);
+            const Char *iTunSMPB = id3v2->findString(kKeyiTunSMPB);
             if (iTunSMPB != 0) {
-                int32_t encodeDelay, encodePadding;
-                int32_t originalSampleCount;
+                Int32 encodeDelay, encodePadding;
+                Int32 originalSampleCount;
                 if (sscanf(iTunSMPB, " %*x %x %x %x %*x",
                             &encodeDelay, &encodePadding, &originalSampleCount) == 3) {
                     INFO("iTunSMPB: mEncodePadding %d mEncodePadding %d originalSampleCount %d",
@@ -611,12 +611,12 @@ struct Mp3File : public MediaDevice {
         }
 
         // skip junk before first frame.
-        ssize_t result = locateFirstFrame(scanData, &mHeader, NULL, NULL);
+        ssize_t result = locateFirstFrame(scanData, &mHeader, Nil, Nil);
         if (result < 0) {
             ERROR("failed to locate the first frame.");
             return kMediaErrorBadFormat;
         } else if (result > 0) {
-            DEBUG("%zu bytes junk data before first frame", (size_t)result);
+            DEBUG("%zu bytes junk data before first frame", (UInt32)result);
         }
         buffer->skipBytes(-(buffer->offset() - result));
         mFirstFrameOffset += result;
@@ -630,10 +630,10 @@ struct Mp3File : public MediaDevice {
         DEBUG("first frame size %zu", mHeader.frameLengthInBytes);
         
         mID3v1 = ID3::ReadID3v1(buffer);
-        int64_t totalLength = buffer->size() - (mID3v1.isNIL() ? 0 : ID3V1_LENGTH);
+        Int64 totalLength = buffer->size() - (mID3v1.isNil() ? 0 : ID3V1_LENGTH);
 
         // decode first frame
-        const size_t offset = 4 + kSideInfoOffset[mHeader.Version == MPEG_VERSION_1 ? 0 : 1]
+        const UInt32 offset = 4 + kSideInfoOffset[mHeader.Version == MPEG_VERSION_1 ? 0 : 1]
             [mHeader.numChannels - 1];
         firstFrame->skipBytes(offset);
 
@@ -647,18 +647,18 @@ struct Mp3File : public MediaDevice {
             mVBR        = xing.ID == "Xing";
             mNumBytes   = xing.numBytes;
             mNumFrames  = xing.numFrames;
-            List<uint8_t>::iterator it = xing.toc.begin();
+            List<UInt8>::iterator it = xing.toc.begin();
             for (; it != xing.toc.end(); ++it) {
                 mTOC.push((xing.numBytes * (*it)) / 256 + mFirstFrameOffset);
             }
         } else if (parseVBRIHeader(firstFrame, &vbri)) {
             INFO("VBRI header present");
-            mVBR        = true;
+            mVBR        = True;
             mNumBytes   = vbri.numBytes;
             mNumFrames  = vbri.numFrames;
-            int64_t offset = mFirstFrameOffset;
+            Int64 offset = mFirstFrameOffset;
             mTOC.push(offset);
-            List<uint32_t>::iterator it = vbri.toc.begin();
+            List<UInt32>::iterator it = vbri.toc.begin();
             for (; it != vbri.toc.end(); ++it) {
                 offset += (*it);
                 mTOC.push(offset);
@@ -732,18 +732,18 @@ struct Mp3File : public MediaDevice {
         return kMediaErrorNotSupported;
     }
     
-    void seek(int64_t us) {
-        int64_t pos = 0;
-        double percent   = us / mDuration.useconds();
+    void seek(Int64 us) {
+        Int64 pos = 0;
+        Float64 percent   = us / mDuration.useconds();
         if (percent < 0) percent = 0;
         else if (percent > 1) percent = 1;
 
         if (mTOC.size()) {
-            float a = percent * (mTOC.size() - 1);
-            int index = (int)a;
+            Float32 a = percent * (mTOC.size() - 1);
+            Int index = (Int)a;
 
-            int64_t fa  = mTOC[index];
-            int64_t fb  = mTOC[index + 1];
+            Int64 fa  = mTOC[index];
+            Int64 fb  = mTOC[index + 1];
 
             pos = fa + (fb - fa) * (a - index);
         } else {
@@ -768,7 +768,7 @@ struct Mp3File : public MediaDevice {
     }
 
     virtual sp<MediaFrame> pull() {
-        bool sawInputEOS = false;
+        Bool sawInputEOS = False;
         sp<MediaFrame> packet;
         for (;;) {
             if (mRawPacket == 0 && !sawInputEOS) {
@@ -777,9 +777,9 @@ struct Mp3File : public MediaDevice {
                         mContent->size());
                 // mInternalBuffer must be twice of this
                 sp<Buffer> data = mContent->readBytes(2048);
-                if (data == NULL) {
+                if (data == Nil) {
                     DEBUG("saw content eos..");
-                    sawInputEOS = true;
+                    sawInputEOS = True;
                 } else {
                     mRawPacket = MediaFrame::Create(data);
                 }
@@ -787,14 +787,14 @@ struct Mp3File : public MediaDevice {
 
             if (sawInputEOS) {
                 DEBUG("flushing...");
-                mPacketizer->push(NULL);
+                mPacketizer->push(Nil);
             } else if (mPacketizer->push(mRawPacket) == kMediaNoError) {
                 DEBUG("enqueue buffer done");
                 mRawPacket.clear();
             }
 
             packet = mPacketizer->pull();
-            if (packet == NULL) {
+            if (packet == Nil) {
                 if (sawInputEOS) {
                     break;
                 }
@@ -804,9 +804,9 @@ struct Mp3File : public MediaDevice {
             }
         }
 
-        if (packet == NULL) {
+        if (packet == Nil) {
             INFO("eos...");
-            return NULL;
+            return Nil;
         }
 
         packet->timecode += mAnchorTime;
@@ -824,14 +824,14 @@ struct Mp3File : public MediaDevice {
 sp<MediaDevice> CreateMp3File(const sp<ABuffer>& buffer) {
     sp<Mp3File> file = new Mp3File;
     if (file->init(buffer) == kMediaNoError) return file;
-    return NIL;
+    return Nil;
 }
 
 sp<MediaDevice> CreateMp3Packetizer() {
     return new Mp3Packetizer;
 }
 
-ssize_t decodeMPEG4AudioHeader(uint32_t head, uint32_t * sampleRate, uint32_t * numChannels) {
+ssize_t decodeMPEG4AudioHeader(UInt32 head, UInt32 * sampleRate, UInt32 * numChannels) {
     MPEGAudioFrameHeader frameHeader;
     ssize_t frameLengthInBytes = decodeFrameHeader(head, &frameHeader);
     if (sampleRate)     *sampleRate = frameHeader.sampleRate;
@@ -839,16 +839,16 @@ ssize_t decodeMPEG4AudioHeader(uint32_t head, uint32_t * sampleRate, uint32_t * 
     return frameLengthInBytes;
 }
 
-int IsMp3File(const sp<ABuffer>& buffer) {
+Int IsMp3File(const sp<ABuffer>& buffer) {
     MPEGAudioFrameHeader mpa;
-    uint32_t head;
-    ssize_t offset = locateFirstFrame(buffer, &mpa, NULL, &head);
+    UInt32 head;
+    ssize_t offset = locateFirstFrame(buffer, &mpa, Nil, &head);
     if (offset < 0) return 0;
     
-    int score = 0;
+    Int score = 0;
     while (score < 100) {
         buffer->skipBytes(mpa.frameLengthInBytes);
-        uint32_t next = buffer->rb32();
+        UInt32 next = buffer->rb32();
         if ((head & kHeaderMask) != (next & kHeaderMask)) {
             break;
         }

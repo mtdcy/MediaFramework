@@ -48,12 +48,12 @@ enum {
 
 #define RIFF_CHUNK_MIN_LENGTH (8)
 struct Chunk : public SharedObject {
-    uint32_t    ckType;     //
-    uint32_t    ckID;       // FourCC
-    uint32_t    ckSize;     // little endian, data bytes
+    UInt32    ckType;     //
+    UInt32    ckID;       // FourCC
+    UInt32    ckSize;     // little endian, data bytes
     
-    Chunk(uint32_t id, uint32_t size) : ckType(kChunkTypeLeaf), ckID(id), ckSize(size) { }
-    Chunk(uint32_t id, uint32_t size, uint32_t type) : ckType(type), ckID(id), ckSize(size) { }
+    Chunk(UInt32 id, UInt32 size) : ckType(kChunkTypeLeaf), ckID(id), ckSize(size) { }
+    Chunk(UInt32 id, UInt32 size, UInt32 type) : ckType(type), ckID(id), ckSize(size) { }
     virtual ~Chunk() { }
     
     // parse chunk data
@@ -61,24 +61,24 @@ struct Chunk : public SharedObject {
     // RIFF chunk is a bad structure, for master chunk, always has datas before children.
     // this make it hard to parse the data. so size() return data size except children
     // for master chunk, return all data size for leaf chunk
-    virtual size_t size() const { return ckSize; }
-    virtual String string() const { return String::format("%.4s[%zu]", (const char *)&ckID, (size_t)ckSize); }
+    virtual UInt32 size() const { return ckSize; }
+    virtual String string() const { return String::format("%.4s[%zu]", (const Char *)&ckID, (UInt32)ckSize); }
 };
 
 struct MasterChunk : public Chunk {
     Vector<sp<Chunk> >  ckChildren;
     
-    MasterChunk(uint32_t id, uint32_t size) : Chunk(id, size, kChunkTypeMaster) { }
+    MasterChunk(UInt32 id, UInt32 size) : Chunk(id, size, kChunkTypeMaster) { }
     // make size() abstract, master chunk always have to return data size except children.
-    virtual size_t size() const = 0;
+    virtual UInt32 size() const = 0;
     virtual String string() const { return Chunk::string() + String::format(", %zu children", ckChildren.size()); }
 };
 
 #define RIFF_CHUNK_LENGTH   (12)
 struct RIFFChunk : public MasterChunk {
-    uint32_t            ckFileType;     // FourCC
+    UInt32            ckFileType;     // FourCC
     
-    RIFFChunk(uint32_t size) : MasterChunk(FOURCC('RIFF'), size) { }
+    RIFFChunk(UInt32 size) : MasterChunk(FOURCC('RIFF'), size) { }
     
     virtual MediaError parse(const sp<ABuffer>& buffer) {
         if (buffer->size() < 4)
@@ -87,19 +87,19 @@ struct RIFFChunk : public MasterChunk {
         return kMediaNoError;
     }
     
-    virtual size_t size() const { return sizeof(uint32_t); }
-    virtual String string() const { return MasterChunk::string() + String::format(", ckFileType = %.4s", (const char *)&ckFileType); }
+    virtual UInt32 size() const { return sizeof(UInt32); }
+    virtual String string() const { return MasterChunk::string() + String::format(", ckFileType = %.4s", (const Char *)&ckFileType); }
 };
 
 struct VOIDChunk : public Chunk {
     // NO DATA
-    VOIDChunk(uint32_t id, uint32_t size) : Chunk(id, size) { }
+    VOIDChunk(UInt32 id, UInt32 size) : Chunk(id, size) { }
     virtual MediaError parse(const sp<ABuffer>&) { return kMediaNoError; }
 };
 
 struct SKIPChunk : public Chunk {
     // SKIP DATA
-    SKIPChunk(uint32_t id, uint32_t size) : Chunk(id, size) { }
+    SKIPChunk(UInt32 id, UInt32 size) : Chunk(id, size) { }
     virtual MediaError parse(const sp<ABuffer>& buffer) {
         buffer->skipBytes(ckSize);
         return kMediaNoError;

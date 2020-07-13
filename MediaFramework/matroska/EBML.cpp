@@ -55,37 +55,37 @@
 __BEGIN_NAMESPACE_MPX
 __BEGIN_NAMESPACE(EBML)
 
-static FORCE_INLINE bool EBMLIsValidID(uint64_t x) {
-    if (x >= 0x81 && x <= 0xFE) return true;
-    if (x >= 0x407F && x <= 0x7FFE) return true;
-    if (x >= 0x203FFF && x <= 0x3FFFFE) return true;
-    if (x >= 0x101FFFFF && x <= 0x1FFFFFFE) return true;
-    return false;
+static FORCE_INLINE Bool EBMLIsValidID(UInt64 x) {
+    if (x >= 0x81 && x <= 0xFE) return True;
+    if (x >= 0x407F && x <= 0x7FFE) return True;
+    if (x >= 0x203FFF && x <= 0x3FFFFE) return True;
+    if (x >= 0x101FFFFF && x <= 0x1FFFFFFE) return True;
+    return False;
 }
 
-static FORCE_INLINE size_t EBMLCodeBytesLength(uint64_t x) {
-    size_t n = 0;
+static FORCE_INLINE UInt32 EBMLCodeBytesLength(UInt64 x) {
+    UInt32 n = 0;
     while (x) { ++n; x >>= 8; }
     return n;
 }
 
-static FORCE_INLINE uint64_t EBMLCodeInteger(uint64_t x) {
-    size_t n = EBMLCodeBytesLength(x);
+static FORCE_INLINE UInt64 EBMLCodeInteger(UInt64 x) {
+    UInt32 n = EBMLCodeBytesLength(x);
     x |= (1 << (7 * n));
     return x;
 }
 
-EBMLInteger::EBMLInteger(uint64_t x) : u64(x), length(EBMLCodeBytesLength(x)) { }
+EBMLInteger::EBMLInteger(UInt64 x) : u64(x), length(EBMLCodeBytesLength(x)) { }
 
 static EBMLInteger EBMLIntegerNull(0);     // with value & length == 0
 
-static FORCE_INLINE bool operator==(EBMLInteger& lhs, EBMLInteger& rhs) {
+static FORCE_INLINE Bool operator==(EBMLInteger& lhs, EBMLInteger& rhs) {
     return lhs.u64 == rhs.u64 && lhs.length == rhs.length;
 }
 
 #define MASK(n) ((1ULL<<(n))-1)
-static FORCE_INLINE uint8_t EBMLGetBytesLength(uint8_t v) {
-    return __builtin_clz((unsigned int)v) - 24 + 1;
+static FORCE_INLINE UInt8 EBMLGetBytesLength(UInt8 v) {
+    return __builtin_clz((UInt)v) - 24 + 1;
 }
 
 // vint with leading 1-bit
@@ -102,14 +102,14 @@ static FORCE_INLINE EBMLInteger EBMLGetCodedInteger(const sp<ABuffer>& buffer) {
     }
 
     if (vint.length > 1) {
-        for (size_t i = 1; i < vint.length; ++i) {
+        for (UInt32 i = 1; i < vint.length; ++i) {
             vint.u64 = (vint.u64 << 8) | buffer->r8();
         }
     }
     return vint;
 }
 
-static FORCE_INLINE uint64_t EBMLClearLeadingBit(uint64_t x, size_t length) {
+static FORCE_INLINE UInt64 EBMLClearLeadingBit(UInt64 x, UInt32 length) {
     return x & MASK(7 * length);
 }
 
@@ -122,7 +122,7 @@ static FORCE_INLINE EBMLInteger EBMLGetInteger(const sp<ABuffer>& buffer) {
 }
 
 // vint with or without leading 1-bit
-static FORCE_INLINE EBMLInteger EBMLGetInteger(const sp<ABuffer>& buffer, size_t n) {
+static FORCE_INLINE EBMLInteger EBMLGetInteger(const sp<ABuffer>& buffer, UInt32 n) {
     if (buffer->size() < n) return EBMLIntegerNull;
     
     CHECK_GT(n, 0);
@@ -131,7 +131,7 @@ static FORCE_INLINE EBMLInteger EBMLGetInteger(const sp<ABuffer>& buffer, size_t
     vint.u8 = buffer->r8();
     vint.length = n;
     if (n > 1) {
-        for (size_t i = 1; i < n; ++i) {
+        for (UInt32 i = 1; i < n; ++i) {
             vint.u64 = (vint.u64 << 8) | buffer->r8();
         }
     }
@@ -144,18 +144,18 @@ static FORCE_INLINE EBMLInteger EBMLGetLength(const sp<ABuffer>& buffer) {
 }
 
 union Int2Float {
-    float       flt;
-    uint32_t    u32;
+    Float32       flt;
+    UInt32    u32;
 };
 
 union Int2Double {
-    double      dbl;
-    uint64_t    u64;
+    Float64      dbl;
+    UInt64    u64;
 };
 
-static FORCE_INLINE double EBMLGetFloat(const sp<ABuffer>& buffer, size_t n) {
+static FORCE_INLINE Float64 EBMLGetFloat(const sp<ABuffer>& buffer, UInt32 n) {
     if (n == 8) {
-        CHECK_EQ(sizeof(double), 8);
+        CHECK_EQ((UInt32)sizeof(Float64), 8);
         Int2Double a;
         a.u64 = buffer->rb64();
         return a.dbl;
@@ -170,7 +170,7 @@ static FORCE_INLINE double EBMLGetFloat(const sp<ABuffer>& buffer, size_t n) {
 
 #define EBMLGetLength   EBMLGetInteger
 
-uint64_t vsint_subtr[] = {
+UInt64 vsint_subtr[] = {
     0x3F, 0x1FFF, 0x0FFFFF, 0x07FFFFFF,
     0x03FFFFFFFF, 0x01FFFFFFFFFF,
     0x00FFFFFFFFFFFF, 0x007FFFFFFFFFFFFF
@@ -184,7 +184,7 @@ static FORCE_INLINE EBMLSignedInteger EBMLGetSignedInteger(const sp<ABuffer>& bu
     return svint;
 }
 
-static FORCE_INLINE EBMLSignedInteger EBMLGetSignedInteger(const sp<ABuffer>& buffer, size_t n) {
+static FORCE_INLINE EBMLSignedInteger EBMLGetSignedInteger(const sp<ABuffer>& buffer, UInt32 n) {
     EBMLSignedInteger svint;
     EBMLInteger vint    = EBMLGetInteger(buffer, n);
     svint.i64           = vint.u64 - vsint_subtr[vint.length - 1];
@@ -192,7 +192,7 @@ static FORCE_INLINE EBMLSignedInteger EBMLGetSignedInteger(const sp<ABuffer>& bu
     return svint;
 }
 
-MediaError EBMLIntegerElement::parse(const sp<ABuffer>& buffer, size_t size) {
+MediaError EBMLIntegerElement::parse(const sp<ABuffer>& buffer, UInt32 size) {
     vint = EBMLGetInteger(buffer, size);
     DEBUGV("integer %#x", vint.u64);
     return kMediaNoError;
@@ -203,7 +203,7 @@ String EBMLIntegerElement::string() const {
 
 }
 
-MediaError EBMLSignedIntegerElement::parse(const sp<ABuffer>& buffer, size_t size) {
+MediaError EBMLSignedIntegerElement::parse(const sp<ABuffer>& buffer, UInt32 size) {
     svint = EBMLGetSignedInteger(buffer, size);
     DEBUGV("integer %#x", svint.i64);
     return kMediaNoError;
@@ -214,7 +214,7 @@ String EBMLSignedIntegerElement::string() const {
 
 }
 
-MediaError EBMLStringElement::parse(const sp<ABuffer>& buffer, size_t size) {
+MediaError EBMLStringElement::parse(const sp<ABuffer>& buffer, UInt32 size) {
     str = buffer->rs(size);
     DEBUGV("string %s", str.c_str());
     return kMediaNoError;
@@ -222,7 +222,7 @@ MediaError EBMLStringElement::parse(const sp<ABuffer>& buffer, size_t size) {
 
 String EBMLStringElement::string() const { return str; }
 
-MediaError EBMLUTF8Element::parse(const sp<ABuffer>& buffer, size_t size) {
+MediaError EBMLUTF8Element::parse(const sp<ABuffer>& buffer, UInt32 size) {
     utf8 = buffer->rs(size);
     DEBUGV("utf8 %s", utf8.c_str());
     return kMediaNoError;
@@ -230,9 +230,9 @@ MediaError EBMLUTF8Element::parse(const sp<ABuffer>& buffer, size_t size) {
 
 String EBMLUTF8Element::string() const { return utf8; }
 
-MediaError EBMLBinaryElement::parse(const sp<ABuffer>& buffer, size_t size) {
+MediaError EBMLBinaryElement::parse(const sp<ABuffer>& buffer, UInt32 size) {
     data = buffer->readBytes(size);
-    DEBUGV("binary %s", data->string(true).c_str());
+    DEBUGV("binary %s", data->string(True).c_str());
     return kMediaNoError;
 }
 
@@ -240,9 +240,9 @@ String EBMLBinaryElement::string() const {
     return String::format("%zu bytes binary", data->size());
 }
 
-MediaError EBMLFloatElement::parse(const sp<ABuffer>& buffer, size_t size) {
+MediaError EBMLFloatElement::parse(const sp<ABuffer>& buffer, UInt32 size) {
     flt = EBMLGetFloat(buffer, size);
-    DEBUGV("float %f", flt);
+    DEBUGV("Float32 %f", flt);
     return kMediaNoError;
 }
 
@@ -250,7 +250,7 @@ String EBMLFloatElement::string() const {
     return String(flt);
 }
 
-MediaError EBMLMasterElement::parse(const sp<ABuffer>& buffer, size_t size) {
+MediaError EBMLMasterElement::parse(const sp<ABuffer>& buffer, UInt32 size) {
     // NOTHING
     return kMediaNoError;
 }
@@ -259,34 +259,34 @@ String EBMLMasterElement::string() const {
     return String::format("%zu children", children.size());
 }
 
-MediaError EBMLSkipElement::parse(const sp<ABuffer>& buffer, size_t size) {
+MediaError EBMLSkipElement::parse(const sp<ABuffer>& buffer, UInt32 size) {
     if (size) buffer->skipBytes(size);
     return kMediaNoError;
 }
 
 String EBMLSkipElement::string() const { return "*"; }
 
-MediaError EBMLSimpleBlockElement::parse(const sp<ABuffer>& buffer, size_t size) {
-    const size_t offset = buffer->offset();
+MediaError EBMLSimpleBlockElement::parse(const sp<ABuffer>& buffer, UInt32 size) {
+    const UInt32 offset = buffer->offset();
     TrackNumber = EBMLGetInteger(buffer);
     TimeCode    = buffer->rb16();
     Flags       = buffer->r8();
     DEBUGV("[%zu] block size %zu, %#x", TrackNumber.u32, size, Flags);
     if (Flags & kBlockFlagLace) {
-        size_t count = 1 + buffer->r8();     // frame count
+        UInt32 count = 1 + buffer->r8();     // frame count
         CHECK_GT(count, 1);
-        size_t frame[count - 1];
+        UInt32 frame[count - 1];
         if ((Flags & kBlockFlagLace) == kBlockFlagEBML) {
             EBMLInteger vint = EBMLGetInteger(buffer);
             frame[0] = vint.u32;
-            for (size_t i = 1; i < count - 1; ++i) {
+            for (UInt32 i = 1; i < count - 1; ++i) {
                 EBMLSignedInteger svint = EBMLGetSignedInteger(buffer);
                 frame[i] = frame[i-1] + svint.i32;
                 //DEBUG("frame %zu", frame[i]);
             }
         } else if ((Flags & kBlockFlagLace) == kBlockFlagXiph) {
-            for (size_t i = 0; i < count - 1; ++i) {
-                uint8_t u8 = buffer->r8();
+            for (UInt32 i = 0; i < count - 1; ++i) {
+                UInt8 u8 = buffer->r8();
                 frame[i] = u8;
                 while (u8 == 255) {
                     u8 = buffer->r8();
@@ -294,15 +294,15 @@ MediaError EBMLSimpleBlockElement::parse(const sp<ABuffer>& buffer, size_t size)
                 }
             }
         } else if ((Flags & kBlockFlagLace) == kBlockFlagFixed) {
-            const size_t total = size - (buffer->offset() - offset);
+            const UInt32 total = size - (buffer->offset() - offset);
             CHECK_EQ(total % count, 0);
-            const size_t length = total / count;
-            for (size_t i = 0; i < count - 1; ++i) {
+            const UInt32 length = total / count;
+            for (UInt32 i = 0; i < count - 1; ++i) {
                 frame[i] = length;
             }
         }
 
-        for (size_t i = 0; i < count - 1; ++i) {
+        for (UInt32 i = 0; i < count - 1; ++i) {
             //CHECK_GE(size, (br.offset() - offset) + frame[i]);
             data.push(buffer->readBytes(frame[i]));
         }
@@ -316,13 +316,13 @@ MediaError EBMLSimpleBlockElement::parse(const sp<ABuffer>& buffer, size_t size)
 
 String EBMLSimpleBlockElement::string() const {
     return String::format("[%zu] % " PRId16 " Flags %#x, blocks %zu",
-            (size_t)TrackNumber.u64, TimeCode, Flags, data.size());
+            (UInt32)TrackNumber.u64, TimeCode, Flags, data.size());
 }
 
 #define ITEM(X, T)  { .NAME = #X, .ID = ID_##X, .TYPE = T   }
 static const struct {
-    const char *        NAME;
-    uint64_t            ID;
+    const Char *        NAME;
+    UInt64            ID;
     eEBMLElementType    TYPE;
 } ELEMENTS[] = {
     // top level elements
@@ -498,7 +498,7 @@ static const struct {
 #define NELEM(x)    sizeof(x)/sizeof(x[0])
 
 sp<EBMLElement> MakeEBMLElement(const EBMLInteger& id, EBMLInteger& size) {
-    for (size_t i = 0; i < NELEM(ELEMENTS); ++i) {
+    for (UInt32 i = 0; i < NELEM(ELEMENTS); ++i) {
         if (ELEMENTS[i].ID == id.u64) {
             //DEBUG("make element %s[%#x]", ELEMENTS[i].NAME, ELEMENTS[i].ID);
             switch (ELEMENTS[i].TYPE) {
@@ -527,10 +527,10 @@ sp<EBMLElement> MakeEBMLElement(const EBMLInteger& id, EBMLInteger& size) {
         }
     }
     ERROR("unknown element %#x", id.u64);
-    return NULL;
+    return Nil;
 }
 
-sp<EBMLElement> FindEBMLElement(const sp<EBMLMasterElement>& master, uint64_t id) {
+sp<EBMLElement> FindEBMLElement(const sp<EBMLMasterElement>& master, UInt64 id) {
     CHECK_EQ(master->type, kEBMLElementMaster);
     List<EBMLMasterElement::Entry>::const_iterator it = master->children.cbegin();
     for (; it != master->children.cend(); ++it) {
@@ -538,19 +538,19 @@ sp<EBMLElement> FindEBMLElement(const sp<EBMLMasterElement>& master, uint64_t id
         if (e.element->id.u64 == id)
             return e.element;
     }
-    return NULL;
+    return Nil;
 }
 
-sp<EBMLElement> FindEBMLElementInside(const sp<EBMLMasterElement>& master, uint64_t inside, uint64_t target) {
+sp<EBMLElement> FindEBMLElementInside(const sp<EBMLMasterElement>& master, UInt64 inside, UInt64 target) {
     sp<EBMLMasterElement> target1 = FindEBMLElement(master, inside);
-    if (target1 == NULL) return NULL;
+    if (target1 == Nil) return Nil;
     CHECK_EQ(target1->type, kEBMLElementMaster);
     return FindEBMLElement(target1, target);
 }
 
-static FORCE_INLINE void PrintEBMLElement(const sp<EBMLElement>& e, const int64_t pos, size_t level) {
+static FORCE_INLINE void PrintEBMLElement(const sp<EBMLElement>& e, const Int64 pos, UInt32 level) {
     String line;
-    for (size_t i = 0; i < level; ++i) line.append(" ");
+    for (UInt32 i = 0; i < level; ++i) line.append(" ");
     line.append("+");
     line.append(e->name);
     line.append(String::format("\t @ 0x%" PRIx64 ", ", pos));
@@ -582,16 +582,16 @@ void PrintEBMLElements(const sp<EBMLElement>& e) {
 
 struct Entry {
     sp<EBMLMasterElement> element;
-    int64_t length;
-    Entry(const sp<EBMLMasterElement>& e, int64_t n) : element(e), length(n) { }
+    Int64 length;
+    Entry(const sp<EBMLMasterElement>& e, Int64 n) : element(e), length(n) { }
 };
 
 // TODO: handle UNKNOWN_DATA_SIZE
 // when unknown data size exists, we should read elements one by one
-sp<EBMLElement> ReadEBMLElement(const sp<ABuffer>& buffer, uint32_t flags) {
+sp<EBMLElement> ReadEBMLElement(const sp<ABuffer>& buffer, UInt32 flags) {
     DEBUG("ReadEBMLElement %#x", flags);
-    size_t idLengthMax = 8;
-    size_t sizeLengthMax = 8;
+    UInt32 idLengthMax = 8;
+    UInt32 sizeLengthMax = 8;
     
     // create root element
     EBMLInteger id              = EBMLGetCodedInteger(buffer);
@@ -599,23 +599,23 @@ sp<EBMLElement> ReadEBMLElement(const sp<ABuffer>& buffer, uint32_t flags) {
     
     if (id == EBMLIntegerNull || size == EBMLIntegerNull) {
         // END OF BUFFER ?
-        return NULL;
+        return Nil;
     }
     
     sp<EBMLMasterElement> root  = MakeEBMLElement(id, size);
 #if LOG_NDEBUG == 0
-    CHECK_FALSE(root.isNIL());
+    CHECK_FALSE(root.isNil());
 #else
-    if (root.isNIL()) {
+    if (root.isNil()) {
         ERROR("bad element %#x @ %" PRIu64, id.u64, buffer->offset());
-        return NULL;
+        return Nil;
     }
 #endif
     
-    const size_t elementLength = id.length + size.length + size.u64;
+    const UInt32 elementLength = id.length + size.length + size.u64;
     DEBUG("found root element %s @ %" PRIu64 " length = %zu[%zu]",
-         root->name, buffer->offset(), (size_t)size.u64, 
-         (size_t)(id.length + size.length + size.u64));
+         root->name, buffer->offset(), (UInt32)size.u64, 
+         (UInt32)(id.length + size.length + size.u64));
     
     // parse leaf elements and return
     if (root->type != kEBMLElementMaster) {
@@ -623,13 +623,13 @@ sp<EBMLElement> ReadEBMLElement(const sp<ABuffer>& buffer, uint32_t flags) {
         sp<ABuffer> data = buffer->readBytes(size.u64);
         if (root->parse(data, size.u64) != kMediaNoError) {
             ERROR("[%s @ %" PRId64 "] parse failed", root->name);
-            return NULL;
+            return Nil;
         }
         return root;
     }
     
     sp<EBMLMasterElement> master = root;
-    int64_t masterLength = size.u64;
+    Int64 masterLength = size.u64;
     List<Entry> parents;
     for (;;) {
         // put these @ begin of loop, so break | continue freely later
@@ -642,7 +642,7 @@ sp<EBMLElement> ReadEBMLElement(const sp<ABuffer>& buffer, uint32_t flags) {
         }
         if (master == root && masterLength == 0) break;
         
-        size_t offset = buffer->offset();   // element position
+        UInt32 offset = buffer->offset();   // element position
         
         id      = EBMLGetCodedInteger(buffer);
         size    = EBMLGetLength(buffer);
@@ -651,19 +651,19 @@ sp<EBMLElement> ReadEBMLElement(const sp<ABuffer>& buffer, uint32_t flags) {
             break;
         }
         
-        const size_t elementLength = id.length + size.length + size.u64;
+        const UInt32 elementLength = id.length + size.length + size.u64;
         
         sp<EBMLElement> element = MakeEBMLElement(id, size);
-        if (element.isNIL()) {
+        if (element.isNil()) {
             ERROR("%s: + unsupported element %#x, length %zu[%zu][%zu]",
-                  master->name, id.u64, (size_t)size.u64, elementLength, masterLength);
+                  master->name, id.u64, (UInt32)size.u64, elementLength, masterLength);
             buffer->skipBytes(size.u64);
             masterLength -= elementLength;
             continue;
         }
         
         DEBUG("%s: + %s @ %" PRIu64 " length = %zu[%zu][%zu]",
-             master->name, element->name, offset, (size_t)size.u64, elementLength, masterLength);
+             master->name, element->name, offset, (UInt32)size.u64, elementLength, masterLength);
         
 #if LOG_NDEBUG == 0
         CHECK_LE(elementLength, masterLength);
@@ -739,10 +739,10 @@ sp<EBMLElement> ReadEBMLElement(const sp<ABuffer>& buffer, uint32_t flags) {
     return root;
 }
 
-int IsMatroskaFile(const sp<ABuffer>& buffer) {
+Int IsMatroskaFile(const sp<ABuffer>& buffer) {
     // detect each element without parse its content
     // if failed, add parse()
-    int score = 0;
+    Int score = 0;
     while (score < 100) {
         EBMLInteger id      = EBMLGetCodedInteger(buffer);
         EBMLInteger size    = EBMLGetLength(buffer);
@@ -752,7 +752,7 @@ int IsMatroskaFile(const sp<ABuffer>& buffer) {
         }
         
         sp<EBMLElement> element = MakeEBMLElement(id, size);
-        if (element.isNIL()) {
+        if (element.isNil()) {
             break;
         }
         

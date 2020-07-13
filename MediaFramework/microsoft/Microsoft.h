@@ -55,23 +55,23 @@ enum {
 #define WAVEFORMATEX_MAX_LENGTH (40)
 struct WAVEFORMATEX {
     // >> 16 bytes
-    uint16_t wFormat;
-    uint16_t nChannels; 
-    uint32_t nSamplesPerSec; 
-    uint32_t nAvgBytesPerSec; 
-    uint16_t nBlockAlign; 
-    uint16_t wBitsPerSample;
+    UInt16 wFormat;
+    UInt16 nChannels; 
+    UInt32 nSamplesPerSec; 
+    UInt32 nAvgBytesPerSec; 
+    UInt16 nBlockAlign; 
+    UInt16 wBitsPerSample;
     // < 16 bytes
-    uint16_t cbSize;
+    UInt16 cbSize;
     // < 18 bytes
     
     union {
-        uint16_t wSamplesPerBlock;
-        uint16_t wReserved;
-        uint16_t wValidBitsPerSample;   // cbSize >= 22
+        UInt16 wSamplesPerBlock;
+        UInt16 wReserved;
+        UInt16 wValidBitsPerSample;   // cbSize >= 22
     };
-    uint32_t dwChannelMask;
-    uint16_t wSubFormat;                // << parse from subFormat GUID(16 bytes)
+    UInt32 dwChannelMask;
+    UInt16 wSubFormat;                // << parse from subFormat GUID(16 bytes)
     // < 40 bytes
     
     WAVEFORMATEX();
@@ -85,17 +85,17 @@ struct WAVEFORMATEX {
 // 1. http://msdn.microsoft.com/en-us/library/dd183376.aspx
 #define BITMAPINFOHEADER_MIN_LENGTH (40)
 struct BITMAPINFOHEADER {
-    uint32_t     biSize;
-    uint32_t     biWidth;
-    uint32_t     biHeight;
-    uint16_t     biPlanes;
-    uint16_t     biBitCount;
-    uint32_t     biCompression;
-    uint32_t     biSizeImage;
-    uint32_t     biXPelsPerMeter;
-    uint32_t     biYPelsPerMeter;
-    uint32_t     biClrUsed;
-    uint32_t     biClrImportant;
+    UInt32     biSize;
+    UInt32     biWidth;
+    UInt32     biHeight;
+    UInt16     biPlanes;
+    UInt16     biBitCount;
+    UInt32     biCompression;
+    UInt32     biSizeImage;
+    UInt32     biXPelsPerMeter;
+    UInt32     biYPelsPerMeter;
+    UInt32     biClrUsed;
+    UInt32     biClrImportant;
     // 40 bytes
     
     BITMAPINFOHEADER();

@@ -48,49 +48,49 @@ struct MediaFile : public IMediaSession {
     typedef List<sp<MediaFrame> > PacketList;
     Vector<PacketList>      mPackets;
     MediaTime               mLastReadTime;  //< avoid seek multi times by different track
-    Bits<uint32_t>          mTrackMask;
+    Bits<UInt32>          mTrackMask;
     struct OnPacketRequest;
     List<sp<OnPacketRequest> > mRequestEvents;
-    bool                    mEndOfSource;
+    Bool                    mEndOfSource;
     
     MediaFile(const sp<Looper>& lp) : IMediaSession(lp),
-    mMediaFile(NULL), mLastReadTime(kMediaTimeInvalid), mEndOfSource(false)
+    mMediaFile(Nil), mLastReadTime(kMediaTimeInvalid), mEndOfSource(False)
     {
         
     }
     
     void notify(const eSessionInfoType& info, const sp<Message>& payload) {
-        if (mInfoEvent.isNIL()) return;
+        if (mInfoEvent.isNil()) return;
         
         mInfoEvent->fire(info, payload);
     }
     
     virtual void onInit(const sp<Message>& media, const sp<Message>& options) {
         DEBUG("onInit...");
-        if (!options.isNIL()) {
+        if (!options.isNil()) {
             mInfoEvent = options->findObject(kKeySessionInfoEvent);
         }
         
         String url = media->findString(kKeyURL);
         sp<ABuffer> pipe = Content::Create(url);
-        if (pipe == NULL) {
+        if (pipe == Nil) {
             ERROR("create pipe failed");
-            notify(kSessionInfoError, NULL);
+            notify(kSessionInfoError, Nil);
             return;
         }
         
         sp<Message> formats = new Message;
         formats->setObject(kKeyContent, pipe);
-        mMediaFile = MediaDevice::create(formats, NULL);
-        if (mMediaFile.isNIL()) {
+        mMediaFile = MediaDevice::create(formats, Nil);
+        if (mMediaFile.isNil()) {
             ERROR("create file failed");
-            notify(kSessionInfoError, NULL);
+            notify(kSessionInfoError, Nil);
             return;
         }
         
         formats = mMediaFile->formats();
-        size_t numTracks = formats->findInt32(kKeyCount, 1);
-        for (size_t i = 0; i < numTracks; ++i) {
+        UInt32 numTracks = formats->findInt32(kKeyCount, 1);
+        for (UInt32 i = 0; i < numTracks; ++i) {
             sp<Message> trackFormat = formats->findObject(kKeyTrack + i);
             sp<OnPacketRequest> event = new OnPacketRequest(this, i);
             trackFormat->setObject(kKeyPacketRequestEvent, event);
@@ -109,18 +109,18 @@ struct MediaFile : public IMediaSession {
     }
     
     void fillPacket(const MediaTime& time = kMediaTimeInvalid) {
-        Bits<uint32_t> trackMask;
+        Bits<UInt32> trackMask;
         
         // avoid seek multitimes by different track
-        bool seek = time != kMediaTimeInvalid && time != mLastReadTime;
+        Bool seek = time != kMediaTimeInvalid && time != mLastReadTime;
         if (seek) {
             // flush packet list before seek
-            for (size_t i = 0; i < mPackets.size(); ++i) {
+            for (UInt32 i = 0; i < mPackets.size(); ++i) {
                 mPackets[i].clear();
                 if (mTrackMask.test(i)) trackMask.set(i);
             }
         } else {
-            for (size_t i = 0; i < mPackets.size(); ++i) {
+            for (UInt32 i = 0; i < mPackets.size(); ++i) {
                 if (mPackets[i].empty() && mTrackMask.test(i))
                     trackMask.set(i);
             }
@@ -136,11 +136,11 @@ struct MediaFile : public IMediaSession {
                     ERROR("seek failed");
                 }
                 mLastReadTime   = time;
-                seek            = false;
+                seek            = False;
             }
             packet = mMediaFile->pull();
             
-            if (packet.isNIL()) {
+            if (packet.isNil()) {
                 INFO("End Of File...");
                 break;
             }
@@ -156,7 +156,7 @@ struct MediaFile : public IMediaSession {
       
 #if 0
         String string = "packet list:";
-        for (size_t i = 0; i < mPackets.size(); ++i) {
+        for (UInt32 i = 0; i < mPackets.size(); ++i) {
             string += String::format(" [%zu] %zu,", i, mPackets[i].size());
         }
         INFO("%s", string.c_str());
@@ -180,22 +180,22 @@ struct MediaFile : public IMediaSession {
         TrackSelectEvent(p->mDispatch),
         thiz(p) { }
         
-        virtual void onEvent(const size_t& tracks) {
-            if (thiz == NULL) return;
+        virtual void onEvent(const UInt32& tracks) {
+            if (thiz == Nil) return;
             thiz->onTrackSelect(tracks);
         }
         
-        void invalidate() { thiz = NULL; }
+        void invalidate() { thiz = Nil; }
     };
     
-    void onTrackSelect(const size_t& mask) {
+    void onTrackSelect(const UInt32& mask) {
         mTrackMask = mask;
         sp<Message> options = new Message;
         options->setInt32(kKeyTracks, mask);
         mMediaFile->configure(options);
         
         // clear packet list
-        for (size_t i = 0; i < mPackets.size(); ++i) {
+        for (UInt32 i = 0; i < mPackets.size(); ++i) {
             if (mTrackMask.test(i)) continue;;
             mPackets[i].clear();
         }
@@ -203,36 +203,36 @@ struct MediaFile : public IMediaSession {
 
     struct OnPacketRequest : public PacketRequestEvent {
         MediaFile *thiz;
-        const size_t trackIndex;
+        const UInt32 trackIndex;
         
-        OnPacketRequest(MediaFile *p, const size_t index) :
+        OnPacketRequest(MediaFile *p, const UInt32 index) :
         PacketRequestEvent(p->mDispatch),
         thiz(p), trackIndex(index) { }
         
         virtual void onEvent(const sp<PacketReadyEvent>& event, const MediaTime& time) {
-            if (thiz == NULL) {
+            if (thiz == Nil) {
                 WARN("request packet after invalid()");
                 return;
             }
             thiz->onRequestPacket(trackIndex, event, time);
         }
         
-        void invalidate() { thiz = NULL; }
+        void invalidate() { thiz = Nil; }
         
         // when all reference gone, we have to disable the track
         virtual void onLastRetain() {
-            if (thiz == NULL) return;
+            if (thiz == Nil) return;
             INFO("disable track on PacketRequestEvent GONE");
             thiz->onDisableTrack(trackIndex);
         }
     };
     
-    void onRequestPacket(const size_t index, sp<PacketReadyEvent> event, const MediaTime& time) {
+    void onRequestPacket(const UInt32 index, sp<PacketReadyEvent> event, const MediaTime& time) {
         DEBUG("onRequestPacket [%zu] @ %.3f", index, time.seconds());
         
         if (time != kMediaTimeInvalid) {
             INFO("onRequestPacket [%zu] @ %.3f", index, time.seconds());
-            mEndOfSource = false;
+            mEndOfSource = False;
             fillPacket(time);
         }
         
@@ -240,8 +240,8 @@ struct MediaFile : public IMediaSession {
         
         if (list.empty()) {
             INFO("[%zu] End Of Stream", index);
-            mEndOfSource = true;
-            event->fire(NULL);
+            mEndOfSource = True;
+            event->fire(Nil);
             return;
         }
         
@@ -258,7 +258,7 @@ struct MediaFile : public IMediaSession {
         if (!mEndOfSource) fillPacket();
     }
     
-    void onDisableTrack(const size_t index) {
+    void onDisableTrack(const UInt32 index) {
         mTrackMask.clear(index);
         onTrackSelect(mTrackMask.value());
     }

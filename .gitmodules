@@ -5,7 +5,7 @@
 [submodule "external/ABE"]
 	path = external/ABE
 	url = https://github.com/mtdcy/ABE.git
-	branch = origin/v1.x
+	branch = origin/v2.x
 [submodule "external/FFmpegStatic"]
 	path = external/FFmpegStatic
     url = https://github.com/mtdcy/FFmpegStatic.git

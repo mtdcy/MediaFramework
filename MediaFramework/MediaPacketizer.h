@@ -45,7 +45,7 @@ struct API_EXPORT MediaPacketizer : public SharedObject {
     MediaPacketizer() {}
     virtual ~MediaPacketizer() {}
 
-    static sp<MediaPacketizer> Create(uint32_t format);     // @see eAudioCodec @see eVideoCodec
+    static sp<MediaPacketizer> Create(UInt32 format);     // @see eAudioCodec @see eVideoCodec
 
     virtual String          string() const = 0;
 
@@ -58,7 +58,7 @@ struct API_EXPORT MediaPacketizer : public SharedObject {
     virtual MediaError      enqueue(const sp<MediaFrame>& in) = 0;
     /**
      * dequeue a packet from packetizer
-     * @return return reference to new packet, or NULL if no packet ready
+     * @return return reference to new packet, or Nil if no packet ready
      */
     virtual sp<MediaFrame> dequeue() = 0;
 

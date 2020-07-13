@@ -46,7 +46,7 @@ __BEGIN_NAMESPACE(TIFF)
  * http://www.fileformat.info/format/tiff/corion.htm
  * https://sno.phy.queensu.ca/~phil/exiftool/TagNames/EXIF.html
  */
-typedef uint16_t eTag;
+typedef UInt16 eTag;
 
 enum {
     kNewSubfileType         = 0xFE,     ///< long, N = 1, def:0
@@ -113,59 +113,59 @@ enum {
     
 };
 
-const char * TagName(eTag);
+const Char * TagName(eTag);
 
 enum eType {
-    kBYTE       = 1,    ///< uint8_t
+    kBYTE       = 1,    ///< UInt8
     kASCII      = 2,    ///< null-terminated ascii string
-    kSHORT      = 3,    ///< uint16_t
-    kLONG       = 4,    ///< uint32_t
-    kRATIONAL   = 5,    ///< uint32_t numerator & denominator
-    kSBYTE      = 6,    ///< int8_t
+    kSHORT      = 3,    ///< UInt16
+    kLONG       = 4,    ///< UInt32
+    kRATIONAL   = 5,    ///< UInt32 numerator & denominator
+    kSBYTE      = 6,    ///< Int8
     kUNDEFINED  = 7,    ///< bytes
-    kSSHORT     = 8,    ///< int16_t
-    kSLONG      = 9,    ///< int32_t
-    kSRATIONAL  = 10,   ///< int32_t numerator & denominator
-    kFLOAT      = 11,   ///< float (4-bytes)
-    kDOUBLE     = 12,   ///< double (8-bytes)
+    kSSHORT     = 8,    ///< Int16
+    kSLONG      = 9,    ///< Int32
+    kSRATIONAL  = 10,   ///< Int32 numerator & denominator
+    kFLOAT      = 11,   ///< Float32 (4-bytes)
+    kDOUBLE     = 12,   ///< Float64 (8-bytes)
 };
 
-const char *    TypeName(eType);
-size_t          TypeLength(eType);
+const Char *    TypeName(eType);
+UInt32          TypeLength(eType);
 
 struct Rational {
-    uint32_t    num;
-    uint32_t    den;
+    UInt32    num;
+    UInt32    den;
 };
 
 struct SRational {
-    int32_t     num;
-    int32_t     den;
+    Int32     num;
+    Int32     den;
 };
 
 union EntryData {
-    uint8_t     u8;
-    uint16_t    u16;
-    uint32_t    u32;
-    int8_t      s8;
-    int16_t     s16;
-    int32_t     s32;
+    UInt8     u8;
+    UInt16    u16;
+    UInt32    u32;
+    Int8      s8;
+    Int16     s16;
+    Int32     s32;
     Rational    rat;
     SRational   srat;
-    float       flt;
-    double      dbl;
+    Float32       flt;
+    Float64      dbl;
 };
 
 struct Entry {
     eTag        tag;        ///< @see eTag
     eType       type;       ///< unit type, @see eType
-    uint32_t    count;      ///< number of units
-    uint32_t    offset;     ///< as the data may be anywhere in the file, so record offset instead read data
+    UInt32    count;      ///< number of units
+    UInt32    offset;     ///< as the data may be anywhere in the file, so record offset instead read data
                             ///< if data < 4-bytes, data is within offset space
     EntryData   value[0];
 };
 
-Entry * allocateEntry(eTag, eType, size_t);
+Entry * allocateEntry(eTag, eType, UInt32);
 String  printEntry(const Entry *);
 
 struct ImageFileDirectory : public SharedObject {
@@ -177,9 +177,9 @@ struct ImageFileDirectory : public SharedObject {
 
 // 8-byte TIFF image file header
 struct Header : public SharedObject {
-    char     byteOrder[2];  // "II" or "MM"
-    uint16_t version;       // 0x2a
-    uint32_t offset;        // offset of the first IFD. usally 8
+    Char     byteOrder[2];  // "II" or "MM"
+    UInt16 version;       // 0x2a
+    UInt32 offset;        // offset of the first IFD. usally 8
 };
 
 struct TIFFObject : public SharedObject {
@@ -189,11 +189,11 @@ struct TIFFObject : public SharedObject {
 
 void fillEntry(Entry * e, const sp<ABuffer>&);
 
-sp<ImageFileDirectory> readImageFileDirectory(const sp<ABuffer>&, size_t * next = NULL);
+sp<ImageFileDirectory> readImageFileDirectory(const sp<ABuffer>&, UInt32 * next = Nil);
 
 void printImageFileDirectory(const sp<ImageFileDirectory>&);
 
-void printImageFileDirectory(const sp<ImageFileDirectory>&, const char * (*GetTagName)(eTag));
+void printImageFileDirectory(const sp<ImageFileDirectory>&, const Char * (*GetTagName)(eTag));
 
 sp<TIFFObject> openTIFF(const sp<ABuffer>&);
 

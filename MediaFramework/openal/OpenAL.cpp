@@ -71,7 +71,7 @@ struct OpenALContext : public SharedObject {
     ALCcontext *    mContext;
     ALuint          mSource;
     
-    OpenALContext() : mDevice(NULL), mContext(NULL), mSource(0) { }
+    OpenALContext() : mDevice(Nil), mContext(Nil), mSource(0) { }
 };
 
 static MediaError flushOpenAL(sp<OpenALContext>& openAL);
@@ -87,18 +87,18 @@ static sp<OpenALContext> initOpenALContext(const AudioFormat& audio) {
         openAL->mAudioFormat.format = GetSimilarSampleFormat(openAL->mAudioFormat.format);
     }
     
-    openAL->mDevice = alcOpenDevice(NULL);
+    openAL->mDevice = alcOpenDevice(Nil);
     CHECK_AL_ERROR();
-    if (openAL->mDevice == NULL) {
+    if (openAL->mDevice == Nil) {
         ERROR("init OpenAL device failed");
-        return NULL;
+        return Nil;
     }
     
     // device enumeration
     if (alcIsExtensionPresent(openAL->mDevice, "ALC_ENUMERATION_EXT") == AL_TRUE) {
         const ALCchar * devices = alcGetString(openAL->mDevice, ALC_DEVICE_SPECIFIER);
         const ALCchar * device = devices, *next = devices + 1;
-        size_t len = 0;
+        UInt32 len = 0;
 
         INFO("Devices list:");
         INFO("----------");
@@ -112,13 +112,13 @@ static sp<OpenALContext> initOpenALContext(const AudioFormat& audio) {
     }
     CHECK_AL_ERROR();
 
-    openAL->mContext = alcCreateContext(openAL->mDevice, NULL);
+    openAL->mContext = alcCreateContext(openAL->mDevice, Nil);
     CHECK_AL_ERROR();
     ALboolean success = alcMakeContextCurrent(openAL->mContext);
     CHECK_AL_ERROR();
     if (!success) {
         ERROR("alcMakeContextCurrent failed");
-        return NULL;
+        return Nil;
     }
     
     flushOpenAL(openAL);
@@ -171,31 +171,31 @@ static void deinitOpenAL(sp<OpenALContext>& openAL) {
     if (queued != processed) {
         ERROR("deinit: %zu buffers queued but only %zu buffers processed", queued, processed);
     }
-    INFO("delete %zu buffers", (size_t)processed);
+    INFO("delete %zu buffers", (UInt32)processed);
     while (processed-- > 0) {
         ALuint buffer;
         alSourceUnqueueBuffers(openAL->mSource, 1, &buffer);
         alDeleteBuffers(processed, &buffer);
     }
     alDeleteSources((ALsizei)1, &openAL->mSource);
-    alcMakeContextCurrent(NULL);
+    alcMakeContextCurrent(Nil);
     alcDestroyContext(openAL->mContext);
     alcCloseDevice(openAL->mDevice);
 }
 
 static MediaError playFrame(const sp<OpenALContext>& openAL, const sp<MediaFrame>& frame) {
     DEBUG("play %s", frame->string().c_str());
-    const int64_t now = SystemTimeUs();
+    const Time now = Time::Now();
     ALint state;
     alGetSourcei(openAL->mSource, AL_SOURCE_STATE, &state);
     CHECK_AL_ERROR();
     
-    if (frame.isNIL()) {
+    if (frame.isNil()) {
         DEBUG("eos");
         while (state == AL_PLAYING) {
             DEBUG("wait for al stopping, state %#x", state);
             // FIXME: find a better way to do this
-            SleepTimeMs(100);
+            Timer().sleep(Time::MilliSeconds(100));
             alGetSourcei(openAL->mSource, AL_SOURCE_STATE, &state);
             CHECK_AL_ERROR();
         }
@@ -260,7 +260,7 @@ struct OpenALOut : public MediaDevice {
     OpenALOut() : MediaDevice() { }
     
     virtual ~OpenALOut() {
-        if (mOpenAL.isNIL()) return;
+        if (mOpenAL.isNil()) return;
         deinitOpenAL(mOpenAL);
         mOpenAL.clear();
     }
@@ -272,7 +272,7 @@ struct OpenALOut : public MediaDevice {
         audio.freq = formats->findInt32(kKeySampleRate);
         
         mOpenAL = initOpenALContext(audio);
-        if (mOpenAL.isNIL()) return kMediaErrorBadFormat;
+        if (mOpenAL.isNil()) return kMediaErrorBadFormat;
         return kMediaNoError;
     }
     
@@ -288,7 +288,7 @@ struct OpenALOut : public MediaDevice {
     
     virtual MediaError configure(const sp<Message>& options) {
         if (options->contains(kKeyPause)) {
-            int32_t pause = options->findInt32(kKeyPause);
+            Int32 pause = options->findInt32(kKeyPause);
             if (pause) {
                 alSourcePause(mOpenAL->mSource);
             }
@@ -302,7 +302,7 @@ struct OpenALOut : public MediaDevice {
     }
     
     virtual sp<MediaFrame> pull() {
-        return NULL;
+        return Nil;
     }
     
     virtual MediaError reset() {
@@ -313,7 +313,7 @@ struct OpenALOut : public MediaDevice {
 sp<MediaDevice> CreateOpenALOut(const sp<Message>& formats, const sp<Message>& options) {
     sp<OpenALOut> out = new OpenALOut;
     if (out->init(formats, options) != kMediaNoError)
-        return NULL;
+        return Nil;
     return out;
 }
 

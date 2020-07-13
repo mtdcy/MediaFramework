@@ -42,14 +42,14 @@
 __BEGIN_NAMESPACE_MPX
 __BEGIN_NAMESPACE(JPEG)
 
-sp<FrameHeader> readFrameHeader(const sp<ABuffer>& buffer, size_t length) {
+sp<FrameHeader> readFrameHeader(const sp<ABuffer>& buffer, UInt32 length) {
     sp<FrameHeader> header = new FrameHeader;
     
     header->bpp     = buffer->r8();
     header->height  = buffer->rb16();
     header->width   = buffer->rb16();
     header->planes  = buffer->r8();
-    for (size_t i = 0; i < header->planes; ++i) {
+    for (UInt32 i = 0; i < header->planes; ++i) {
         header->plane[i].id = buffer->r8();
         header->plane[i].ss = buffer->r8();
         header->plane[i].qt = buffer->r8();
@@ -60,7 +60,7 @@ sp<FrameHeader> readFrameHeader(const sp<ABuffer>& buffer, size_t length) {
 void printFrameHeader(const sp<FrameHeader>& header) {
     INFO("\tSOF: bpp %" PRIu8 ", height %" PRIu16 ", width %" PRIu16 ", %" PRIu8 " planes",
          header->bpp, header->height, header->width, header->planes);
-    for (size_t i = 0; i < header->planes; ++i) {
+    for (UInt32 i = 0; i < header->planes; ++i) {
         INFO("\t\t plane %" PRIu8 ", hss %d, vss %d, qt %" PRIu8,
              header->plane[i].id,
              (header->plane[i].ss & 0xf0) >> 4,
@@ -69,11 +69,11 @@ void printFrameHeader(const sp<FrameHeader>& header) {
     }
 }
 
-sp<ScanHeader> readScanHeader(const sp<ABuffer>& buffer, size_t length) {
+sp<ScanHeader> readScanHeader(const sp<ABuffer>& buffer, UInt32 length) {
     sp<ScanHeader> header = new ScanHeader;
     
     header->components  = buffer->r8();
-    for (size_t i = 0; i < header->components; ++i) {
+    for (UInt32 i = 0; i < header->components; ++i) {
         header->component[i].id = buffer->r8();
         header->component[i].tb = buffer->r8();
     }
@@ -82,7 +82,7 @@ sp<ScanHeader> readScanHeader(const sp<ABuffer>& buffer, size_t length) {
 
 void printScanHeader(const sp<ScanHeader>& header) {
     INFO("\tSOS: %d components", header->components);
-    for (size_t i = 0; i < header->components; ++i) {
+    for (UInt32 i = 0; i < header->components; ++i) {
         INFO("\t\t component %u, AC %u, DC %u",
              header->component[i].id,
              (header->component[i].tb & 0xf0) >> 4,
@@ -90,7 +90,7 @@ void printScanHeader(const sp<ScanHeader>& header) {
     }
 }
 
-sp<HuffmanTable> readHuffmanTable(const sp<ABuffer>& buffer, size_t length) {
+sp<HuffmanTable> readHuffmanTable(const sp<ABuffer>& buffer, UInt32 length) {
     sp<HuffmanTable> huff = new HuffmanTable;
     huff->type  = buffer->read(4);
     huff->id    = buffer->read(4);
@@ -103,7 +103,7 @@ void printHuffmanTable(const sp<HuffmanTable>& huff) {
          huff->type ? "AC" : "DC", huff->id, huff->table->size());
 }
 
-sp<QuantizationTable> readQuantizationTable(const sp<ABuffer>& buffer, size_t length) {
+sp<QuantizationTable> readQuantizationTable(const sp<ABuffer>& buffer, UInt32 length) {
     sp<QuantizationTable> quan = new QuantizationTable;
     quan->precision = buffer->read(4);
     quan->id        = buffer->read(4);
@@ -116,7 +116,7 @@ void printQuantizationTable(const sp<QuantizationTable>& quan) {
          quan->precision ? 16u : 8u, quan->id, quan->table->size());
 }
 
-sp<RestartInterval> readRestartInterval(const sp<ABuffer>& buffer, size_t length) {
+sp<RestartInterval> readRestartInterval(const sp<ABuffer>& buffer, UInt32 length) {
     sp<RestartInterval> ri = new RestartInterval;
     ri->interval    = buffer->rb16();
     return ri;
@@ -126,22 +126,22 @@ void printRestartInterval(const sp<RestartInterval>& ri) {
     INFO("\tDRI: interval %u", ri->interval);
 }
 
-sp<JIFObject> readJIF(const sp<Buffer>& buffer, size_t length) {
-    const size_t start = buffer->offset();
+sp<JIFObject> readJIF(const sp<Buffer>& buffer, UInt32 length) {
+    const UInt32 start = buffer->offset();
     eMarker marker = (eMarker)buffer->r16();
     if (marker != SOI) {
         ERROR("missing JIF SOI segment, unexpected marker %s", JPEG::MarkerName(SOI));
-        return NIL;
+        return Nil;
     }
     
-    sp<JIFObject> JIF = new JIFObject(false);
+    sp<JIFObject> JIF = new JIFObject(False);
     while ((marker = (eMarker)buffer->r16()) != EOI) {
         if ((marker & 0xff00) != 0xff00) {
             ERROR("JIF bad marker %#x", marker);
             break;
         }
         
-        size_t size = buffer->r16();
+        UInt32 size = buffer->r16();
         DEBUG("JIF %s: length %zu", MarkerName(marker), size);
         
         size -= 2;
@@ -163,9 +163,9 @@ sp<JIFObject> readJIF(const sp<Buffer>& buffer, size_t length) {
         }
     }
     
-    if (JIF->mData == NIL) {
+    if (JIF->mData == Nil) {
         ERROR("missing SOS");
-        return NIL;
+        return Nil;
     }
     
     marker = (eMarker)buffer->r16();
@@ -176,22 +176,22 @@ sp<JIFObject> readJIF(const sp<Buffer>& buffer, size_t length) {
 }
 
 // read only SOF & store [SOI, EOI] to data
-sp<JIFObject> readJIFLazy(const sp<ABuffer>& buffer, size_t length) {
-    const size_t start = buffer->offset();
+sp<JIFObject> readJIFLazy(const sp<ABuffer>& buffer, UInt32 length) {
+    const UInt32 start = buffer->offset();
     eMarker marker = (eMarker)buffer->r16();
     if (marker != SOI) {
         ERROR("missing JIF SOI segment, unexpected marker %s", JPEG::MarkerName(SOI));
-        return NIL;
+        return Nil;
     }
     
-    sp<JIFObject> JIF = new JIFObject(true);
+    sp<JIFObject> JIF = new JIFObject(True);
     while ((marker = (eMarker)buffer->r16()) != EOI) {
         if ((marker & 0xff00) != 0xff00) {
             ERROR("JIF bad marker %#x", marker);
             break;
         }
         
-        size_t size = buffer->r16();
+        UInt32 size = buffer->r16();
         DEBUG("JIF %s: length %zu", MarkerName(marker), size);
         
         size -= 2;
@@ -204,9 +204,9 @@ sp<JIFObject> readJIFLazy(const sp<ABuffer>& buffer, size_t length) {
         }
     }
     
-    if (JIF->mFrameHeader.isNIL()) {
+    if (JIF->mFrameHeader.isNil()) {
         ERROR("JIF: missing SOF0");
-        return NIL;
+        return Nil;
     }
     
     buffer->resetBytes();
@@ -217,7 +217,7 @@ sp<JIFObject> readJIFLazy(const sp<ABuffer>& buffer, size_t length) {
 }
 
 void printJIFObject(const sp<JIFObject>& jif) {
-    if (jif->mFrameHeader != NIL) {
+    if (jif->mFrameHeader != Nil) {
         printFrameHeader(jif->mFrameHeader);
     }
     
@@ -235,15 +235,15 @@ void printJIFObject(const sp<JIFObject>& jif) {
         }
     }
     
-    if (jif->mRestartInterval != NIL) {
+    if (jif->mRestartInterval != Nil) {
         printRestartInterval(jif->mRestartInterval);
     }
     
-    if (jif->mScanHeader != NIL) {
+    if (jif->mScanHeader != Nil) {
         printScanHeader(jif->mScanHeader);
     }
     
-    if (jif->mData != NIL) {
+    if (jif->mData != Nil) {
         INFO("JIF: image length %zu", jif->mData->size());
     }
 }
@@ -252,7 +252,7 @@ void printJIFObject(const sp<JIFObject>& jif) {
  * decode JIFObject using libjpeg-turbo
  */
 sp<MediaFrame> decodeJIFObject(const sp<JIFObject>& jif) {
-    CHECK_EQ(jif->mHeadOnly, true);     // only support head only now
+    CHECK_EQ(jif->mHeadOnly, True);     // only support head only now
     
     ImageFormat format;
     format.format   = kPixelFormatRGB;

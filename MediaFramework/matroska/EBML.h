@@ -64,18 +64,18 @@ __BEGIN_NAMESPACE(EBML)
 #define ID_TAGS                 0x1254C367  // master, #<=1,
 
 // the SEGMENTINFO element's children
-#define ID_SEGMENTUID           0x73A4      // char[16], #=1,
+#define ID_SEGMENTUID           0x73A4      // Char[16], #=1,
 #define ID_SEGMENTFILENAME      0x7384      // utf8, #<=1,
-#define ID_PREVUID              0x3CB923    // char[16], #<=1,
+#define ID_PREVUID              0x3CB923    // Char[16], #<=1,
 #define ID_PREVFILENAME         0x3C83AB    // utf8, #<=1
-#define ID_NEXTUID              0x3EB923    // char[16], #<=1
+#define ID_NEXTUID              0x3EB923    // Char[16], #<=1
 #define ID_NEXTFILENAME         0x3E83BB    // utf8, #<=1
 #define ID_TIMECODESCALE        0x2AD7B1    // uint, #<=1
-#define ID_DURATION             0x4489      // float, #<=1
+#define ID_DURATION             0x4489      // Float32, #<=1
 #define ID_TITLE                0x7BA9      // utf8, #<=1,
 #define ID_MUXINGAPP            0x4D80      // string, #=1,
 #define ID_WRITINGAPP           0x5741      // utf8, #=1,
-#define ID_DATEUTC              0x4461      // int, #<=1
+#define ID_DATEUTC              0x4461      // Int, #<=1
 
 // the SEEKHEAD element's children
 #define ID_SEEK                 0x4DBB      // master, #>=1
@@ -89,14 +89,14 @@ __BEGIN_NAMESPACE(EBML)
 #define ID_TRACKNUMBER          0xD7        // uint, #=1, >0
 #define ID_TRACKUID             0x73C5      // uint, #=1, >0
 #define ID_TRACKTYPE            0x83        // uint, #=1
-#define ID_FLAGENABLED          0xB9        // bool, #<=1
-#define ID_FLAGDEFAULT          0x88        // bool, #<=1
-#define ID_FLAGFORCED           0x55AA      // bool, #<=1
-#define ID_FLAGLACING           0x9C        // bool, #<=1
+#define ID_FLAGENABLED          0xB9        // Bool, #<=1
+#define ID_FLAGDEFAULT          0x88        // Bool, #<=1
+#define ID_FLAGFORCED           0x55AA      // Bool, #<=1
+#define ID_FLAGLACING           0x9C        // Bool, #<=1
 #define ID_MINCACHE             0x6DE7      // uint, #<=1
 #define ID_MAXCACHE             0x6DF8      // uint, #<=1
 #define ID_DEFAULTDURATION      0x23E383    // uint, #<=1
-#define ID_TRACKTIMECODESCALE   0x23314F    // float, #<=1
+#define ID_TRACKTIMECODESCALE   0x23314F    // Float32, #<=1
 #define ID_NAME                 0x536E      // utf8, #<=1
 #define ID_LANGUAGE             0x22B59C    // string, #<=1
 #define ID_CODECID              0x86        // string, #=1
@@ -143,11 +143,11 @@ __BEGIN_NAMESPACE(EBML)
 #define ID_BLOCK                0xA1        // binary, #=1
 #define ID_BLOCKVIRTUAL         0xA2        // binary, #<=1
 #define ID_REFERENCEPRIORITY    0xFA        // uint, #=1, def:0
-#define ID_REFERENCEBLOCK       0xFB        // int, #>=0
-#define ID_BLOCKDURATION        0x9B        // int, #<=1
+#define ID_REFERENCEBLOCK       0xFB        // Int, #>=0
+#define ID_BLOCKDURATION        0x9B        // Int, #<=1
 #define ID_BLOCKADDITIONS       0x75A1      // master, #<=1
 #define ID_CODECSTATE           0xA4        // binary, #<=1
-#define ID_DISCARDPADDING       0x75A2      // int, #<=1
+#define ID_DISCARDPADDING       0x75A2      // Int, #<=1
 // CUES
 #define ID_CUEPOINT             0xBB        // master, #>=1
 // CUEPOINT
@@ -180,24 +180,24 @@ __BEGIN_NAMESPACE(EBML)
 // SIMPLETAG
 #define ID_TAGNAME              0x45A3      // utf8, #>=1
 #define ID_TAGLANGUAGE          0x447A      // string, #<=1, def:und
-#define ID_TAGORIGINAL          0x4484      // bool, #<=1, def:1
+#define ID_TAGORIGINAL          0x4484      // Bool, #<=1, def:1
 #define ID_TAGSTRING            0x4487      // utf8, #<=1,
 #define ID_TAGBINARY            0x4485      // binary, #<=1
 // CHAPTERS
 #define ID_EDITIONENTRY         0x45B9      // master, #>=1
 // EDITIONENTRY
 #define ID_EDITIONUID           0x45BC      // uint, #<=1
-#define ID_EDITIONFLAGHIDDEN    0x45BD      // bool, #<=1, def:0
-#define ID_EDITIONFLAGDEFAULT   0x45DB      // bool, #<=1, def:0
-#define ID_EDITIONFLAGORDERED   0x45DD      // bool, #<=1, def:0
+#define ID_EDITIONFLAGHIDDEN    0x45BD      // Bool, #<=1, def:0
+#define ID_EDITIONFLAGDEFAULT   0x45DB      // Bool, #<=1, def:0
+#define ID_EDITIONFLAGORDERED   0x45DD      // Bool, #<=1, def:0
 #define ID_CHAPTERATOM          0xB6        // master, #>=1
 // CHAPTERATOM
 #define ID_CHAPTERUID           0x73C4      // uint, #=1
 #define ID_CHAPTERTIMESTART     0x91        // uint, #<=1
 #define ID_CHAPTERTIMEEND       0x92        // uint, #<=1
-#define ID_CHAPTERFLAGHIDDEN    0x98        // bool, #<=1, def:0
-#define ID_CHAPTERFLAGENABLED   0x4598      // bool, #<=1, def:1
-#define ID_CHAPTERSEGMENTUID    0x6E67      // char[16], #<=1
+#define ID_CHAPTERFLAGHIDDEN    0x98        // Bool, #<=1, def:0
+#define ID_CHAPTERFLAGENABLED   0x4598      // Bool, #<=1, def:1
+#define ID_CHAPTERSEGMENTUID    0x6E67      // Char[16], #<=1
 #define ID_CHAPTERSEGMENTEDITIONUID 0x6EBC  // uint, #<=1
 #define ID_CHAPTERTRACKS        0x8F        // master, #<=1
 #define ID_CHAPTERDISPLAY       0x80        // master, #>=0
@@ -248,119 +248,119 @@ enum eEBMLElementType {
 
 struct EBMLInteger {
     EBMLInteger() : u64(0), length(0) { }
-    EBMLInteger(uint64_t x);
+    EBMLInteger(UInt64 x);
 
     union {
-        uint8_t         u8;
-        uint16_t        u16;
-        uint32_t        u32;
-        uint64_t        u64;
+        UInt8         u8;
+        UInt16        u16;
+        UInt32        u32;
+        UInt64        u64;
     };
-    size_t              length;
+    UInt32              length;
 };
 
 struct EBMLSignedInteger {
     EBMLSignedInteger() : i64(0), length(0) { }
-    EBMLSignedInteger(int64_t x);
+    EBMLSignedInteger(Int64 x);
 
     union {
-        int8_t          i8;
-        int16_t         i16;
-        int32_t         i32;
-        int64_t         i64;
+        Int8          i8;
+        Int16         i16;
+        Int32         i32;
+        Int64         i64;
     };
-    size_t              length;
+    UInt32              length;
 };
 
 /**
  * @note always use id.u64 & size.u64 when compare
  */
 struct EBMLElement : public SharedObject {
-    const char *            name;
+    const Char *            name;
     const EBMLInteger       id;
     EBMLInteger             size;
     const eEBMLElementType  type;
 
-    FORCE_INLINE EBMLElement(const char *_name, const EBMLInteger& _id, EBMLInteger& _size, const eEBMLElementType& _type) :
+    FORCE_INLINE EBMLElement(const Char *_name, const EBMLInteger& _id, EBMLInteger& _size, const eEBMLElementType& _type) :
         name(_name), id(_id), size(_size), type(_type) { }
     FORCE_INLINE virtual ~EBMLElement() { }
-    virtual MediaError parse(const sp<ABuffer>&, size_t) = 0;
-    //virtual MediaError compose(sp<ABuffer>&, size_t) = 0;
+    virtual MediaError parse(const sp<ABuffer>&, UInt32) = 0;
+    //virtual MediaError compose(sp<ABuffer>&, UInt32) = 0;
     virtual String string() const = 0;
 };
 
 struct EBMLIntegerElement : public EBMLElement {
     EBMLInteger         vint;
 
-    FORCE_INLINE EBMLIntegerElement(const char *name, const EBMLInteger& id, EBMLInteger& size) :
+    FORCE_INLINE EBMLIntegerElement(const Char *name, const EBMLInteger& id, EBMLInteger& size) :
         EBMLElement(name, id, size, kEBMLElementInteger) { }
-    virtual MediaError parse(const sp<ABuffer>&, size_t);
+    virtual MediaError parse(const sp<ABuffer>&, UInt32);
     virtual String string() const;
 };
 
 struct EBMLSignedIntegerElement : public EBMLElement {
     EBMLSignedInteger   svint;
 
-    FORCE_INLINE EBMLSignedIntegerElement(const char *name, const EBMLInteger& id, EBMLInteger& size) :
+    FORCE_INLINE EBMLSignedIntegerElement(const Char *name, const EBMLInteger& id, EBMLInteger& size) :
         EBMLElement(name, id, size, kEBMLElementSignedInteger) { }
-    virtual MediaError parse(const sp<ABuffer>&, size_t);
+    virtual MediaError parse(const sp<ABuffer>&, UInt32);
     virtual String string() const;
 };
 
 struct EBMLStringElement : public EBMLElement {
     String              str;
 
-    FORCE_INLINE EBMLStringElement(const char *name, const EBMLInteger& id, EBMLInteger& size) :
+    FORCE_INLINE EBMLStringElement(const Char *name, const EBMLInteger& id, EBMLInteger& size) :
         EBMLElement(name, id, size, kEBMLElementString) { }
-    virtual MediaError parse(const sp<ABuffer>&, size_t);
+    virtual MediaError parse(const sp<ABuffer>&, UInt32);
     virtual String string() const;
 };
 
 struct EBMLUTF8Element : public EBMLElement {
     String              utf8;
 
-    FORCE_INLINE EBMLUTF8Element(const char *name, const EBMLInteger& id, EBMLInteger& size) :
+    FORCE_INLINE EBMLUTF8Element(const Char *name, const EBMLInteger& id, EBMLInteger& size) :
         EBMLElement(name, id, size, kEBMLElementUTF8) { }
-    virtual MediaError parse(const sp<ABuffer>&, size_t);
+    virtual MediaError parse(const sp<ABuffer>&, UInt32);
     virtual String string() const;
 };
 
 struct EBMLBinaryElement : public EBMLElement {
     sp<Buffer>          data;
 
-    FORCE_INLINE EBMLBinaryElement(const char *name, const EBMLInteger& id, EBMLInteger& size) :
+    FORCE_INLINE EBMLBinaryElement(const Char *name, const EBMLInteger& id, EBMLInteger& size) :
         EBMLElement(name, id, size, kEBMLElementBinary) { }
-    virtual MediaError parse(const sp<ABuffer>&, size_t);
+    virtual MediaError parse(const sp<ABuffer>&, UInt32);
     virtual String string() const;
 };
 
 struct EBMLFloatElement : public EBMLElement {
-    double              flt;
+    Float64              flt;
 
-    FORCE_INLINE EBMLFloatElement(const char *name, const EBMLInteger& id, EBMLInteger& size) :
+    FORCE_INLINE EBMLFloatElement(const Char *name, const EBMLInteger& id, EBMLInteger& size) :
         EBMLElement(name, id, size, kEBMLElementFloat) { }
-    virtual MediaError parse(const sp<ABuffer>&, size_t);
+    virtual MediaError parse(const sp<ABuffer>&, UInt32);
     virtual String string() const;
 };
 
 struct EBMLMasterElement : public EBMLElement {
     struct Entry {
-        int64_t         position;
+        Int64         position;
         sp<EBMLElement> element;
-        Entry(int64_t pos, const sp<EBMLElement>& e) : position(pos), element(e) { }
+        Entry(Int64 pos, const sp<EBMLElement>& e) : position(pos), element(e) { }
     };
     List<Entry>         children;
 
-    FORCE_INLINE EBMLMasterElement(const char *name, const EBMLInteger& id, EBMLInteger& size) :
+    FORCE_INLINE EBMLMasterElement(const Char *name, const EBMLInteger& id, EBMLInteger& size) :
         EBMLElement(name, id, size, kEBMLElementMaster) { }
-    virtual MediaError parse(const sp<ABuffer>&, size_t);
+    virtual MediaError parse(const sp<ABuffer>&, UInt32);
     virtual String string() const;
 };
 
 struct EBMLSkipElement : public EBMLElement {
-    FORCE_INLINE EBMLSkipElement(const char *name, const EBMLInteger& id, EBMLInteger& size) :
+    FORCE_INLINE EBMLSkipElement(const Char *name, const EBMLInteger& id, EBMLInteger& size) :
         EBMLElement(name, id, size, kEBMLElementSkip) { }
-    virtual MediaError parse(const sp<ABuffer>&, size_t);
+    virtual MediaError parse(const sp<ABuffer>&, UInt32);
     virtual String string() const;
 };
 
@@ -376,21 +376,21 @@ enum eBlockFlags {
 
 struct EBMLSimpleBlockElement : public EBMLElement {
     EBMLInteger         TrackNumber;
-    int16_t             TimeCode;
-    uint8_t             Flags;
+    Int16             TimeCode;
+    UInt8             Flags;
     List<sp<Buffer> >   data;
 
-    FORCE_INLINE EBMLSimpleBlockElement(const char *name, const EBMLInteger& id, EBMLInteger& size) :
+    FORCE_INLINE EBMLSimpleBlockElement(const Char *name, const EBMLInteger& id, EBMLInteger& size) :
         EBMLElement(name, id, size, kEBMLElementBlock) { }
-    virtual MediaError parse(const sp<ABuffer>&, size_t);
+    virtual MediaError parse(const sp<ABuffer>&, UInt32);
     virtual String string() const;
 };
 
 sp<EBMLElement> MakeEBMLElement(const EBMLInteger& id, EBMLInteger& size);
 
-sp<EBMLElement> FindEBMLElement(const sp<EBMLMasterElement>&, uint64_t id);
+sp<EBMLElement> FindEBMLElement(const sp<EBMLMasterElement>&, UInt64 id);
 
-sp<EBMLElement> FindEBMLElementInside(const sp<EBMLMasterElement>& master, uint64_t inside, uint64_t target);
+sp<EBMLElement> FindEBMLElementInside(const sp<EBMLMasterElement>& master, UInt64 inside, UInt64 target);
 
 API_EXPORT void PrintEBMLElements(const sp<EBMLElement>&);
 
@@ -400,13 +400,13 @@ enum {
     kEnumSkipBlocks     = 0x4,  // skip block content
 };
 
-//API_EXPORT sp<EBMLMasterElement> EnumEBMLElements(sp<ABuffer>& pipe, uint32_t flags = kEnumSkipCluster);
+//API_EXPORT sp<EBMLMasterElement> EnumEBMLElements(sp<ABuffer>& pipe, UInt32 flags = kEnumSkipCluster);
 
-//sp<EBMLElement> ParseMatroska(sp<ABuffer>& pipe, int64_t *segment_offset, int64_t *clusters_offset);
+//sp<EBMLElement> ParseMatroska(sp<ABuffer>& pipe, Int64 *segment_offset, Int64 *clusters_offset);
 
-API_EXPORT sp<EBMLElement> ReadEBMLElement(const sp<ABuffer>&, uint32_t flags = 0);
+API_EXPORT sp<EBMLElement> ReadEBMLElement(const sp<ABuffer>&, UInt32 flags = 0);
 
-int IsMatroskaFile(const sp<ABuffer>&);
+Int IsMatroskaFile(const sp<ABuffer>&);
 
 __END_NAMESPACE(EBML)
 __END_NAMESPACE_MPX

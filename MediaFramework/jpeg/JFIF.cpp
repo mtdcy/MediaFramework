@@ -43,15 +43,15 @@
 __BEGIN_NAMESPACE_MPX
 __BEGIN_NAMESPACE(JFIF)
 
-sp<AppHeader> readAppHeader(const sp<ABuffer>& buffer, size_t length) {
+sp<AppHeader> readAppHeader(const sp<ABuffer>& buffer, UInt32 length) {
     DEBUG("JFIF: APP0 %zu bytes", length);
-    const size_t start = buffer->offset();
+    const UInt32 start = buffer->offset();
     
     // 5 bytes
     String id = buffer->rs(5);
     if (id != "JFIF") {
         ERROR("JFIF: bad identifier %s", id.c_str());
-        return NIL;
+        return Nil;
     }
     
     sp<AppHeader> header = new AppHeader;
@@ -70,7 +70,7 @@ sp<AppHeader> readAppHeader(const sp<ABuffer>& buffer, size_t length) {
         if (header->width0 && header->height0) {
             // <- 12 + 2 bytes
             // width0 * height0 * 3 RGB bytes
-            const size_t rgb = header->width0 * header->height0 * 3;
+            const UInt32 rgb = header->width0 * header->height0 * 3;
             if (length >= 14 + rgb) {
                 header->thunmbnail = buffer->readBytes(rgb);
             } else {
@@ -86,8 +86,8 @@ sp<AppHeader> readAppHeader(const sp<ABuffer>& buffer, size_t length) {
     return header;
 }
 
-MediaError extendAppHeader(sp<AppHeader>& header, const sp<ABuffer>& buffer, size_t length) {
-    const size_t start = buffer->offset();
+MediaError extendAppHeader(sp<AppHeader>& header, const sp<ABuffer>& buffer, UInt32 length) {
+    const UInt32 start = buffer->offset();
     String id = buffer->rs(5);
     if (id != "JFXX") {
         ERROR("JFIF: bad extension APP0");
@@ -111,8 +111,8 @@ MediaError extendAppHeader(sp<AppHeader>& header, const sp<ABuffer>& buffer, siz
         if (length >= 6 + 2 + 768 + header->width0 * header->height0) {
             sp<Buffer> palette = buffer->readBytes(768);
             header->thunmbnail = new Buffer(header->width0 * header->height0 * 3);
-            for (size_t i = 0; i < header->width0; ++i) {
-                uint8_t x = buffer->r8();
+            for (UInt32 i = 0; i < header->width0; ++i) {
+                UInt8 x = buffer->r8();
                 header->thunmbnail->writeBytes(palette->data() + x * 3, 3);
             }
         } else {
@@ -140,13 +140,13 @@ MediaError extendAppHeader(sp<AppHeader>& header, const sp<ABuffer>& buffer, siz
 void printAppHeader(const sp<AppHeader>& header) {
     DEBUG("\tAPP0: version %#x, units: %" PRIu8 ", [%" PRIu16 " x %" PRIu16 "]",
           header->version, header->units, header->x, header->y);
-    if (!header->thunmbnail.isNIL()) {
+    if (!header->thunmbnail.isNil()) {
         DEBUG("\t\tthumbnail: [%" PRIu8 " x %" PRIu8 "], length %zu",
               header->width0, header->height0, header->thunmbnail->size());
     }
     if (header->extension) {
         DEBUG("\t\textension: %" PRIu8, header->extension);
-        if (header->extension == 0x10 && header->jif != NIL) {
+        if (header->extension == 0x10 && header->jif != Nil) {
             JPEG::printJIFObject(header->jif);
         }
     }
@@ -155,17 +155,17 @@ void printAppHeader(const sp<AppHeader>& header) {
 __END_NAMESPACE(JFIF)
 
 #define readMarker(pipe)    ((JPEG::eMarker)buffer->rb16())
-#define readLength(pipe)    ((size_t)buffer->rb16())
+#define readLength(pipe)    ((UInt32)buffer->rb16())
 sp<JFIFObject> openJFIF(const sp<ABuffer>& buffer) {
     sp<JFIFObject> jfif = new JFIFObject;
     
     JPEG::eMarker SOI = readMarker(buffer);
     if (SOI != JPEG::SOI) {
         ERROR("missing JFIF SOI segment, unexpected marker %s", JPEG::MarkerName(SOI));
-        return NIL;
+        return Nil;
     }
     
-    const int64_t start = buffer->offset() - 2;
+    const Int64 start = buffer->offset() - 2;
     while (buffer->size() >= 4) {
         JPEG::eMarker marker = readMarker(buffer);
         if ((marker & 0xff00) != 0xff00) {
@@ -173,18 +173,18 @@ sp<JFIFObject> openJFIF(const sp<ABuffer>& buffer) {
             break;
         }
         
-        size_t length = readLength(buffer);
+        UInt32 length = readLength(buffer);
         DEBUG("JFIF %s: length %zu", JPEG::MarkerName(marker), length);
         
         length -= 2;
         
         if (marker == JPEG::APP0) {
-            if (jfif->mAppHeader.isNIL())
+            if (jfif->mAppHeader.isNil())
                 jfif->mAppHeader = JFIF::readAppHeader(buffer, length);
             else
                 JFIF::extendAppHeader(jfif->mAppHeader, buffer, length);
         } else if (marker == JPEG::APP1) {
-            if (jfif->mAttributeInformation != NIL) {
+            if (jfif->mAttributeInformation != Nil) {
                 DEBUG("APP1 already exists");
                 continue;
             }
@@ -209,12 +209,12 @@ sp<JFIFObject> openJFIF(const sp<ABuffer>& buffer) {
     JPEG::eMarker marker = readMarker(buffer);
     if (marker != JPEG::EOI) {
         ERROR("JFIF: missing EOI, read to the end");
-        const size_t size = buffer->offset() - start;
+        const UInt32 size = buffer->offset() - start;
         buffer->resetBytes();
         buffer->skipBytes(start);
         jfif->mData = buffer->readBytes(size);
     } else {
-        const size_t size = buffer->offset() - start - 2;
+        const UInt32 size = buffer->offset() - start - 2;
         DEBUG("JFIF: compressed image @ %" PRId64 ", length %" PRId64, start, size);
         buffer->resetBytes();
         buffer->skipBytes(start);
@@ -229,12 +229,12 @@ void printJFIFObject(const sp<JFIFObject>& jfif) {
     INFO("JFIF object:");
     JPEG::printJIFObject(jfif);
     
-    if (jfif->mAppHeader != NIL) {
+    if (jfif->mAppHeader != Nil) {
         INFO("JFIF APP0:");
         JFIF::printAppHeader(jfif->mAppHeader);
     }
     
-    if (jfif->mAttributeInformation != NIL) {
+    if (jfif->mAttributeInformation != Nil) {
         INFO("JFIF Exif:");
         EXIF::printAttributeInformation(jfif->mAttributeInformation);
     }
@@ -251,7 +251,7 @@ struct JPEG_JFIF : public ImageFile {
     
     virtual MediaError init(const sp<ABuffer>& buffer, const sp<Message>& options) {
         
-        int64_t start = buffer->offset();
+        Int64 start = buffer->offset();
         
         
         mJFIFObject = openJFIF(buffer);
@@ -265,10 +265,10 @@ struct JPEG_JFIF : public ImageFile {
         opj_set_default_decoder_parameters(&opj_dparam);
         
         opj_codec = opj_create_decompress(OPJ_CODEC_JP2);
-        opj_set_info_handler(opj_codec, opj2log_bridge, NULL);
-        opj_set_warning_handler(opj_codec, opj2log_bridge, NULL);
-        opj_set_error_handler(opj_codec, opj2log_bridge, NULL);
-        if (opj_setup_decoder(opj_codec, &opj_dparam) == false) {
+        opj_set_info_handler(opj_codec, opj2log_bridge, Nil);
+        opj_set_warning_handler(opj_codec, opj2log_bridge, Nil);
+        opj_set_error_handler(opj_codec, opj2log_bridge, Nil);
+        if (opj_setup_decoder(opj_codec, &opj_dparam) == False) {
             ERROR("setup decoder failed.");
             return kMediaErrorUnknown;
         }
@@ -290,7 +290,7 @@ struct JPEG_JFIF : public ImageFile {
                                 opj_image->x0 + info->tdx,
                                 opj_image->y0 + info->tdy)) {
             
-            if (opj_decode(opj_codec, opj_stream, opj_image) == false) {
+            if (opj_decode(opj_codec, opj_stream, opj_image) == False) {
                 ERROR("decode failed");
             }
         } else {

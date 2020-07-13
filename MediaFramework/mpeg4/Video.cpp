@@ -38,6 +38,8 @@
 
 #include "Video.h"
 
+#include <math.h>
+
 __BEGIN_NAMESPACE_MPX
 __BEGIN_NAMESPACE(MPEG4)
 
@@ -68,21 +70,21 @@ eH264StreamFormat GetH264StreamFormat(const sp<Buffer>& stream) {
 //!
 //! refers to ISO/IEC 14496-15 5.2.4 Decoder configuration information
 //! aligned(8) class AVCDecoderConfigurationRecord {
-//!     unsigned int(8) configurationVersion = 1;
-//!     unsigned int(8) AVCProfileIndication;
-//!     unsigned int(8) profile_compatibility;
-//!     unsigned int(8) AVCLevelIndication;
+//!     unsigned Int(8) configurationVersion = 1;
+//!     unsigned Int(8) AVCProfileIndication;
+//!     unsigned Int(8) profile_compatibility;
+//!     unsigned Int(8) AVCLevelIndication;
 //!     bit(6) reserved = ‘111111’b;
-//!     unsigned int(2) lengthSizeMinusOne;     //--> nal length size - 1
+//!     unsigned Int(2) lengthSizeMinusOne;     //--> nal length size - 1
 //!     bit(3) reserved = ‘111’b;
-//!     unsigned int(5) numOfSequenceParameterSets;
+//!     unsigned Int(5) numOfSequenceParameterSets;
 //!     for (i=0; i< numOfSequenceParameterSets; i++) {
-//!         unsigned int(16) sequenceParameterSetLength ;
+//!         unsigned Int(16) sequenceParameterSetLength ;
 //!         bit(8*sequenceParameterSetLength) sequenceParameterSetNALUnit;
 //!     }
-//!     unsigned int(8) numOfPictureParameterSets;
+//!     unsigned Int(8) numOfPictureParameterSets;
 //!     for (i=0; i< numOfPictureParameterSets; i++) {
-//!         unsigned int(16) pictureParameterSetLength;
+//!         unsigned Int(16) pictureParameterSetLength;
 //!         bit(8*pictureParameterSetLength) pictureParameterSetNALUnit;
 //!     }
 //! }
@@ -91,23 +93,23 @@ MediaError AVCDecoderConfigurationRecord::parse(const sp<ABuffer>& buffer) {
     if (buffer->r8() != 1) return kMediaErrorBadContent;           // configurationVersion = 1
     // 3
     AVCProfileIndication = buffer->r8();
-    uint8_t profile_compatibility = buffer->r8();
+    UInt8 profile_compatibility = buffer->r8();
     AVCLevelIndication = buffer->r8();
     // (6 + 2 + 3 + 5) / 8 = 2
     if (buffer->read(6) != 0x3f) return kMediaErrorBadContent;     // bit(6) reserved = ‘111111’b;
     lengthSizeMinusOne = buffer->read(2);    //
     if (buffer->read(3) != 0x7) return kMediaErrorBadContent;      // bit(3) reserved = ‘111’b;
-    size_t numOfSequenceParameterSets = buffer->read(5);
+    UInt32 numOfSequenceParameterSets = buffer->read(5);
     // n * (2 + x)
-    for (size_t i = 0; i < numOfSequenceParameterSets; ++i) {
-        size_t sequenceParameterSetLength = buffer->rb16();
+    for (UInt32 i = 0; i < numOfSequenceParameterSets; ++i) {
+        UInt32 sequenceParameterSetLength = buffer->rb16();
         SPSs.push(buffer->readBytes(sequenceParameterSetLength));
     }
     // 1
-    size_t numOfPictureParameterSets = buffer->r8();
+    UInt32 numOfPictureParameterSets = buffer->r8();
     // n * (2 + x)
-    for (size_t i = 0; i < numOfPictureParameterSets; ++i) {
-        size_t pictureParameterSetLength = buffer->rb16();
+    for (UInt32 i = 0; i < numOfPictureParameterSets; ++i) {
+        UInt32 pictureParameterSetLength = buffer->rb16();
         PPSs.push(buffer->readBytes(pictureParameterSetLength));
     }
     return kMediaNoError;
@@ -140,8 +142,8 @@ MediaError AVCDecoderConfigurationRecord::compose(sp<ABuffer>& buffer) const {
     return kMediaNoError;
 }
 
-size_t AVCDecoderConfigurationRecord::size() const {
-    size_t n = 1 + 3 + 2;
+UInt32 AVCDecoderConfigurationRecord::size() const {
+    UInt32 n = 1 + 3 + 2;
     // sps
     List<sp<Buffer> >::const_iterator it = SPSs.cbegin();
     for (; it != SPSs.cend(); ++it) {
@@ -156,9 +158,9 @@ size_t AVCDecoderConfigurationRecord::size() const {
     return n;
 }
 
-uint32_t ReadExpGolombCodes(const sp<ABuffer>& data) {
-    int32_t leadingZeroBits = -1;
-    for (uint8_t b = 0; !b; leadingZeroBits++) {
+UInt32 ReadExpGolombCodes(const sp<ABuffer>& data) {
+    Int32 leadingZeroBits = -1;
+    for (UInt8 b = 0; !b; leadingZeroBits++) {
         b = data->read(1);
     }
     return pow(2, leadingZeroBits) - 1 +

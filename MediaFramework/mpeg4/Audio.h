@@ -59,7 +59,7 @@ namespace MPEG4 {
         AOT_MAX                 = 0xff
     };
     
-    static const char * kAOTNames[] = {
+    static const Char * kAOTNames[] = {
         "Unknown",
         "Main",
         "LC",
@@ -72,17 +72,17 @@ namespace MPEG4 {
     struct GASpecificConfig {
         GASpecificConfig();
         
-        uint16_t    frameLength;    // 960 or 1024
-        uint16_t    coreCoderDelay; //
-        uint8_t     layerNr;
+        UInt16    frameLength;    // 960 or 1024
+        UInt16    coreCoderDelay; //
+        UInt8     layerNr;
         // extensionFlag
         //
-        uint8_t     numOfSubFrame;
-        uint16_t    layerLength;
+        UInt8     numOfSubFrame;
+        UInt16    layerLength;
         //
-        uint8_t     aacSectionDataResilienceFlag;
-        uint8_t     aacScalefactorDataResilienceFlag;
-        uint8_t     aacSpectralDataResilienceFlag;
+        UInt8     aacSectionDataResilienceFlag;
+        UInt8     aacScalefactorDataResilienceFlag;
+        UInt8     aacSpectralDataResilienceFlag;
     };
     
     struct CelpSpecificConfig {
@@ -91,19 +91,19 @@ namespace MPEG4 {
     // ISO/IEC 14496-3:2001
     // Section 1.6 Interface to ISO/IEC 14496-1
     struct AudioSpecificConfig {
-        AudioSpecificConfig(eAudioObjectType, uint32_t freq, uint8_t channels);
+        AudioSpecificConfig(eAudioObjectType, UInt32 freq, UInt8 channels);
         AudioSpecificConfig(const sp<ABuffer>&);
         
-        bool                    valid;
+        Bool                    valid;
         eAudioObjectType        audioObjectType;
-        uint32_t                samplingFrequency;
-        uint8_t                 channels;
+        UInt32                samplingFrequency;
+        UInt8                 channels;
         // AOT Specific Config
         // AOT_SBR
-        bool                    sbr;
+        Bool                    sbr;
         eAudioObjectType        extAudioObjectType;
-        uint32_t                extSamplingFrquency;
-        uint8_t                 extChannels;
+        UInt32                extSamplingFrquency;
+        UInt8                 extChannels;
         // 
         GASpecificConfig        gasc;
     };

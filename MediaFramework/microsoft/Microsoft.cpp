@@ -40,7 +40,7 @@
 __BEGIN_NAMESPACE_MPX
 __BEGIN_NAMESPACE(Microsoft)
 
-static uint8_t subformat_base_guid[12] = {
+static UInt8 subformat_base_guid[12] = {
     0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71
 };
 
@@ -98,8 +98,8 @@ MediaError WAVEFORMATEX::parse(const sp<ABuffer>& buffer) {
         
         wSubFormat              = buffer->rl32();
         
-        uint8_t subFormat[12];
-        for (size_t i = 0; i < 12; ++i)
+        UInt8 subFormat[12];
+        for (UInt32 i = 0; i < 12; ++i)
             subFormat[i]        = buffer->r8();
         // 18 + 22 = 40 bytes
 
@@ -108,7 +108,7 @@ MediaError WAVEFORMATEX::parse(const sp<ABuffer>& buffer) {
         DEBUG("wSubFormat %#x",             wSubFormat);
 
         if (memcmp(subFormat, subformat_base_guid, 12)) {
-            ERROR("invalid extensible format %16s.", (char *)subFormat);
+            ERROR("invalid extensible format %16s.", (Char *)subFormat);
             return kMediaErrorBadValue;
         }
 
@@ -131,7 +131,7 @@ MediaError WAVEFORMATEX::parse(const sp<ABuffer>& buffer) {
             return kMediaErrorBadValue;
         }
 
-        uint32_t nBytesPerFrame = (nChannels * wBitsPerSample) / 8;
+        UInt32 nBytesPerFrame = (nChannels * wBitsPerSample) / 8;
         if (nBlockAlign % nBytesPerFrame) {
             ERROR("nBlockAlign is wrong.");
             //format.nBlockAlign = a;
@@ -139,7 +139,7 @@ MediaError WAVEFORMATEX::parse(const sp<ABuffer>& buffer) {
         }
 
         // these values we have to trust. and no one will put these wrong.
-        uint32_t nBytesPerSec = nSamplesPerSec * nBytesPerFrame;
+        UInt32 nBytesPerSec = nSamplesPerSec * nBytesPerFrame;
         if (nBytesPerSec != nAvgBytesPerSec) {
             WARN("nAvgBytesPerSec correction %d -> %d.", nAvgBytesPerSec, nBytesPerSec);
             nAvgBytesPerSec = nBytesPerSec;

@@ -40,16 +40,16 @@
 __BEGIN_DECLS
 
 typedef struct MediaBuffer {
-    size_t          capacity;           ///< max number bytes in data, readonly
-    size_t          size;               ///< number bytes polluted in data, read & write
-    uint8_t *       data;               ///< pointer to memory, read & write
+    UInt32          capacity;           ///< max number bytes in data, readonly
+    UInt32          size;               ///< number bytes polluted in data, read & write
+    UInt8 *         data;               ///< pointer to memory, read & write
 #ifdef __cplusplus
-    MediaBuffer() : capacity(0), size(0), data(NULL) { }
+    MediaBuffer() : capacity(0), size(0), data(Nil) { }
 #endif
 } MediaBuffer;
 
 typedef struct MediaBufferList {
-    size_t          count;              ///< number buffer in list
+    UInt32          count;              ///< number buffer in list
     MediaBuffer     buffers[1];         ///< a variable length array with min length = 1
 #ifdef __cplusplus
     MediaBufferList() : count(1) { }
@@ -69,12 +69,12 @@ API_EXPORT String   GetMediaBufferListString(const MediaBufferList&);
  * @note NO dts field, the codec just need to decoding frames one by one, dts is useless.
  */
 struct API_EXPORT MediaFrame : public SharedObject {
-    uint32_t            id;             ///< frame id, can be track index or frame index
-    uint32_t            flags;          ///< frame flags, @see eFrameType
+    UInt32            id;             ///< frame id, can be track index or frame index
+    UInt32            flags;          ///< frame flags, @see eFrameType
     MediaTime           timecode;       ///< frame presentation time. no dts field.
     MediaTime           duration;       ///< frame duration
     union {
-        uint32_t        format;
+        UInt32        format;
         AudioFormat     audio;          ///< audio format
         ImageFormat     video;          ///< video format
         ImageFormat     image;          ///< image format
@@ -86,7 +86,7 @@ struct API_EXPORT MediaFrame : public SharedObject {
      * create a media frame with underlying buffer
      * the underlying buffer is always continues, a single buffer for all planes
      */
-    static sp<MediaFrame>   Create(size_t);                             ///< create a one plane frame with n bytes underlying buffer
+    static sp<MediaFrame>   Create(UInt32);                             ///< create a one plane frame with n bytes underlying buffer
     static sp<MediaFrame>   Create(sp<Buffer>&);                        ///< create a one plane frame with Buffer
     static sp<MediaFrame>   Create(const AudioFormat&);                 ///< create a audio frame
     static sp<MediaFrame>   Create(const ImageFormat&);                 ///< create a video/image frame
@@ -99,10 +99,10 @@ struct API_EXPORT MediaFrame : public SharedObject {
 
     /**
      * read backend buffer of hwaccel frame
-     * @return should return NULL if plane is not exists
+     * @return should return Nil if plane is not exists
      * @note default implementation: read directly from planes
      */
-    virtual sp<ABuffer> readPlane(size_t) const;
+    virtual sp<ABuffer> readPlane(UInt32) const;
     
     protected:
     MediaFrame();

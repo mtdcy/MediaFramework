@@ -68,7 +68,7 @@ struct {
 };
 
 static FORCE_INLINE CMVideoCodecType get_cm_codec_type(eVideoCodec a) {
-    for (size_t i = 0; kCodecMap[i].a != kVideoCodecUnknown; ++i) {
+    for (UInt32 i = 0; kCodecMap[i].a != kVideoCodecUnknown; ++i) {
         if (kCodecMap[i].a == a)
             return kCodecMap[i].b;
     }
@@ -76,7 +76,7 @@ static FORCE_INLINE CMVideoCodecType get_cm_codec_type(eVideoCodec a) {
 }
 
 static FORCE_INLINE eVideoCodec get_codec_format(CMVideoCodecType b) {
-    for (size_t i = 0; kCodecMap[i].a != kVideoCodecUnknown; ++i) {
+    for (UInt32 i = 0; kCodecMap[i].a != kVideoCodecUnknown; ++i) {
         if (kCodecMap[i].b == b)
             return kCodecMap[i].a;
     }
@@ -99,7 +99,7 @@ struct {
 };
 
 static FORCE_INLINE ePixelFormat get_pix_format(OSType b) {
-    for (size_t i = 0; kPixelMap[i].a != kPixelFormatUnknown; ++i) {
+    for (UInt32 i = 0; kPixelMap[i].a != kPixelFormatUnknown; ++i) {
         if (kPixelMap[i].b == b) return kPixelMap[i].a;
     }
     FATAL("FIXME");
@@ -107,7 +107,7 @@ static FORCE_INLINE ePixelFormat get_pix_format(OSType b) {
 }
 
 static FORCE_INLINE OSType get_cv_pix_format(ePixelFormat a) {
-    for (size_t i = 0; kPixelMap[i].a != kPixelFormatUnknown; ++i) {
+    for (UInt32 i = 0; kPixelMap[i].a != kPixelFormatUnknown; ++i) {
         if (kPixelMap[i].a == a) return kPixelMap[i].b;
     }
     ERROR("FIXME: add map item for %d", a);
@@ -119,7 +119,7 @@ struct VTMediaFrame : public MediaFrame {
     MediaBuffer     extended_buffers[3];    // placeholder
     
     FORCE_INLINE VTMediaFrame(CVPixelBufferRef pixbuf, const MediaTime& pts, const MediaTime& _duration) : MediaFrame() {
-        planes.buffers[0].data  = NULL;
+        planes.buffers[0].data  = Nil;
         timecode        = pts;
         duration        = _duration;
         video.format    = kPixelFormatVideoToolbox;
@@ -136,24 +136,24 @@ struct VTMediaFrame : public MediaFrame {
         CVPixelBufferRelease((CVPixelBufferRef)opaque);
     }
     
-    virtual sp<ABuffer> readPlane(size_t index) const {
+    virtual sp<ABuffer> readPlane(UInt32 index) const {
         CVPixelBufferRef pixbuf = (CVPixelBufferRef)opaque;
         sp<Buffer> plane;
         CVReturn err = CVPixelBufferLockBaseAddress(pixbuf, kCVPixelBufferLock_ReadOnly);
         if (err != kCVReturnSuccess) {
             ERROR("Error locking the pixel buffer");
-            return NULL;
+            return Nil;
         }
         
         if (CVPixelBufferIsPlanar(pixbuf)) {
-            size_t n = CVPixelBufferGetPlaneCount(pixbuf);
+            UInt32 n = CVPixelBufferGetPlaneCount(pixbuf);
             CHECK_LT(index, n);
-            plane = new Buffer((const char *)CVPixelBufferGetBaseAddressOfPlane(pixbuf, index),
+            plane = new Buffer((const Char *)CVPixelBufferGetBaseAddressOfPlane(pixbuf, index),
                       CVPixelBufferGetBytesPerRowOfPlane(pixbuf, index) *
                       CVPixelBufferGetHeightOfPlane(pixbuf, index));
         } else {
             CHECK_EQ(index, 0);
-            plane = new Buffer((const char *)CVPixelBufferGetBaseAddress(pixbuf),
+            plane = new Buffer((const Char *)CVPixelBufferGetBaseAddress(pixbuf),
                           CVPixelBufferGetBytesPerRow(pixbuf) *
                           CVPixelBufferGetHeight(pixbuf));
         }
@@ -163,8 +163,8 @@ struct VTMediaFrame : public MediaFrame {
 };
 
 struct VTContext : public SharedObject {
-    FORCE_INLINE VTContext() : decompressionSession(NULL), formatDescription(NULL),
-    mInputEOS(false) { }
+    FORCE_INLINE VTContext() : decompressionSession(Nil), formatDescription(Nil),
+    mInputEOS(False) { }
 
     FORCE_INLINE ~VTContext() {
         if (decompressionSession) {
@@ -176,13 +176,13 @@ struct VTContext : public SharedObject {
         }
     }
 
-    int32_t width, height;
+    Int32 width, height;
     ePixelFormat pixel;
     VTDecompressionSessionRef       decompressionSession;
     CMVideoFormatDescriptionRef     formatDescription;
 
     Mutex                           mLock;
-    bool                            mInputEOS;
+    Bool                            mInputEOS;
     List<sp<VTMediaFrame> >         mImages;
     // when B frames output in order, only need to cache one I/P frame.
     // But if B frames out of order, then we need to cache a B frame too.
@@ -207,7 +207,7 @@ static FORCE_INLINE void OutputCallback(void *decompressionOutputRefCon,
             CMTimeGetSeconds(presentationTimeStamp),
             CMTimeGetSeconds(presentationDuration));
 
-    if (status == 0 && imageBuffer == NULL) {
+    if (status == 0 && imageBuffer == Nil) {
         DEBUG("decoder output nothing, reference frame ?");
         return;
     }
@@ -237,17 +237,17 @@ static FORCE_INLINE void OutputCallback(void *decompressionOutputRefCon,
 
     // vt feed on packet in dts order and output is also in dts order
     // we have to reorder frames in pts order
-    if (vtc->mUnorderImage1.isNIL()) {
+    if (vtc->mUnorderImage1.isNil()) {
         vtc->mUnorderImage1 = frame;
     } else if (frame->timecode > vtc->mUnorderImage1->timecode) {
         // a new I/P frame show up
-        if (!vtc->mUnorderImage0.isNIL())
+        if (!vtc->mUnorderImage0.isNil())
             vtc->mImages.push(vtc->mUnorderImage0);
         vtc->mImages.push(vtc->mUnorderImage1);
         vtc->mUnorderImage0.clear();
         vtc->mUnorderImage1 = frame;
     } else {
-        if (vtc->mUnorderImage0.isNIL()) {
+        if (vtc->mUnorderImage0.isNil()) {
             vtc->mUnorderImage0 = frame;
         } else if (frame->timecode > vtc->mUnorderImage0->timecode) {
             // a new B frame show up
@@ -259,9 +259,9 @@ static FORCE_INLINE void OutputCallback(void *decompressionOutputRefCon,
     }
     
     if (vtc->mInputEOS) {
-        if (!vtc->mUnorderImage0.isNIL())
+        if (!vtc->mUnorderImage0.isNil())
             vtc->mImages.push(vtc->mUnorderImage0);
-        if (!vtc->mUnorderImage1.isNIL())
+        if (!vtc->mUnorderImage1.isNil())
             vtc->mImages.push(vtc->mUnorderImage1);
         vtc->mUnorderImage0.clear();
         vtc->mUnorderImage1.clear();
@@ -301,7 +301,7 @@ static FORCE_INLINE CFDictionaryRef setupFormatDescriptionExtension(const sp<Mes
             if (formats->contains(kKeyESDS)) {
                 sp<Buffer> esds = formats->findObject(kKeyESDS);
                 sp<MPEG4::ESDescriptor> esd = MPEG4::ReadESDS(esds);
-                if (!esd.isNIL()) {
+                if (!esd.isNil()) {
                     CFDataRef data = CFDataCreate(kCFAllocatorDefault, (const UInt8*)esds->data(), esds->size());
                     CFDictionarySetValue(atoms, CFSTR("esds"), data);
                     CFRelease(data);
@@ -320,7 +320,7 @@ static FORCE_INLINE CFDictionaryRef setupFormatDescriptionExtension(const sp<Mes
     return atoms;
 }
 
-static FORCE_INLINE CFDictionaryRef setupImageBufferAttributes(int32_t width, int32_t height) {
+static FORCE_INLINE CFDictionaryRef setupImageBufferAttributes(Int32 width, Int32 height) {
 
     const OSType cv_pix_fmt = kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange;  // nv12
     
@@ -380,7 +380,7 @@ static FORCE_INLINE sp<VTContext> createSession(const sp<Message>& formats, cons
     if (cm_codec_type == 0) {
         ERROR("unsupported codec");
         *err = kMediaErrorNotSupported;
-        return NULL;
+        return Nil;
     }
 
     // setup video decoder specification
@@ -418,7 +418,7 @@ static FORCE_INLINE sp<VTContext> createSession(const sp<Message>& formats, cons
     if (status) {
         ERROR("create video format desc failed");
         CFRelease(videoDecoderSpecification);
-        return NULL;
+        return Nil;
     }
 
     CFDictionaryRef destinationImageBufferAttributes = setupImageBufferAttributes(
@@ -429,7 +429,7 @@ static FORCE_INLINE sp<VTContext> createSession(const sp<Message>& formats, cons
     callback.decompressionOutputCallback = OutputCallback;
     callback.decompressionOutputRefCon = vtc.get();
     status = VTDecompressionSessionCreate(
-            NULL,
+            Nil,
             vtc->formatDescription,
             (CFDictionaryRef)videoDecoderSpecification,
             destinationImageBufferAttributes,
@@ -458,25 +458,25 @@ static FORCE_INLINE sp<VTContext> createSession(const sp<Message>& formats, cons
         case 0:
             break;
         default:
-            ERROR("Unknown VideoToolbox session creation error %d", (int)status);
+            ERROR("Unknown VideoToolbox session creation error %d", (Int)status);
             break;
     }
 
-    return status ? NULL : vtc;
+    return status ? Nil : vtc;
 }
 
 static FORCE_INLINE CMSampleBufferRef createCMSampleBuffer(sp<VTContext>& vtc,
         const sp<MediaFrame>& packet) {
     DEBUG("CMBlockBufferGetTypeID: %#x", CMBlockBufferGetTypeID());
-    CMBlockBufferRef  blockBuffer = NULL;
-    CMSampleBufferRef sampleBuffer = NULL;
+    CMBlockBufferRef  blockBuffer = Nil;
+    CMSampleBufferRef sampleBuffer = Nil;
 
     OSStatus status = CMBlockBufferCreateWithMemoryBlock(
             kCFAllocatorDefault,        // structureAllocator -> default allocator
-            (char*)packet->planes.buffers[0].data,        // memoryBlock
+            (Char*)packet->planes.buffers[0].data,        // memoryBlock
             packet->planes.buffers[0].size,               // blockLength
             kCFAllocatorNull,           // blockAllocator -> no deallocation
-            NULL,                       // customBlockSource
+            Nil,                       // customBlockSource
             0,                          // offsetToData
             packet->planes.buffers[0].size,               // dataLength
             0,                          // flags
@@ -484,7 +484,7 @@ static FORCE_INLINE CMSampleBufferRef createCMSampleBuffer(sp<VTContext>& vtc,
 
     if (kCMBlockBufferNoErr != status) {
         ERROR("CMBlockBufferCreateWithMemoryBlock failed, error = %d", status);
-        return NULL;
+        return Nil;
     }
     CHECK_NULL(blockBuffer);
 
@@ -517,14 +517,14 @@ static FORCE_INLINE CMSampleBufferRef createCMSampleBuffer(sp<VTContext>& vtc,
             1,                      // numSampleTimingEntries
             &timingInfo[0],         // sampleTimingArray
             0,                      // numSampleSizeEntries
-            NULL,                   // sampleSizeArray
+            Nil,                   // sampleSizeArray
             &sampleBuffer);
 
     CFRelease(blockBuffer);
 
     if (status) {
         ERROR("CMSampleBufferCreate faled, error = %#x", status);
-        return NULL;
+        return Nil;
     } else {
         return sampleBuffer;
     }
@@ -536,7 +536,7 @@ sp<MediaFrame> readVideoToolboxFrame(CVPixelBufferRef pixbuf) {
     CVReturn err = CVPixelBufferLockBaseAddress(pixbuf, kCVPixelBufferLock_ReadOnly);
     if (err != kCVReturnSuccess) {
         ERROR("Error locking the pixel buffer");
-        return NULL;
+        return Nil;
     }
 
     size_t left, right, top, bottom;
@@ -557,15 +557,15 @@ sp<MediaFrame> readVideoToolboxFrame(CVPixelBufferRef pixbuf) {
         DEBUGV("CVPixelBufferGetDataSize %zu", CVPixelBufferGetDataSize(pixbuf));
         DEBUGV("CVPixelBufferGetPlaneCount %zu", CVPixelBufferGetPlaneCount(pixbuf));
 
-        size_t planes = CVPixelBufferGetPlaneCount(pixbuf);
-        for (size_t i = 0; i < planes; i++) {
+        UInt32 planes = CVPixelBufferGetPlaneCount(pixbuf);
+        for (UInt32 i = 0; i < planes; i++) {
             DEBUGV("CVPixelBufferGetBaseAddressOfPlane %p", CVPixelBufferGetBaseAddressOfPlane(pixbuf, i));
             DEBUGV("CVPixelBufferGetBytesPerRowOfPlane %zu", CVPixelBufferGetBytesPerRowOfPlane(pixbuf, i));
             DEBUGV("CVPixelBufferGetWidthOfPlane %zu", CVPixelBufferGetWidthOfPlane(pixbuf, i));
             DEBUGV("CVPixelBufferGetHeightOfPlane %zu", CVPixelBufferGetHeightOfPlane(pixbuf, i));
 
-            CHECK_LE(CVPixelBufferGetBytesPerRowOfPlane(pixbuf, i) *
-                    CVPixelBufferGetHeightOfPlane(pixbuf, i),
+            CHECK_LE((UInt32)(CVPixelBufferGetBytesPerRowOfPlane(pixbuf, i) *
+                    CVPixelBufferGetHeightOfPlane(pixbuf, i)),
                      frame->planes.buffers[i].size);
             frame->planes.buffers[i].size = CVPixelBufferGetBytesPerRowOfPlane(pixbuf, i) * CVPixelBufferGetHeightOfPlane(pixbuf, i);
             memcpy(frame->planes.buffers[i].data,
@@ -579,7 +579,7 @@ sp<MediaFrame> readVideoToolboxFrame(CVPixelBufferRef pixbuf) {
         format.width = CVPixelBufferGetBytesPerRow(pixbuf);
         format.height = CVPixelBufferGetHeight(pixbuf);
         frame = MediaFrame::Create(format);
-        CHECK_LE(CVPixelBufferGetBytesPerRow(pixbuf) * CVPixelBufferGetHeight(pixbuf), frame->planes.buffers[0].size);
+        CHECK_LE((UInt32)(CVPixelBufferGetBytesPerRow(pixbuf) * CVPixelBufferGetHeight(pixbuf)), frame->planes.buffers[0].size);
         frame->planes.buffers[0].size = CVPixelBufferGetBytesPerRow(pixbuf) * CVPixelBufferGetHeight(pixbuf);
         memcpy(frame->planes.buffers[0].data,
                 CVPixelBufferGetBaseAddress(pixbuf),
@@ -618,7 +618,7 @@ struct VideoToolboxDecoder : public MediaDevice {
 
         MediaError err = kMediaNoError;
         mVTContext = createSession(format, options, &err);
-        return mVTContext.isNIL() ? kMediaErrorNotSupported : kMediaNoError;
+        return mVTContext.isNil() ? kMediaErrorNotSupported : kMediaNoError;
     }
 
     virtual MediaError configure(const sp<Message>& options) {
@@ -626,11 +626,11 @@ struct VideoToolboxDecoder : public MediaDevice {
     }
 
     virtual MediaError push(const sp<MediaFrame>& input) {
-        if (input == NULL) {
+        if (input == Nil) {
             INFO("eos");
             VTDecompressionSessionFinishDelayedFrames(mVTContext->decompressionSession);
             // no need to wait here.
-            mVTContext->mInputEOS = true;
+            mVTContext->mInputEOS = True;
             return kMediaNoError;
         }
 
@@ -673,7 +673,7 @@ struct VideoToolboxDecoder : public MediaDevice {
         if (mVTContext->mImages.empty()) {
             if (mVTContext->mInputEOS) INFO("eos...");
             else INFO("no frames ready");
-            return NULL;
+            return Nil;
         }
         
         sp<VTMediaFrame> frame = mVTContext->mImages.front();
@@ -695,17 +695,17 @@ struct VideoToolboxDecoder : public MediaDevice {
 };
 
 // FIXME: VTIsHardwareDecodeSupported is not working as expected
-bool IsVideoToolboxSupported(eVideoCodec format) {
+Bool IsVideoToolboxSupported(eVideoCodec format) {
     CMPixelFormatType cm = get_cm_codec_type(format);
-    if (cm == 0) return false;
-    return true;
+    if (cm == 0) return False;
+    return True;
     //return VTIsHardwareDecodeSupported(cm);
 }
 
 sp<MediaDevice> CreateVideoToolboxDecoder(const sp<Message>& formats, const sp<Message>& options) {
     sp<VideoToolboxDecoder> vt = new VideoToolboxDecoder();
     if (vt->init(formats, options) == kMediaNoError) return vt;
-    return NULL;
+    return Nil;
 }
 
 __END_NAMESPACE_ABE

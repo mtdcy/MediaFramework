@@ -41,7 +41,7 @@ int main(int argc, char **argv) {
     const String url = argv[1];
     
     // how many packet to dump
-    size_t count = 3;
+    UInt32 count = 3;
     if (argc > 2) count = String(argv[2]).toInt32();
     
     INFO("%s %zu", url.c_str(), count);
@@ -51,37 +51,38 @@ int main(int argc, char **argv) {
     format->setObject(kKeyContent, content);
     sp<MediaDevice> file = MediaDevice::create(format, NULL);
     
-    if (file.isNIL()) {
+    if (file.isNil()) {
         ERROR("create MediaFile for %s failed", url.c_str());
         return 1;
     }
     
     sp<Message> formats = file->formats();
     
-    size_t numTracks = formats->findInt32(kKeyCount);
+    UInt32 numTracks = formats->findInt32(kKeyCount);
     
     Vector<sp<ABuffer> > contents;
     Vector<sp<MediaDevice> > codecs;
-    for (size_t i = 0; i < numTracks; ++i) {
+    for (UInt32 i = 0; i < numTracks; ++i) {
         sp<Message> trackFormat = formats->findObject(kKeyTrack + i);
+        INFO("track %u: %s", i, trackFormat->string().c_str());
         
         sp<Message> options = new Message;
         options->setInt32(kKeyMode, kModeTypeSoftware);
         sp<MediaDevice> codec = MediaDevice::create(trackFormat, options);
         
-        if (codec.isNIL()) {
+        if (codec.isNil()) {
             ERROR("create codec failed for %s", trackFormat->string().c_str());
             return 1;
         }
         
         codecs.push(codec);
         
-        contents.push(Content::Create(String::format("track-%zu.raw", i), Content::Write));
+        contents.push(Content::Create(String::format("track-%zu.raw", i), Protocol::Write));
     }
     
     for (size_t i = 0; i < count; ++i) {
         sp<MediaFrame> packet = file->pull();
-        if (packet.isNIL()) {
+        if (packet.isNil()) {
             INFO("eos or error, exit.");
             return 1;
         }
@@ -92,7 +93,7 @@ int main(int argc, char **argv) {
         }
         
         sp<MediaFrame> frame = codecs[packet->id]->pull();
-        if (frame.isNIL()) continue;
+        if (frame.isNil()) continue;
         
         for (size_t i = 0; i < frame->planes.count; ++i) {
             contents[packet->id]->writeBytes((const char *)frame->planes.buffers[i].data,

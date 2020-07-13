@@ -51,7 +51,7 @@ __BEGIN_NAMESPACE(JPEG)
  * ISO/IEC 10918-1, Table B.1 – Marker code assignments
  * https://en.wikipedia.org/wiki/JPEG#Syntax_and_structure
  */
-typedef uint16_t    eMarker;
+typedef UInt16    eMarker;
 enum {
     // SOF, non-differential, Huffman coding
     SOF0    = 0xFFC0,   ///< Baseline DCT. payload: variable
@@ -94,7 +94,7 @@ enum {
     COM     = 0xFFFE,   ///< a text comment. payload: variable
 };
 
-static const char * MarkerName(eMarker marker) {
+static const Char * MarkerName(eMarker marker) {
     switch (marker) {
         case SOI:       return "SOI";
         case SOF0:      return "SOF0";
@@ -124,8 +124,8 @@ enum eFrameType {
 
 /**
  * Annex B.1.1.4 Marker segments
- * marker: uint16_t
- * length: uint16_t, incluing length bytes and excluding 2-bytes marker
+ * marker: UInt16
+ * length: UInt16, incluing length bytes and excluding 2-bytes marker
  */
 struct Segment : public SharedObject {
     Segment(eMarker x) : marker(x) { }
@@ -141,16 +141,16 @@ struct FrameHeader : public Segment {
     FrameHeader() : Segment(SOF0) { }
     FrameHeader(eMarker marker) : Segment(marker) { }
     
-    // SOF0 : uint16_t
-    // length : uint16_t, exclude markder
-    uint8_t     bpp;    ///< bits per sample, @note not average bpp
-    uint16_t    height; ///< image height
-    uint16_t    width;  ///< image width
-    uint8_t     planes; ///< number planes/components
+    // SOF0 : UInt16
+    // length : UInt16, exclude markder
+    UInt8     bpp;    ///< bits per sample, @note not average bpp
+    UInt16    height; ///< image height
+    UInt16    width;  ///< image width
+    UInt8     planes; ///< number planes/components
     struct {
-        uint8_t id;     ///< plane/component id
-        uint8_t ss;     ///< sub sampling factor [vss|hss], 4 bits for each
-        uint8_t qt;     ///< quantization table number
+        UInt8 id;     ///< plane/component id
+        UInt8 ss;     ///< sub sampling factor [vss|hss], 4 bits for each
+        UInt8 qt;     ///< quantization table number
     } plane[4];
 };
 
@@ -159,8 +159,8 @@ struct HuffmanTable : public Segment {
     
     // huffman table information,
     // bit 0..3: type, bit 4..7: id
-    uint8_t     type;
-    uint8_t     id;
+    UInt8     type;
+    UInt8     id;
     
     sp<Buffer>  table;
 };
@@ -170,15 +170,15 @@ struct QuantizationTable : public Segment {
     
     // quantization table information,
     // bit 0..3: precision, bit 4..7: id
-    uint8_t     precision;      ///< 0 - 8 bit, 1 - 16 bit
-    uint8_t     id;
+    UInt8     precision;      ///< 0 - 8 bit, 1 - 16 bit
+    UInt8     id;
     sp<Buffer>  table;
 };
 
 struct RestartInterval : public Segment {
     RestartInterval() : Segment(DRI) { }
     
-    uint16_t    interval;   ///<
+    UInt16    interval;   ///<
 };
 
 /**
@@ -187,9 +187,9 @@ struct RestartInterval : public Segment {
 struct ArithmeticCoding : public Segment {
     ArithmeticCoding() : Segment(DAC) { }
     
-    uint8_t     tc;     ///< 0 - DC table or lossless table; 1 - AC table
-    uint8_t     tb;     ///< arithmetic coding conditioning table id
-    uint8_t     cs;     ///< conditioning table value
+    UInt8     tc;     ///< 0 - DC table or lossless table; 1 - AC table
+    UInt8     tb;     ///< arithmetic coding conditioning table id
+    UInt8     cs;     ///< conditioning table value
 };
 
 /**
@@ -198,12 +198,12 @@ struct ArithmeticCoding : public Segment {
 struct ScanHeader : public Segment {
     ScanHeader() : Segment(SOS) { }
     
-    // SOS : uint16_t
-    // length : uint16_t
-    uint8_t     components;     // number components in scan
+    // SOS : UInt16
+    // length : UInt16
+    UInt8     components;     // number components in scan
     struct {
-        uint8_t id;     // component id
-        uint8_t tb;     // Huffman table, [AC|DC], 4 bits each
+        UInt8 id;     // component id
+        UInt8 tb;     // Huffman table, [AC|DC], 4 bits each
     } component[4];
 };
 
@@ -219,11 +219,11 @@ struct Comment : public Segment {
 /**
  * BitReader without marker
  */
-sp<FrameHeader> readFrameHeader(const sp<ABuffer>&, size_t);
-sp<ScanHeader> readScanHeader(const sp<ABuffer>&, size_t);
-sp<HuffmanTable> readHuffmanTable(const sp<ABuffer>&, size_t);
-sp<QuantizationTable> readQuantizationTable(const sp<ABuffer>&, size_t);
-sp<RestartInterval> readRestartInterval(const sp<ABuffer>&, size_t);
+sp<FrameHeader> readFrameHeader(const sp<ABuffer>&, UInt32);
+sp<ScanHeader> readScanHeader(const sp<ABuffer>&, UInt32);
+sp<HuffmanTable> readHuffmanTable(const sp<ABuffer>&, UInt32);
+sp<QuantizationTable> readQuantizationTable(const sp<ABuffer>&, UInt32);
+sp<RestartInterval> readRestartInterval(const sp<ABuffer>&, UInt32);
 
 void printFrameHeader(const sp<FrameHeader>&);
 void printScanHeader(const sp<ScanHeader>&);
@@ -235,8 +235,8 @@ void printRestartInterval(const sp<RestartInterval>&);
  * @note, most decoder decode [SOI, EOI] as a frame.
  */
 struct JIFObject : public SharedObject {
-    JIFObject(bool headOnly = false) : mHeadOnly(headOnly) { }
-    bool                            mHeadOnly;              // SOF only
+    JIFObject(Bool headOnly = False) : mHeadOnly(headOnly) { }
+    Bool                            mHeadOnly;              // SOF only
     
     List<sp<HuffmanTable> >         mHuffmanTables;         // DHT
     List<sp<QuantizationTable> >    mQuantizationTables;    // DQT
@@ -249,8 +249,8 @@ struct JIFObject : public SharedObject {
 /**
  * BitReader with full JIF
  */
-sp<JIFObject> readJIF(const sp<ABuffer>&, size_t);            // full read
-sp<JIFObject> readJIFLazy(const sp<ABuffer>&, size_t);        // read SOF only
+sp<JIFObject> readJIF(const sp<ABuffer>&, UInt32);            // full read
+sp<JIFObject> readJIFLazy(const sp<ABuffer>&, UInt32);        // read SOF only
 
 void printJIFObject(const sp<JIFObject>&);
 

@@ -49,7 +49,7 @@ __BEGIN_NAMESPACE(EXIF)
  * The pixel composition. In JPEG compressed data, use marker instread.
  * @see kPhotometricInterpretation
  */
-typedef uint16_t    PixelComposition;
+typedef UInt16    PixelComposition;
 enum { RGB = 2, YCbCr = 6 };
 
 /**
@@ -57,7 +57,7 @@ enum { RGB = 2, YCbCr = 6 };
  * the first letter: 0th row, the second leter: 0th column
  * @see kOrientation
  */
-typedef uint16_t    ImageOrientation;
+typedef UInt16    ImageOrientation;
 enum {
     TopLeft = 1,
     TopRight = 2,
@@ -73,7 +73,7 @@ enum {
  * The compression scheme used for image data
  * @see kCompression
  */
-typedef uint16_t    CompressionScheme;
+typedef UInt16    CompressionScheme;
 enum {
     uncompressed = 1,
     JPEG = 6            ///< thumbnails only
@@ -89,28 +89,28 @@ enum {
  * pixel components are recorded in packed or planar
  * @see kPlanarConfiguration
  */
-typedef uint16_t    PlanarConfiguration;
+typedef UInt16    PlanarConfiguration;
 enum { PACKED = 1, PLANAR = 2 };
 
 /**
  * The position of chroma components in relation to luminace
  * @see kYCbCrPositioning
  */
-typedef uint16_t    ChromaPosition;
+typedef UInt16    ChromaPosition;
 enum { CENTER = 1, COSITE = 2 };
 
 /**
  * The unit for measuring XResolution & YResolution
  * @see kResolutionUnit
  */
-typedef uint16_t    MeasuringUnit;
+typedef UInt16    MeasuringUnit;
 enum { INCH = 2, CENTIMETER = 3 };
 
 /**
  * The color space information
  * @see kExifColorSpace
  */
-typedef uint16_t    ColorSpace;
+typedef UInt16    ColorSpace;
 enum { sRGB = 1, Uncalibrated = 0xffff };
 
 /**
@@ -118,35 +118,35 @@ enum { sRGB = 1, Uncalibrated = 0xffff };
  * @see kExifComponentsConfiguration
  * @note RGB - [ 4 5 6 0 ]; others - [ 1 2 3 0 ]
  */
-typedef uint8_t     ChannelComponent;
+typedef UInt8     ChannelComponent;
 enum { CC0 = 0 /* no defined */, Y, Cb, Cr, R, G, B };
 
 /**
  * The class of the program used by the camera to set exposure
  * @see kExifExposureProgram
  */
-typedef uint16_t    ExposureProgram;
+typedef UInt16    ExposureProgram;
 enum { EP0 = 0 /*unknown*/, Manual, Normal, Aperture, Shutter, Creative, Action, Portrait, Landscape };
 
 /**
  * the parameters of ISO12232
  * @see kExifSensitivityType
  */
-typedef uint16_t    SensitivityType;
+typedef UInt16    SensitivityType;
 enum { ST0 = 0 /*unknown*/, SOS, REI, ISO, SOS_REI, SOS_ISO, REI_ISO, SOS_REI_ISO };
 
 /**
  * the metering mode
  * @see kExifMeteringMode
  */
-typedef uint16_t    MeteringMode;
+typedef UInt16    MeteringMode;
 enum { MM_Unknown = 0 /**/, Average, CenterAverage, Spot, MultiSpot, Pattern, Partial, other = 255};
 
 /**
  * The kind of light source
  * @see kExifLightSource
  */
-typedef uint16_t    LightSource;
+typedef UInt16    LightSource;
 enum {
     LS_Unknown = 0,
     Daylight = 1, Fluorescent, Tungsten, Flash,
@@ -168,7 +168,7 @@ enum {
  * Flash status
  * @see kExifFlash
  */
-typedef uint16_t    FlashStatus;
+typedef UInt16    FlashStatus;
 enum {
     // lsb bit 0
     Flash_fired                     = 0x1,
@@ -189,56 +189,56 @@ enum {
  * exposure mode
  * @see kExifExposureMode
  */
-typedef uint16_t    ExposureMode;
+typedef UInt16    ExposureMode;
 enum { Auto_exposure = 0, Manual_exposure = 1, Auto_bracket = 2 };
 
 /**
  * while balance mode
  * @see kExifWhiteBalance
  */
-typedef uint16_t    WhiteBalance;
+typedef UInt16    WhiteBalance;
 enum { AutoWhiteBalance = 0, ManualWhiteBalance = 1 };
 
 /**
  * capture scene
  * @see kExifSceneCaptureType
  */
-typedef uint16_t    CaptureScene;
+typedef UInt16    CaptureScene;
 enum { StandardScene = 0, LandscapeScene, PortraitScene, NightScene };
 
 /**
  * the direction of contrast processing
  * @see kExifContrast
  */
-typedef uint16_t    ContrastProcessing;
+typedef UInt16    ContrastProcessing;
 enum { NormalContrast = 0, SoftContrast, HardContrast };
 
 /**
  * the degree of overall image gain adjustment
  * @see kExifGainControl
  */
-typedef uint16_t    GainControl;
+typedef UInt16    GainControl;
 enum { NoGainControl = 0, LowGainUp, HighGainUp, LowGainDown, HighGainDown };
 
 /**
  * the direction of saturation processing
  * @see kExifSaturation
  */
-typedef uint16_t    SaturationProcessing;
+typedef UInt16    SaturationProcessing;
 enum { NormalSaturation = 0, LowSaturation, HighSaturation };
 
 /**
  * the direction of sharpness processing
  * @see kExifSharpness
  */
-typedef uint16_t    SharpnessProcessing;
+typedef UInt16    SharpnessProcessing;
 enum { NormalSharpness = 0, SoftSharpness, HardSharpness };
 
 /**
  * the distance to the subject
  * @see kExifSubjectDistanceRange
  */
-typedef uint16_t    SubjectDistanceRange;
+typedef UInt16    SubjectDistanceRange;
 enum { UnknownDistance = 0, MacroDistance, CloseViewDistance, DistantViewDistance };
 
 /**
@@ -325,7 +325,7 @@ enum {
     kExifLensSerialNumber   = 0xA435,   ///< ascii, N = ?
 };
 
-const char * ExifTagName(TIFF::eTag);
+const Char * ExifTagName(TIFF::eTag);
 
 /**
  * GPS Attribute Information
@@ -366,7 +366,7 @@ enum {
     kGPSHPositioningError,      ///< rational, N = 1
 };
 
-const char * GPSTagName(TIFF::eTag);
+const Char * GPSTagName(TIFF::eTag);
 
 /**
  * https://www.exif.org
@@ -389,7 +389,7 @@ struct FlashpixExtension : public JPEG::Segment {
 /**
  * BitReader: without marker & length field
  */
-sp<AttributeInformation> readAttributeInformation(const sp<ABuffer>&, size_t);
+sp<AttributeInformation> readAttributeInformation(const sp<ABuffer>&, UInt32);
 
 sp<FlashpixExtension> readFlashpixExtension(const sp<ABuffer>&);
 

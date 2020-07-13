@@ -43,23 +43,23 @@ enum {
     kMediaUnitProcessInplace            = (1<<0),   // inplace process
     kMediaUnitProcessVariableSamples    = (1<<1),   ///< sample count change
 };
-typedef uint32_t eMediaUnitFlags;
+typedef UInt32 eMediaUnitFlags;
 
 typedef union MediaFormat {
-    uint32_t        format;
+    UInt32        format;
     AudioFormat     audio;
     ImageFormat     video;
     ImageFormat     image;
 } MediaFormat;
 
 typedef void * MediaUnitContext;
-typedef MediaError  (*InputCallback)(void *, size_t samples, MediaBufferList **);
+typedef MediaError  (*InputCallback)(void *, UInt32 samples, MediaBufferList **);
 typedef struct MediaUnit {
-    const char *            name;       ///< hunam readable string, DEBUGGING!
+    const Char *            name;       ///< hunam readable string, DEBUGGING!
     const eMediaUnitFlags   flags;      ///< media unit flags
 
-    const uint32_t *        iformats;   ///< supported input format list
-    const uint32_t *        oformats;   ///< supported output format list
+    const UInt32 *        iformats;   ///< supported input format list
+    const UInt32 *        oformats;   ///< supported output format list
 
     /**
      * alloc/dealloc a media unit context

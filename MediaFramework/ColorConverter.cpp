@@ -384,30 +384,30 @@ static const PixelDescriptor * kPixelDescriptorList[] = {
     &kPixelRGBA,
     &kPixelABGR,
     // END OF LIST
-    NULL
+    Nil
 };
 
 const PixelDescriptor * GetPixelFormatDescriptor(ePixelFormat pixel) {
-    for (size_t i = 0; kPixelDescriptorList[i] != NULL; ++i) {
+    for (UInt32 i = 0; kPixelDescriptorList[i] != Nil; ++i) {
         const PixelDescriptor * desc = kPixelDescriptorList[i];
         if (desc->format == pixel) {
             return desc;
         }
     }
-    ERROR("missing pixel descriptor for %.4s", (const char *)&pixel);
-    return NULL;
+    ERROR("missing pixel descriptor for %.4s", (const Char *)&pixel);
+    return Nil;
 }
 
-const PixelDescriptor * GetPixelFormatDescriptorByName(const char * _name) {
+const PixelDescriptor * GetPixelFormatDescriptorByName(const Char * _name) {
     const String name = _name;
-    for (size_t i = 0; kPixelDescriptorList[i] != NULL; ++i) {
+    for (UInt32 i = 0; kPixelDescriptorList[i] != Nil; ++i) {
         const PixelDescriptor * desc = kPixelDescriptorList[i];
         if (name == desc->name) {
             return desc;
         }
     }
     ERROR("no pixel descriptor named %s", _name);
-    return NULL;
+    return Nil;
 }
 
 static const ePixelFormat kPlanarYUV[] = {
@@ -450,102 +450,102 @@ static const ePixelFormat kRGB[] = {
     kPixelFormatUnknown ,
 };
 
-static bool ContainsPixelFormat(const ePixelFormat list[], ePixelFormat pixel) {
-    for (size_t i = 0; list[i] != kPixelFormatUnknown; ++i) {
+static Bool ContainsPixelFormat(const ePixelFormat list[], ePixelFormat pixel) {
+    for (UInt32 i = 0; list[i] != kPixelFormatUnknown; ++i) {
         if (list[i] == pixel)
-            return true;
+            return True;
     }
-    return false;
+    return False;
 }
 
-static bool IsPlanarYUV(ePixelFormat pixel) {
+static Bool IsPlanarYUV(ePixelFormat pixel) {
     return ContainsPixelFormat(kPlanarYUV, pixel);
 }
 
-static bool IsSemiPlanarYUV(ePixelFormat pixel) {
+static Bool IsSemiPlanarYUV(ePixelFormat pixel) {
     return ContainsPixelFormat(kSemiPlanarYUV, pixel);
 }
 
-static bool IsPackedYUV(ePixelFormat pixel) {
+static Bool IsPackedYUV(ePixelFormat pixel) {
     return ContainsPixelFormat(kPackedYUV, pixel);
 }
 
-static bool IsRGB(ePixelFormat pixel) {
+static Bool IsRGB(ePixelFormat pixel) {
     return ContainsPixelFormat(kRGB, pixel);
 }
 
 // return 0 on success
-typedef int (*Planar2Planar_t)(const uint8_t* src_y, int src_stride_y,
-        const uint8_t* src_u, int src_stride_u,
-        const uint8_t* src_v, int src_stride_v,
-        uint8_t* dst_y, int dst_stride_y,
-        uint8_t* dst_u, int dst_stride_u,
-        uint8_t* dst_v, int dst_stride_v,
-        int width, int height);
+typedef Int (*Planar2Planar_t)(const UInt8* src_y, Int src_stride_y,
+        const UInt8* src_u, Int src_stride_u,
+        const UInt8* src_v, Int src_stride_v,
+        UInt8* dst_y, Int dst_stride_y,
+        UInt8* dst_u, Int dst_stride_u,
+        UInt8* dst_v, Int dst_stride_v,
+        Int width, Int height);
 
-typedef int (*Planar2SemiPlanar_t)(const uint8_t* src_y, int src_stride_y,
-        const uint8_t* src_u, int src_stride_u,
-        const uint8_t* src_v, int src_stride_v,
-        uint8_t* dst_y, int dst_stride_y,
-        uint8_t* dst_vu, int dst_stride_vu,
-        int width, int height);
+typedef Int (*Planar2SemiPlanar_t)(const UInt8* src_y, Int src_stride_y,
+        const UInt8* src_u, Int src_stride_u,
+        const UInt8* src_v, Int src_stride_v,
+        UInt8* dst_y, Int dst_stride_y,
+        UInt8* dst_vu, Int dst_stride_vu,
+        Int width, Int height);
 
-typedef int (*Planar2Packed_t)( const uint8_t *src_y, int src_stride_y,
-        const uint8_t *src_u, int src_stride_u,
-        const uint8_t *src_v, int src_stride_v,
-        uint8_t *dst, int dst_stride,
-        int width, int height);
+typedef Int (*Planar2Packed_t)( const UInt8 *src_y, Int src_stride_y,
+        const UInt8 *src_u, Int src_stride_u,
+        const UInt8 *src_v, Int src_stride_v,
+        UInt8 *dst, Int dst_stride,
+        Int width, Int height);
 
-typedef int (*Planar2PackedMatrix_t)(const uint8_t* src_y, int src_stride_y,
-        const uint8_t* src_u, int src_stride_u,
-        const uint8_t* src_v, int src_stride_v,
-        uint8_t* dst_argb, int dst_stride_argb,
+typedef Int (*Planar2PackedMatrix_t)(const UInt8* src_y, Int src_stride_y,
+        const UInt8* src_u, Int src_stride_u,
+        const UInt8* src_v, Int src_stride_v,
+        UInt8* dst_argb, Int dst_stride_argb,
         const struct libyuv::YuvConstants* yuvconstants,
-        int width, int height);
+        Int width, Int height);
 
-typedef int (*SemiPlanar2Planar_t)(const uint8_t* src_y, int src_stride_y,
-        const uint8_t* src_uv, int src_stride_uv,
-        uint8_t* dst_y, int dst_stride_y,
-        uint8_t* dst_u, int dst_stride_u,
-        uint8_t* dst_v, int dst_stride_v,
-        int width, int height);
+typedef Int (*SemiPlanar2Planar_t)(const UInt8* src_y, Int src_stride_y,
+        const UInt8* src_uv, Int src_stride_uv,
+        UInt8* dst_y, Int dst_stride_y,
+        UInt8* dst_u, Int dst_stride_u,
+        UInt8* dst_v, Int dst_stride_v,
+        Int width, Int height);
 
-typedef int (*SemiPlanar2SemiPlanar_t)(const uint8_t* src_y, int src_stride_y,
-        const uint8_t* src_vu, int src_stride_vu,
-        uint8_t* dst_y, int dst_stride_y,
-        uint8_t* dst_uv, int dst_stride_uv,
-        int width, int height);
+typedef Int (*SemiPlanar2SemiPlanar_t)(const UInt8* src_y, Int src_stride_y,
+        const UInt8* src_vu, Int src_stride_vu,
+        UInt8* dst_y, Int dst_stride_y,
+        UInt8* dst_uv, Int dst_stride_uv,
+        Int width, Int height);
 
-typedef int (*SemiPlanar2Packed_t)(const uint8_t *src_y, int src_stride_y,
-        const uint8_t *src_uv, int src_stride_uv,
-        uint8_t *dst, int dst_stride,
-        int width, int height);
+typedef Int (*SemiPlanar2Packed_t)(const UInt8 *src_y, Int src_stride_y,
+        const UInt8 *src_uv, Int src_stride_uv,
+        UInt8 *dst, Int dst_stride,
+        Int width, Int height);
 
-typedef int (*SemiPlanar2PackedMatrix_t)(const uint8_t* src_y, int src_stride_y,
-        const uint8_t* src_uv, int src_stride_uv,
-        uint8_t* dst_argb, int dst_stride_argb,
+typedef Int (*SemiPlanar2PackedMatrix_t)(const UInt8* src_y, Int src_stride_y,
+        const UInt8* src_uv, Int src_stride_uv,
+        UInt8* dst_argb, Int dst_stride_argb,
         const struct libyuv::YuvConstants* yuvconstants,
-        int width, int height);
+        Int width, Int height);
 
-typedef int (*Packed2Packed_t)(const uint8_t *src, int src_stride,
-        uint8_t *dst, int dst_stride,
-        int width, int height);
+typedef Int (*Packed2Packed_t)(const UInt8 *src, Int src_stride,
+        UInt8 *dst, Int dst_stride,
+        Int width, Int height);
 
-typedef int (*Packed2PackedMatrix_t)(const uint8_t *src, int src_stride,
-        uint8_t *dst, int dst_stride,
+typedef Int (*Packed2PackedMatrix_t)(const UInt8 *src, Int src_stride,
+        UInt8 *dst, Int dst_stride,
         const struct libyuv::YuvConstants* yuvconstants,
-        int width, int height);
+        Int width, Int height);
 
-typedef int (*Packed2Planar_t)(const uint8_t* src, int src_stride,
-        uint8_t* dst_y, int dst_stride_y,
-        uint8_t* dst_u, int dst_stride_u,
-        uint8_t* dst_v, int dst_stride_v,
-        int width, int height);
+typedef Int (*Packed2Planar_t)(const UInt8* src, Int src_stride,
+        UInt8* dst_y, Int dst_stride_y,
+        UInt8* dst_u, Int dst_stride_u,
+        UInt8* dst_v, Int dst_stride_v,
+        Int width, Int height);
 
-typedef int (*Packed2SemiPlanar_t)(const uint8_t* src_argb, int src_stride_argb,
-        uint8_t* dst_y, int dst_stride_y,
-        uint8_t* dst_uv, int dst_stride_uv,
-        int width, int height);
+typedef Int (*Packed2SemiPlanar_t)(const UInt8* src_argb, Int src_stride_argb,
+        UInt8* dst_y, Int dst_stride_y,
+        UInt8* dst_uv, Int dst_stride_uv,
+        Int width, Int height);
 
 union hnd_t {
     Planar2Planar_t             planar2planar;
@@ -563,23 +563,23 @@ union hnd_t {
 };
 
 // aabb -> bbaa
-static int swap16(const uint8_t * src, size_t src_bytes,
-        uint8_t * dst, size_t dst_bytes) {
-    uint16_t * from = (uint16_t *)src;
-    uint16_t * to = (uint16_t *)dst;
-    for (size_t i = 0; i < src_bytes; i += sizeof(uint16_t)) {
+static Int swap16(const UInt8 * src, UInt32 src_bytes,
+        UInt8 * dst, UInt32 dst_bytes) {
+    UInt16 * from = (UInt16 *)src;
+    UInt16 * to = (UInt16 *)dst;
+    for (UInt32 i = 0; i < src_bytes; i += sizeof(UInt16)) {
         *to++ = bswap16(*from++);
     }
     return 0;
 }
 
-static int swap16_565(const uint8_t * src, size_t src_bytes,
-        uint8_t * dst, size_t dst_bytes) {
-    uint16_t * from = (uint16_t *)src;
-    uint16_t * to = (uint16_t *)dst;
-    for (size_t i = 0; i < src_bytes; i += sizeof(uint16_t)) {
-        uint16_t x = *from++;
-        uint8_t r, g, b;
+static Int swap16_565(const UInt8 * src, UInt32 src_bytes,
+        UInt8 * dst, UInt32 dst_bytes) {
+    UInt16 * from = (UInt16 *)src;
+    UInt16 * to = (UInt16 *)dst;
+    for (UInt32 i = 0; i < src_bytes; i += sizeof(UInt16)) {
+        UInt16 x = *from++;
+        UInt8 r, g, b;
         r = (x & 0xf800) >> 11;
         g = (x & 0x7E0) >> 5;
         b = (x & 0x1F);
@@ -589,12 +589,12 @@ static int swap16_565(const uint8_t * src, size_t src_bytes,
 }
 
 // aabbcc -> ccbbaa
-static int swap24(const uint8_t * src, size_t src_bytes,
-        uint8_t * dst, size_t dst_bytes) {
-    for (size_t i = 0; i < src_bytes; i += 3) {
+static Int swap24(const UInt8 * src, UInt32 src_bytes,
+        UInt8 * dst, UInt32 dst_bytes) {
+    for (UInt32 i = 0; i < src_bytes; i += 3) {
         // support inplace swap
-        uint8_t a   = src[0];
-        uint8_t b   = src[2];
+        UInt8 a   = src[0];
+        UInt8 b   = src[2];
         dst[0]      = b;
         dst[2]      = a;
         src         += 3;
@@ -604,22 +604,22 @@ static int swap24(const uint8_t * src, size_t src_bytes,
 }
 
 // aabbccdd -> ddccbbaa
-static int swap32(const uint8_t * src, size_t src_bytes,
-        uint8_t * dst, size_t dst_bytes) {
-    uint32_t * from = (uint32_t *)src;
-    uint32_t * to = (uint32_t *)dst;
-    for (size_t i = 0; i < src_bytes; i += sizeof(uint32_t)) {
+static Int swap32(const UInt8 * src, UInt32 src_bytes,
+        UInt8 * dst, UInt32 dst_bytes) {
+    UInt32 * from = (UInt32 *)src;
+    UInt32 * to = (UInt32 *)dst;
+    for (UInt32 i = 0; i < src_bytes; i += sizeof(UInt32)) {
         *to++ = bswap32(*from++);
     }
     return 0;
 }
 
 // aabbccdd -> aaddccbb
-static int swap32l(const uint8_t * src, size_t src_bytes,
-        uint8_t * dst, size_t dst_bytes) {
-    uint32_t * from = (uint32_t *)src;
-    uint32_t * to = (uint32_t *)dst;
-    for (size_t i = 0; i < src_bytes; i += sizeof(uint32_t)) {
+static Int swap32l(const UInt8 * src, UInt32 src_bytes,
+        UInt8 * dst, UInt32 dst_bytes) {
+    UInt32 * from = (UInt32 *)src;
+    UInt32 * to = (UInt32 *)dst;
+    for (UInt32 i = 0; i < src_bytes; i += sizeof(UInt32)) {
         *to++ = bswap32l(*from++);
     }
     return 0;
@@ -643,7 +643,7 @@ enum {
 typedef struct convert_t {
     const ePixelFormat      source;
     const hnd_t             hnd;
-    const uint32_t          flags;
+    const UInt32          flags;
 } convert_t;
 
 // ? -> 420YpCbCr (420p)
@@ -687,7 +687,7 @@ static const convert_t kToBGRA[] = {
     { kPixelFormat422YpCrCb,            .hnd.packed2packedMAT = libyuv::YUY2ToARGBMatrix,   .flags = COLOR_MATRIX|BSWAP_32L },
     { kPixelFormat422YpCrCbWO,          .hnd.packed2packedMAT = libyuv::UYVYToARGBMatrix,   .flags = COLOR_MATRIX           },
     { kPixelFormat422YpCbCrWO,          .hnd.packed2packedMAT = libyuv::UYVYToARGBMatrix,   .flags = COLOR_MATRIX|BSWAP_32L },
-    { kPixelFormat444YpCbCr,            .hnd.packed2packed = NULL                                       },  // does this format real exist?
+    { kPixelFormat444YpCbCr,            .hnd.packed2packed = Nil                                       },  // does this format real exist?
     { kPixelFormatBGRA,                 .hnd.packed2packed = libyuv::ARGBCopy                           },
     { kPixelFormatARGB,                 .hnd.packed2packed = libyuv::BGRAToARGB                         },
     { kPixelFormatRGBA,                 .hnd.packed2packed = libyuv::ABGRToARGB                         },
@@ -750,14 +750,14 @@ static const convert_t kToRGB16[] = {
     { kPixelFormatUnknown }
 };
 
-static hnd_t get_convert_hnd(const convert_t list[], const ePixelFormat& source, uint32_t * flags) {
-    for (size_t i = 0; list[i].source != kPixelFormatUnknown; ++i) {
+static hnd_t get_convert_hnd(const convert_t list[], const ePixelFormat& source, UInt32 * flags) {
+    for (UInt32 i = 0; list[i].source != kPixelFormatUnknown; ++i) {
         if (list[i].source == source) {
             *flags = list[i].flags;
             return list[i].hnd;
         }
     }
-    hnd_t hnd = { .planar2planar = NULL };
+    hnd_t hnd = { .planar2planar = Nil };
     return hnd;
 }
 
@@ -769,7 +769,7 @@ static const libyuv::YuvConstants * GetLibyuvMatrix(eColorMatrix matrix) {
         case kColorMatrixBT2020:    return &libyuv::kYuv2020Constants;
         default: break;
     }
-    return NULL;
+    return Nil;
 }
 
 struct ColorConvertorContext : public SharedObject {
@@ -778,7 +778,7 @@ struct ColorConvertorContext : public SharedObject {
     const PixelDescriptor * ipd;
     const PixelDescriptor * opd;
     hnd_t                   hnd;
-    uint32_t                flags;
+    UInt32                flags;
 };
 
 static MediaUnitContext colorconvertor_alloc() {
@@ -787,7 +787,7 @@ static MediaUnitContext colorconvertor_alloc() {
 }
 
 static void colorconvertor_dealloc(MediaUnitContext ref) {
-    sp<ColorConvertorContext> ccc = ref;
+    sp<ColorConvertorContext> ccc = static_cast<ColorConvertorContext *>(ref);
     ccc->ReleaseObject();
 }
 
@@ -816,7 +816,7 @@ static MediaError colorconvertor_init_common(sp<ColorConvertorContext>& ccc, con
 
 static MediaError colorconvertor_init_420p(MediaUnitContext ref, const MediaFormat * iformat, const MediaFormat * oformat) {
     DEBUG("cc init %s => %s", GetImageFormatString(iformat->video).c_str(), GetImageFormatString(oformat->video).c_str());
-    sp<ColorConvertorContext> ccc = ref;
+    sp<ColorConvertorContext> ccc = static_cast<ColorConvertorContext *>(ref);
     if (colorconvertor_init_common(ccc, iformat, oformat) != kMediaNoError) {
         return kMediaErrorBadParameters;
     }
@@ -826,12 +826,12 @@ static MediaError colorconvertor_init_420p(MediaUnitContext ref, const MediaForm
     }
     
     ccc->hnd = get_convert_hnd(kTo420YpCbCrPlanar, ccc->ipf.format, &ccc->flags);
-    return ccc->hnd.planar2packed != NULL ? kMediaNoError : kMediaErrorNotSupported;
+    return ccc->hnd.planar2packed != Nil ? kMediaNoError : kMediaErrorNotSupported;
 }
 
 static MediaError colorconvertor_init_bgra(MediaUnitContext ref, const MediaFormat * iformat, const MediaFormat * oformat) {
     DEBUG("cc init %s => %s", GetImageFormatString(iformat->image).c_str(), GetImageFormatString(oformat->image).c_str());
-    sp<ColorConvertorContext> ccc = ref;
+    sp<ColorConvertorContext> ccc = static_cast<ColorConvertorContext *>(ref);
     if (colorconvertor_init_common(ccc, iformat, oformat) != kMediaNoError) {
         return kMediaErrorBadParameters;
     }
@@ -841,7 +841,7 @@ static MediaError colorconvertor_init_bgra(MediaUnitContext ref, const MediaForm
     }
     
     ccc->hnd = get_convert_hnd(kToBGRA, ccc->ipf.format, &ccc->flags);
-    if (ccc->hnd.planar2packed == NULL) {
+    if (ccc->hnd.planar2packed == Nil) {
         return kMediaErrorNotSupported;
     }
     if ((ccc->ipf.matrix && ccc->ipf.matrix != kColorMatrixBT601) && !(ccc->flags & COLOR_MATRIX)) {
@@ -853,12 +853,12 @@ static MediaError colorconvertor_init_bgra(MediaUnitContext ref, const MediaForm
     if (ccc->ipf.matrix == kColorMatrixNull && (ccc->flags & COLOR_MATRIX)) {
         ccc->ipf.matrix = kColorMatrixBT601;
     }
-    return ccc->hnd.planar2packed != NULL ? kMediaNoError : kMediaErrorNotSupported;
+    return ccc->hnd.planar2packed != Nil ? kMediaNoError : kMediaErrorNotSupported;
 }
 
 static MediaError colorconvertor_init_rgba(MediaUnitContext ref, const MediaFormat * iformat, const MediaFormat * oformat) {
     DEBUG("cc init %s => %s", GetImageFormatString(iformat->video).c_str(), GetImageFormatString(oformat->video).c_str());
-    sp<ColorConvertorContext> ccc = ref;
+    sp<ColorConvertorContext> ccc = static_cast<ColorConvertorContext *>(ref);
     if (colorconvertor_init_common(ccc, iformat, oformat) != kMediaNoError) {
         return kMediaErrorBadParameters;
     }
@@ -868,12 +868,12 @@ static MediaError colorconvertor_init_rgba(MediaUnitContext ref, const MediaForm
     }
     
     ccc->hnd = get_convert_hnd(kToRGBA, ccc->ipf.format, &ccc->flags);
-    return ccc->hnd.planar2packed != NULL ? kMediaNoError : kMediaErrorNotSupported;
+    return ccc->hnd.planar2packed != Nil ? kMediaNoError : kMediaErrorNotSupported;
 }
 
 static MediaError colorconvertor_init_rgb24(MediaUnitContext ref, const MediaFormat * iformat, const MediaFormat * oformat) {
     DEBUG("cc init %s => %s", GetImageFormatString(iformat->video).c_str(), GetImageFormatString(oformat->video).c_str());
-    sp<ColorConvertorContext> ccc = ref;
+    sp<ColorConvertorContext> ccc = static_cast<ColorConvertorContext *>(ref);
     if (colorconvertor_init_common(ccc, iformat, oformat) != kMediaNoError) {
         return kMediaErrorBadParameters;
     }
@@ -883,12 +883,12 @@ static MediaError colorconvertor_init_rgb24(MediaUnitContext ref, const MediaFor
     }
     
     ccc->hnd = get_convert_hnd(kToBGR, ccc->ipf.format, &ccc->flags);
-    return ccc->hnd.planar2packed != NULL ? kMediaNoError : kMediaErrorNotSupported;
+    return ccc->hnd.planar2packed != Nil ? kMediaNoError : kMediaErrorNotSupported;
 }
 
 static MediaError colorconvertor_init_rgb16(MediaUnitContext ref, const MediaFormat * iformat, const MediaFormat * oformat) {
     DEBUG("cc init %s => %s", GetImageFormatString(iformat->video).c_str(), GetImageFormatString(oformat->video).c_str());
-    sp<ColorConvertorContext> ccc = ref;
+    sp<ColorConvertorContext> ccc = static_cast<ColorConvertorContext *>(ref);
     if (colorconvertor_init_common(ccc, iformat, oformat) != kMediaNoError) {
         return kMediaErrorBadParameters;
     }
@@ -898,12 +898,12 @@ static MediaError colorconvertor_init_rgb16(MediaUnitContext ref, const MediaFor
     }
     
     ccc->hnd = get_convert_hnd(kToRGB16, ccc->ipf.format, &ccc->flags);
-    return ccc->hnd.planar2packed != NULL ? kMediaNoError : kMediaErrorNotSupported;
+    return ccc->hnd.planar2packed != Nil ? kMediaNoError : kMediaErrorNotSupported;
 }
 
 MediaError colorconvertor_process(MediaUnitContext ref, const MediaBufferList * input, MediaBufferList * output) {
     DEBUG("process: %s", GetMediaBufferListString(*input).c_str());
-    sp<ColorConvertorContext> ccc = ref;
+    sp<ColorConvertorContext> ccc = static_cast<ColorConvertorContext *>(ref);
     const PixelDescriptor * ipd = ccc->ipd;
     const PixelDescriptor * opd = ccc->opd;
     const ImageFormat& ipf      = ccc->ipf;
@@ -914,8 +914,8 @@ MediaError colorconvertor_process(MediaUnitContext ref, const MediaBufferList * 
     }
     
     // check input size
-    for (size_t i = 0; i < ipd->nb_planes; ++i) {
-        const size_t size = (ipf.width * ipf.height * ipd->planes[i].bpp) / (8 * ipd->planes[i].hss * ipd->planes[i].vss);
+    for (UInt32 i = 0; i < ipd->nb_planes; ++i) {
+        const UInt32 size = (ipf.width * ipf.height * ipd->planes[i].bpp) / (8 * ipd->planes[i].hss * ipd->planes[i].vss);
         if (input->buffers[i].size < size) {
             ERROR("bad input buffer, size mismatch.");
             return kMediaErrorBadParameters;
@@ -923,8 +923,8 @@ MediaError colorconvertor_process(MediaUnitContext ref, const MediaBufferList * 
     }
     
     // check output capacity
-    for (size_t i = 0; i < opd->nb_planes; ++i) {
-        const size_t size = (opf.width * opf.height * opd->planes[i].bpp) / (8 * opd->planes[i].hss * opd->planes[i].vss);
+    for (UInt32 i = 0; i < opd->nb_planes; ++i) {
+        const UInt32 size = (opf.width * opf.height * opd->planes[i].bpp) / (8 * opd->planes[i].hss * opd->planes[i].vss);
         if (output->buffers[i].capacity < size) {
             ERROR("bad output buffer, capacity mismatch");
             return kMediaErrorBadParameters;
@@ -935,8 +935,8 @@ MediaError colorconvertor_process(MediaUnitContext ref, const MediaBufferList * 
     // create shadows of input&output buffers for uv swap
     MediaBuffer ibf[input->count];
     MediaBuffer obf[output->count];
-    for (size_t i = 0; i < input->count; ++i)   ibf[i] = input->buffers[i];
-    for (size_t i = 0; i < output->count; ++i)  obf[i] = output->buffers[i];
+    for (UInt32 i = 0; i < input->count; ++i)   ibf[i] = input->buffers[i];
+    for (UInt32 i = 0; i < output->count; ++i)  obf[i] = output->buffers[i];
     if (ccc->flags & SWAP_UV) {
         DEBUG("swap uv");
         if (IsPlanarYUV(ccc->ipf.format)) {    // prefer swap uv on input
@@ -949,9 +949,9 @@ MediaError colorconvertor_process(MediaUnitContext ref, const MediaBufferList * 
         }
     }
     
-    size_t offset[ipd->nb_planes];
-    for (size_t i = 0; i < ipd->nb_planes; ++i) {
-        const size_t y = ipf.rect.y / ipd->planes[i].vss;
+    UInt32 offset[ipd->nb_planes];
+    for (UInt32 i = 0; i < ipd->nb_planes; ++i) {
+        const UInt32 y = ipf.rect.y / ipd->planes[i].vss;
         offset[i] = ((ipf.width * y + ipf.rect.x) * ipd->planes[i].bpp) / (8 * ipd->planes[i].hss);
         //DEBUG("offset[%zu]: %zu", i, offset[i]);
     }
@@ -1157,7 +1157,7 @@ static const MediaUnit kConvertTo420p = {
     .dealloc    = colorconvertor_dealloc,
     .init       = colorconvertor_init_420p,
     .process    = colorconvertor_process,
-    .reset      = NULL,
+    .reset      = Nil,
 };
 
 // ? -> ARGB in word-order
@@ -1170,7 +1170,7 @@ static const MediaUnit kConvertToBGRA = {
     .dealloc    = colorconvertor_dealloc,
     .init       = colorconvertor_init_bgra,
     .process    = colorconvertor_process,
-    .reset      = NULL,
+    .reset      = Nil,
 };
 
 static const MediaUnit kConvertToRGBA = {
@@ -1182,7 +1182,7 @@ static const MediaUnit kConvertToRGBA = {
     .dealloc    = colorconvertor_dealloc,
     .init       = colorconvertor_init_rgba,
     .process    = colorconvertor_process,
-    .reset      = NULL,
+    .reset      = Nil,
 };
 
 // ? -> RGB in word-order
@@ -1195,7 +1195,7 @@ static const MediaUnit kConvertToBGR = {
     .dealloc    = colorconvertor_dealloc,
     .init       = colorconvertor_init_rgb24,
     .process    = colorconvertor_process,
-    .reset      = NULL,
+    .reset      = Nil,
 };
 
 // ? -> BGR16
@@ -1208,7 +1208,7 @@ static const MediaUnit kConvertToBGR565 = {
     .dealloc    = colorconvertor_dealloc,
     .init       = colorconvertor_init_rgb16,
     .process    = colorconvertor_process,
-    .reset      = NULL,
+    .reset      = Nil,
 };
 
 static const MediaUnit * kColorUnitList[] = {
@@ -1218,20 +1218,20 @@ static const MediaUnit * kColorUnitList[] = {
     &kConvertToBGR,
     &kConvertToBGR565,
     // END OF LIST
-    NULL
+    Nil
 };
 
 static const MediaUnit * ColorUnitFind(const MediaUnit * list[],
                                        const ePixelFormat& iformat,
                                        const ePixelFormat& oformat) {
-    for (size_t i = 0; list[i] != NULL; ++i) {
+    for (UInt32 i = 0; list[i] != Nil; ++i) {
         if (ContainsPixelFormat(list[i]->iformats, iformat) &&
             ContainsPixelFormat(list[i]->oformats, oformat)) {
             return list[i];
         }
     }
-    ERROR("no unit for %.4s => %.4s", (const char *)&iformat, (const char *)&oformat);
-    return NULL;
+    ERROR("no unit for %.4s => %.4s", (const Char *)&iformat, (const Char *)&oformat);
+    return Nil;
 }
 
 static const MediaUnit * ColorUnitNew(const MediaUnit * list[],
@@ -1240,7 +1240,7 @@ static const MediaUnit * ColorUnitNew(const MediaUnit * list[],
                                       MediaUnitContext * p) {
     CHECK_NULL(p);
     const MediaUnit * unit = ColorUnitFind(list, iformat.format, oformat.format);
-    if (!unit) return NULL;
+    if (!unit) return Nil;
     
     DEBUG("found unit %s", unit->name);
     MediaUnitContext instance = unit->alloc();
@@ -1250,7 +1250,7 @@ static const MediaUnit * ColorUnitNew(const MediaUnit * list[],
         unit->dealloc(instance);
         ERROR("unit init failed for %s => %s",
               GetImageFormatString(iformat).c_str(), GetImageFormatString(oformat).c_str());
-        return NULL;
+        return Nil;
     }
     *p = instance;
     return unit;
@@ -1269,8 +1269,8 @@ struct ColorConverter : public MediaDevice {
     virtual ~ColorConverter() {
         if (mUnit) {
             mUnit->dealloc(mInstance);
-            mUnit = NULL;
-            mInstance = NULL;
+            mUnit = Nil;
+            mInstance = Nil;
         }
     }
     
@@ -1281,7 +1281,7 @@ struct ColorConverter : public MediaDevice {
         
         mUnit = ColorUnitNew(kColorUnitList, iformat, oformat, &mInstance);
         if (mUnit) {
-            DEBUG("new unit %.4s => %.4s", (const char *)&iformat.format, (const char *)&oformat.format);
+            DEBUG("new unit %.4s => %.4s", (const Char *)&iformat.format, (const Char *)&oformat.format);
             return kMediaNoError;
         }
         
@@ -1301,9 +1301,9 @@ struct ColorConverter : public MediaDevice {
     }
     
     virtual MediaError push(const sp<MediaFrame>& input) {
-        if (input.isNIL()) return kMediaNoError;
+        if (input.isNil()) return kMediaNoError;
         
-        if (mFrame != NULL) return kMediaErrorResourceBusy;
+        if (mFrame != Nil) return kMediaErrorResourceBusy;
         
         sp<MediaFrame> output   = MediaFrame::Create(mOutput);
         
@@ -1342,7 +1342,7 @@ struct ColorConverter : public MediaDevice {
 sp<MediaDevice> CreateColorConverter(const ImageFormat& iformat, const ImageFormat& oformat, const sp<Message>& options) {
     sp<ColorConverter> cc = new ColorConverter;
     if (cc->init(iformat, oformat, options) != kMediaNoError) {
-        return NULL;
+        return Nil;
     }
     return cc;
 }

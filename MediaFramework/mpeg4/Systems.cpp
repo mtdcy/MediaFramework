@@ -42,7 +42,7 @@
 __BEGIN_NAMESPACE_MPX
 __BEGIN_NAMESPACE(MPEG4)
 
-uint32_t translateObjectTypeIndication(eObjectTypeIndication objectTypeIndication) {
+UInt32 translateObjectTypeIndication(eObjectTypeIndication objectTypeIndication) {
     switch (objectTypeIndication) {
         case ISO_IEC_14496_2             :        // MPEG4 visual
             return kVideoCodecMPEG4;
@@ -83,9 +83,9 @@ eStreamType ObjectType2StreamType(eObjectTypeIndication objectTypeIndication) {
 }
 
 // ISO/IEC 14496-1:2010 Section 8.3.3 Page 117
-static FORCE_INLINE size_t GetObjectDescriptorSize(const sp<ABuffer>& buffer) {
-    bool nextBytes  = buffer->read(1);
-    size_t size     = buffer->read(7);
+static FORCE_INLINE UInt32 GetObjectDescriptorSize(const sp<ABuffer>& buffer) {
+    Bool nextBytes  = buffer->read(1);
+    UInt32 size     = buffer->read(7);
     while (nextBytes) {
         nextBytes   = buffer->read(1);
         size        = (size << 7) | buffer->read(7);
@@ -93,8 +93,8 @@ static FORCE_INLINE size_t GetObjectDescriptorSize(const sp<ABuffer>& buffer) {
     return size;
 }
 
-static FORCE_INLINE size_t GetObjectDescriptorSizeLength(size_t size) {
-    size_t length = 1;
+static FORCE_INLINE UInt32 GetObjectDescriptorSizeLength(UInt32 size) {
+    UInt32 length = 1;
     while (size > 127) {
         size >>= 7;
         ++length;
@@ -103,10 +103,10 @@ static FORCE_INLINE size_t GetObjectDescriptorSizeLength(size_t size) {
     return length;
 }
 
-static FORCE_INLINE size_t WriteObjectDescriptorSize(sp<ABuffer>& buffer, size_t size) {
-    size_t length = GetObjectDescriptorSizeLength(size);
-    for (size_t i = 0; i < length - 1; ++i) {
-        uint8_t u8 = (size >> (7 * (length - i - 1))) & 0x7F;
+static FORCE_INLINE UInt32 WriteObjectDescriptorSize(sp<ABuffer>& buffer, UInt32 size) {
+    UInt32 length = GetObjectDescriptorSizeLength(size);
+    for (UInt32 i = 0; i < length - 1; ++i) {
+        UInt8 u8 = (size >> (7 * (length - i - 1))) & 0x7F;
         u8 |= 0x80;
         buffer->w8(u8);
     }
@@ -114,43 +114,43 @@ static FORCE_INLINE size_t WriteObjectDescriptorSize(sp<ABuffer>& buffer, size_t
     return length;
 }
 
-static size_t DecoderSpecificInfoLength(const sp<DecoderSpecificInfo>& dsi) {
-    CHECK_FALSE(dsi.isNIL());
-    if (dsi->csd.isNIL()) return 0; // invalid
+static UInt32 DecoderSpecificInfoLength(const sp<DecoderSpecificInfo>& dsi) {
+    CHECK_FALSE(dsi.isNil());
+    if (dsi->csd.isNil()) return 0; // invalid
     return dsi->csd->size();
 }
 
 // DecSpecificInfoTag
 static sp<DecoderSpecificInfo> ReadDecoderSpecificInfo(const sp<ABuffer>& buffer) {
     sp<DecoderSpecificInfo> dsi = new DecoderSpecificInfo;
-    uint32_t descrLength    = GetObjectDescriptorSize(buffer);
+    UInt32 descrLength    = GetObjectDescriptorSize(buffer);
     DEBUG("DecSpecificInfoTag: Length %" PRIu32, descrLength);
     dsi->csd = buffer->readBytes(descrLength);
-    DEBUG("csd %s", dsi->csd->string(true).c_str());
+    DEBUG("csd %s", dsi->csd->string(True).c_str());
     return dsi;
 }
 
 static void WriteDecoderSpecificInfo(sp<ABuffer>& buffer, const sp<DecoderSpecificInfo>& dsi) {
-    CHECK_FALSE(dsi->csd.isNIL());
+    CHECK_FALSE(dsi->csd.isNil());
     buffer->w8(dsi->descrTag);    // DecSpecificInfoTag
     WriteObjectDescriptorSize(buffer, DecoderSpecificInfoLength(dsi));
     buffer->writeBytes(dsi->csd);
 }
 
-static FORCE_INLINE size_t FullLength(size_t length) {
+static FORCE_INLINE UInt32 FullLength(UInt32 length) {
     return 1 + GetObjectDescriptorSizeLength(length) + length;
 }
 
-static size_t DecoderConfigDescriptorLength(const sp<DecoderConfigDescriptor>& dcd) {
-    CHECK_FALSE(dcd.isNIL());
-    size_t length = 13;
-    if (dcd->decSpecificInfo.isNIL()) return length;
+static UInt32 DecoderConfigDescriptorLength(const sp<DecoderConfigDescriptor>& dcd) {
+    CHECK_FALSE(dcd.isNil());
+    UInt32 length = 13;
+    if (dcd->decSpecificInfo.isNil()) return length;
     return length + FullLength(DecoderSpecificInfoLength(dcd->decSpecificInfo));
 }
 
 static sp<DecoderConfigDescriptor> ReadDecoderConfigDescriptor(const sp<ABuffer>& buffer) {
     sp<DecoderConfigDescriptor> dcd = new DecoderConfigDescriptor;
-    uint32_t descrLength    = GetObjectDescriptorSize(buffer);
+    UInt32 descrLength    = GetObjectDescriptorSize(buffer);
     DEBUG("DecoderConfigDescrTag: Length %" PRIu32, descrLength);
     
     // 2 + 3 + 4 + 4 = 13
@@ -169,7 +169,7 @@ static sp<DecoderConfigDescriptor> ReadDecoderConfigDescriptor(const sp<ABuffer>
           dcd->bufferSizeDB, dcd->maxBitrate, dcd->avgBitrate);
     
     if (descrLength > 13) {
-        uint8_t descrTag = buffer->r8();
+        UInt8 descrTag = buffer->r8();
         if (descrTag == DecSpecificInfoTag) {
             dcd->decSpecificInfo = ReadDecoderSpecificInfo(buffer);
         } else {
@@ -190,35 +190,35 @@ static void WriteDecoderConfigDescriptor(sp<ABuffer>& buffer, const sp<DecoderCo
     buffer->wb32(dcd->maxBitrate);
     buffer->wb32(dcd->avgBitrate);
     
-    if (dcd->decSpecificInfo.isNIL()) return;
+    if (dcd->decSpecificInfo.isNil()) return;
     WriteDecoderSpecificInfo(buffer, dcd->decSpecificInfo);
 }
 
-static size_t ESDescriptorLength(const sp<ESDescriptor>& esd) {
-    CHECK_FALSE(esd.isNIL());
+static UInt32 ESDescriptorLength(const sp<ESDescriptor>& esd) {
+    CHECK_FALSE(esd.isNil());
     
-    size_t length =  3
+    UInt32 length =  3
     + (esd->streamDependenceFlag ? 2 : 0)
     + (esd->URL_Flag ? esd->URLstring.size() + 1 : 0)
     + (esd->OCRstreamFlag ? 2 : 0);
     
-    if (esd->decConfigDescr.isNIL()) return length;
+    if (esd->decConfigDescr.isNil()) return length;
     return length + FullLength(DecoderConfigDescriptorLength(esd->decConfigDescr));
 }
 
 static sp<ESDescriptor> ReadESDescriptor(const sp<ABuffer>& buffer) {
     if (buffer->r8() != ESDescrTag) {
         ERROR("bad ESDescriptor");
-        return NIL;
+        return Nil;
     }
     
     sp<ESDescriptor> esd = new ESDescriptor;
-    uint32_t descrLength    = GetObjectDescriptorSize(buffer);
+    UInt32 descrLength    = GetObjectDescriptorSize(buffer);
     DEBUG("ESDescrTag: Length %" PRIu32, descrLength);
     
     if (descrLength > buffer->size()) {
         ERROR("bad esd data");
-        return NIL;
+        return Nil;
     }
     
     // 2 + 1 = 3
@@ -231,7 +231,7 @@ static sp<ESDescriptor> ReadESDescriptor(const sp<ABuffer>& buffer) {
         esd->dependsOn_ES_ID     = buffer->rb16();
     }
     if (esd->URL_Flag) {
-        uint8_t URLlength        = buffer->r8();
+        UInt8 URLlength        = buffer->r8();
         esd->URLstring           = buffer->rs(URLlength);
     }
     if (esd->OCRstreamFlag) {
@@ -250,17 +250,17 @@ static sp<ESDescriptor> ReadESDescriptor(const sp<ABuffer>& buffer) {
     // mandatory DecoderConfigDescriptor
     if (buffer->r8() != DecoderConfigDescrTag) {
         ERROR("missing DecoderConfigDescriptor");
-        return NIL;
+        return Nil;
     }
     
     esd->decConfigDescr     = ReadDecoderConfigDescriptor(buffer);
-    if (esd->decConfigDescr.isNIL()) return NIL;
+    if (esd->decConfigDescr.isNil()) return Nil;
     
     return esd;
 }
 
 static void WriteESDescriptor(sp<ABuffer>& buffer, const sp<ESDescriptor>& esd) {
-    CHECK_FALSE(esd.isNIL());
+    CHECK_FALSE(esd.isNil());
     buffer->w8(esd->descrTag);     // ESDescrTag
     WriteObjectDescriptorSize(buffer, ESDescriptorLength(esd));
     buffer->wb16(esd->ES_ID);
@@ -275,18 +275,18 @@ static void WriteESDescriptor(sp<ABuffer>& buffer, const sp<ESDescriptor>& esd) 
     }
     if (esd->OCRstreamFlag) buffer->wb16(esd->OCR_ES_Id);
     
-    CHECK_FALSE(esd->decConfigDescr.isNIL());
+    CHECK_FALSE(esd->decConfigDescr.isNil());
     WriteDecoderConfigDescriptor(buffer, esd->decConfigDescr);
 }
 
 sp<Buffer> MakeESDS(const sp<ESDescriptor>& esd) {
-    CHECK_FALSE(esd.isNIL());
-    if (esd->decConfigDescr.isNIL()) {
+    CHECK_FALSE(esd.isNil());
+    if (esd->decConfigDescr.isNil()) {
         ERROR("DecoderConfigDescriptor missing");
-        return NIL;
+        return Nil;
     }
     
-    const size_t length = FullLength(ESDescriptorLength(esd));
+    const UInt32 length = FullLength(ESDescriptorLength(esd));
     sp<ABuffer> esds = new Buffer(length);
     WriteESDescriptor(esds, esd);
     esds->write();     // write padding bits
@@ -294,7 +294,7 @@ sp<Buffer> MakeESDS(const sp<ESDescriptor>& esd) {
 }
 
 sp<ESDescriptor> ReadESDS(const sp<Buffer>& esds) {
-    CHECK_FALSE(esds.isNIL());
+    CHECK_FALSE(esds.isNil());
     return ReadESDescriptor(esds);
 }
 

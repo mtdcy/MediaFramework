@@ -48,7 +48,7 @@ __BEGIN_NAMESPACE_MPX
 
 // samples in wave always stored as interleaved
 eSampleFormat GetSampleFormat(const Microsoft::WAVEFORMATEX& wave) {
-    uint32_t format = wave.wFormat;
+    UInt32 format = wave.wFormat;
     if (wave.wFormat == Microsoft::WAVE_FORMAT_EXTENSIBLE)
         format = wave.wSubFormat;
     switch (format) {
@@ -61,7 +61,7 @@ eSampleFormat GetSampleFormat(const Microsoft::WAVEFORMATEX& wave) {
                 default:    break;
             } break;
         case Microsoft::WAVE_FORMAT_IEEE_FLOAT:
-            return kSampleFormatFLTPacked;
+            return kSampleFormatF32Packed;
         default:
             break;
     }
@@ -69,20 +69,20 @@ eSampleFormat GetSampleFormat(const Microsoft::WAVEFORMATEX& wave) {
     return kSampleFormatUnknown;
 }
 
-static const size_t kFrameSize  = 2048;
+static const UInt32 kFrameSize  = 2048;
 
-static FORCE_INLINE bool isValidChunkID(const String& ckID) {
-    for (int i = 0; i < 4; i++) {
-        if (ckID[i] < ' ' || ckID[i] > 126) return false;
+static FORCE_INLINE Bool isValidChunkID(const String& ckID) {
+    for (Int i = 0; i < 4; i++) {
+        if (ckID[i] < ' ' || ckID[i] > 126) return False;
     }
 
-    return true;
+    return True;
 }
 
 struct FMTChunk : public RIFF::Chunk {
     Microsoft::WAVEFORMATEX     Wave;
     
-    FMTChunk(uint32_t length) : RIFF::Chunk(FOURCC('fmt '), length) { }
+    FMTChunk(UInt32 length) : RIFF::Chunk(FOURCC('fmt '), length) { }
     
     virtual MediaError parse(const sp<ABuffer>& buffer) {
         if (buffer->size() < WAVEFORMATEX_MIN_LENGTH)
@@ -92,13 +92,13 @@ struct FMTChunk : public RIFF::Chunk {
 };
 
 static sp<RIFF::Chunk> ReadChunk(const sp<ABuffer>& buffer) {
-    if (buffer.isNIL() || buffer->size() < RIFF_CHUNK_MIN_LENGTH)
-        return NULL;
+    if (buffer.isNil() || buffer->size() < RIFF_CHUNK_MIN_LENGTH)
+        return Nil;
     
-    const uint32_t name     = buffer->rl32();
-    const uint32_t length   = buffer->rl32();
+    const UInt32 name     = buffer->rl32();
+    const UInt32 length   = buffer->rl32();
     sp<RIFF::Chunk> ck;
-    uint32_t dataLength = length;  // we may no read all data
+    UInt32 dataLength = length;  // we may no read all data
     if (name == FOURCC('RIFF')) {
         ck = new RIFF::RIFFChunk(length);
         dataLength = 4;
@@ -115,25 +115,25 @@ static sp<RIFF::Chunk> ReadChunk(const sp<ABuffer>& buffer) {
 
     sp<ABuffer> data = buffer->readBytes(dataLength);
     if (ck->parse(data) == kMediaNoError) return ck;
-    else return NULL;
+    else return Nil;
     return ck;
 }
 
 struct WaveFile : public MediaDevice {
     sp<ABuffer>         mContent;
-    int64_t             mDataOffset;
-    int64_t             mDataLength;
+    Int64             mDataOffset;
+    Int64             mDataLength;
     sp<Message>         mID3v1;
     sp<Message>         mID3v2;
     sp<FMTChunk>        mFormat;
 
     // dwSampleLength: Number of samples (per channel)
     // for non-pcm formats
-    uint32_t            dwSampleLength;
+    UInt32            dwSampleLength;
 
     WaveFile() : MediaDevice(),
     mDataOffset(0), mDataLength(0),
-    mFormat(NULL), dwSampleLength(0) { }
+    mFormat(Nil), dwSampleLength(0) { }
 
     // refer to:
     // 1. http://www-mmsp.ece.mcgill.ca/documents/audioformats/wave/wave.html
@@ -141,7 +141,7 @@ struct WaveFile : public MediaDevice {
         mContent = buffer;
 
         mID3v2 = ID3::ReadID3v2(buffer);
-        const int64_t waveStart = buffer->offset();
+        const Int64 waveStart = buffer->offset();
         
         if (buffer->capacity() - waveStart < 44) {
             ERROR("pipe is too small.");
@@ -149,30 +149,30 @@ struct WaveFile : public MediaDevice {
         }
         
         sp<RIFF::RIFFChunk> ck = ReadChunk(buffer);
-        if (ck.isNIL() || ck->ckID != FOURCC('RIFF') || ck->ckFileType != FOURCC('WAVE')) {
+        if (ck.isNil() || ck->ckID != FOURCC('RIFF') || ck->ckFileType != FOURCC('WAVE')) {
             ERROR("not a WAVE file.");
             return kMediaErrorBadContent;
         }
 
         DEBUG("wave file length %u.", ck->ckSize);
 
-        bool success = false;
+        Bool success = False;
         while (!success) {
             sp<RIFF::Chunk> ck = ReadChunk(buffer);
-            if (ck.isNIL()) break;
+            if (ck.isNil()) break;
 
             if (ck->ckID == FOURCC('data')) {
                 DEBUG("data chunk length %zu.", ck->ckSize);
                 mDataOffset     = buffer->offset();
                 mDataLength     = ck->ckSize;
-                success         = true;
+                success         = True;
                 break;
             } else if (ck->ckID == FOURCC('fmt ')) {
                 mFormat = ck;
             }
         }
         
-        if (mFormat.isNIL()) {
+        if (mFormat.isNil()) {
             ERROR("missing format chunk");
             return kMediaErrorBadContent;
         }
@@ -188,13 +188,13 @@ struct WaveFile : public MediaDevice {
     }
 
     sp<Message> formats() const {
-        if (mFormat.isNIL()) return NULL;
+        if (mFormat.isNil()) return Nil;
         const Microsoft::WAVEFORMATEX& wave = mFormat->Wave;
 
         sp<Message> formats = new Message;
         formats->setInt32(kKeyFormat, kFileFormatWave);
         // calc useful values.
-        int64_t duration = 0;
+        Int64 duration = 0;
         if (wave.wFormat == Microsoft::WAVE_FORMAT_PCM) {
             CHECK_GT(wave.nAvgBytesPerSec, 0);
             duration = (1000000LL * mDataLength) / wave.nAvgBytesPerSec;
@@ -207,7 +207,7 @@ struct WaveFile : public MediaDevice {
         }
         if (duration) formats->setInt64(kKeyDuration, duration);
 
-        int32_t bitrate = 0;
+        Int32 bitrate = 0;
         if (wave.wBitsPerSample) {
             bitrate = wave.nSamplesPerSec * wave.nChannels * wave.wBitsPerSample;
         } else {
@@ -236,7 +236,7 @@ struct WaveFile : public MediaDevice {
     
     virtual MediaError configure(const sp<Message>& options) {
         if (options->contains(kKeySeek)) {
-            int64_t us = options->findInt64(kKeySeek);
+            Int64 us = options->findInt64(kKeySeek);
             seek(us);
             return kMediaNoError;
         }
@@ -244,16 +244,16 @@ struct WaveFile : public MediaDevice {
         return kMediaErrorNotSupported;
     }
 
-    void seek(int64_t us) {
+    void seek(Int64 us) {
         const Microsoft::WAVEFORMATEX& wave = mFormat->Wave;
-        int32_t byterate = wave.nAvgBytesPerSec;
+        Int32 byterate = wave.nAvgBytesPerSec;
         if (wave.wBitsPerSample) {
             byterate = (wave.nChannels * wave.nSamplesPerSec * wave.wBitsPerSample) / 8;
         }
-        int64_t offset = (us * byterate) / 1000000LL;
+        Int64 offset = (us * byterate) / 1000000LL;
 
         if (offset > mDataLength) offset = mDataLength;
-        int32_t align = (wave.nChannels * wave.wBitsPerSample) / 8;
+        Int32 align = (wave.nChannels * wave.wBitsPerSample) / 8;
         if (wave.nBlockAlign) align = wave.nBlockAlign;
 
         offset = (offset / wave.nBlockAlign) * wave.nBlockAlign;
@@ -269,14 +269,14 @@ struct WaveFile : public MediaDevice {
 #define S24LE(x)    ((x)[0] | (((x)[1] << 8) & 0xFF00) | (((x)[2] << 16) & 0xFF0000))
     virtual sp<MediaFrame> pull() {
         const Microsoft::WAVEFORMATEX& wave = mFormat->Wave;
-        const size_t sampleBytes = ((wave.nChannels * wave.wBitsPerSample) >> 3);
-        int64_t samplesRead = (mContent->offset() - mDataOffset) / sampleBytes;
+        const UInt32 sampleBytes = ((wave.nChannels * wave.wBitsPerSample) >> 3);
+        Int64 samplesRead = (mContent->offset() - mDataOffset) / sampleBytes;
         MediaTime pts (samplesRead, wave.nSamplesPerSec);
 
         sp<Buffer> data = mContent->readBytes(kFrameSize * sampleBytes);
-        if (data.isNIL()) {
+        if (data.isNil()) {
             INFO("EOS...");
-            return NULL;
+            return Nil;
         }
         
         AudioFormat audio;
@@ -289,13 +289,13 @@ struct WaveFile : public MediaDevice {
         if (wave.wBitsPerSample == 24) {
             // 24 bits -> 32 bits samples
             sp<Buffer> to   = new Buffer((data->capacity() / 3) * 4);
-            uint8_t * src    = (uint8_t *)data->data() + data->size();
-            int32_t * dest  = (int32_t *)to->base() + audio.samples * audio.channels;
-            for (size_t i = 0; i < audio.samples * audio.channels; ++i) {
+            UInt8 * src    = (UInt8 *)data->data() + data->size();
+            Int32 * dest  = (Int32 *)to->base() + audio.samples * audio.channels;
+            for (UInt32 i = 0; i < audio.samples * audio.channels; ++i) {
                 src -= 3;
                 *--dest = S24LE(src) << 8;
             }
-            to->setBytesRange(0, audio.samples * audio.channels * sizeof(int32_t));
+            to->setBytesRange(0, audio.samples * audio.channels * sizeof(Int32));
             data = to;
         }
         packet = MediaFrame::Create(data);
@@ -320,20 +320,20 @@ sp<MediaDevice> CreateWaveFile(const sp<ABuffer>& buffer) {
     sp<WaveFile> wave = new WaveFile;
     if (wave->init(buffer) == kMediaNoError)
         return wave;
-    return NULL;
+    return Nil;
 }
 
-int IsWaveFile(const sp<ABuffer>& buffer) {
+Int IsWaveFile(const sp<ABuffer>& buffer) {
     if (buffer->size() < RIFF_CHUNK_LENGTH) return 0;
     
     // RIFF CHUNK
-    uint32_t name   = buffer->rl32();
-    uint32_t length = buffer->rl32();
-    uint32_t wave   = buffer->rl32();
+    UInt32 name   = buffer->rl32();
+    UInt32 length = buffer->rl32();
+    UInt32 wave   = buffer->rl32();
     if (name != FOURCC('RIFF') || wave != FOURCC('WAVE'))
         return 0;
     
-    int score = 60;
+    Int score = 60;
     
     while (buffer->size() > RIFF_CHUNK_MIN_LENGTH && score < 100) {
         name    = buffer->rl32();
