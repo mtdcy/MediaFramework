@@ -90,12 +90,15 @@ sp<MediaFrame> MediaFrame::Create(const AudioFormat& audio) {
     
     if (IsPlanarSampleFormat(audio.format)) {
         // plannar samples
-        frame->planes.buffers[0].size = bytes * audio.samples;
-        UInt8 * next = frame->planes.buffers[0].data + frame->planes.buffers[0].size;
+        frame->planes.count                 = audio.channels;
+        frame->planes.buffers[0].size       = 0;
+        frame->planes.buffers[0].capacity   = bytes * audio.samples;
+        UInt8 * next = frame->planes.buffers[0].data + frame->planes.buffers[0].capacity;
         for (UInt32 i = 1; i < audio.channels; ++i) {
-            frame->planes.buffers[i].size   = frame->planes.buffers[0].size;
-            frame->planes.buffers[i].data   = next;
-            next += frame->planes.buffers[i].size;
+            frame->planes.buffers[i].size       = 0;
+            frame->planes.buffers[i].capacity   = frame->planes.buffers[0].capacity;
+            frame->planes.buffers[i].data       = next;
+            next += frame->planes.buffers[i].capacity;
         }
         frame->planes.count = audio.channels;
     }
