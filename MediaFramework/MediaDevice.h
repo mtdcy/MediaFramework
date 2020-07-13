@@ -146,6 +146,7 @@ enum {
     kKeyOpenGLContext   = FOURCC('oglt'),       ///< void *
     kKeyPause           = FOURCC('paus'),       ///< int32_t, bool
     kKeyColorMatrix     = FOURCC('cmat'),       ///< uint32_t, @see eColorMatrix
+    kKeyDeviceName      = FOURCC('dnam'),       ///< uint32_t
     kKeyESDS            = FOURCC('esds'),       ///< sp<Buffer>
     kKeyavcC            = FOURCC('avcC'),       ///< sp<Buffer>
     kKeyhvcC            = FOURCC('hvcC'),       ///< sp<Buffer>
@@ -210,6 +211,16 @@ enum {
     kModeNonBlock   = FOURCC('~blk'),
 };
 typedef uint32_t eBlockModeType;
+
+enum {
+    kDeviceOpenGL       = FOURCC('opgl'),
+    kDeviceOpenAL       = FOURCC('opal'),
+    kDeviceVideoToolbox = FOURCC('vtlx'),
+    kDeviceAudioToolbox = FOURCC('atlx'),
+    kDeviceLibavformat  = FOURCC('lavf'),
+    kDeviceLibavcodec   = FOURCC('lavc'),
+};
+typedef uint32_t eDeviceName;
 
 __END_DECLS
 
