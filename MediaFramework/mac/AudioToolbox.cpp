@@ -227,7 +227,11 @@ static sp<ATAC> openATAC(const sp<Message>& formats) {
 }
 
 static void closeATAC(sp<ATAC>& atac) {
-    if (atac->atac) AudioConverterDispose(atac->atac);
+    DEBUG("close AudioConverter");
+    if (atac->atac) {
+        AudioConverterDispose(atac->atac);
+        atac->atac = Nil;
+    }
 }
 
 static OSStatus DecodeCallback(AudioConverterRef               inAudioConverter,
@@ -251,7 +255,7 @@ static OSStatus DecodeCallback(AudioConverterRef               inAudioConverter,
     }
     
     ioData->mNumberBuffers              = 1;
-    ioData->mBuffers[0].mNumberChannels = atac->inFormat.mChannelsPerFrame;
+    ioData->mBuffers[0].mNumberChannels = atac->outFormat.mChannelsPerFrame;
     ioData->mBuffers[0].mDataByteSize   = atac->packet->planes.buffers[0].size;
     ioData->mBuffers[0].mData           = atac->packet->planes.buffers[0].data;
     *ioNumberDataPackets                = 1;
@@ -259,6 +263,8 @@ static OSStatus DecodeCallback(AudioConverterRef               inAudioConverter,
     if (outDataPacketDescription) {
         *outDataPacketDescription       = &atac->desc;
     }
+    
+    atac->packet.clear();
     DEBUG("-callback");
     return 0;
 }
@@ -299,14 +305,14 @@ static MediaError decode(sp<ATAC>& atac, const sp<MediaFrame>& packet) {
     if (plannar) {
         outOutputData.mNumberBuffers            = atac->outFormat.mChannelsPerFrame;
         for (UInt32 i = 0; i < outOutputData.mNumberBuffers; ++i) {
-            outOutputData.mBuffers[i].mNumberChannels   = 0;
-            outOutputData.mBuffers[i].mDataByteSize     = frame->planes.buffers[i].size;
+            outOutputData.mBuffers[i].mNumberChannels   = 1;
+            outOutputData.mBuffers[i].mDataByteSize     = frame->planes.buffers[i].capacity;
             outOutputData.mBuffers[i].mData             = frame->planes.buffers[i].data;
         }
     } else {
         outOutputData.mNumberBuffers                = 1;
-        outOutputData.mBuffers[0].mNumberChannels   = atac->inFormat.mChannelsPerFrame;
-        outOutputData.mBuffers[0].mDataByteSize     = frame->planes.buffers[0].size;
+        outOutputData.mBuffers[0].mNumberChannels   = atac->outFormat.mChannelsPerFrame;
+        outOutputData.mBuffers[0].mDataByteSize     = frame->planes.buffers[0].capacity;
         outOutputData.mBuffers[0].mData             = frame->planes.buffers[0].data;
     }
     
