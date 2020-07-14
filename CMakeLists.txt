@@ -99,7 +99,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/MediaFramework)
 list (APPEND LIBS z ABE_shared)
 
 if (WITH_FFMPEG)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/FFmpegStatic/out/static/include)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/FFmpegStatic/include)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/external/FFmpegStatic)    # FFmpeg.h
 list (APPEND LIBS FFmpegStatic)
 endif()
