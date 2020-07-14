@@ -673,8 +673,8 @@ static AVCodecContext * initContext(eModeType mode, const sp<Message>& formats, 
 #if 1 // force fixed decoder if available
     String name = avc->name;
     AVCodec * fixed = Nil;
-    if (name.endsWith("Float32")) {
-        name.replace("Float32", "");
+    if (name.endsWith("float")) {
+        name.replace("float", "");
         fixed = avcodec_find_decoder_by_name(name.c_str());
         if (!fixed) {
             name.append("fixed");
