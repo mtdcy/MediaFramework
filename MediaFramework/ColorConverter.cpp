@@ -627,7 +627,7 @@ static Int swap32l(const UInt8 * src, UInt32 src_bytes,
 
 __END_DECLS
 
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 
 enum {
     SWAP_UV         = (1<<0),   // swap uv planes before/after process, only work for planar pixels
@@ -1347,7 +1347,7 @@ sp<MediaDevice> CreateColorConverter(const ImageFormat& iformat, const ImageForm
     return cc;
 }
 
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK
 
 __BEGIN_DECLS
 

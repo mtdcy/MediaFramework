@@ -26,7 +26,7 @@
  ******************************************************************************/
 
 
-// File:    mpx.cpp
+// File:    MediaPlayer.cpp
 // Author:  mtdcy.chen
 // Changes:
 //          1. 20181126     initial version
@@ -39,7 +39,7 @@
 #include "MediaDevice.h"
 #include "MediaClock.h"
 
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 
 static Bool IsRawFormat(UInt32 format) {
     switch (format) {
@@ -472,4 +472,4 @@ sp<IMediaPlayer> CreateTiger() {
     return new Tiger;
 }
 
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK

@@ -44,7 +44,7 @@
 //  http://www-mmsp.ece.mcgill.ca/Documents/AudioFormats/WAVE/Samples.html
 // TODO: 
 // 1. fix support for compressed audio, like mp3...
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 
 // samples in wave always stored as interleaved
 eSampleFormat GetSampleFormat(const Microsoft::WAVEFORMATEX& wave) {
@@ -357,4 +357,4 @@ Int IsWaveFile(const sp<ABuffer>& buffer) {
     return score > 100 ? 100 : score;
 }
 
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK

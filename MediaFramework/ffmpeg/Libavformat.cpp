@@ -46,7 +46,7 @@ static FORCE_INLINE const Char * av_error_string(Int err) {
     return av_make_error_string(s, AV_ERROR_MAX_STRING_SIZE, err);
 }
 
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 
 struct {
     const Char *        name;
@@ -481,4 +481,4 @@ sp<MediaDevice> CreateLibavformat(const sp<ABuffer>& buffer) {
     return Nil;
 }
 
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK

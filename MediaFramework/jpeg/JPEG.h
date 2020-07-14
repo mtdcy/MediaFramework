@@ -32,13 +32,13 @@
 //          1. 20160701     initial version
 //
 
-#ifndef _MEDIA_JPEG_H
-#define _MEDIA_JPEG_H
+#ifndef MFWK_JPEG_H
+#define MFWK_JPEG_H
 
 #include "MediaTypes.h"
 #include "MediaFrame.h"
 
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 __BEGIN_NAMESPACE(JPEG)
 
 /**
@@ -143,14 +143,14 @@ struct FrameHeader : public Segment {
     
     // SOF0 : UInt16
     // length : UInt16, exclude markder
-    UInt8     bpp;    ///< bits per sample, @note not average bpp
-    UInt16    height; ///< image height
-    UInt16    width;  ///< image width
-    UInt8     planes; ///< number planes/components
+    UInt8       bpp;    ///< bits per sample, @note not average bpp
+    UInt16      height; ///< image height
+    UInt16      width;  ///< image width
+    UInt8       planes; ///< number planes/components
     struct {
-        UInt8 id;     ///< plane/component id
-        UInt8 ss;     ///< sub sampling factor [vss|hss], 4 bits for each
-        UInt8 qt;     ///< quantization table number
+        UInt8   id;     ///< plane/component id
+        UInt8   ss;     ///< sub sampling factor [vss|hss], 4 bits for each
+        UInt8   qt;     ///< quantization table number
     } plane[4];
 };
 
@@ -159,8 +159,8 @@ struct HuffmanTable : public Segment {
     
     // huffman table information,
     // bit 0..3: type, bit 4..7: id
-    UInt8     type;
-    UInt8     id;
+    UInt8       type;
+    UInt8       id;
     
     sp<Buffer>  table;
 };
@@ -170,15 +170,15 @@ struct QuantizationTable : public Segment {
     
     // quantization table information,
     // bit 0..3: precision, bit 4..7: id
-    UInt8     precision;      ///< 0 - 8 bit, 1 - 16 bit
-    UInt8     id;
+    UInt8       precision;      ///< 0 - 8 bit, 1 - 16 bit
+    UInt8       id;
     sp<Buffer>  table;
 };
 
 struct RestartInterval : public Segment {
     RestartInterval() : Segment(DRI) { }
     
-    UInt16    interval;   ///<
+    UInt16      interval;   ///<
 };
 
 /**
@@ -187,9 +187,9 @@ struct RestartInterval : public Segment {
 struct ArithmeticCoding : public Segment {
     ArithmeticCoding() : Segment(DAC) { }
     
-    UInt8     tc;     ///< 0 - DC table or lossless table; 1 - AC table
-    UInt8     tb;     ///< arithmetic coding conditioning table id
-    UInt8     cs;     ///< conditioning table value
+    UInt8       tc;     ///< 0 - DC table or lossless table; 1 - AC table
+    UInt8       tb;     ///< arithmetic coding conditioning table id
+    UInt8       cs;     ///< conditioning table value
 };
 
 /**
@@ -200,10 +200,10 @@ struct ScanHeader : public Segment {
     
     // SOS : UInt16
     // length : UInt16
-    UInt8     components;     // number components in scan
+    UInt8       components;     // number components in scan
     struct {
-        UInt8 id;     // component id
-        UInt8 tb;     // Huffman table, [AC|DC], 4 bits each
+        UInt8   id;     // component id
+        UInt8   tb;     // Huffman table, [AC|DC], 4 bits each
     } component[4];
 };
 
@@ -257,6 +257,6 @@ void printJIFObject(const sp<JIFObject>&);
 sp<MediaFrame> decodeJIFObject(const sp<JIFObject>&);
 
 __END_NAMESPACE(JPEG)
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK
 
-#endif // _MEDIA_JPEG_H
+#endif // MFWK_JPEG_H

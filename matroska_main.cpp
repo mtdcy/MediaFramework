@@ -37,7 +37,7 @@
 
 #include "MediaFramework/matroska/EBML.h"
 
-__USING_NAMESPACE_MPX
+USING_NAMESPACE_MFWK
 __USING_NAMESPACE(EBML)
 
 int main(int argc, char **argv) {
@@ -48,8 +48,8 @@ int main(int argc, char **argv) {
     sp<EBMLMasterElement> EBMLHEADER = ReadEBMLElement(pipe);
     sp<EBMLMasterElement> SEGMENT = ReadEBMLElement(pipe, kEnumSkipCluster);
     
-    if (!EBMLHEADER.isNIL()) PrintEBMLElements(EBMLHEADER);
-    if (!SEGMENT.isNIL()) PrintEBMLElements(SEGMENT);
+    if (!EBMLHEADER.isNil()) PrintEBMLElements(EBMLHEADER);
+    if (!SEGMENT.isNil()) PrintEBMLElements(SEGMENT);
     
     return 0;
 }

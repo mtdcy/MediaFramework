@@ -41,7 +41,7 @@
 
 #include <AudioToolbox/AudioToolbox.h>
 
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 
 struct {
     eAudioCodec         codec;
@@ -402,4 +402,4 @@ sp<MediaDevice> CreateAudioToolbox(const sp<Message>& formats, const sp<Message>
     return Nil;
 }
 
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK

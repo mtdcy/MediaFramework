@@ -36,7 +36,7 @@
 #define LOG_NDEBUG 0
 #include "TIFF.h"
 
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 __BEGIN_NAMESPACE(TIFF)
 
 const Char * TagName(eTag tag) {
@@ -251,4 +251,4 @@ void printImageFileDirectory(const sp<ImageFileDirectory>& IFD, const Char * (*G
 }
 
 __END_NAMESPACE(TIFF)
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK

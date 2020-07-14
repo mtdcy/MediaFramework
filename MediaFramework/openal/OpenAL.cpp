@@ -59,7 +59,7 @@
 #define CHECK_AL_ERROR()
 #endif
 
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 
 // https://www.openal.org/documentation/OpenAL_Programmers_Guide.pdf
 /**
@@ -317,4 +317,4 @@ sp<MediaDevice> CreateOpenALOut(const sp<Message>& formats, const sp<Message>& o
     return out;
 }
 
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK

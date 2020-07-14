@@ -36,7 +36,7 @@
 
 #include <gtest/gtest.h>
 
-__USING_NAMESPACE_MPX
+USING_NAMESPACE_MFWK
 
 static const char * gCurrentDir = NULL;
 
@@ -58,25 +58,25 @@ void testMediaTime() {
     MediaTime time = 0;
     
     // operator+()
-    ASSERT_EQ((time + MediaTime(1, 2)), MediaTime(1, 2));
+    ASSERT_TRUE((time + MediaTime(1, 2)) == MediaTime(1, 2));
     
     // operator+=()
     time += MediaTime(1, 2);    // 1/2
     time += MediaTime(1, 3);    // 1/2 + 1/3 = 5/6
-    ASSERT_EQ(time, MediaTime(5,6));
+    ASSERT_TRUE(time == MediaTime(5,6));
     
     // operator-()
-    ASSERT_EQ(time - MediaTime(1, 3), MediaTime(1,2));
+    ASSERT_TRUE(time - MediaTime(1, 3) == MediaTime(1,2));
     
     // operator-=()
     time -= MediaTime(1,3);     // 5/6 - 1/3 = 1/2
-    ASSERT_EQ(time, MediaTime(1,2));
+    ASSERT_TRUE(time == MediaTime(1,2));
     
     // useconds()
-    ASSERT_EQ(time.useconds(), 500000LL);
+    ASSERT_TRUE(time.useconds() == Time::MicroSeconds(500000LL));
     
     // seconds()
-    ASSERT_EQ(time.seconds(), 0.5f);
+    ASSERT_TRUE(time.seconds() == Time::Seconds(0.5f));
 }
 
 void testClock() {
@@ -118,15 +118,12 @@ void testClock() {
     ASSERT_GT(slave->get(), 1000);
 }
 
-extern "C" void malloc_prepare();
-extern "C" void malloc_bypass();
-extern "C" void malloc_finalize();
 #define TEST_ENTRY(FUNC)                    \
     TEST_F(MyTest, FUNC) {                  \
         INFO("Begin Test MyTest."#FUNC);    \
-        malloc_prepare(); {                 \
+        MemoryAnalyzerPrepare(); {          \
             FUNC();                         \
-        } malloc_finalize();                \
+        } MemoryAnalyzerFinalize();         \
         INFO("End Test MyTest."#FUNC);      \
     }
 

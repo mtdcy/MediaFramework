@@ -41,7 +41,7 @@
 
 #include "MediaDevice.h"
 
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 
 const static Int kScanLength = 32 * 1024;
 
@@ -858,5 +858,5 @@ Int IsMp3File(const sp<ABuffer>& buffer) {
     return 100;
 }
 
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK
 

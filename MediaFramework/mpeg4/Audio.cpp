@@ -39,7 +39,7 @@
 #include "Audio.h"
 #include "MediaTypes.h"
 
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 __BEGIN_NAMESPACE(MPEG4)
 
 // samplingFrequencyIndex
@@ -321,5 +321,5 @@ sp<Buffer> MakeAudioESDS(const sp<ABuffer>& csd) {
 }
 
 __END_NAMESPACE(MPEG4)
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK
 

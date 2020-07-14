@@ -38,7 +38,7 @@
 #include "MediaDevice.h"
 #include "MediaSession.h"
 
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 
 struct MediaFile : public IMediaSession {
     // external static context
@@ -268,4 +268,4 @@ sp<IMediaSession> CreateMediaFile(const sp<Looper>& lp) {
     return new MediaFile(lp);
 }
 
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK

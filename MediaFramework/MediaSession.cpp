@@ -37,7 +37,7 @@
 #include "MediaSession.h"
 #include "MediaDevice.h"
 
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 
 struct IMediaSession::InitJob : public Job {
     IMediaSession * thiz;
@@ -102,4 +102,4 @@ sp<IMediaSession> IMediaSession::Create(const sp<Message>& format, const sp<Mess
     return session;
 }
 
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK

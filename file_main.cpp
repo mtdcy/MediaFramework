@@ -34,7 +34,7 @@
 
 #define LOG_TAG "file.main"
 #include <MediaFramework/MediaFramework.h>
-__USING_NAMESPACE_MPX
+USING_NAMESPACE_MFWK
 
 int main(int argc, char **argv) {
     CHECK_GT(argc, 1);

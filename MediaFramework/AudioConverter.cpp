@@ -184,7 +184,7 @@ static const eSampleFormat kPackedSamples[] = {
 
 __END_DECLS
 
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 
 // TO (*convert)(FROM from)
 template <typename FROM, typename TO> struct expr;
@@ -908,7 +908,7 @@ sp<MediaDevice> CreateAudioConverter(const AudioFormat& iformat, const AudioForm
     return ac;
 }
 
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK
 
 
 

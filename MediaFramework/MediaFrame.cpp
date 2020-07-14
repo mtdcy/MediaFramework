@@ -41,7 +41,7 @@ __BEGIN_DECLS
 
 __END_DECLS
 
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 
 String GetMediaBufferListString(const MediaBufferList& list) {
     String line = String::format("MediaBufferList %zu planes", list.count);
@@ -53,7 +53,7 @@ String GetMediaBufferListString(const MediaBufferList& list) {
 
 #define NB_PLANES   (8)
 struct FullPlaneMediaFrame : public MediaFrame {
-    MediaBuffer     extend_planes[NB_PLANES -1];    // placeholder
+    MediaBuffer     extend_planes[NB_PLANES];   // placeholder
     sp<Buffer>      underlyingBuffer;
     
     FullPlaneMediaFrame(sp<Buffer>& buffer) : MediaFrame(), underlyingBuffer(buffer) {
@@ -159,6 +159,14 @@ String MediaFrame::string() const {
     return line;
 }
 
+void MediaFrame::onFirstRetain() {
+    
+}
+
+void MediaFrame::onLastRetain() {
+    
+}
+
 sp<ABuffer> MediaFrame::readPlane(UInt32 index) const {
     CHECK_LT(index, planes.count);
     if (planes.buffers[index].data == Nil) return Nil;
@@ -203,4 +211,4 @@ String GetImageFrameString(const sp<MediaFrame>& frame) {
     return line;
 }
 
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK

@@ -43,7 +43,7 @@
 // 1. https://wiki.multimedia.cx/index.php/Microsoft_Audio/Video_Interleaved
 // 2. https://docs.microsoft.com/en-us/previous-versions//ms779636(v=vs.85)?redirectedfrom=MSDN
 
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 
 enum {
     ID_RIFF = FOURCC('RIFF'),
@@ -374,4 +374,4 @@ Int IsAviFile(const sp<ABuffer>& buffer) {
     // DO EXTRA CHECK
     return 100;
 }
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK

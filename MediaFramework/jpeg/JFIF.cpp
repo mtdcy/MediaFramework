@@ -40,7 +40,7 @@
 
 #include "ImageFile.h"
 
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 __BEGIN_NAMESPACE(JFIF)
 
 sp<AppHeader> readAppHeader(const sp<ABuffer>& buffer, UInt32 length) {
@@ -329,4 +329,4 @@ sp<ImageFile> CreateJPEG() {
     return new JPEG_JFIF;
 }
 
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK

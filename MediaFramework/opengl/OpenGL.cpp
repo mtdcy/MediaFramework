@@ -62,7 +62,7 @@
     ERROR("error %d", err);         \
 } while(0)
 
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 
 #define printMAT4(x) do {               \
     for (UInt32 i = 0; i < 4; ++i) {    \
@@ -893,4 +893,4 @@ sp<MediaDevice> CreateOpenGLOut(const sp<Message>& formats, const sp<Message>& o
         return gl;
     return Nil;
 }
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK

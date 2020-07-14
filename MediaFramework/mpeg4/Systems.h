@@ -32,15 +32,15 @@
 //          1. 20160701     initial version
 //
 
-#ifndef _MEDIA_MODULES_MPEG4_SYSTEMS_H
-#define _MEDIA_MODULES_MPEG4_SYSTEMS_H 
+#ifndef MFWK_MPEG4_SYSTEMS_H
+#define MFWK_MPEG4_SYSTEMS_H 
 
 
 #include <ABE/ABE.h>
 #include "MediaTypes.h"
 
 // ISO/IEC 14496-1 System
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 
 namespace MPEG4 {
     // ISO/IEC 14496-1:2010(E), Section 7.2.2.1, Page 31, Table 1
@@ -159,10 +159,10 @@ namespace MPEG4 {
     struct DecoderConfigDescriptor : public BaseDescriptor {
         eObjectTypeIndication   objectTypeIndication;
         eStreamType             streamType;
-        UInt8                 upStream;           //
-        UInt32                bufferSizeDB;       //
-        UInt32                maxBitrate;
-        UInt32                avgBitrate;
+        UInt8                   upStream;           //
+        UInt32                  bufferSizeDB;       //
+        UInt32                  maxBitrate;
+        UInt32                  avgBitrate;
         sp<DecoderSpecificInfo> decSpecificInfo;    // optional
         // profileLevelIndicationIndexDescriptor
         
@@ -180,14 +180,14 @@ namespace MPEG4 {
 
     // ISO/IEC 14496-1:2010(E), Section 7.2.6.5, Page 47
     struct ESDescriptor : public BaseDescriptor {
-        UInt16                ES_ID;
-        UInt8                 streamDependenceFlag;
-        UInt8                 URL_Flag;
-        UInt8                 OCRstreamFlag;
-        UInt8                 streamPriority;
-        UInt16                dependsOn_ES_ID;
+        UInt16                  ES_ID;
+        UInt8                   streamDependenceFlag;
+        UInt8                   URL_Flag;
+        UInt8                   OCRstreamFlag;
+        UInt8                   streamPriority;
+        UInt16                  dependsOn_ES_ID;
         String                  URLstring;
-        UInt16                OCR_ES_Id;
+        UInt16                  OCR_ES_Id;
         sp<DecoderConfigDescriptor> decConfigDescr;     // mandatory
         
         ESDescriptor(eObjectTypeIndication objectType = InvalidObjectType) : BaseDescriptor(ESDescrTag) {
@@ -213,6 +213,6 @@ namespace MPEG4 {
     sp<Buffer> MakeESDS(const sp<ESDescriptor>& esd);
 }
 
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK
 
-#endif // _MEDIA_MODULES_MPEG4_SYSTEMS_H
+#endif // MFWK_MPEG4_SYSTEMS_H

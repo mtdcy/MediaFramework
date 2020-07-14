@@ -43,7 +43,7 @@
 #include <stdio.h> // sscanf
 
 // refers:
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 __BEGIN_NAMESPACE(ID3)
 
 // supported v2.3.x & v2.4.x frames.
@@ -1224,5 +1224,5 @@ sp<Message> ReadID3v1(const sp<ABuffer>& buffer) {
 }
 
 __END_NAMESPACE(ID3)
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK
 

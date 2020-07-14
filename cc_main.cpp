@@ -48,7 +48,7 @@
 #endif
 #include <SDL.h>
 
-__USING_NAMESPACE_MPX
+USING_NAMESPACE_MFWK
 
 static Uint32 window_flags() {
     Uint32 flags = SDL_WINDOW_RESIZABLE|SDL_WINDOW_SHOWN;
@@ -90,7 +90,7 @@ int main(int argc, char **argv) {
     sp<MediaFrame> output = imageFrame;
     if (iformat.format != oformat.format) {
         sp<MediaDevice> cc = CreateColorConverter(iformat, oformat, NULL);
-        if (cc.isNIL()) {
+        if (cc.isNil()) {
             ERROR("create color converter failed");
             return 1;
         }
@@ -116,7 +116,7 @@ int main(int argc, char **argv) {
     formats->setInt32(kKeyHeight, oformat.height);
     sp<Message> options = new Message;
     sp<MediaDevice> out = MediaDevice::create(formats, options);
-    if (out.isNIL()) {
+    if (out.isNil()) {
         ERROR("create output device failed.");
         return 1;
     }
@@ -136,7 +136,7 @@ int main(int argc, char **argv) {
             }
         }
         if (loop == false) break;
-        SleepTimeMs(200);
+        Timer().sleep(Time::MilliSeconds(200));
     }
     
     SDL_DestroyWindow(window);

@@ -60,7 +60,7 @@ extern "C" {
 }
 #endif
 
-__USING_NAMESPACE_MPX
+USING_NAMESPACE_MFWK
 
 static SDL_Window * window = NULL;
 static sp<IMediaPlayer> mp;

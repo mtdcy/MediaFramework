@@ -50,7 +50,7 @@
 #error "add support for old version"
 #endif
 
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 
 struct {
     UInt32        a;
@@ -225,7 +225,7 @@ static FORCE_INLINE sp<MediaFrame> unpack(AVFrame * frame, AVCodecContext* avcc)
 
 // map AVFrame to MediaFrame, so we don't have to realloc memory again
 struct AVMediaFrame : public MediaFrame {
-    MediaBuffer     extended_buffers[AV_NUM_DATA_POINTERS-1];   // placeholder
+    MediaBuffer     extended_buffers[AV_NUM_DATA_POINTERS]; // placeholder
     
     AVMediaFrame(AVCodecContext *avcc, AVFrame *frame) : MediaFrame() {
         opaque = av_frame_alloc();
@@ -944,4 +944,4 @@ sp<MediaDevice> CreateLavcDecoder(const sp<Message>& formats, const sp<Message>&
     if (lavc->init(formats, options) == kMediaNoError) return lavc;
     return Nil;
 }
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK

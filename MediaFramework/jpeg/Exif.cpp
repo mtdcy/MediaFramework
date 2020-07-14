@@ -36,7 +36,7 @@
 #define LOG_NDEBUG 0
 #include "Exif.h"
 
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 __BEGIN_NAMESPACE(EXIF)
 
 const Char * ExifTagName(TIFF::eTag tag) {
@@ -271,4 +271,4 @@ void printAttributeInformation(const sp<AttributeInformation>& attr) {
 }
 
 __END_NAMESPACE(EXIF)
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK

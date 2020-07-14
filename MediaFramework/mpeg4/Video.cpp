@@ -40,7 +40,7 @@
 
 #include <math.h>
 
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 __BEGIN_NAMESPACE(MPEG4)
 
 // AnnexB格式通常用于实时的流格式，比如说传输流，通过无线传输的广播、DVD等。
@@ -185,5 +185,5 @@ MediaError NALU::parse(const sp<ABuffer>& data) {
 }
 
 __END_NAMESPACE(MPEG4)
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK
 

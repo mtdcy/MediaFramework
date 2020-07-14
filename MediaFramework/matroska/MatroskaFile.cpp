@@ -48,7 +48,7 @@
 // https://matroska.org/technical/specs/index.html
 // https://matroska.org/files/matroska.pdf
 
-__BEGIN_NAMESPACE_MPX;
+__BEGIN_NAMESPACE_MFWK;
 __USING_NAMESPACE(EBML);
 
 #define IS_ZERO(x)  ((x) < 0.0000001 || -(x) < 0.0000001)
@@ -689,4 +689,4 @@ sp<MediaDevice> CreateMatroskaFile(const sp<ABuffer>& buffer) {
     return Nil;
 }
 
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK

@@ -52,7 +52,7 @@
 // https://matroska.org/technical/specs/index.html
 // https://matroska.org/files/matroska.pdf
 
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 __BEGIN_NAMESPACE(EBML)
 
 static FORCE_INLINE Bool EBMLIsValidID(UInt64 x) {
@@ -777,4 +777,4 @@ Int IsMatroskaFile(const sp<ABuffer>& buffer) {
 }
 
 __END_NAMESPACE(EBML)
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK

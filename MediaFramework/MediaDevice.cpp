@@ -48,7 +48,7 @@
 #define MIN(a, b) (a > b ? b : a)
 #define MASK(n) ((1<<(n))-1)
 
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 
 const static UInt32 kCommonHeadLength = 32;
 const static UInt32 kScanLength = 32 * 1024ll;
@@ -298,4 +298,12 @@ sp<MediaDevice> MediaDevice::create(const sp<Message>& formats, const sp<Message
     return Nil;
 }
 
-__END_NAMESPACE_MPX
+void MediaDevice::onFirstRetain() {
+    
+}
+
+void MediaDevice::onLastRetain() {
+    
+}
+
+__END_NAMESPACE_MFWK

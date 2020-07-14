@@ -26,18 +26,18 @@
  ******************************************************************************/
 
 
-// File:    ASF.h
+// File:    Microsoft.h
 // Author:  mtdcy.chen
 // Changes: 
 //          1. 20160701     initial version
 //
 
-#ifndef _MPX_MEDIA_ASF_H
-#define _MPX_MEDIA_ASF_H
+#ifndef MFWK_MICROSOFT_H
+#define MFWK_MICROSOFT_H
 
 #include "MediaTypes.h"
 
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 __BEGIN_NAMESPACE(Microsoft)
 
 // refer to: https://tools.ietf.org/html/rfc2361
@@ -55,23 +55,23 @@ enum {
 #define WAVEFORMATEX_MAX_LENGTH (40)
 struct WAVEFORMATEX {
     // >> 16 bytes
-    UInt16 wFormat;
-    UInt16 nChannels; 
-    UInt32 nSamplesPerSec; 
-    UInt32 nAvgBytesPerSec; 
-    UInt16 nBlockAlign; 
-    UInt16 wBitsPerSample;
+    UInt16  wFormat;
+    UInt16  nChannels;
+    UInt32  nSamplesPerSec;
+    UInt32  nAvgBytesPerSec;
+    UInt16  nBlockAlign;
+    UInt16  wBitsPerSample;
     // < 16 bytes
-    UInt16 cbSize;
+    UInt16  cbSize;
     // < 18 bytes
     
     union {
-        UInt16 wSamplesPerBlock;
-        UInt16 wReserved;
-        UInt16 wValidBitsPerSample;   // cbSize >= 22
+        UInt16  wSamplesPerBlock;
+        UInt16  wReserved;
+        UInt16  wValidBitsPerSample;   // cbSize >= 22
     };
-    UInt32 dwChannelMask;
-    UInt16 wSubFormat;                // << parse from subFormat GUID(16 bytes)
+    UInt32  dwChannelMask;
+    UInt16  wSubFormat;                // << parse from subFormat GUID(16 bytes)
     // < 40 bytes
     
     WAVEFORMATEX();
@@ -85,17 +85,17 @@ struct WAVEFORMATEX {
 // 1. http://msdn.microsoft.com/en-us/library/dd183376.aspx
 #define BITMAPINFOHEADER_MIN_LENGTH (40)
 struct BITMAPINFOHEADER {
-    UInt32     biSize;
-    UInt32     biWidth;
-    UInt32     biHeight;
-    UInt16     biPlanes;
-    UInt16     biBitCount;
-    UInt32     biCompression;
-    UInt32     biSizeImage;
-    UInt32     biXPelsPerMeter;
-    UInt32     biYPelsPerMeter;
-    UInt32     biClrUsed;
-    UInt32     biClrImportant;
+    UInt32      biSize;
+    UInt32      biWidth;
+    UInt32      biHeight;
+    UInt16      biPlanes;
+    UInt16      biBitCount;
+    UInt32      biCompression;
+    UInt32      biSizeImage;
+    UInt32      biXPelsPerMeter;
+    UInt32      biYPelsPerMeter;
+    UInt32      biClrUsed;
+    UInt32      biClrImportant;
     // 40 bytes
     
     BITMAPINFOHEADER();
@@ -104,6 +104,6 @@ struct BITMAPINFOHEADER {
 };
 
 __END_NAMESPACE(Microsoft)
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK
 
-#endif // _MPX_MEDIA_ASF_H;
+#endif // MFWK_MICROSOFT_H;

@@ -32,13 +32,13 @@
 //          1. 20160701     initial version
 //
 
-#ifndef _MPX_MEDIA_RIFF_H
-#define _MPX_MEDIA_RIFF_H
+#ifndef MFWK_RIFF_H
+#define MFWK_RIFF_H
 
 #include "MediaTypes.h"
 #include "Microsoft.h"
 
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 __BEGIN_NAMESPACE(RIFF)
 
 enum {
@@ -48,9 +48,9 @@ enum {
 
 #define RIFF_CHUNK_MIN_LENGTH (8)
 struct Chunk : public SharedObject {
-    UInt32    ckType;     //
-    UInt32    ckID;       // FourCC
-    UInt32    ckSize;     // little endian, data bytes
+    UInt32      ckType;     //
+    UInt32      ckID;       // FourCC
+    UInt32      ckSize;     // little endian, data bytes
     
     Chunk(UInt32 id, UInt32 size) : ckType(kChunkTypeLeaf), ckID(id), ckSize(size) { }
     Chunk(UInt32 id, UInt32 size, UInt32 type) : ckType(type), ckID(id), ckSize(size) { }
@@ -76,7 +76,7 @@ struct MasterChunk : public Chunk {
 
 #define RIFF_CHUNK_LENGTH   (12)
 struct RIFFChunk : public MasterChunk {
-    UInt32            ckFileType;     // FourCC
+    UInt32  ckFileType;     // FourCC
     
     RIFFChunk(UInt32 size) : MasterChunk(FOURCC('RIFF'), size) { }
     
@@ -107,6 +107,6 @@ struct SKIPChunk : public Chunk {
 };
 
 __END_NAMESPACE(RIFF)
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK
 
-#endif // _MPX_MEDIA_RIFF_H
+#endif // MFWK_RIFF_H

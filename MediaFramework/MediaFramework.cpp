@@ -31,7 +31,7 @@
 
 __BEGIN_DECLS
 
-__USING_NAMESPACE_MPX
+USING_NAMESPACE_MFWK
 
 MediaFrameRef MediaFrameCreate(UInt32 n) {
     sp<MediaFrame> frame = MediaFrame::Create(n);

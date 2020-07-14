@@ -44,7 +44,7 @@
 #include <SDL.h>
 #define NB_SAMPLES  2048    // buffer sample count
 
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 
 /**
  * sdl only support packed/interleaved samples.
@@ -304,4 +304,4 @@ sp<MediaDevice> CreateSDLAudio(const sp<Message>& formats, const sp<Message>& op
         return sdl;
     return Nil;
 }
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK

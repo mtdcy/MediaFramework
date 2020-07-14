@@ -38,8 +38,8 @@
 
 #include "Visual.h"
 
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 namespace MPEG4 {
 
 }
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK

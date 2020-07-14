@@ -32,14 +32,14 @@
 //          1. 20181126     initial version
 //
 
-#ifndef _MEDIA_MODULES_MPEG4_VIDEO_H
-#define _MEDIA_MODULES_MPEG4_VIDEO_H
+#ifndef MFWK_MPEG4_VIDEO_H
+#define MFWK_MPEG4_VIDEO_H
 
 #include <MediaFramework/MediaTypes.h>
 
 // ISO/IEC 14496-10 Advanced Video Coding
 
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 
 namespace MPEG4 {
     // ISO/IEC 14496-10 Section 7.4.1 Table 7.1
@@ -89,11 +89,11 @@ namespace MPEG4 {
     //
     // NALU = HEADER + RBSP(Raw Byte Sequence Payload)
     struct NALU {
-        UInt8         nal_ref_idc;    // 0: non-referenced picture
+        UInt8           nal_ref_idc;    // 0: non-referenced picture
         eNALUnitType    nal_unit_type;
         union {
             struct {
-                UInt32    first_mb_in_slice;
+                UInt32      first_mb_in_slice;
                 eSliceType  slice_type;
                 // ...
             } slice_header;  // SLICE | DPA | IDR
@@ -135,15 +135,15 @@ namespace MPEG4 {
         MediaError compose(sp<ABuffer>&) const;
         UInt32 size() const;
 
-        UInt8     AVCProfileIndication;
-        UInt8     AVCLevelIndication;
-        UInt8     lengthSizeMinusOne;
+        UInt8       AVCProfileIndication;
+        UInt8       AVCLevelIndication;
+        UInt8       lengthSizeMinusOne;
         List<sp<Buffer> >   SPSs;
         List<sp<Buffer> >   PPSs;
     };
 
 }
 
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK
 
-#endif // _MEDIA_MODULES_MPEG4_VIDEO_H
+#endif // MFWK_MPEG4_VIDEO_H

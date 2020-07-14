@@ -37,9 +37,8 @@
 #include "MediaTypes.h"
 
 #include "Systems.h"
-#include "MediaTypes.h"
 
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 __BEGIN_NAMESPACE(MPEG4)
 
 UInt32 translateObjectTypeIndication(eObjectTypeIndication objectTypeIndication) {
@@ -299,5 +298,5 @@ sp<ESDescriptor> ReadESDS(const sp<Buffer>& esds) {
 }
 
 __END_NAMESPACE(MPEG4)
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK
 

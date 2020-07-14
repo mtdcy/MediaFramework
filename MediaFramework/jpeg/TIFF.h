@@ -32,12 +32,12 @@
 //          1. 20160701     initial version
 //
 
-#ifndef _MEDIA_JPEG_TIFF_H
-#define _MEDIA_JPEG_TIFF_H
+#ifndef MFWK_JPEG_TIFF_H
+#define MFWK_JPEG_TIFF_H
 
 #include "JPEG.h"
 
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 
 __BEGIN_NAMESPACE(TIFF)
 
@@ -134,33 +134,33 @@ const Char *    TypeName(eType);
 UInt32          TypeLength(eType);
 
 struct Rational {
-    UInt32    num;
-    UInt32    den;
+    UInt32      num;
+    UInt32      den;
 };
 
 struct SRational {
-    Int32     num;
-    Int32     den;
+    Int32       num;
+    Int32       den;
 };
 
 union EntryData {
-    UInt8     u8;
-    UInt16    u16;
-    UInt32    u32;
-    Int8      s8;
-    Int16     s16;
-    Int32     s32;
+    UInt8       u8;
+    UInt16      u16;
+    UInt32      u32;
+    Int8        s8;
+    Int16       s16;
+    Int32       s32;
     Rational    rat;
     SRational   srat;
-    Float32       flt;
-    Float64      dbl;
+    Float32     f32;
+    Float64     f64;
 };
 
 struct Entry {
     eTag        tag;        ///< @see eTag
     eType       type;       ///< unit type, @see eType
-    UInt32    count;      ///< number of units
-    UInt32    offset;     ///< as the data may be anywhere in the file, so record offset instead read data
+    UInt32      count;      ///< number of units
+    UInt32      offset;     ///< as the data may be anywhere in the file, so record offset instead read data
                             ///< if data < 4-bytes, data is within offset space
     EntryData   value[0];
 };
@@ -177,9 +177,9 @@ struct ImageFileDirectory : public SharedObject {
 
 // 8-byte TIFF image file header
 struct Header : public SharedObject {
-    Char     byteOrder[2];  // "II" or "MM"
-    UInt16 version;       // 0x2a
-    UInt32 offset;        // offset of the first IFD. usally 8
+    Char    byteOrder[2];  // "II" or "MM"
+    UInt16  version;       // 0x2a
+    UInt32  offset;        // offset of the first IFD. usally 8
 };
 
 struct TIFFObject : public SharedObject {
@@ -198,5 +198,5 @@ void printImageFileDirectory(const sp<ImageFileDirectory>&, const Char * (*GetTa
 sp<TIFFObject> openTIFF(const sp<ABuffer>&);
 
 __END_NAMESPACE(TIFF)
-__END_NAMESPACE_MPX
-#endif // _MEDIA_JPEG_TIFF_H
+__END_NAMESPACE_MFWK
+#endif // MFWK_JPEG_TIFF_H

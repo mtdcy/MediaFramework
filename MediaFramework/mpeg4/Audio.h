@@ -32,13 +32,13 @@
 //          1. 20181126     initial version
 //
 
-#ifndef _MEDIA_MODULES_MPEG4_AUDIO_H
-#define _MEDIA_MODULES_MPEG4_AUDIO_H
+#ifndef MFWK_MPEG4_AUDIO_H
+#define MFWK_MPEG4_AUDIO_H
 
 #include "MediaTypes.h"
 #include "Systems.h"
 
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 
 // ISO/IEC 14496-3 Audio
 namespace MPEG4 {
@@ -72,17 +72,17 @@ namespace MPEG4 {
     struct GASpecificConfig {
         GASpecificConfig();
         
-        UInt16    frameLength;    // 960 or 1024
-        UInt16    coreCoderDelay; //
-        UInt8     layerNr;
+        UInt16      frameLength;    // 960 or 1024
+        UInt16      coreCoderDelay; //
+        UInt8       layerNr;
         // extensionFlag
         //
-        UInt8     numOfSubFrame;
-        UInt16    layerLength;
+        UInt8       numOfSubFrame;
+        UInt16      layerLength;
         //
-        UInt8     aacSectionDataResilienceFlag;
-        UInt8     aacScalefactorDataResilienceFlag;
-        UInt8     aacSpectralDataResilienceFlag;
+        UInt8       aacSectionDataResilienceFlag;
+        UInt8       aacScalefactorDataResilienceFlag;
+        UInt8       aacSpectralDataResilienceFlag;
     };
     
     struct CelpSpecificConfig {
@@ -96,14 +96,14 @@ namespace MPEG4 {
         
         Bool                    valid;
         eAudioObjectType        audioObjectType;
-        UInt32                samplingFrequency;
-        UInt8                 channels;
+        UInt32                  samplingFrequency;
+        UInt8                   channels;
         // AOT Specific Config
         // AOT_SBR
         Bool                    sbr;
         eAudioObjectType        extAudioObjectType;
-        UInt32                extSamplingFrquency;
-        UInt8                 extChannels;
+        UInt32                  extSamplingFrquency;
+        UInt8                   extChannels;
         // 
         GASpecificConfig        gasc;
     };
@@ -113,6 +113,6 @@ namespace MPEG4 {
     sp<Buffer> MakeAudioESDS(const sp<ABuffer>&);
 }
 
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK
 
 #endif // 

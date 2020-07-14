@@ -66,7 +66,7 @@ static const Time kJitterTime = Time::MilliSeconds(5); // [-5ms, 5ms]
 //                  <= clock event
 //                  <= looper(external)
 
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 
 struct MediaRenderer : public IMediaSession {
     enum eState {
@@ -598,4 +598,4 @@ struct MediaRenderer : public IMediaSession {
 sp<IMediaSession> CreateMediaRenderer(const sp<Looper>& lp) {
     return new MediaRenderer(lp);
 }
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK

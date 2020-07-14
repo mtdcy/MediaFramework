@@ -38,7 +38,7 @@
 #include "MediaClock.h"
 
 
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 
 SharedClock::ClockInt::ClockInt() :
     mMediaTime(0LL), mSystemTime(0LL),
@@ -49,6 +49,14 @@ SharedClock::ClockInt::ClockInt() :
 SharedClock::SharedClock() : SharedObject(),
     mGeneration(0), mMasterClock(0), mClockInt()
 {
+}
+
+void SharedClock::onFirstRetain() {
+    
+}
+
+void SharedClock::onLastRetain() {
+    
 }
 
 void SharedClock::start() {
@@ -168,7 +176,11 @@ Clock::Clock(const sp<SharedClock>& sc, eClockRole role) :
     reload();
 }
 
-Clock::~Clock() {
+void Clock::onFirstRetain() {
+    
+}
+
+void Clock::onLastRetain() {
     if (mRole == kClockRoleMaster) {
         mClock->mMasterClock -= 1;
     }
@@ -261,4 +273,4 @@ Time Clock::get() const {
     return getInt() * mClockInt.mSpeed;
 }
 
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK

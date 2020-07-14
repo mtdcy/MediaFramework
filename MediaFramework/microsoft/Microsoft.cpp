@@ -26,7 +26,7 @@
  ******************************************************************************/
 
 
-// File:    Asf.cpp
+// File:    Microsoft.cpp
 // Author:  mtdcy.chen
 // Changes:
 //          1. 20160701     initial version
@@ -37,7 +37,7 @@
 
 #include "Microsoft.h"
 
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 __BEGIN_NAMESPACE(Microsoft)
 
 static UInt8 subformat_base_guid[12] = {
@@ -201,4 +201,4 @@ MediaError BITMAPINFOHEADER::parse(const sp<ABuffer>& buffer) {
 }
 
 __END_NAMESPACE(Microsoft)
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK

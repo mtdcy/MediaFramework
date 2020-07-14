@@ -26,7 +26,7 @@
  ******************************************************************************/
 
 
-// File:    mpx.cpp
+// File:    MediaPlayer.cpp
 // Author:  mtdcy.chen
 // Changes:
 //          1. 20181126     initial version
@@ -39,7 +39,7 @@
 #include "MediaSession.h"
 #include "MediaClock.h"
 
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 
 IMediaPlayer::IMediaPlayer(const sp<Looper>& lp) : mDispatch(new DispatchQueue(lp)), mClock(new SharedClock)
 {
@@ -132,4 +132,4 @@ sp<IMediaPlayer> IMediaPlayer::Create(const sp<Message>& media, const sp<Message
     return player;
 }
 
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK

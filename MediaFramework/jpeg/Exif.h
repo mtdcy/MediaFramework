@@ -32,13 +32,13 @@
 //          1. 20160701     initial version
 //
 
-#ifndef _MEDIA_JPEG_EXIF_H
-#define _MEDIA_JPEG_EXIF_H
+#ifndef MFWK_JPEG_EXIF_H
+#define MFWK_JPEG_EXIF_H
 
 #include "JPEG.h"
 #include "TIFF.h"
 
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 __BEGIN_NAMESPACE(EXIF)
 
 /**
@@ -396,6 +396,6 @@ sp<FlashpixExtension> readFlashpixExtension(const sp<ABuffer>&);
 void printAttributeInformation(const sp<AttributeInformation>&);
 
 __END_NAMESPACE(EXIF)
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK
 
-#endif // _MEDIA_JPEG_EXIF_H
+#endif // MFWK_JPEG_EXIF_H

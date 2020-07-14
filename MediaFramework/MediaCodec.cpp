@@ -39,7 +39,7 @@
 
 #define MIN_PACKETS     (2)
 
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 
 // onPacketReady ----- MediaFrame ----> DecodeSession
 //      ^                                   |
@@ -354,4 +354,4 @@ sp<IMediaSession> CreateMediaCodec(const sp<Looper>& lp) {
     return codec;
 }
 
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK

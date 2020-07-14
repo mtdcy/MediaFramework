@@ -53,7 +53,7 @@
 // https://www.objc.io/issues/23-video/videotoolbox/
 // http://www.enkichen.com/2018/03/24/videotoolbox/?utm_source=tuicool&utm_medium=referral
 
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 
 struct {
     eVideoCodec         a;
@@ -116,7 +116,7 @@ static FORCE_INLINE OSType get_cv_pix_format(ePixelFormat a) {
 
 // for store unorderred image buffers and sort them
 struct VTMediaFrame : public MediaFrame {
-    MediaBuffer     extended_buffers[3];    // placeholder
+    MediaBuffer     extended_buffers[4];    // placeholder
     
     FORCE_INLINE VTMediaFrame(CVPixelBufferRef pixbuf, const MediaTime& pts, const MediaTime& _duration) : MediaFrame() {
         planes.buffers[0].data  = Nil;

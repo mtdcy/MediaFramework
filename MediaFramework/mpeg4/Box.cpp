@@ -44,7 +44,7 @@
 #define DEBUGV(fmt, ...) do {} while(0)
 #endif
 
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 __BEGIN_NAMESPACE(MPEG4)
 
 static FORCE_INLINE const Char * BOXNAME(UInt32 x) {
@@ -1303,4 +1303,4 @@ void PrintBox(const sp<Box>& root) {
 }
 
 __END_NAMESPACE(MPEG4)
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK

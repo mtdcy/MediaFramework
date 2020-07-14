@@ -49,13 +49,13 @@
 // http://atomicparsley.sourceforge.net/mpeg-4files.html
 // http://www.mp4ra.org/atoms.html
 
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 
 using namespace MPEG4;
 
 struct {
-    const UInt32      type;
-    const UInt32      format;
+    const UInt32        type;
+    const UInt32        format;
 } kCodecMap[] = {
     {kBoxTypeMP4A,      kAudioCodecAAC     },
     {kBoxTypeAVC1,      kVideoCodecH264    },
@@ -91,11 +91,11 @@ static MediaError prepareMetaData(const sp<Box>& meta, const sp<Message>& target
 }
 
 struct Sample {
-    UInt64            offset;
+    UInt64              offset;
     UInt32              size;   // in bytes
-    Int64             dts;
-    Int64             pts;
-    UInt32            flags;
+    Int64               dts;
+    Int64               pts;
+    UInt32              flags;
 };
 
 struct Mp4Track : public SharedObject {
@@ -104,27 +104,27 @@ struct Mp4Track : public SharedObject {
 
     Bool                enabled;    // enabled by default
     eCodecType          type;
-    UInt32            codec;  // eAudioCodec|eVideoCodec
+    UInt32              codec;  // eAudioCodec|eVideoCodec
     MediaTime           duration;
     UInt32              sampleIndex;
     UInt32              startIndex;
     Vector<Sample>      sampleTable;
-    Int32             bitReate;
+    Int32               bitReate;
 
     union {
         struct {
-            Int32     width;
-            Int32     height;
+            Int32       width;
+            Int32       height;
         } video;
         struct {
-            Int32     sampleRate;
-            Int32     channelCount;
+            Int32       sampleRate;
+            Int32       channelCount;
         } audio;
     };
     sp<CommonBox>       esds;
     
     union {
-        UInt8         lengthSizeMinusOne;     // for h264, @see AVCDecoderConfigurationRecord.lengthSizeMinusOne
+        UInt8           lengthSizeMinusOne;     // for h264, @see AVCDecoderConfigurationRecord.lengthSizeMinusOne
     };
     
     // statistics
@@ -759,4 +759,4 @@ Int IsMp4File(const sp<ABuffer>& buffer) {
     return score > 100 ? 100 : score;
 }
 
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK

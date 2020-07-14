@@ -39,7 +39,7 @@
 // JPEG, image/jpeg, ISO 10918-1,
 #include <stdio.h>
 
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 __BEGIN_NAMESPACE(JPEG)
 
 sp<FrameHeader> readFrameHeader(const sp<ABuffer>& buffer, UInt32 length) {
@@ -264,4 +264,4 @@ sp<MediaFrame> decodeJIFObject(const sp<JIFObject>& jif) {
 
 __END_NAMESPACE(JPEG)
 
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK

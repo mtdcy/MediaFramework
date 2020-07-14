@@ -32,13 +32,13 @@
 //          1. 20181120     initial version
 //
 
-#ifndef _MEDIA_MODULE_MP4_BOX_H
-#define _MEDIA_MODULE_MP4_BOX_H
+#ifndef MFWK_MPEG4_BOX_H
+#define MFWK_MPEG4_BOX_H
 
 #include "MediaTypes.h"
 #include "mpeg4/Systems.h"
 
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 __BEGIN_NAMESPACE(MPEG4)
 
 // mp4 read & write in big endian, so no FOURCC macro
@@ -176,10 +176,10 @@ enum {
 struct FileTypeBox;
 struct Box : public SharedObject {
     const String    Name;   // for debugging
-    const UInt32  Type;
-    const UInt8   Class;
-    UInt8         Version;
-    UInt32        Flags;
+    const UInt32    Type;
+    const UInt8     Class;
+    UInt8           Version;
+    UInt32          Flags;
     
     Box(UInt32 type, UInt8 cls = 0);
     FORCE_INLINE virtual ~Box() { }
@@ -192,9 +192,9 @@ struct Box : public SharedObject {
 // http://www.ftyps.com
 // ftyp *
 struct FileTypeBox : public Box {
-    UInt32            major_brand;
-    UInt32            minor_version;
-    Vector<UInt32>    compatibles;
+    UInt32              major_brand;
+    UInt32              minor_version;
+    Vector<UInt32>      compatibles;
     
     // default value.
     FORCE_INLINE FileTypeBox() : Box(kBoxTypeFTYP),
@@ -312,13 +312,13 @@ struct MetaBox : public ContainerBox {
 };
 
 struct MovieHeaderBox : public FullBox {
-    UInt64    creation_time;
-    UInt64    modification_time;
-    UInt32    timescale;
-    UInt64    duration;
-    UInt32    rate;
-    UInt16    volume;
-    UInt32    next_track_ID;
+    UInt64      creation_time;
+    UInt64      modification_time;
+    UInt32      timescale;
+    UInt64      duration;
+    UInt32      rate;
+    UInt16      volume;
+    UInt32      next_track_ID;
     
     FORCE_INLINE MovieHeaderBox() : FullBox(kBoxTypeMVHD) { }
     MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
@@ -373,10 +373,10 @@ BOX_TYPE(kBoxTypeSYNC, TrackReferenceSyncBox, TrackReferenceTypeBox);
 BOX_TYPE(kBoxTypeCHAP, TrackReferenceChapBox, TrackReferenceTypeBox);
 
 struct MediaHeaderBox : public FullBox {
-    UInt64            creation_time;
-    UInt64            modification_time;
-    UInt32            timescale;
-    UInt64            duration;
+    UInt64              creation_time;
+    UInt64              modification_time;
+    UInt32              timescale;
+    UInt64              duration;
     String              language;
     
     FORCE_INLINE MediaHeaderBox() : FullBox(kBoxTypeMDHD) { }
@@ -394,8 +394,8 @@ struct HandlerBox : public FullBox {
 };
 
 struct VideoMediaHeaderBox : public FullBox {
-    UInt16            graphicsmode;
-    Vector<UInt16>    opcolor;
+    UInt16              graphicsmode;
+    Vector<UInt16>      opcolor;
     
     FORCE_INLINE VideoMediaHeaderBox() : FullBox(kBoxTypeVMHD) { }
     MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
@@ -403,7 +403,7 @@ struct VideoMediaHeaderBox : public FullBox {
 };
 
 struct SoundMediaHeaderBox : public FullBox {
-    UInt16            balance;
+    UInt16              balance;
 
     FORCE_INLINE SoundMediaHeaderBox() : FullBox(kBoxTypeSMHD) { }
     MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
@@ -411,10 +411,10 @@ struct SoundMediaHeaderBox : public FullBox {
 };
 
 struct HintMediaHeaderBox : public FullBox {
-    UInt16            maxPDUsize;
-    UInt16            avgPDUsize;
-    UInt32            maxbitrate;
-    UInt32            avgbitrate;
+    UInt16              maxPDUsize;
+    UInt16              avgPDUsize;
+    UInt32              maxbitrate;
+    UInt32              avgbitrate;
     
     FORCE_INLINE HintMediaHeaderBox() : FullBox(kBoxTypeHMHD) { }
     MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
@@ -442,8 +442,8 @@ struct DataEntryUrnBox : public FullBox {
 
 struct TimeToSampleBox : public FullBox {
     struct Entry {
-        UInt32        sample_count;
-        UInt32        sample_delta;
+        UInt32          sample_count;
+        UInt32          sample_delta;
     };
     Vector<Entry>       entries;
     
@@ -454,8 +454,8 @@ struct TimeToSampleBox : public FullBox {
 
 struct CompositionOffsetBox : public FullBox {
     struct Entry {
-        UInt32        sample_count;
-        Int32         sample_offset;
+        UInt32          sample_count;
+        Int32           sample_offset;
     };
     Vector<Entry>       entries;
     
@@ -465,11 +465,11 @@ struct CompositionOffsetBox : public FullBox {
 };
 
 struct CompositionToDecodeBox : public FullBox {
-    Int64             compositionToDTSShift;
-    Int64             leastDecodeToDisplayDelta;
-    Int64             greatestDecodeToDisplayDelta;
-    Int64             compositionStartTime;
-    Int64             compositionEndTime;
+    Int64               compositionToDTSShift;
+    Int64               leastDecodeToDisplayDelta;
+    Int64               greatestDecodeToDisplayDelta;
+    Int64               compositionStartTime;
+    Int64               compositionEndTime;
     
     FORCE_INLINE CompositionToDecodeBox() : FullBox(kBoxTypeCSLG) { }
     MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
@@ -492,29 +492,29 @@ enum {
 
 struct SampleEntry : public ContainerBox {
     // TODO: parse different sample entry in sub class
-    UInt32            media_type;
-    UInt16            data_reference_index;
+    UInt32              media_type;
+    UInt16              data_reference_index;
     union {
         struct {
-            UInt16    width;
-            UInt16    height;
-            UInt32    horizresolution;
-            UInt32    vertresolution;
-            UInt16    frame_count;
-            UInt16    depth;
+            UInt16      width;
+            UInt16      height;
+            UInt32      horizresolution;
+            UInt32      vertresolution;
+            UInt16      frame_count;
+            UInt16      depth;
         } visual;
         struct {
             Bool        mov;            // is mov or isom
-            UInt16    version;        // mov 0 & 1
-            UInt16    channelcount;
-            UInt16    samplesize;
-            UInt32    samplerate;
-            Int16     compressionID;  // mov 1
-            UInt16    packetsize;     // mov 1
-            UInt32    samplesPerPacket;   // mov 1
-            UInt32    bytesPerPacket;     // mov 1
-            UInt32    bytesPerFrame;      // mov 1
-            UInt32    bytesPerSample;     // mov 1
+            UInt16      version;        // mov 0 & 1
+            UInt16      channelcount;
+            UInt16      samplesize;
+            UInt32      samplerate;
+            Int16       compressionID;  // mov 1
+            UInt16      packetsize;     // mov 1
+            UInt32      samplesPerPacket;   // mov 1
+            UInt32      bytesPerPacket;     // mov 1
+            UInt32      bytesPerFrame;      // mov 1
+            UInt32      bytesPerSample;     // mov 1
         } sound;
     };
     // non-trivial
@@ -564,7 +564,7 @@ struct MpegSampleEntry : public SampleEntry {
 };
 
 struct SampleGroupEntry : public SharedObject {
-    UInt32        grouping_type;
+    UInt32          grouping_type;
     FORCE_INLINE SampleGroupEntry(UInt32 type) : grouping_type(type) { }
     FORCE_INLINE virtual ~SampleGroupEntry() { }
     virtual MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&) = 0;
@@ -617,15 +617,15 @@ BOX_TYPE(kBoxTypeDAMR, AMRSpecificBox,                CommonBox);
 // 'roll' - AudioRollRecoveryEntry
 // 'prol' - AudioPreRollEntry
 struct RollRecoveryEntry : public SampleGroupEntry {
-    UInt16        roll_distance;
+    UInt16          roll_distance;
     FORCE_INLINE RollRecoveryEntry(UInt32 type) : SampleGroupEntry(type) { }
     virtual MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
 };
 
 struct SampleGroupDescriptionBox : public FullBox {
-    UInt32    grouping_type;
-    UInt32    default_length;     // version 1
-    UInt32    default_sample_description_index; // version 2
+    UInt32      grouping_type;
+    UInt32      default_length;     // version 1
+    UInt32      default_sample_description_index; // version 2
     Vector<sp<SampleGroupEntry> > entries;
     
     FORCE_INLINE SampleGroupDescriptionBox() : FullBox(kBoxTypeSGPD) { }
@@ -687,10 +687,10 @@ enum {
 };
 
 struct ColourInformationBox : public Box {
-    UInt32    colour_type;
-    UInt16    colour_primaries;
-    UInt16    transfer_characteristics;
-    UInt16    matrix_coefficients;
+    UInt32      colour_type;
+    UInt16      colour_primaries;
+    UInt16      transfer_characteristics;
+    UInt16      matrix_coefficients;
     Bool        full_range_flag;
     
     FORCE_INLINE ColourInformationBox() : Box(kBoxTypeCOLR) { }
@@ -699,9 +699,9 @@ struct ColourInformationBox : public Box {
 };
 
 struct BitRateBox : public Box {
-    UInt32        bufferSizeDB;
-    UInt32        maxBitrate;
-    UInt32        avgBitrate;
+    UInt32      bufferSizeDB;
+    UInt32      maxBitrate;
+    UInt32      avgBitrate;
     
     FORCE_INLINE BitRateBox() : Box(kBoxTypeBTRT) { }
     MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
@@ -710,8 +710,8 @@ struct BitRateBox : public Box {
 
 // unified SampleSizeBox & CompactSampleSizeBox
 struct SampleSizeBox : public FullBox {
-    UInt32            sample_size;
-    Vector<UInt64>    entries;
+    UInt32              sample_size;
+    Vector<UInt64>      entries;
     
     FORCE_INLINE SampleSizeBox(UInt32 type) : FullBox(type) { }
     MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
@@ -722,9 +722,9 @@ BOX_TYPE(kBoxTypeSTZ2, CompactSampleSizeBox, SampleSizeBox);
 
 struct SampleToChunkBox : public FullBox {
     struct Entry {
-        UInt32        first_chunk;
-        UInt32        samples_per_chunk;
-        UInt32        sample_description_index;
+        UInt32          first_chunk;
+        UInt32          samples_per_chunk;
+        UInt32          sample_description_index;
     };
     Vector<Entry>       entries;
     
@@ -734,7 +734,7 @@ struct SampleToChunkBox : public FullBox {
 };
 
 struct ChunkOffsetBox : public FullBox {
-    Vector<UInt64>    entries;
+    Vector<UInt64>      entries;
 
     FORCE_INLINE ChunkOffsetBox(UInt32 type) : FullBox(type) { }
     MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
@@ -744,7 +744,7 @@ BOX_TYPE(kBoxTypeSTCO, PreferredChunkOffsetBox, ChunkOffsetBox);
 BOX_TYPE(kBoxTypeCO64, LargeChunkOffsetBox, ChunkOffsetBox);
 
 struct SyncSampleBox : public FullBox {
-    Vector<UInt32>    entries;
+    Vector<UInt32>      entries;
 
     FORCE_INLINE SyncSampleBox() : FullBox(kBoxTypeSTSS) { }
     MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
@@ -753,8 +753,8 @@ struct SyncSampleBox : public FullBox {
 
 struct ShadowSyncSampleBox : public FullBox {
     struct Entry {
-        UInt32        shadowed_sample_number;
-        UInt32        sync_sample_number;
+        UInt32          shadowed_sample_number;
+        UInt32          sync_sample_number;
     };
     Vector<Entry>       entries;
     
@@ -764,7 +764,7 @@ struct ShadowSyncSampleBox : public FullBox {
 };
 
 struct DegradationPriorityBox : public FullBox {
-    Vector<UInt16>    entries;
+    Vector<UInt16>      entries;
 
     FORCE_INLINE DegradationPriorityBox() : FullBox(kBoxTypeSTDP) { }
     MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
@@ -773,8 +773,8 @@ struct DegradationPriorityBox : public FullBox {
 
 struct PaddingBitsBox : public FullBox {
     struct Entry {
-        UInt8     pad1;
-        UInt8     pad2;
+        UInt8       pad1;
+        UInt8       pad2;
     };
     Vector<Entry>   entries;
     
@@ -793,10 +793,10 @@ BOX_TYPE(kBoxTypeSKIP, SkipBox, FreeSpaceBox);
 
 struct EditListBox : public FullBox {
     struct Entry {
-        UInt64        segment_duration;
-        Int64         media_time;
-        UInt16        media_rate_integer;
-        UInt16        media_rate_fraction;
+        UInt64          segment_duration;
+        Int64           media_time;
+        UInt16          media_rate_integer;
+        UInt16          media_rate_fraction;
     };
     Vector<Entry>       entries;
     
@@ -844,11 +844,11 @@ struct MovieExtendsHeaderBox : public FullBox {
 };
 
 struct TrackExtendsBox : public FullBox {
-    UInt32    track_ID;
-    UInt32    default_sample_description_index;
-    UInt32    default_sample_duration;
-    UInt32    default_sample_size;
-    UInt32    default_sample_flags;
+    UInt32      track_ID;
+    UInt32      default_sample_description_index;
+    UInt32      default_sample_duration;
+    UInt32      default_sample_size;
+    UInt32      default_sample_flags;
     
     FORCE_INLINE TrackExtendsBox() : FullBox(kBoxTypeTREX) { }
     MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
@@ -856,7 +856,7 @@ struct TrackExtendsBox : public FullBox {
 };
 
 struct MovieFragmentHeaderBox : public FullBox {
-    UInt32    sequence_number;
+    UInt32      sequence_number;
 
     FORCE_INLINE MovieFragmentHeaderBox() : FullBox(kBoxTypeMFHD) { }
     MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
@@ -864,12 +864,12 @@ struct MovieFragmentHeaderBox : public FullBox {
 };
 
 struct TrackFragmentHeaderBox : public FullBox {
-    UInt32    track_ID;
-    UInt64    base_data_offset;
-    UInt32    sample_description_index;
-    UInt32    default_sample_duration;
-    UInt32    default_sample_size;
-    UInt32    default_sample_flags;
+    UInt32      track_ID;
+    UInt64      base_data_offset;
+    UInt32      sample_description_index;
+    UInt32      default_sample_duration;
+    UInt32      default_sample_size;
+    UInt32      default_sample_flags;
     
     FORCE_INLINE TrackFragmentHeaderBox() : FullBox(kBoxTypeTFHD) { }
     MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
@@ -877,7 +877,7 @@ struct TrackFragmentHeaderBox : public FullBox {
 };
 
 struct PrimaryItemBox : public FullBox {
-    UInt16        item_ID;
+    UInt16      item_ID;
 
     FORCE_INLINE PrimaryItemBox() : FullBox(kBoxTypePITM) { }
     MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
@@ -933,7 +933,7 @@ enum {
 
 // mhdr
 struct iTunesHeaderBox : public FullBox {
-    UInt32        nextItemID;
+    UInt32          nextItemID;
 
     FORCE_INLINE iTunesHeaderBox() : FullBox(kiTunesBoxTypeMHDR) { }
     MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
@@ -972,7 +972,7 @@ BOX_TYPE(kiTunesBoxTypeMDTA, iTunesMediaDataBox, iTunesStringBox);
 BOX_TYPE(kiTunesBoxTypeILST, iTunesItemListBox, ContainerBox);
 #else
 struct iTunesItemListBox : public ContainerBox {
-    Vector<UInt32>        key_index;
+    Vector<UInt32>  key_index;
 
     FORCE_INLINE iTunesItemListBox() : ContainerBox(kiTunesBoxTypeILST) { }
     MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
@@ -982,9 +982,9 @@ struct iTunesItemListBox : public ContainerBox {
 
 // 'data'
 struct iTunesDataBox : public Box {
-    UInt32        Type_indicator;
-    UInt16        Country_indicator;      // ISO 3166
-    UInt16        Language_indicator;     // index or ISO 639-2/T
+    UInt32          Type_indicator;
+    UInt16          Country_indicator;      // ISO 3166
+    UInt16          Language_indicator;     // index or ISO 639-2/T
     sp<Buffer>      Value;
     
     FORCE_INLINE iTunesDataBox() : Box(kiTunesBoxTypeDATA) { }
@@ -995,9 +995,9 @@ struct iTunesDataBox : public Box {
 // ctry
 struct CountryListBox : public FullBox {
     struct Entry {
-        Vector<UInt16>    Countries;
+        Vector<UInt16>  Countries;
     };
-    Vector<Entry>   entries;
+    Vector<Entry>       entries;
     
     FORCE_INLINE CountryListBox() : FullBox(kiTunesBoxTypeCTRY) { }
     MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
@@ -1007,7 +1007,7 @@ struct CountryListBox : public FullBox {
 // lang
 struct LanguageListBox : public FullBox {
     struct Entry {
-        Vector<UInt16>    Languages;
+        Vector<UInt16>      Languages;
     };
     Vector<Entry>           entries;
     
@@ -1031,7 +1031,7 @@ BOX_TYPE(kiTunesBoxTypeBPM, iTunesBPMItemBox, ContainerBox);
 BOX_TYPE(kiTunesBoxTypeGaplessPlayback, iTunesGaplessPlaybackBox, ContainerBox);
 
 struct iTunesInfomationBox : public FullBox {
-    UInt32        Item_ID;
+    UInt32          Item_ID;
 
     FORCE_INLINE iTunesInfomationBox() : FullBox(kiTunesBoxTypeInfomation) { }
     MediaError parse(const sp<ABuffer>& buffer, const sp<FileTypeBox>&);
@@ -1055,7 +1055,7 @@ struct iTunesMeanBox : public Box {
 };
 
 struct iTunesKeyDecBox : public Box {
-    UInt32        Keytypespace;
+    UInt32          Keytypespace;
     sp<Buffer>      Key_value;
     
     FORCE_INLINE iTunesKeyDecBox() : Box(kiTunesBoxTypeKeyDec) { }
@@ -1089,8 +1089,8 @@ sp<Box> MakeBoxByType(UInt32);
 // 'mdat' box is very big, NEVER parse/compose directly
 struct MediaDataBox : public Box {
     // remember 'mdat' box offset & length
-    Int64     offset;     // the offset of first child box
-    Int64     length;     // total bytes in 'mdat' box, except box head
+    Int64       offset;     // the offset of first child box
+    Int64       length;     // total bytes in 'mdat' box, except box head
     MediaDataBox() : Box(kBoxTypeMDAT) { }
 };
 sp<Box> ReadBox(const sp<ABuffer>&, const sp<FileTypeBox>& = Nil);
@@ -1103,7 +1103,7 @@ sp<Box> FindBoxInside(const sp<ContainerBox>& root, UInt32 sub, UInt32 target);
 void PrintBox(const sp<Box>& root);
 
 __END_NAMESPACE(MPEG4)
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK
 
 #endif
 

@@ -32,14 +32,14 @@
 //          1. 20160701     initial version
 //
 
-#ifndef _MEDIA_JPEG_JFIF_H
-#define _MEDIA_JPEG_JFIF_H
+#ifndef MFWK_JPEG_JFIF_H
+#define MFWK_JPEG_JFIF_H
 
 #include "MediaTypes.h"
 #include "JPEG.h"
 #include "Exif.h"
 
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 __BEGIN_NAMESPACE(JFIF)
 
 /**
@@ -54,12 +54,12 @@ __BEGIN_NAMESPACE(JFIF)
 struct AppHeader : public SharedObject {
     // APP0 : UInt16
     // length : UInt16
-    UInt16    version;
-    UInt8     units;      // 0: no units; 1: dots per inch; 2: dots per cm
-    UInt16    x;          // horizontal pixel density
-    UInt16    y;          // vertical pixel density
-    UInt8     width0;     // thumbnail horizontal pixel count [optional]
-    UInt8     height0;    // thumbnail vertical pixel count [optional]
+    UInt16      version;
+    UInt8       units;      // 0: no units; 1: dots per inch; 2: dots per cm
+    UInt16      x;          // horizontal pixel density
+    UInt16      y;          // vertical pixel density
+    UInt8       width0;     // thumbnail horizontal pixel count [optional]
+    UInt8       height0;    // thumbnail vertical pixel count [optional]
     sp<Buffer>  thunmbnail; // packed RGB thumbnail [optional]
     
     // "JFXX\0": thumbnail coded using JPEG
@@ -92,6 +92,6 @@ sp<JFIFObject> openJFIF(const sp<ABuffer>&);
 
 void printJFIFObject(const sp<JFIFObject>&);
 
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK
 
-#endif // _MEDIA_JPEG_JFIF_H
+#endif // MFWK_JPEG_JFIF_H

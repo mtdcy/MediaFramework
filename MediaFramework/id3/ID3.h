@@ -32,12 +32,12 @@
 //          1. 20160701     initial version
 //
 
-#ifndef _MEDIA_MODULES_ID3_H
-#define _MEDIA_MODULES_ID3_H
+#ifndef MFWK_ID3_H
+#define MFWK_ID3_H
 
 #include "MediaTypes.h"
 
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 __BEGIN_NAMESPACE(ID3)
 
 #define ID3V2_HEADER_LENGTH     (10)
@@ -55,7 +55,7 @@ sp<Message> ReadID3v2(const sp<ABuffer>&);
 sp<Message> ReadID3v1(const sp<ABuffer>&);
 
 __END_NAMESPACE(ID3)
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK
 
-#endif // _MEDIA_MODULES_ID3_H
+#endif // MFWK_ID3_H
 

@@ -32,12 +32,12 @@
 //          1. 20160701     initial version
 //
 
-#ifndef __MATROSKA_EBML_H
-#define __MATROSKA_EBML_H
+#ifndef MFWK_EBML_H
+#define MFWK_EBML_H
 
 #include <MediaFramework/MediaTypes.h>
 
-__BEGIN_NAMESPACE_MPX
+__BEGIN_NAMESPACE_MFWK
 __BEGIN_NAMESPACE(EBML)
 
 #define ID_VOID                 0xEC
@@ -251,10 +251,10 @@ struct EBMLInteger {
     EBMLInteger(UInt64 x);
 
     union {
-        UInt8         u8;
-        UInt16        u16;
-        UInt32        u32;
-        UInt64        u64;
+        UInt8           u8;
+        UInt16          u16;
+        UInt32          u32;
+        UInt64          u64;
     };
     UInt32              length;
 };
@@ -264,10 +264,10 @@ struct EBMLSignedInteger {
     EBMLSignedInteger(Int64 x);
 
     union {
-        Int8          i8;
-        Int16         i16;
-        Int32         i32;
-        Int64         i64;
+        Int8            i8;
+        Int16           i16;
+        Int32           i32;
+        Int64           i64;
     };
     UInt32              length;
 };
@@ -376,8 +376,8 @@ enum eBlockFlags {
 
 struct EBMLSimpleBlockElement : public EBMLElement {
     EBMLInteger         TrackNumber;
-    Int16             TimeCode;
-    UInt8             Flags;
+    Int16               TimeCode;
+    UInt8               Flags;
     List<sp<Buffer> >   data;
 
     FORCE_INLINE EBMLSimpleBlockElement(const Char *name, const EBMLInteger& id, EBMLInteger& size) :
@@ -409,7 +409,7 @@ API_EXPORT sp<EBMLElement> ReadEBMLElement(const sp<ABuffer>&, UInt32 flags = 0)
 Int IsMatroskaFile(const sp<ABuffer>&);
 
 __END_NAMESPACE(EBML)
-__END_NAMESPACE_MPX
+__END_NAMESPACE_MFWK
 
-#endif // __MATROSKA_EBML_H
+#endif // MFWK_EBML_H
 
