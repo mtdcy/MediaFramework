@@ -40,7 +40,7 @@
 #pragma mark Version
 
 #define MFWK_MAJOR  (2)
-#define MFWK_MINOR  (0)
+#define MFWK_MINOR  (1)
 #define MFWK_PATCH  (0)
 
 #define MFWK_VERSION    ABE_VERSION_INT(MFWK_MAJOR, MFWK_MINOR, MFWK_PATCH)
