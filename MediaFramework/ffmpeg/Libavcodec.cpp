@@ -236,6 +236,7 @@ struct AVMediaFrame : public MediaFrame {
             audio.channels      = frame->channels;
             audio.freq          = frame->sample_rate;
             audio.samples       = frame->nb_samples;
+            planes.count        = frame->channels;
             if (av_sample_fmt_is_planar((AVSampleFormat)frame->format)) {
                 for (UInt32 i = 0; i < frame->channels; ++i) {
                     planes.buffers[i].data  = frame->data[i];

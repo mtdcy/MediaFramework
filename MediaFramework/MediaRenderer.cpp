@@ -209,6 +209,11 @@ struct MediaRenderer : public IMediaSession {
                     audio.channels != mAudio.channels ||
                     audio.freq != mAudio.freq) {
                     mAudioConverter = CreateAudioConverter(mAudio, audio, Nil);
+                    if (mAudioConverter.isNil()) {
+                        ERROR("create audio converter failed");
+                        notify(kSessionInfoError, Nil);
+                        return;
+                    }
                 }
             } else {
                 FATAL("FIXME");
@@ -370,10 +375,18 @@ struct MediaRenderer : public IMediaSession {
             requestFrame();
         } else {
             if (!mAudioConverter.isNil()) {
-                mAudioConverter->push(frame);
-                mOutputQueue.push(mAudioConverter->pull());
-            } else
-            mOutputQueue.push(frame);
+                MediaError st = mAudioConverter->push(frame);
+                sp<MediaFrame> ready = mAudioConverter->pull();
+                if (st != kMediaNoError || ready.isNil()) {
+                    ERROR("convert frame failed");
+                    notify(kSessionInfoError, Nil);
+                    mDispatch->remove(mRenderJob);
+                    return;
+                }
+                mOutputQueue.push(ready);
+            } else {
+                mOutputQueue.push(frame);
+            }
 
             // prepare done ?
             if (mState == kStatePrepare || mState == kStatePrepareInt) {

@@ -457,6 +457,7 @@ static MediaError planarization_init(MediaUnitContext ref, const MediaFormat * i
     sp<DownmixContext> planarization = static_cast<DownmixContext *>(ref);
     if (iformat->audio.channels != oformat->audio.channels ||
         iformat->audio.freq != oformat->audio.freq) {
+        ERROR("bad input/output format");
         return kMediaErrorBadParameters;
     }
     
@@ -465,8 +466,8 @@ static MediaError planarization_init(MediaUnitContext ref, const MediaFormat * i
     planarization->iDesc    = GetSampleFormatDescriptor(iformat->format);
     planarization->oDesc    = GetSampleFormatDescriptor(oformat->format);
     // packed <-> planar
-    if (planarization->iDesc->format != planarization->oDesc->similar ||
-        planarization->iDesc->planar == planarization->oDesc->planar) {
+    if (planarization->iDesc->planar == planarization->oDesc->planar) {
+        ERROR("bad input/output format");
         return kMediaErrorBadParameters;
     }
     return kMediaNoError;
@@ -502,11 +503,13 @@ static MediaError interleave_process(MediaUnitContext ref, const MediaBufferList
     sp<DownmixContext> interleave = static_cast<DownmixContext *>(ref);
     if (interleave->iFormat.channels != input->count ||
         output->count != 1) {
+        ERROR("bad input/output buffer");
         return kMediaErrorBadParameters;
     }
     
     const UInt32 samples = input->buffers[0].size / sizeof(FROM);
     if (output->buffers[0].capacity < samples * interleave->oFormat.channels * sizeof(TO)) {
+        ERROR("bad output buffer capacity");
         return kMediaErrorBadParameters;
     }
     
