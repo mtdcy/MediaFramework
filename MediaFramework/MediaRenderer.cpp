@@ -105,11 +105,11 @@ struct MediaRenderer : public IMediaSession {
     
     // converter
     union {
-        Int32             mFormat;
+        Int32               mFormat;
         AudioFormat         mAudio;
         ImageFormat         mImage;
     };
-    sp<MediaDevice>         mAudioConverter;
+    sp<MediaDevice>         mConverter;
     
     // statistics
     UInt32                  mFramesRenderred;
@@ -208,8 +208,8 @@ struct MediaRenderer : public IMediaSession {
                 if (audio.format != mAudio.format ||
                     audio.channels != mAudio.channels ||
                     audio.freq != mAudio.freq) {
-                    mAudioConverter = CreateAudioConverter(mAudio, audio, Nil);
-                    if (mAudioConverter.isNil()) {
+                    mConverter = CreateAudioConverter(mAudio, audio, Nil);
+                    if (mConverter.isNil()) {
                         ERROR("create audio converter failed");
                         notify(kSessionInfoError, Nil);
                         return;
@@ -305,13 +305,15 @@ struct MediaRenderer : public IMediaSession {
     }
 
     struct OnFrameReady : public FrameReadyEvent {
-        MediaRenderer *thiz;
+        wp<MediaRenderer> mWeak;
         const Int mGeneration;
-        OnFrameReady(MediaRenderer *p, Int gen) :
-            FrameReadyEvent(p->mDispatch), thiz(p), mGeneration(gen) { }
+        OnFrameReady(MediaRenderer * weak, Int gen) :
+            FrameReadyEvent(weak->mDispatch), mWeak(weak), mGeneration(gen) { }
 
         virtual void onEvent(const sp<MediaFrame>& frame) {
-            thiz->onFrameReady(frame, mGeneration);
+            sp<MediaRenderer> renderer = mWeak.retain();
+            if (renderer.isNil()) return;
+            renderer->onFrameReady(frame, mGeneration);
         }
     };
 
@@ -374,9 +376,9 @@ struct MediaRenderer : public IMediaSession {
             // request another frame
             requestFrame();
         } else {
-            if (!mAudioConverter.isNil()) {
-                MediaError st = mAudioConverter->push(frame);
-                sp<MediaFrame> ready = mAudioConverter->pull();
+            if (!mConverter.isNil()) {
+                MediaError st = mConverter->push(frame);
+                sp<MediaFrame> ready = mConverter->pull();
                 if (st != kMediaNoError || ready.isNil()) {
                     ERROR("convert frame failed");
                     notify(kSessionInfoError, Nil);
@@ -459,11 +461,6 @@ struct MediaRenderer : public IMediaSession {
     
     FORCE_INLINE MediaError playFrame(const sp<MediaFrame>& input) {
         sp<MediaFrame> frame = input;
-#if 0
-        if (!input.isNil() && !mAudioConverter.isNil()) {
-            frame = mAudioConverter->convert(input);
-        }
-#endif
         
         if (!mOut.isNil()) {
             return mOut->push(frame);
@@ -535,20 +532,23 @@ struct MediaRenderer : public IMediaSession {
 
     // using clock to control render session, start|pause|...
     struct OnClockEvent : public ClockEvent {
-        MediaRenderer *thiz;
-        OnClockEvent(MediaRenderer *p) : ClockEvent(p->mDispatch), thiz(p) { }
+        wp<MediaRenderer> mWeak;
+        OnClockEvent(MediaRenderer * weak) : ClockEvent(weak->mDispatch), mWeak(weak) { }
 
         virtual void onEvent(const eClockState& cs) {
             DEBUG("clock state => %d", cs);
+            sp<MediaRenderer> renderer = mWeak.retain();
+            if (renderer.isNil()) return;
+            
             switch (cs) {
                 case kClockStateTicking:
-                    thiz->onStartRenderer();
+                    renderer->onStartRenderer();
                     break;
                 case kClockStatePaused:
-                    thiz->onPauseRenderer();
+                    renderer->onPauseRenderer();
                     break;
                 case kClockStateTimeChanged:
-                    thiz->onPrepareRenderer();
+                    renderer->onPrepareRenderer();
                     break;
                 default:
                     break;

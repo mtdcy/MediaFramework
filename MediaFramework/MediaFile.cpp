@@ -42,16 +42,16 @@ __BEGIN_NAMESPACE_MFWK
 
 struct MediaFile : public IMediaSession {
     // external static context
-    sp<SessionInfoEvent>    mInfoEvent;
+    sp<SessionInfoEvent>        mInfoEvent;
     // internal mutable context
-    sp<MediaDevice>         mMediaFile;
+    sp<MediaDevice>             mMediaFile;
     typedef List<sp<MediaFrame> > PacketList;
-    Vector<PacketList>      mPackets;
-    MediaTime               mLastReadTime;  //< avoid seek multi times by different track
-    Bits<UInt32>          mTrackMask;
+    Vector<PacketList>          mPackets;
+    MediaTime                   mLastReadTime;  //< avoid seek multi times by different track
+    Bits<UInt32>                mTrackMask;
     struct OnPacketRequest;
-    List<sp<OnPacketRequest> > mRequestEvents;
-    Bool                    mEndOfSource;
+    List<sp<OnPacketRequest> >  mRequestEvents;
+    Bool                        mEndOfSource;
     
     MediaFile(const sp<Looper>& lp) : IMediaSession(lp),
     mMediaFile(Nil), mLastReadTime(kMediaTimeInvalid), mEndOfSource(False)
@@ -168,24 +168,19 @@ struct MediaFile : public IMediaSession {
         mDispatch->flush();
         mMediaFile.clear();
         List<sp<OnPacketRequest> >::iterator it = mRequestEvents.begin();
-        for (; it != mRequestEvents.end(); ++it) {
-            (*it)->invalidate();
-        }
         mRequestEvents.clear();
     }
     
     struct OnTrackSelect : public TrackSelectEvent {
-        MediaFile *thiz;
-        OnTrackSelect(MediaFile *p) :
-        TrackSelectEvent(p->mDispatch),
-        thiz(p) { }
+        wp<MediaFile> mWeak;
+        OnTrackSelect(MediaFile * weak) : TrackSelectEvent(weak->mDispatch),
+        mWeak(weak) { }
         
         virtual void onEvent(const UInt32& tracks) {
-            if (thiz == Nil) return;
+            sp<MediaFile> thiz = mWeak.retain();
+            if (thiz.isNil()) return;
             thiz->onTrackSelect(tracks);
         }
-        
-        void invalidate() { thiz = Nil; }
     };
     
     void onTrackSelect(const UInt32& mask) {
@@ -202,26 +197,25 @@ struct MediaFile : public IMediaSession {
     }
 
     struct OnPacketRequest : public PacketRequestEvent {
-        MediaFile *thiz;
+        wp<MediaFile> mWeak;
         const UInt32 trackIndex;
         
-        OnPacketRequest(MediaFile *p, const UInt32 index) :
-        PacketRequestEvent(p->mDispatch),
-        thiz(p), trackIndex(index) { }
+        OnPacketRequest(MediaFile * weak, const UInt32 index) :
+        PacketRequestEvent(weak->mDispatch), mWeak(weak), trackIndex(index) { }
         
         virtual void onEvent(const sp<PacketReadyEvent>& event, const MediaTime& time) {
-            if (thiz == Nil) {
-                WARN("request packet after invalid()");
+            sp<MediaFile> thiz = mWeak.retain();
+            if (thiz.isNil()) {
+                WARN("request packet after file object gone");
                 return;
             }
             thiz->onRequestPacket(trackIndex, event, time);
         }
         
-        void invalidate() { thiz = Nil; }
-        
         // when all reference gone, we have to disable the track
         virtual void onLastRetain() {
-            if (thiz == Nil) return;
+            sp<MediaFile> thiz = mWeak.retain();
+            if (thiz.isNil()) return;
             INFO("disable track on PacketRequestEvent GONE");
             thiz->onDisableTrack(trackIndex);
         }

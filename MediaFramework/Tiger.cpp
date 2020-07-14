@@ -99,8 +99,8 @@ struct Tiger : public IMediaPlayer {
     UInt32                  mTrackID;
     HashTable<UInt32, sp<TrackContext> > mTracks;
     Bool                    mHasAudio;
-    Bits<UInt32>          mReadyMask;     // set when not ready
-    Bits<UInt32>          mEndMask;       // set when not eos
+    Bits<UInt32>            mReadyMask;     // set when not ready
+    Bits<UInt32>            mEndMask;       // set when not eos
     enum eState { kInit, kReady, kEnd };
     eState                  mState;
 
@@ -236,14 +236,17 @@ struct Tiger : public IMediaPlayer {
     }
     
     struct OnDecoderInfo : public SessionInfoEvent {
-        Tiger *thiz;
-        const UInt32 id;
-        OnDecoderInfo(Tiger *p, const UInt32 n) :
-        SessionInfoEvent(p->mDispatch),
-        thiz(p), id(n) { }
+        wp<Tiger>       mWeak;
+        const UInt32    id;
+        
+        OnDecoderInfo(Tiger * weak, const UInt32 n) : SessionInfoEvent(weak->mDispatch),
+        mWeak(weak), id(n) { }
 
         virtual void onEvent(const eSessionInfoType& info, const sp<Message>& payload) {
-            thiz->onDecoderInfo(id, info, payload);
+            sp<Tiger> tiger = mWeak.retain();
+            if (tiger.isNil()) return;
+            
+            tiger->onDecoderInfo(id, info, payload);
         }
     };
     
@@ -329,14 +332,17 @@ struct Tiger : public IMediaPlayer {
     }
 
     struct OnRendererInfo : public SessionInfoEvent {
-        Tiger *thiz;
-        UInt32 id;
+        wp<Tiger>       mWeak;
+        const UInt32    id;
 
-        OnRendererInfo(Tiger *p, UInt32 n) : SessionInfoEvent(p->mDispatch),
-        thiz(p), id(n) { }
+        OnRendererInfo(Tiger * weak, UInt32 n) : SessionInfoEvent(weak->mDispatch),
+        mWeak(weak), id(n) { }
 
         virtual void onEvent(const eSessionInfoType& info, const sp<Message>& payload) {
-            thiz->onRendererInfo(id, info, payload);
+            sp<Tiger> tiger = mWeak.retain();
+            if (tiger.isNil()) return;
+            
+            tiger->onRendererInfo(id, info, payload);
         }
     };
 

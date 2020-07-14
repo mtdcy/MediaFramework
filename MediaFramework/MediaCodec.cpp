@@ -26,7 +26,7 @@
  ******************************************************************************/
 
 
-// File:    DecodeSession.cpp
+// File:    MediaCodec.cpp
 // Author:  mtdcy.chen
 // Changes:
 //          1. 20181126     initial version
@@ -41,10 +41,10 @@
 
 __BEGIN_NAMESPACE_MFWK
 
-// onPacketReady ----- MediaFrame ----> DecodeSession
+// onPacketReady ----- MediaFrame ----> MediaCodec
 //      ^                                   |
 //      |                                   |
-// OnRequestPacket                       MediaDecoder
+// OnRequestPacket                       MediaDevice
 //      |                                   |
 //      |                                   v
 // PacketRequestEvent <-- OnPacketReady -- requestPacket
@@ -151,7 +151,6 @@ struct MediaCodec : public IMediaSession {
         mPacketRequestEvent.clear();
         mInputQueue.clear();
         mRequestQueue.clear();
-        mFrameRequestEvent->invalidate();
         mFrameRequestEvent.clear();
     }
 
@@ -165,14 +164,16 @@ struct MediaCodec : public IMediaSession {
     }
 
     struct OnPacketReady : public PacketReadyEvent {
-        MediaCodec * thiz;
+        wp<MediaCodec> mWeak;
         const Int mGeneration;
 
-        OnPacketReady(MediaCodec *p, Int gen) : PacketReadyEvent(p->mDispatch),
-        thiz(p), mGeneration(gen) { }
+        OnPacketReady(MediaCodec * weak, Int gen) : PacketReadyEvent(weak->mDispatch),
+        mWeak(weak), mGeneration(gen) { }
 
         virtual void onEvent(const sp<MediaFrame>& packet) {
-            thiz->onPacketReady(packet, mGeneration);
+            sp<MediaCodec> codec = mWeak.retain();
+            if (codec.isNil()) return;
+            codec->onPacketReady(packet, mGeneration);
         }
     };
 
@@ -300,21 +301,18 @@ struct MediaCodec : public IMediaSession {
     }
     
     struct OnFrameRequest : public FrameRequestEvent {
-        MediaCodec *thiz;
+        wp<MediaCodec> mWeak;
         
-        OnFrameRequest(MediaCodec *p) :
-        FrameRequestEvent(p->mDispatch), thiz(p) { }
+        OnFrameRequest(MediaCodec * weak) :
+        FrameRequestEvent(weak->mDispatch), mWeak(weak) { }
         
         virtual void onEvent(const sp<FrameReadyEvent>& event, const MediaTime& time) {
-            if (thiz == Nil) {
-                INFO("request frame after invalidate");
+            sp<MediaCodec> codec = mWeak.retain();
+            if (codec.isNil()) {
+                INFO("request frame after release");
                 return;
             }
-            thiz->onRequestFrame(event, time);
-        }
-        
-        void invalidate() {
-            thiz = Nil;
+            codec->onRequestFrame(event, time);
         }
     };
 
