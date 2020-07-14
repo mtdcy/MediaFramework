@@ -14,6 +14,16 @@ add_subdirectory(external/libyuv    EXCLUDE_FROM_ALL)
 project (MediaFramework)
 include (external/ABE/libcxx.cmake)
 
+# version
+file (READ ${CMAKE_CURRENT_SOURCE_DIR}/MediaFramework/MediaTypes.h version)
+string (REGEX MATCH "MFWK_MAJOR[ ]*\\(?([0-9]*)\\)?" _ ${version})
+set (VERSION_MAJOR  ${CMAKE_MATCH_1})
+string (REGEX MATCH "MFWK_MINOR[ ]*\\(?([0-9]*)\\)?" _ ${version})
+set (VERSION_MINOR ${CMAKE_MATCH_1})
+string (REGEX MATCH "MFWK_PATCH[ ]*\\(?([0-9]*)\\)?" _ ${version})
+set (VERSION_PATCH ${CMAKE_MATCH_1})
+message ("${PROJECT_NAME} VERSION: ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}")
+
 if (WITH_FFMPEG)
     add_definitions(-DWITH_FFMPEG)
 endif()
@@ -139,14 +149,26 @@ target_link_libraries(${PROJECT_NAME}_shared ${LIBS})
 if (XCODE)
     set_target_properties(${PROJECT_NAME}_shared PROPERTIES
         FRAMEWORK TRUE
-        FRAMEWORK_VERSION A
-        PUBLIC_HEADER "${PUBLIC_HEADERS}"
+        FRAMEWORK_VERSION   A
+        VERSION             "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}"
+        SOVERSION           "${VERSION_MAJOR}.${VERSION_MINOR}"
+        PUBLIC_HEADER       "${PUBLIC_HEADERS}"
         MACOSX_FRAMEWORK_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/Info.plist
         XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "Mac Developer"
         )
 
     install (TARGETS ${PROJECT_NAME}_shared FRAMEWORK DESTINATION .)
+
+    # ugly install code
+    set (_DEST ${CMAKE_INSTALL_PREFIX}/${PROJECT_NAME}.framework)
+    install (FILES ${CMAKE_CURRENT_SOURCE_DIR}/LICENSE.BSD DESTINATION ${_DEST}/Resources)
+    install (FILES ${CMAKE_CURRENT_SOURCE_DIR}/RELEASE DESTINATION ${_DEST}/Resources)
 else()
+    set_target_properties(${PROJECT_NAME}_shared PROPERTIES
+        SOVERSION       "${VERSION_MAJOR}.${VERSION_MINOR}"
+        VERSION         "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}"
+    )
+
     install (FILES ${PUBLIC_HEADERS} DESTINATION include/MediaFramework)
     install (TARGETS ${PROJECT_NAME}_shared 
         RUNTIME DESTINATION bin

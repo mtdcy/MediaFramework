@@ -37,6 +37,15 @@
 
 #include <ABE/ABE.h>
 
+#pragma mark Version
+
+#define MFWK_MAJOR  (2)
+#define MFWK_MINOR  (0)
+#define MFWK_PATCH  (0)
+
+#define MFWK_VERSION    ABE_VERSION_INT(MFWK_MAJOR, MFWK_MINOR, MFWK_PATCH)
+#define MFWK_VERSION_STRING __LITERAL_TO_STRING(MFWK_MAJOR) "." __LITERAL_TO_STRING(MFWK_MINOR) "." __LITERAL_TO_STRING(MFWK_PATCH)
+
 #pragma mark Basic Macros
 #ifndef FORCE_INLINE 
 #define FORCE_INLINE    ABE_INLINE
