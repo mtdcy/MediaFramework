@@ -215,7 +215,7 @@ sp<MediaDevice> MediaDevice::create(const sp<Message>& formats, const sp<Message
 #endif
         case kAudioCodecAAC:
         case kAudioCodecAC3:
-#ifdef __APPLE__
+#if 0 //def __APPLE__
             return CreateAudioToolbox(formats, options);
 #elif defined(WITH_FFMPEG)
             return CreateLavcDecoder(formats, options);
