@@ -424,7 +424,7 @@ typedef struct AudioFormat {
     eSampleFormat       format;         ///< audio sample format @see eSampleFormat
     UInt32              freq;           ///< audio sample rate
     UInt32              channels;       ///< audio channels
-    UInt32              samples;        ///< samples per channel
+    UInt32              samples;        ///< samples per channel [TODO: remove it]
 } AudioFormat;
 
 /**

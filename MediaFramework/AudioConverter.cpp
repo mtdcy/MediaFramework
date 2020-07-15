@@ -164,24 +164,6 @@ Bool IsPlanarSampleFormat(eSampleFormat sample) {
     return desc->planar;
 }
 
-static const eSampleFormat kPlanarSamples[] = {
-    kSampleFormatU8,
-    kSampleFormatS16,
-    kSampleFormatS32,
-    kSampleFormatF32,
-    kSampleFormatF64,
-    kSampleFormatUnknown,
-};
-
-static const eSampleFormat kPackedSamples[] = {
-    kSampleFormatU8Packed,
-    kSampleFormatS16Packed,
-    kSampleFormatS32Packed,
-    kSampleFormatF32Packed,
-    kSampleFormatF64Packed,
-    kSampleFormatUnknown,
-};
-
 __END_DECLS
 
 __BEGIN_NAMESPACE_MFWK
@@ -191,42 +173,42 @@ template <typename FROM, typename TO> struct expr;
 
 // TYPE -> TYPE
 template <typename TYPE> struct expr<TYPE, TYPE> {
-    FORCE_INLINE TYPE operator()(const TYPE v)          { return v;                             }
+    FORCE_INLINE TYPE operator()(const TYPE v)      { return v;                             }
 };
 
 // -> Int16
 template <> struct expr<UInt8, Int16> {
-    FORCE_INLINE Int16 operator()(const UInt8 v)    { return (((Int16)v - 0x80) << 8);    }
+    FORCE_INLINE Int16 operator()(const UInt8 v)    { return (((Int16)v - 0x80) << 8);      }
 };
 template <> struct expr<Int32, Int16> {
     FORCE_INLINE Int16 operator()(const Int32 v)    { return clamp16((v + (1<<15)) >> 16);  }
 };
 template <> struct expr<Float32, Int16> {
-    FORCE_INLINE Int16 operator()(const Float32 v)      { return clamp16_from_float(v);         }
+    FORCE_INLINE Int16 operator()(const Float32 v)  { return clamp16_from_float(v);         }
 };
 template <> struct expr<Float64, Int16> {
-    FORCE_INLINE Int16 operator()(const Float64 v)     { return clamp16_from_float(v);         }
+    FORCE_INLINE Int16 operator()(const Float64 v)  { return clamp16_from_float(v);         }
 };
 
 // -> Int32
 template <> struct expr<UInt8, Int32> {
-    FORCE_INLINE Int32 operator()(const UInt8 v)    { return (((Int16)v - 0x80) << 24);   }
+    FORCE_INLINE Int32 operator()(const UInt8 v)    { return (((Int16)v - 0x80) << 24);     }
 };
 template <> struct expr<Int16, Int32> {
     FORCE_INLINE Int32 operator()(const Int16 v)    { return (v << 16);                     }
 };
 template <> struct expr<Float32, Int32> {
-    FORCE_INLINE Int32 operator()(const Float32 v)      { return clamp32_from_float(v);         }
+    FORCE_INLINE Int32 operator()(const Float32 v)  { return clamp32_from_float(v);         }
 };
 template <> struct expr<Float64, Int32> {
-    FORCE_INLINE Int32 operator()(const Float64 v)     { return clamp32_from_float(v);         }
+    FORCE_INLINE Int32 operator()(const Float64 v)  { return clamp32_from_float(v);         }
 };
 
 struct DownmixContext : public SharedObject {
-    AudioFormat                 iFormat;
-    AudioFormat                 oFormat;
-    const SampleDescriptor *    iDesc;
-    const SampleDescriptor *    oDesc;
+    AudioFormat                 iaf;    // input audio format
+    AudioFormat                 oaf;    // output audio format
+    const SampleDescriptor *    isd;    // input sample descriptor
+    const SampleDescriptor *    osd;    // output sample descriptor
 };
 
 static MediaUnitContext downmix_alloc() {
@@ -239,7 +221,9 @@ static void downmix_dealloc(MediaUnitContext ref) {
     downmix->ReleaseObject();
 }
 
-static MediaError downmix_init(MediaUnitContext ref, const MediaFormat * iformat, const MediaFormat * oformat) {
+static MediaError downmix_init(MediaUnitContext ref,
+                               const MediaFormat * iformat,
+                               const MediaFormat * oformat) {
     sp<DownmixContext> downmix = static_cast<DownmixContext *>(ref);
     if (iformat->audio.channels == 0 || iformat->audio.channels == oformat->audio.channels) {
         ERROR("bad parameters: %s -> %s", GetAudioFormatString(iformat->audio).c_str(),
@@ -251,11 +235,11 @@ static MediaError downmix_init(MediaUnitContext ref, const MediaFormat * iformat
         return kMediaErrorBadParameters;
     }
     
-    downmix->iFormat    = iformat->audio;
-    downmix->oFormat    = oformat->audio;
-    downmix->iDesc      = GetSampleFormatDescriptor(iformat->format);
-    downmix->oDesc      = GetSampleFormatDescriptor(oformat->format);
-    if (downmix->iDesc->planar == False || downmix->oDesc->planar == False) {
+    downmix->iaf    = iformat->audio;
+    downmix->oaf    = oformat->audio;
+    downmix->isd      = GetSampleFormatDescriptor(iformat->format);
+    downmix->osd      = GetSampleFormatDescriptor(oformat->format);
+    if (downmix->isd->planar == False || downmix->osd->planar == False) {
         ERROR("downmix only support planar samples");
         return kMediaErrorBadParameters;
     }
@@ -266,9 +250,11 @@ static MediaError downmix_init(MediaUnitContext ref, const MediaFormat * iformat
 // 1. https://trac.ffmpeg.org/wiki/AudioChannelManipulation#a5.1stereo
 // 2.
 template <typename FROM, typename TO>
-static MediaError downmix_process(MediaUnitContext ref, const MediaBufferList * input, MediaBufferList * output) {
+static MediaError downmix_process(MediaUnitContext ref,
+                                  const MediaBufferList * input,
+                                  MediaBufferList * output) {
     sp<DownmixContext> downmix = static_cast<DownmixContext *>(ref);
-    if (input->count != downmix->iFormat.channels || output->count != downmix->oFormat.channels) {
+    if (input->count != downmix->iaf.channels || output->count != downmix->oaf.channels) {
         ERROR("bad MediaBufferList");
         return kMediaErrorBadParameters;
     }
@@ -282,7 +268,7 @@ static MediaError downmix_process(MediaUnitContext ref, const MediaBufferList * 
         oPlanes[i] = (TO *)output->buffers[i].data;
     }
 
-    if (downmix->iFormat.channels >= 6) {
+    if (downmix->iaf.channels >= 6) {
         for (UInt32 i = 0; i < input->buffers[0].size / sizeof(FROM); ++i) {
             oPlanes[0][i] = expr<FROM, TO>()(iPlanes[0][i] + 0.707 * iPlanes[2][i] + 0.707 + iPlanes[4][i] + iPlanes[3][i]);
             oPlanes[1][i] = expr<FROM, TO>()(iPlanes[i][i] + 0.707 * iPlanes[2][i] + 0.707 + iPlanes[5][i] + iPlanes[3][i]);
@@ -293,13 +279,12 @@ static MediaError downmix_process(MediaUnitContext ref, const MediaBufferList * 
     return kMediaNoError;
 }
 
-template <typename TYPE, typename COEFFS_TYPE> struct lerp;
+// TO (*lerp)(const FROM s0, const FROM s1, COEFFS_TYPE t)
+template <typename FROM, typename TO, typename COEFFS_TYPE> struct lerp;
+// UInt32 (*resample)(State<FROM, COEFFS_TYPE>& state, const FROM * in, UInt32 n, TO * out)
+template <typename FROM, typename TO, typename COEFFS_TYPE> struct resample1;
 
-// https://en.wikipedia.org/wiki/Linear_interpolation
-template <typename TYPE> struct lerp<TYPE, Float64> {
-    FORCE_INLINE TYPE operator()(const TYPE s0, const TYPE s1, Float64 t)  { return (1 - t) * s0 + t * s1;     }
-};
-
+// coefficients apply to source data.
 template <typename TYPE, typename COEFFS_TYPE> struct State {
     TYPE        last;
     COEFFS_TYPE fraction;
@@ -309,13 +294,22 @@ template <typename TYPE, typename COEFFS_TYPE> struct State {
     State(COEFFS_TYPE incr) : last(0), fraction(incr), increment(incr) { }
 };
 
-// UInt32 (*resample)(State&, const FROM *, UInt32, TO *)
-template <typename FROM, typename TO, typename COEFFS_TYPE> struct resample1;
-
 // using partial specilization
-// FROM == TO
-template <typename TYPE> struct resample1<TYPE, TYPE, Float64> {
-    UInt32 operator()(State<TYPE, Float64>& state, const TYPE * in, UInt32 nsamples, TYPE * out) {
+// https://en.wikipedia.org/wiki/Linear_interpolation
+template <typename FROM, typename TO> struct lerp<FROM, TO, Float64> {
+    FORCE_INLINE TO operator()(const FROM s0, const FROM s1, Float64 t) {
+        return expr<FROM, TO>()((1 - t) * s0 + t * s1);
+    }
+};
+
+template <typename TYPE> struct lerp<TYPE, TYPE, Float64> {
+    FORCE_INLINE TYPE operator()(const TYPE s0, const TYPE s1, Float64 t) {
+        return (1 - t) * s0 + t * s1;
+    }
+};
+
+template <typename FROM, typename TO> struct resample1<FROM, TO, Float64> {
+    UInt32 operator()(State<FROM, Float64>& state, const FROM * in, UInt32 nsamples, TO * out) {
         Float64 inIndex = state.fraction;
         Float64 increment = state.increment;
         UInt32 outIndex = 0;
@@ -323,55 +317,22 @@ template <typename TYPE> struct resample1<TYPE, TYPE, Float64> {
         // handle the first sample
         UInt32 x0 = (UInt32)inIndex;
         while (x0 == 0) {
-            out[outIndex++] = lerp<TYPE, Float64>()(state.last, in[0], inIndex - x0);
-
+            out[outIndex++] = lerp<FROM, TO, Float64>()(state.last, in[0], inIndex - x0);
+            
             // TODO: using a advance template
             inIndex += increment;
             x0 = (UInt32)inIndex;
         }
 
         while (x0 < nsamples) {
-            out[outIndex++] = lerp<TYPE, Float64>()(in[x0 - 1], in[x0], inIndex - x0);
+            out[outIndex++] = lerp<FROM, TO, Float64>()(in[x0 - 1], in[x0], inIndex - x0);
 
             inIndex += increment;
             x0 = (UInt32)inIndex;
         }
 
         state.last = in[nsamples - 1];
-        state.fraction = inIndex - (UInt32)inIndex;
-        return outIndex;
-    }
-};
-
-template <typename FROM, typename TO> struct resample1<FROM, TO, Float64> {
-    UInt32 operator()(State<TO, Float64>& state, const FROM * in, UInt32 nsamples, TO * out) {
-        Float64 inIndex = state.fraction;
-        Float64 increment = state.increment;
-        UInt32 outIndex = 0;
-
-        // handle the first sample
-        UInt32 x0 = (UInt32)inIndex;
-        while (x0 == 0) {
-            out[outIndex++] = lerp<TO, Float64>()(state.last,
-                    expr<FROM, TO>()(in[0]),
-                    inIndex - x0);
-
-            // TODO: using a advance template
-            inIndex += increment;
-            x0 = (UInt32)inIndex;
-        }
-
-        while (x0 < nsamples) {
-            out[outIndex++] = lerp<TO, Float64>()(expr<FROM, TO>()(in[x0 - 1]),
-                    expr<FROM, TO>()(in[x0]),
-                    inIndex - x0);
-
-            inIndex += increment;
-            x0 = (UInt32)inIndex;
-        }
-
-        state.last = expr<FROM, TO>()(in[nsamples - 1]);
-        state.fraction = inIndex - (UInt32)inIndex;
+        state.fraction = inIndex - x0;
         return outIndex;
     }
 };
@@ -380,11 +341,11 @@ template <typename FROM, typename TO> struct resample1<FROM, TO, Float64> {
 // default resampler: linear interpolation
 template <typename TYPE, typename COEFFS_TYPE>
 struct ResamplerContext : public SharedObject {
-    AudioFormat                 iFormat;
-    AudioFormat                 oFormat;
-    const SampleDescriptor *    iDesc;
-    const SampleDescriptor *    oDesc;
-    State<TYPE, COEFFS_TYPE>    mStates[NB_CHANNELS];
+    AudioFormat                 iaf;
+    AudioFormat                 oaf;
+    const SampleDescriptor *    isd;
+    const SampleDescriptor *    osd;
+    State<TYPE, COEFFS_TYPE>    states[NB_CHANNELS];
 };
 
 template <typename TYPE, typename COEFFS_TYPE>
@@ -409,33 +370,40 @@ static MediaError resampler_init(MediaUnitContext ref, const MediaFormat * iform
         return kMediaErrorBadParameters;
     }
     
-    resampler->iFormat  = iformat->audio;
-    resampler->oFormat  = oformat->audio;
-    resampler->iDesc    = GetSampleFormatDescriptor(iformat->format);
-    resampler->oDesc    = GetSampleFormatDescriptor(oformat->format);
-    if (resampler->iDesc->planar == False || resampler->oDesc->planar == False) {
+    resampler->iaf  = iformat->audio;
+    resampler->oaf  = oformat->audio;
+    resampler->isd  = GetSampleFormatDescriptor(iformat->format);
+    resampler->osd  = GetSampleFormatDescriptor(oformat->format);
+    if (resampler->isd->planar == False || resampler->osd->planar == False) {
         ERROR("resampler only support planar samples");
         return kMediaErrorBadParameters;
     }
+    
+    // set increment factor
+    Float64 increment = (Float64)iformat->audio.freq / oformat->audio.freq;
+    for (size_t i = 0; i < resampler->iaf.channels; ++i) {
+        resampler->states[i] = State<TYPE, Float64>(increment);
+    }
+    
     return kMediaNoError;
 }
 
 template <typename FROM, typename TO, typename COEFFS_TYPE>
 static MediaError resampler_process(MediaUnitContext ref, const MediaBufferList * input, MediaBufferList * output) {
-    sp<ResamplerContext<TO, COEFFS_TYPE> > resampler = static_cast<ResamplerContext<TO, COEFFS_TYPE> *>(ref);
-    if (resampler->iFormat.channels != input->count ||
-        resampler->oFormat.channels != output->count) {
+    sp<ResamplerContext<FROM, COEFFS_TYPE> > resampler = static_cast<ResamplerContext<FROM, COEFFS_TYPE> *>(ref);
+    if (resampler->iaf.channels != input->count ||
+        resampler->oaf.channels != output->count) {
         ERROR("bad MediaBufferList");
         return kMediaErrorBadParameters;
     }
     const UInt32 iSamples = input->buffers[0].size / sizeof(FROM);
-    const UInt32 oSamples = (iSamples * resampler->oFormat.freq) / resampler->iFormat.freq + 1;
+    const UInt32 oSamples = (iSamples * resampler->oaf.freq) / resampler->iaf.freq + 1;
     if (output->buffers[0].capacity < oSamples * sizeof(TO)) {
         ERROR("bad output MediaBufferList");
         return kMediaErrorBadParameters;
     }
-    for (UInt32 i = 0; i < resampler->iFormat.channels; ++i) {
-        const UInt32 samples = resample1<FROM, TO, COEFFS_TYPE>()(resampler->mStates[i],
+    for (UInt32 i = 0; i < resampler->iaf.channels; ++i) {
+        const UInt32 samples = resample1<FROM, TO, COEFFS_TYPE>()(resampler->states[i],
                                                                   (const FROM *)input->buffers[i].data,
                                                                   iSamples,
                                                                   (TO *)output->buffers[i].data);
@@ -448,7 +416,7 @@ template <typename TYPE, typename COEFFS_TYPE>
 static MediaError resampler_reset(MediaUnitContext ref) {
     sp<ResamplerContext<TYPE, COEFFS_TYPE> > resampler = static_cast<ResamplerContext<TYPE, COEFFS_TYPE> *>(ref);
     for (UInt32 i = 0; i < NB_CHANNELS; ++i) {
-        resampler->mStates[i] = 0;
+        resampler->states[i] = 0;
     }
     return kMediaNoError;
 }
@@ -461,12 +429,12 @@ static MediaError planarization_init(MediaUnitContext ref, const MediaFormat * i
         return kMediaErrorBadParameters;
     }
     
-    planarization->iFormat  = iformat->audio;
-    planarization->oFormat  = oformat->audio;
-    planarization->iDesc    = GetSampleFormatDescriptor(iformat->format);
-    planarization->oDesc    = GetSampleFormatDescriptor(oformat->format);
+    planarization->iaf  = iformat->audio;
+    planarization->oaf  = oformat->audio;
+    planarization->isd  = GetSampleFormatDescriptor(iformat->format);
+    planarization->osd  = GetSampleFormatDescriptor(oformat->format);
     // packed <-> planar
-    if (planarization->iDesc->planar == planarization->oDesc->planar) {
+    if (planarization->isd->planar == planarization->osd->planar) {
         ERROR("bad input/output format");
         return kMediaErrorBadParameters;
     }
@@ -477,20 +445,20 @@ template <typename FROM, typename TO>
 static MediaError planarization_process(MediaUnitContext ref, const MediaBufferList * input, MediaBufferList * output) {
     sp<DownmixContext> planarization = static_cast<DownmixContext *>(ref);
     if (input->count != 1 ||
-        planarization->oFormat.channels != output->count) {
+        planarization->oaf.channels != output->count) {
         return kMediaErrorBadParameters;
     }
     
-    const UInt32 samples = input->buffers[0].size / (sizeof(FROM) * planarization->iFormat.channels);
+    const UInt32 samples = input->buffers[0].size / (sizeof(FROM) * planarization->iaf.channels);
     const FROM * src = (const FROM *)input->buffers[0].data;
-    for (UInt32 i = 0; i < planarization->oFormat.channels; ++i) {
+    for (UInt32 i = 0; i < planarization->oaf.channels; ++i) {
         if (output->buffers[i].capacity < samples * sizeof(TO)) {
             return kMediaErrorBadParameters;
         }
         
         TO * dst = (TO *)output->buffers[i].data;
         for (UInt32 j = 0; j < samples; ++j) {
-            dst[j] = expr<FROM, TO>()(src[planarization->iFormat.channels * j + i]);
+            dst[j] = expr<FROM, TO>()(src[planarization->iaf.channels * j + i]);
         }
         output->buffers[i].size = samples * sizeof(TO);
     }
@@ -501,26 +469,26 @@ static MediaError planarization_process(MediaUnitContext ref, const MediaBufferL
 template <typename FROM, typename TO>
 static MediaError interleave_process(MediaUnitContext ref, const MediaBufferList * input, MediaBufferList * output) {
     sp<DownmixContext> interleave = static_cast<DownmixContext *>(ref);
-    if (interleave->iFormat.channels != input->count ||
+    if (interleave->iaf.channels != input->count ||
         output->count != 1) {
         ERROR("bad input/output buffer");
         return kMediaErrorBadParameters;
     }
     
     const UInt32 samples = input->buffers[0].size / sizeof(FROM);
-    if (output->buffers[0].capacity < samples * interleave->oFormat.channels * sizeof(TO)) {
+    if (output->buffers[0].capacity < samples * interleave->oaf.channels * sizeof(TO)) {
         ERROR("bad output buffer capacity");
         return kMediaErrorBadParameters;
     }
     
     TO * dst = (TO *)output->buffers[0].data;
-    for (UInt32 i = 0; i < interleave->iFormat.channels; ++i) {
+    for (UInt32 i = 0; i < interleave->iaf.channels; ++i) {
         const FROM * src = (const FROM *)input->buffers[i].data;
         for (UInt32 j = 0; j < samples; ++j) {
-            dst[interleave->oFormat.channels * j + i] = expr<FROM, TO>()(src[j]);
+            dst[interleave->oaf.channels * j + i] = expr<FROM, TO>()(src[j]);
         }
     }
-    output->buffers[0].size = samples * interleave->oFormat.channels * sizeof(TO);
+    output->buffers[0].size = samples * interleave->oaf.channels * sizeof(TO);
     return kMediaNoError;
 }
 
@@ -528,13 +496,13 @@ static MediaError interleave_process(MediaUnitContext ref, const MediaBufferList
 static const MediaUnit kDownmix##FMT = {                                            \
     .name       = "downmix " #FMT,                                                  \
     .flags      = kMediaUnitProcessInplace,                                         \
-    .iformats   = (const UInt32[]){ kSampleFormat##FMT, kSampleFormatUnknown },   \
-    .oformats   = (const UInt32[]){ kSampleFormat##FMT, kSampleFormatUnknown },   \
+    .iformats   = (const UInt32[]){ kSampleFormat##FMT, kSampleFormatUnknown },     \
+    .oformats   = (const UInt32[]){ kSampleFormat##FMT, kSampleFormatUnknown },     \
     .alloc      = downmix_alloc,                                                    \
     .dealloc    = downmix_dealloc,                                                  \
     .init       = downmix_init,                                                     \
     .process    = downmix_process<TYPE, TYPE>,                                      \
-    .reset      = Nil                                                              \
+    .reset      = Nil                                                               \
 };
 DOWNMIX(U8, UInt8)
 DOWNMIX(S16, Int16)
@@ -546,13 +514,13 @@ DOWNMIX(F64, Float64)
 static const MediaUnit kDownmixS16From##FMT = {                                     \
     .name       = "downmix s16<" #FMT,                                              \
     .flags      = kMediaUnitProcessInplace,                                         \
-    .iformats   = (const UInt32[]){ kSampleFormat##FMT, kSampleFormatUnknown },   \
-    .oformats   = (const UInt32[]){ kSampleFormatS16, kSampleFormatUnknown },     \
+    .iformats   = (const UInt32[]){ kSampleFormat##FMT, kSampleFormatUnknown },     \
+    .oformats   = (const UInt32[]){ kSampleFormatS16, kSampleFormatUnknown },       \
     .alloc      = downmix_alloc,                                                    \
     .dealloc    = downmix_dealloc,                                                  \
     .init       = downmix_init,                                                     \
-    .process    = downmix_process<TYPE, Int16>,                                   \
-    .reset      = Nil                                                              \
+    .process    = downmix_process<TYPE, Int16>,                                     \
+    .reset      = Nil                                                               \
 };
 DOWNMIX16(U8, UInt8)
 DOWNMIX16(S32, Int32)
@@ -563,13 +531,13 @@ DOWNMIX16(F64, Float64)
 static const MediaUnit kDownmixS32From##FMT = {                                     \
     .name       = "downmix s32<" #FMT,                                              \
     .flags      = kMediaUnitProcessInplace,                                         \
-    .iformats   = (const UInt32[]){ kSampleFormat##FMT, kSampleFormatUnknown },   \
-    .oformats   = (const UInt32[]){ kSampleFormatS32, kSampleFormatUnknown },     \
+    .iformats   = (const UInt32[]){ kSampleFormat##FMT, kSampleFormatUnknown },     \
+    .oformats   = (const UInt32[]){ kSampleFormatS32, kSampleFormatUnknown },       \
     .alloc      = downmix_alloc,                                                    \
     .dealloc    = downmix_dealloc,                                                  \
     .init       = downmix_init,                                                     \
-    .process    = downmix_process<TYPE, Int32>,                                   \
-    .reset      = Nil                                                              \
+    .process    = downmix_process<TYPE, Int32>,                                     \
+    .reset      = Nil                                                               \
 };
 DOWNMIX32(U8, UInt8)
 DOWNMIX32(S16, Int16)
@@ -580,14 +548,14 @@ DOWNMIX32(F64, Float64)
 #define RESAMPLE(FMT, TYPE)                                                         \
 static const MediaUnit kResample##FMT = {                                           \
     .name       = "resampler " #FMT,                                                \
-    .flags      = 0,                                                                \
-    .iformats   = (const UInt32[]){ kSampleFormat##FMT, kSampleFormatUnknown },   \
-    .oformats   = (const UInt32[]){ kSampleFormat##FMT, kSampleFormatUnknown },   \
-    .alloc      = resampler_alloc<TYPE, Float64>,                                    \
-    .dealloc    = resampler_dealloc<TYPE, Float64>,                                  \
-    .init       = resampler_init<TYPE, Float64>,                                     \
-    .process    = resampler_process<TYPE, TYPE, Float64>,                            \
-    .reset      = resampler_reset<TYPE, Float64>                                     \
+    .flags      = kMediaUnitProcessVariableSamples,                                 \
+    .iformats   = (const UInt32[]){ kSampleFormat##FMT, kSampleFormatUnknown },     \
+    .oformats   = (const UInt32[]){ kSampleFormat##FMT, kSampleFormatUnknown },     \
+    .alloc      = resampler_alloc<TYPE, Float64>,                                   \
+    .dealloc    = resampler_dealloc<TYPE, Float64>,                                 \
+    .init       = resampler_init<TYPE, Float64>,                                    \
+    .process    = resampler_process<TYPE, TYPE, Float64>,                           \
+    .reset      = resampler_reset<TYPE, Float64>                                    \
 };
 RESAMPLE(U8, UInt8)
 RESAMPLE(S16, Int16)
@@ -598,14 +566,14 @@ RESAMPLE(F64, Float64)
 #define RESAMPLE16(FMT, TYPE)                                                       \
 static const MediaUnit kResampleS16From##FMT = {                                    \
     .name       = "resampler s16<" #FMT,                                            \
-    .flags      = 0,                                                                \
-    .iformats   = (const UInt32[]){ kSampleFormat##FMT, kSampleFormatUnknown },   \
-    .oformats   = (const UInt32[]){ kSampleFormatS16, kSampleFormatUnknown },     \
-    .alloc      = resampler_alloc<Int16, Float64>,                                 \
-    .dealloc    = resampler_dealloc<Int16, Float64>,                               \
-    .init       = resampler_init<Int16, Float64>,                                  \
-    .process    = resampler_process<TYPE, Int16, Float64>,                         \
-    .reset      = resampler_reset<Int16, Float64>                                  \
+    .flags      = kMediaUnitProcessVariableSamples,                                 \
+    .iformats   = (const UInt32[]){ kSampleFormat##FMT, kSampleFormatUnknown },     \
+    .oformats   = (const UInt32[]){ kSampleFormatS16, kSampleFormatUnknown },       \
+    .alloc      = resampler_alloc<TYPE, Float64>,                                   \
+    .dealloc    = resampler_dealloc<TYPE, Float64>,                                 \
+    .init       = resampler_init<TYPE, Float64>,                                    \
+    .process    = resampler_process<TYPE, Int16, Float64>,                          \
+    .reset      = resampler_reset<TYPE, Float64>                                    \
 };
 RESAMPLE16(U8, UInt8)
 RESAMPLE16(S32, Int32)
@@ -615,14 +583,14 @@ RESAMPLE16(F64, Float64)
 #define RESAMPLE32(FMT, TYPE)                                                       \
 static const MediaUnit kResampleS32From##FMT = {                                    \
     .name       = "resampler s32<" #FMT,                                            \
-    .flags      = 0,                                                                \
-    .iformats   = (const UInt32[]){ kSampleFormat##FMT, kSampleFormatUnknown },   \
-    .oformats   = (const UInt32[]){ kSampleFormatS32, kSampleFormatUnknown },     \
-    .alloc      = resampler_alloc<Int32, Float64>,                                 \
-    .dealloc    = resampler_dealloc<Int32, Float64>,                               \
-    .init       = resampler_init<Int32, Float64>,                                  \
-    .process    = resampler_process<TYPE, Int32, Float64>,                         \
-    .reset      = resampler_reset<Int32, Float64>                                  \
+    .flags      = kMediaUnitProcessVariableSamples,                                 \
+    .iformats   = (const UInt32[]){ kSampleFormat##FMT, kSampleFormatUnknown },     \
+    .oformats   = (const UInt32[]){ kSampleFormatS32, kSampleFormatUnknown },       \
+    .alloc      = resampler_alloc<TYPE, Float64>,                                   \
+    .dealloc    = resampler_dealloc<TYPE, Float64>,                                 \
+    .init       = resampler_init<TYPE, Float64>,                                    \
+    .process    = resampler_process<TYPE, Int32, Float64>,                          \
+    .reset      = resampler_reset<TYPE, Float64>                                    \
 };
 RESAMPLE32(U8, UInt8)
 RESAMPLE32(S16, Int16)
@@ -639,7 +607,7 @@ static const MediaUnit kPlanarization##FMT = {                                  
     .dealloc    = downmix_dealloc,                                                              \
     .init       = planarization_init,                                                           \
     .process    = planarization_process<TYPE, TYPE>,                                            \
-    .reset      = Nil                                                                          \
+    .reset      = Nil                                                                           \
 };
 PLANARIZATION(U8, UInt8)
 PLANARIZATION(S16, Int16)
@@ -656,8 +624,8 @@ static const MediaUnit kPlanarizationS16From##FMT = {                           
     .alloc      = downmix_alloc,                                                                \
     .dealloc    = downmix_dealloc,                                                              \
     .init       = planarization_init,                                                           \
-    .process    = planarization_process<TYPE, Int16>,                                         \
-    .reset      = Nil                                                                          \
+    .process    = planarization_process<TYPE, Int16>,                                           \
+    .reset      = Nil                                                                           \
 };
 PLANARIZATION16(U8, UInt8)
 PLANARIZATION16(S32, Int32)
@@ -673,8 +641,8 @@ static const MediaUnit kPlanarizationS32From##FMT = {                           
     .alloc      = downmix_alloc,                                                                \
     .dealloc    = downmix_dealloc,                                                              \
     .init       = planarization_init,                                                           \
-    .process    = planarization_process<TYPE, Int32>,                                         \
-    .reset      = Nil                                                                          \
+    .process    = planarization_process<TYPE, Int32>,                                           \
+    .reset      = Nil                                                                           \
 };
 PLANARIZATION32(U8, UInt8)
 PLANARIZATION32(S16, Int16)
@@ -691,7 +659,7 @@ static const MediaUnit kInterleave##FMT = {                                     
     .dealloc    = downmix_dealloc,                                                              \
     .init       = planarization_init,                                                           \
     .process    = interleave_process<TYPE, TYPE>,                                               \
-    .reset      = Nil                                                                          \
+    .reset      = Nil                                                                           \
 };
 INTERLEAVE(U8, UInt8)
 INTERLEAVE(S16, Int16)
@@ -708,8 +676,8 @@ static const MediaUnit kInterleaveS16From##FMT = {                              
     .alloc      = downmix_alloc,                                                                \
     .dealloc    = downmix_dealloc,                                                              \
     .init       = planarization_init,                                                           \
-    .process    = interleave_process<TYPE, Int16>,                                            \
-    .reset      = Nil                                                                          \
+    .process    = interleave_process<TYPE, Int16>,                                              \
+    .reset      = Nil                                                                           \
 };
 INTERLEAVE16(U8, UInt8)
 INTERLEAVE16(S32, Int32)
@@ -725,15 +693,15 @@ static const MediaUnit kInterleaveS32From##FMT = {                              
     .alloc      = downmix_alloc,                                                                \
     .dealloc    = downmix_dealloc,                                                              \
     .init       = planarization_init,                                                           \
-    .process    = interleave_process<TYPE, Int32>,                                            \
-    .reset      = Nil                                                                          \
+    .process    = interleave_process<TYPE, Int32>,                                              \
+    .reset      = Nil                                                                           \
 };
 INTERLEAVE32(U8, UInt8)
 INTERLEAVE32(S16, Int16)
 INTERLEAVE32(F32, Float32)
 INTERLEAVE32(F64, Float64)
 
-static const MediaUnit * kAudioUnitList[] = {
+static const MediaUnit * kDownmixers[] = {
     // downmix
     &kDownmixU8,
     &kDownmixS16,
@@ -749,6 +717,10 @@ static const MediaUnit * kAudioUnitList[] = {
     &kDownmixS32FromS32,
     &kDownmixS32FromF32,
     &kDownmixS32FromF64,
+    Nil
+};
+
+static const MediaUnit * kResamplers[] = {
     // resample
     &kResampleU8,
     &kResampleS16,
@@ -763,6 +735,10 @@ static const MediaUnit * kAudioUnitList[] = {
     &kResampleS32FromS16,
     &kResampleS32FromF32,
     &kResampleS32FromF64,
+    Nil
+};
+
+static const MediaUnit * kPlanarizers[] = {
     // planarization
     &kPlanarizationU8,
     &kPlanarizationS16,
@@ -777,6 +753,10 @@ static const MediaUnit * kAudioUnitList[] = {
     &kPlanarizationS32FromS16,
     &kPlanarizationS32FromF32,
     &kPlanarizationS32FromF64,
+    Nil
+};
+
+static const MediaUnit * kInterleavers[] = {
     // interleave
     &kInterleaveU8,
     &kInterleaveS16,
@@ -801,59 +781,137 @@ static FORCE_INLINE Bool SampleFormatContains(const eSampleFormat * formats, con
     }
     return False;
 }
-static const MediaUnit * FindAudioUnit(const eSampleFormat& iformat, const eSampleFormat& oformat) {
-    for (UInt32 i = 0; kAudioUnitList[i] != Nil; ++i) {
-        if (SampleFormatContains(kAudioUnitList[i]->iformats, iformat) &&
-            SampleFormatContains(kAudioUnitList[i]->oformats, oformat)) {
-            return kAudioUnitList[i];
+
+static const MediaUnit * AudioUnitNew(const MediaUnit * list[],
+                                      const AudioFormat& iformat,
+                                      const AudioFormat& oformat,
+                                      MediaUnitContext& instance) {
+    for (UInt32 i = 0; list[i] != Nil; ++i) {
+        if (SampleFormatContains(list[i]->iformats, iformat.format) &&
+            SampleFormatContains(list[i]->oformats, oformat.format)) {
+            const MediaUnit * unit = list[i];
+            instance = unit->alloc();
+            
+            if (unit->init(instance, (const MediaFormat *)&iformat, (const MediaFormat *)&oformat) != kMediaNoError) {
+                break;
+            }
+            
+            return unit;
         }
     }
     return Nil;
 }
 
 struct AudioConverter : public MediaDevice {
-    AudioFormat                 oFormat;
-    Vector<const MediaUnit *>   mUnits;
-    Vector<MediaUnitContext>    mInstances;
-    sp<MediaFrame>              mOutput;
+    struct Unit {
+        const MediaUnit *       mUnit;
+        MediaUnitContext        mInstance;
+        AudioFormat             mOAF;   // output audio format
+        sp<MediaFrame>          mWAF;   // working audio frame
+    };
+    Vector<Unit>                mUnits;
     
     AudioConverter() : MediaDevice() { }
     
     virtual ~AudioConverter() {
         for (UInt32 i = 0; i < mUnits.size(); ++i) {
-            mUnits[i]->dealloc(mInstances[i]);
+            mUnits[i].mUnit->dealloc(mUnits[i].mInstance);
         }
         mUnits.clear();
-        mInstances.clear();
     }
     
     MediaError init(const AudioFormat& iformat, const AudioFormat& oformat, const sp<Message>& options) {
         INFO("init AudioConverter: %s => %s", GetAudioFormatString(iformat).c_str(), GetAudioFormatString(oformat).c_str());
-        oFormat     = oformat;
         
-        // direct convert
-        const MediaUnit * unit = FindAudioUnit(iformat.format, oformat.format);
-        if (unit) {
-            MediaUnitContext instance = unit->alloc();
-            if (unit->init(instance, (const MediaFormat *)&iformat, (const MediaFormat *)&oformat) == kMediaNoError) {
-                mUnits.push(unit);
-                mInstances.push(instance);
-                return kMediaNoError;
-            }
-            unit->dealloc(instance);
+        const SampleDescriptor * isd = GetSampleFormatDescriptor(iformat.format);
+        const SampleDescriptor * osd = GetSampleFormatDescriptor(oformat.format);
+        
+        if (isd == Nil || osd == Nil) {
+            ERROR("missing input/output sample descriptor");
+            return kMediaErrorBadParameters;
         }
         
-        // complex unit graph
+        AudioFormat audio = iformat;
+        // planarization ?
+        if (isd->planar == False) {
+            Unit unit;
+            unit.mOAF = audio;
+            unit.mOAF.format = isd->similar;   // packed -> planar
+            
+            unit.mUnit = AudioUnitNew(kPlanarizers, audio, unit.mOAF, unit.mInstance);
+            if (unit.mUnit == Nil) {
+                ERROR("create planarizer failed.");
+                return kMediaErrorNotSupported;
+            }
+            
+            INFO("planarize %s", isd->name);
+            audio = unit.mOAF;
+            isd = GetSampleFormatDescriptor(audio.format);
+            mUnits.push(unit);
+        }
         
-        ERROR("init AudioConverter failed");
-        return kMediaErrorBadParameters;
+        // downmix ?
+        if (audio.channels != oformat.channels) {
+            Unit unit;
+            unit.mOAF = audio;
+            unit.mOAF.channels = oformat.channels;
+            
+            unit.mUnit = AudioUnitNew(kDownmixers, audio, unit.mOAF, unit.mInstance);
+            if (unit.mUnit == Nil) {
+                ERROR("create downmixer failed.");
+                return kMediaErrorNotSupported;
+            }
+            
+            INFO("downmix %u ch -> %u ch", audio.channels, oformat.channels);
+            audio = unit.mOAF;
+            mUnits.push(unit);
+        }
+        
+        // resample ?
+        if (audio.freq != oformat.freq) {
+            Unit unit;
+            unit.mOAF = audio;
+            unit.mOAF.freq = oformat.freq;
+            unit.mUnit = AudioUnitNew(kResamplers, audio, unit.mOAF, unit.mInstance);
+            if (unit.mUnit == Nil) {
+                ERROR("create resampler failed.");
+                return kMediaErrorNotSupported;
+            }
+            
+            INFO("resample %u Hz -> %u Hz", audio.freq, oformat.freq);
+            audio = unit.mOAF;
+            mUnits.push(unit);
+        }
+        
+        // interleave ?
+        if (osd->planar == False) {
+            Unit unit;
+            unit.mOAF = audio;
+            unit.mOAF.format = isd->similar; // planar -> packed
+            unit.mUnit = AudioUnitNew(kInterleavers, audio, unit.mOAF, unit.mInstance);
+            if (unit.mUnit == Nil) {
+                ERROR("create interleaver failed.");
+                return kMediaErrorNotSupported;
+            }
+            
+            INFO("interleave %s -> %s", isd->name, osd->name);
+            audio = unit.mOAF;
+            isd = GetSampleFormatDescriptor(audio.format);
+            mUnits.push(unit);
+        }
+        
+        CHECK_TRUE(audio == oformat);
+        return kMediaNoError;
     }
     
     virtual sp<Message> formats() const {
+        if (mUnits.empty()) return Nil;
+        
+        const Unit& unit = mUnits[mUnits.size() - 1];
         sp<Message> format = new Message;
-        format->setInt32(kKeyFormat, oFormat.format);
-        format->setInt32(kKeyChannels, oFormat.channels);
-        format->setInt32(kKeySampleRate, oFormat.freq);
+        format->setInt32(kKeyFormat, unit.mOAF.format);
+        format->setInt32(kKeyChannels, unit.mOAF.channels);
+        format->setInt32(kKeySampleRate, unit.mOAF.freq);
         return format;
     }
     
@@ -862,48 +920,80 @@ struct AudioConverter : public MediaDevice {
     }
     
     virtual MediaError push(const sp<MediaFrame>& input) {
-        if (!mOutput.isNil()) {
-            return kMediaErrorResourceBusy;
+        if (input.isNil()) return kMediaNoError;
+        
+        sp<MediaFrame> iaf = input;
+        for (UInt32 i = 0; i < mUnits.size(); ++i) {
+            Unit& unit = mUnits[i];
+            
+            if (unit.mUnit->flags & kMediaUnitProcessInplace) {
+                // in-place process, using same input/output frame.
+                unit.mWAF = iaf;
+                // need to update audio properties later.
+            } else {
+                // update audio samples
+                UInt32 samples = iaf->audio.samples;
+                if (unit.mUnit->flags & kMediaUnitProcessVariableSamples) {
+                    samples = (iaf->audio.samples * unit.mOAF.freq) / iaf->audio.freq + 1;
+                }
+                
+                // alloc new working frame
+                // 1. always alloc for last unit, @see pull().
+                // 2. alloc when not exists.
+                // 3. alloc when audio samples grows.
+                if (i == mUnits.size() - 1 ||
+                    unit.mWAF.isNil() ||
+                    unit.mWAF->audio.samples < samples) {
+                    unit.mOAF.samples = samples;
+                    unit.mWAF = MediaFrame::Create(unit.mOAF);
+                }
+            }
+            
+            MediaError st = unit.mUnit->process(unit.mInstance, &iaf->planes, &unit.mWAF->planes);
+            if (st != kMediaNoError) {
+                ERROR("%s: process failed", unit.mUnit->name);
+                return st;
+            }
+            
+            // update working frame audio properties
+            unit.mWAF->audio = unit.mOAF;
+            // fix audio samples
+            unit.mWAF->audio.samples = (unit.mWAF->planes.buffers[0].size) / GetSampleFormatBytes(unit.mWAF->format);
+            
+            // working frame as input frame for next process.
+            iaf = unit.mWAF;
         }
         
-        AudioFormat             audio = oFormat;
-        audio.samples           = input->audio.samples;
-        sp<MediaFrame> output   = MediaFrame::Create(audio);
-        
-        MediaError st = mUnits[0]->process(mInstances[0],
-                                           &input->planes,
-                                           &output->planes);
-        
-        if (st != kMediaNoError) {
-            ERROR("push %s failed", input->string().c_str());
-            return kMediaErrorUnknown;
-        }
-        
-        output->id          = input->id;
-        output->flags       = input->flags;
-        output->timecode    = input->timecode;
-        output->duration    = input->duration;
-        mOutput = output;
+        // update frame properties
+        iaf->id         = input->id;
+        iaf->flags      = input->flags;
+        iaf->timecode   = input->timecode;
+        iaf->duration   = input->duration;
+        // drop opaque
+        iaf->opaque     = Nil;
         return kMediaNoError;
     }
     
     virtual sp<MediaFrame> pull() {
-        sp<MediaFrame> frame = mOutput;
-        mOutput.clear();
+        Unit& last = mUnits.back();
+        sp<MediaFrame> frame = last.mWAF;
+        last.mWAF.clear();
         return frame;
     }
     
     virtual MediaError reset() {
         for (UInt32 i = 0; i < mUnits.size(); ++i) {
-            if (mUnits[i]->reset) {
-                mUnits[i]->reset(mInstances[i]);
+            if (mUnits[i].mUnit->reset) {
+                mUnits[i].mUnit->reset(mUnits[i].mInstance);
             }
         }
         return kMediaNoError;
     }
 };
 
-sp<MediaDevice> CreateAudioConverter(const AudioFormat& iformat, const AudioFormat& oformat, const sp<Message>& options) {
+sp<MediaDevice> CreateAudioConverter(const AudioFormat& iformat,
+                                     const AudioFormat& oformat,
+                                     const sp<Message>& options) {
     sp<AudioConverter> ac = new AudioConverter;
     if (ac->init(iformat, oformat, options) != kMediaNoError) {
         return Nil;
