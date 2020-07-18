@@ -183,22 +183,22 @@ endif()
 # example/test code, NO build or install by default
 if (SDL2_FOUND)
     add_executable(mpx EXCLUDE_FROM_ALL mpx_main.cpp)
-    target_link_libraries(mpx ${PROJECT_NAME}_shared)
+    target_link_libraries(mpx ${PROJECT_NAME}_static ABE_static)
     target_link_libraries(mpx ${SDL2_LIBRARY})
 
     add_executable(color EXCLUDE_FROM_ALL cc_main.cpp)
-    target_link_libraries(color ${PROJECT_NAME}_shared)
+    target_link_libraries(color ${PROJECT_NAME}_static ABE_static)
     target_link_libraries(color ${SDL2_LIBRARY})
 endif()
 
 add_executable(files EXCLUDE_FROM_ALL file_main.cpp)
-target_link_libraries(files ${PROJECT_NAME}_shared)
+target_link_libraries(files ${PROJECT_NAME}_static ABE_static)
 
 add_executable(codec EXCLUDE_FROM_ALL codec_main.cpp)
-target_link_libraries(codec ${PROJECT_NAME}_shared)
+target_link_libraries(codec ${PROJECT_NAME}_static ABE_static)
 
 add_executable(matroska EXCLUDE_FROM_ALL matroska_main.cpp)
-target_link_libraries(matroska ${PROJECT_NAME}_shared)
+target_link_libraries(matroska ${PROJECT_NAME}_static ABE_static)
 
 add_executable(crc EXCLUDE_FROM_ALL crc_main.cpp)
 target_link_libraries(crc ${PROJECT_NAME}_static ABE_static)
@@ -208,5 +208,12 @@ target_link_libraries(crc ${PROJECT_NAME}_static ABE_static)
 # note: unittest won't work until libraries installed
 include_directories(${gtest_SOURCE_DIR}/include)
 add_executable (${PROJECT_NAME}_unittest EXCLUDE_FROM_ALL test.cpp)
-target_link_libraries(${PROJECT_NAME}_unittest ${PROJECT_NAME}_shared)
+target_link_libraries(${PROJECT_NAME}_unittest ${PROJECT_NAME}_static ABE_static)
 target_link_libraries(${PROJECT_NAME}_unittest gtest gtest_main)
+
+add_custom_target(${PROJECT_NAME}_test ALL
+    DEPENDS ${PROJECT_NAME}_unittest
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    COMMAND echo unittest
+    COMMAND ${BASH} ${PROJECT_NAME}_unittest ${CMAKE_CURRENT_SOURCE_DIR}
+    )

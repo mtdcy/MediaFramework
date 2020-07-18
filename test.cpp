@@ -101,7 +101,7 @@ void testMediaTime() {
     ASSERT_TRUE(time.useconds() == Time::MicroSeconds(500000LL));
     
     // seconds()
-    ASSERT_TRUE(time.seconds() == Time::Seconds(0.5f));
+    ASSERT_TRUE(time.seconds() == 0.5f);
 }
 
 void testClock() {
@@ -136,6 +136,7 @@ void testClock() {
     ASSERT_EQ(master->get(), 500);
     ASSERT_EQ(slave->get(), 500);
     
+    master->start();
     master->update(1000);
     Timer().sleep(Time::MicroSeconds(1));
     ASSERT_GT(clock->get(), 1000);
