@@ -33,6 +33,7 @@
 
 #define LOG_TAG "MediaTest"
 #include <MediaFramework/MediaFramework.h>
+#include "algo/CRC.h"
 
 #include <gtest/gtest.h>
 
@@ -53,6 +54,30 @@ struct MyTest : public ::testing::Test {
     virtual void TearDown() {
     }
 };
+
+void testCRC() {
+    // https://crccalc.com/
+    // http://www.sunshine2k.de/coding/javascript/crc/crc_js.html
+    const Char * data = "1234567890abcdefgh";
+    
+    ASSERT_EQ(GenCRC(kCRC8SMBUS, data, 18), 0x06);
+    ASSERT_EQ(GenCRC(kCRC8ITU, data, 18), 0x53);
+    ASSERT_EQ(GenCRC(kCRC8EBU, data, 18), 0x33);
+    
+    ASSERT_EQ(GenCRC(kCRC16IBM, data, 18), 0x233B);
+    ASSERT_EQ(GenCRC(kCRC16UMTS, data, 18), 0xF173);
+    
+    ASSERT_EQ(GenCRC(kCRC16KERMIT, data, 18), 0xECD9);
+    ASSERT_EQ(GenCRC(kCRC16A, data, 18), 0xC8B6);
+    ASSERT_EQ(GenCRC(kCRC16B, data, 18), 0xC684);
+    
+    ASSERT_EQ(GenCRC(kCRC32ISO, data, 18), 0x83826287);
+    ASSERT_EQ(GenCRC(kCRC32BZIP2, data, 18), 0x18F81443);
+    ASSERT_EQ(GenCRC(kCRC32MPEG2, data, 18), 0xE707EBBC);
+    ASSERT_EQ(GenCRC(kCRC32POSIX, data, 18), 0x55F4335A);
+    
+    ASSERT_EQ(GenCRC(kCRC32C, data, 18), 0xE92F8E88);
+}
 
 void testMediaTime() {
     MediaTime time = 0;
@@ -129,6 +154,7 @@ void testClock() {
 
 TEST_ENTRY(testMediaTime);
 TEST_ENTRY(testClock);
+TEST_ENTRY(testCRC);
 
 int main(int argc, char **argv) {
     testing::InitGoogleTest(&argc, argv);

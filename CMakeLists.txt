@@ -35,6 +35,8 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 # target source 
 set (SOURCE_FILES
+    # algo 
+    MediaFramework/algo/CRC.cpp 
     # basic 
     MediaFramework/MediaFrame.cpp
     MediaFramework/MediaDevice.cpp
@@ -197,6 +199,9 @@ target_link_libraries(codec ${PROJECT_NAME}_shared)
 
 add_executable(matroska EXCLUDE_FROM_ALL matroska_main.cpp)
 target_link_libraries(matroska ${PROJECT_NAME}_shared)
+
+add_executable(crc EXCLUDE_FROM_ALL crc_main.cpp)
+target_link_libraries(crc ${PROJECT_NAME}_static ABE_static)
 
 #------------------------------------------------------------------------------#
 # unit test 
