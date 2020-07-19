@@ -53,6 +53,8 @@ set (SOURCE_FILES
     MediaFramework/mpeg4/Mp4File.cpp
     MediaFramework/matroska/EBML.cpp
     MediaFramework/matroska/MatroskaFile.cpp
+    MediaFramework/flac/Flac.cpp 
+    MediaFramework/flac/FlacFile.cpp 
     # output
     MediaFramework/opengl/OpenGL.cpp
     MediaFramework/openal/OpenAL.cpp

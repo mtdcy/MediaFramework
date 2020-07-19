@@ -41,6 +41,8 @@
 #include "MediaUnit.h"
 #include "primitive/clamp.h"
 
+#define NB_CHANNELS     (8)
+
 __BEGIN_DECLS
 
 static const SampleDescriptor kSampleU8 = {
@@ -248,7 +250,7 @@ static MediaError downmix_init(MediaUnitContext ref,
 
 // downmix to stereo, reference:
 // 1. https://trac.ffmpeg.org/wiki/AudioChannelManipulation#a5.1stereo
-// 2.
+// 2. https://www2.iis.fraunhofer.de/AAC/multichannel.html
 template <typename FROM, typename TO>
 static MediaError downmix_process(MediaUnitContext ref,
                                   const MediaBufferList * input,
@@ -258,20 +260,20 @@ static MediaError downmix_process(MediaUnitContext ref,
         ERROR("bad MediaBufferList");
         return kMediaErrorBadParameters;
     }
-    FROM * iPlanes[8];
-    TO * oPlanes[2];
+    FROM * ips[NB_CHANNELS];
+    TO * ops[2];
     
     for (UInt32 i = 0; i < input->count; ++i) {
-        iPlanes[i] = (FROM *)input->buffers[i].data;
+        ips[i] = (FROM *)input->buffers[i].data;
     }
     for (UInt32 i = 0; i < output->count; ++i) {
-        oPlanes[i] = (TO *)output->buffers[i].data;
+        ops[i] = (TO *)output->buffers[i].data;
     }
 
     if (downmix->iaf.channels >= 6) {
         for (UInt32 i = 0; i < input->buffers[0].size / sizeof(FROM); ++i) {
-            oPlanes[0][i] = expr<FROM, TO>()(iPlanes[0][i] + 0.707 * iPlanes[2][i] + 0.707 + iPlanes[4][i] + iPlanes[3][i]);
-            oPlanes[1][i] = expr<FROM, TO>()(iPlanes[i][i] + 0.707 * iPlanes[2][i] + 0.707 + iPlanes[5][i] + iPlanes[3][i]);
+            ops[0][i] = expr<FROM, TO>()(ips[0][i] + 0.707 * ips[2][i] + 0.707 + ips[4][i] + ips[3][i]);
+            ops[1][i] = expr<FROM, TO>()(ips[1][i] + 0.707 * ips[2][i] + 0.707 + ips[5][i] + ips[3][i]);
         }
     } else {
         FATAL("FIXME");
@@ -337,7 +339,6 @@ template <typename FROM, typename TO> struct resample1<FROM, TO, Float64> {
     }
 };
 
-#define NB_CHANNELS     (8)
 // default resampler: linear interpolation
 template <typename TYPE, typename COEFFS_TYPE>
 struct ResamplerContext : public SharedObject {
@@ -887,7 +888,7 @@ struct AudioConverter : public MediaDevice {
         if (osd->planar == False) {
             Unit unit;
             unit.mOAF = audio;
-            unit.mOAF.format = isd->similar; // planar -> packed
+            unit.mOAF.format = osd->format; // planar -> packed
             unit.mUnit = AudioUnitNew(kInterleavers, audio, unit.mOAF, unit.mInstance);
             if (unit.mUnit == Nil) {
                 ERROR("create interleaver failed.");
@@ -919,6 +920,17 @@ struct AudioConverter : public MediaDevice {
         return kMediaErrorNotSupported;
     }
     
+    struct MyMediaBufferList : public MediaBufferList {
+        MediaBuffer __buffers[NB_CHANNELS]; // placeholder
+        MyMediaBufferList() { }
+        MyMediaBufferList(const MediaBufferList& mbl) {
+            count = mbl.count;
+            for (UInt32 i = 0; i < mbl.count; ++i) {
+                buffers[i] = mbl.buffers[i];
+            }
+        }
+    };
+    
     virtual MediaError push(const sp<MediaFrame>& input) {
         if (input.isNil()) return kMediaNoError;
         
@@ -926,9 +938,14 @@ struct AudioConverter : public MediaDevice {
         for (UInt32 i = 0; i < mUnits.size(); ++i) {
             Unit& unit = mUnits[i];
             
+            // when doing inplace process, we have to use buffer list with different layout.
+            MyMediaBufferList obl;
             if (unit.mUnit->flags & kMediaUnitProcessInplace) {
-                // in-place process, using same input/output frame.
+                // inplace process, using same input/output frame.
                 unit.mWAF = iaf;
+                // with a different output buffer list layout.
+                obl = unit.mWAF->planes;
+                obl.count = unit.mOAF.channels;
                 // need to update audio properties later.
             } else {
                 // update audio samples
@@ -947,9 +964,10 @@ struct AudioConverter : public MediaDevice {
                     unit.mOAF.samples = samples;
                     unit.mWAF = MediaFrame::Create(unit.mOAF);
                 }
+                obl = unit.mWAF->planes;
             }
             
-            MediaError st = unit.mUnit->process(unit.mInstance, &iaf->planes, &unit.mWAF->planes);
+            MediaError st = unit.mUnit->process(unit.mInstance, &iaf->planes, &obl);
             if (st != kMediaNoError) {
                 ERROR("%s: process failed", unit.mUnit->name);
                 return st;
@@ -957,6 +975,11 @@ struct AudioConverter : public MediaDevice {
             
             // update working frame audio properties
             unit.mWAF->audio = unit.mOAF;
+            // fix buffer list properties
+            unit.mWAF->planes.count = obl.count;
+            for (UInt32 i = 0; i < obl.count; ++i) {
+                unit.mWAF->planes.buffers[i].size = obl.buffers[i].size;
+            }
             // fix audio samples
             unit.mWAF->audio.samples = (unit.mWAF->planes.buffers[0].size) / GetSampleFormatBytes(unit.mWAF->format);
             

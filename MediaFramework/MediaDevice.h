@@ -274,7 +274,7 @@ class API_EXPORT MediaDevice : public SharedObject {
         virtual MediaError      reset()                     = 0;
 
     protected:
-        MediaDevice() : SharedObject() { }
+        MediaDevice(UInt32 id = FOURCC('?mdv')) : SharedObject(id) { }
 
         OBJECT_TAIL(MediaDevice);
 };

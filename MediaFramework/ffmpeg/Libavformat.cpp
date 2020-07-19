@@ -263,6 +263,7 @@ static sp<AVFormatObject> openInput(const sp<ABuffer>& buffer, Bool find_stream_
 
 // TODO: we perfer packet in dts order, reorder if out of order
 struct AVMediaFrame : public MediaFrame {
+    MediaBuffer __buffer;   // placeholder
     AVPacket *  pkt;
     
     AVMediaFrame(sp<AVStreamObject>& st, AVPacket * ref) : MediaFrame() {

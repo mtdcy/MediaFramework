@@ -139,7 +139,7 @@ sp<MediaDevice> CreateMp3File(const sp<ABuffer>&);
 sp<MediaDevice> CreateMp4File(const sp<ABuffer>&);
 sp<MediaDevice> CreateMatroskaFile(const sp<ABuffer>&);
 sp<MediaDevice> CreateWaveFile(const sp<ABuffer>&);
-
+sp<MediaDevice> CreateFlacFile(const sp<ABuffer>&);
 #ifdef __APPLE__
 sp<MediaDevice> CreateVideoToolboxDecoder(const sp<Message>& formats, const sp<Message>& options);
 sp<MediaDevice> CreateAudioToolbox(const sp<Message>& formats, const sp<Message>& options);
@@ -174,6 +174,8 @@ sp<MediaDevice> MediaDevice::create(const sp<Message>& formats, const sp<Message
         // skip id3v2, id3v2 is bad for file format detection
         if (ID3::SkipID3v2(head) == kMediaNoError) {
             head = head->readBytes(head->size());
+        } else {
+            head->resetBytes();
         }
         
         format = GetFormat(head);
