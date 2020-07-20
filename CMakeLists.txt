@@ -92,23 +92,11 @@ if (APPLE)
     list (APPEND SOURCE_FILES MediaFramework/mac/AudioToolbox.cpp)
 endif()
 
-# build a static library for local unit test
-if (XCODE)
-    add_library (${PROJECT_NAME}_static STATIC EXCLUDE_FROM_ALL ${SOURCE_FILES} ${PUBLIC_HEADERS})
-    add_library (${PROJECT_NAME}_shared SHARED ${SOURCE_FILES} ${PUBLIC_HEADERS})
-else()
-    # using OBJECT library to avoid build twice for shared & static libraries
-    add_library (${PROJECT_NAME}_objects OBJECT ${SOURCE_FILES} ${PUBLIC_HEADERS})
-    add_library (${PROJECT_NAME}_static STATIC EXCLUDE_FROM_ALL $<TARGET_OBJECTS:${PROJECT_NAME}_objects>)
-    add_library (${PROJECT_NAME}_shared SHARED $<TARGET_OBJECTS:${PROJECT_NAME}_objects>)
-endif()
-
-set_target_properties (${PROJECT_NAME}_shared PROPERTIES OUTPUT_NAME ${PROJECT_NAME})
-set_target_properties (${PROJECT_NAME}_static PROPERTIES OUTPUT_NAME ${PROJECT_NAME})
-
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/ABE)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/MediaFramework)
+
+add_libcxx_library (${PROJECT_NAME} ${SOURCE_FILES} ${PUBLIC_HEADERS})
 
 list (APPEND LIBS z ABE_shared)
 
@@ -152,13 +140,9 @@ target_link_libraries(${PROJECT_NAME}_shared ${LIBS})
 # install targets and headers
 if (XCODE)
     set_target_properties(${PROJECT_NAME}_shared PROPERTIES
-        FRAMEWORK TRUE
-        FRAMEWORK_VERSION   A
         VERSION             "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}"
         SOVERSION           "${VERSION_MAJOR}.${VERSION_MINOR}"
         PUBLIC_HEADER       "${PUBLIC_HEADERS}"
-        MACOSX_FRAMEWORK_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/Info.plist
-        XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "Mac Developer"
         )
 
     install (TARGETS ${PROJECT_NAME}_shared FRAMEWORK DESTINATION .)
@@ -184,25 +168,25 @@ endif()
 #------------------------------------------------------------------------------#
 # example/test code, NO build or install by default
 if (SDL2_FOUND)
-    add_executable(mpx EXCLUDE_FROM_ALL mpx_main.cpp)
+    add_libcxx_executable(mpx EXCLUDE_FROM_ALL mpx_main.cpp)
     target_link_libraries(mpx ${PROJECT_NAME}_static ABE_static)
     target_link_libraries(mpx ${SDL2_LIBRARY})
 
-    add_executable(color EXCLUDE_FROM_ALL cc_main.cpp)
+    add_libcxx_executable(color EXCLUDE_FROM_ALL cc_main.cpp)
     target_link_libraries(color ${PROJECT_NAME}_static ABE_static)
     target_link_libraries(color ${SDL2_LIBRARY})
 endif()
 
-add_executable(files EXCLUDE_FROM_ALL file_main.cpp)
+add_libcxx_executable(files EXCLUDE_FROM_ALL file_main.cpp)
 target_link_libraries(files ${PROJECT_NAME}_static ABE_static)
 
-add_executable(codec EXCLUDE_FROM_ALL codec_main.cpp)
+add_libcxx_executable(codec EXCLUDE_FROM_ALL codec_main.cpp)
 target_link_libraries(codec ${PROJECT_NAME}_static ABE_static)
 
-add_executable(matroska EXCLUDE_FROM_ALL matroska_main.cpp)
+add_libcxx_executable(matroska EXCLUDE_FROM_ALL matroska_main.cpp)
 target_link_libraries(matroska ${PROJECT_NAME}_static ABE_static)
 
-add_executable(crc EXCLUDE_FROM_ALL crc_main.cpp)
+add_libcxx_executable(crc EXCLUDE_FROM_ALL crc_main.cpp)
 target_link_libraries(crc ${PROJECT_NAME}_static ABE_static)
 
 #------------------------------------------------------------------------------#
